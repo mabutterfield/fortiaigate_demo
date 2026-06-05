@@ -1,6 +1,6 @@
 # Local .terraform directories
 .terraform/
-LocalNotes.MD
+
 
 # .tfstate files
 *.tfstate
