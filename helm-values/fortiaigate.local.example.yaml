@@ -1,0 +1,30 @@
+global:
+  licenses:
+    local-gpu-node: files/licenses/License1.lic
+
+fortiaigate:
+  image:
+    repository: registry.example.com/fortiaigate
+    tag: build0024
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  gpu:
+    enabled: true
+  updateStrategy: Recreate
+  env:
+    logLevel: INFO
+
+storage:
+  size: 16Gi
+  storageClass: local-path
+  accessModes:
+    - ReadWriteOnce
+  existingPvName: ""
+
+ingress:
+  className: nginx
+  host: ""
+  annotations: {}
+
+tls:
+  enabled: true

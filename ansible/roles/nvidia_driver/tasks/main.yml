@@ -1,0 +1,23 @@
+---
+- name: Install NVIDIA driver packages
+  ansible.builtin.apt:
+    name:
+      - "{{ nvidia_driver_package }}"
+      - "{{ nvidia_utils_package }}"
+    state: present
+  register: nvidia_driver_install
+  # - ansible.builtin.debug:
+  #     var: nvidia_driver_install
+
+- name: Reboot after NVIDIA driver install when packages changed
+  ansible.builtin.reboot:
+    msg: "Rebooting after NVIDIA driver package changes"
+    reboot_timeout: 900
+  when: nvidia_driver_install.changed
+
+- name: Validate nvidia-smi
+  ansible.builtin.command: nvidia-smi
+  changed_when: false
+  register: nvidia_smi_result
+  # - ansible.builtin.debug:
+  #     var: nvidia_smi_result.stdout_lines

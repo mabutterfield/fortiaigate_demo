@@ -1,0 +1,11 @@
+aws_profile               = "AdministratorAccess-123456789012"
+aws_region                = "us-east-1"
+name_prefix               = "fortiaigate-demo"
+ssh_key_name              = "my-existing-keypair"
+ssh_private_key_file      = "~/.ssh/my-existing-keypair.pem"
+allowed_ingress_cidr      = "203.0.113.10/32"
+iam_instance_profile_name = "existing-ec2-ecr-readonly-profile"
+
+# g4dn.xlarge is the default for cheaper infrastructure smoke tests.
+# Use g4dn.4xlarge for full FortiAIGate validation.
+instance_type = "g4dn.xlarge"

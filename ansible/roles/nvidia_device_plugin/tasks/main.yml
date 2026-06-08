@@ -1,0 +1,81 @@
+---
+- name: Create NVIDIA RuntimeClass
+  ansible.builtin.shell: |
+    cat <<'EOF' | /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -f -
+    apiVersion: node.k8s.io/v1
+    kind: RuntimeClass
+    metadata:
+      name: {{ nvidia_runtime_class_name }}
+    handler: nvidia
+    EOF
+  args:
+    executable: /bin/bash
+  register: nvidia_runtime_class_apply
+  changed_when: "'created' in nvidia_runtime_class_apply.stdout or 'configured' in nvidia_runtime_class_apply.stdout"
+  # - ansible.builtin.debug:
+  #     var: nvidia_runtime_class_apply.stdout_lines
+
+- name: Install NVIDIA device plugin
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - apply
+      - -f
+      - "{{ nvidia_device_plugin_manifest_url }}"
+  register: nvidia_device_plugin_apply
+  changed_when: "'created' in nvidia_device_plugin_apply.stdout or 'configured' in nvidia_device_plugin_apply.stdout"
+  # - ansible.builtin.debug:
+  #     var: nvidia_device_plugin_apply.stdout_lines
+
+- name: Check NVIDIA device plugin RuntimeClass
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - daemonset
+      - nvidia-device-plugin-daemonset
+      - -n
+      - kube-system
+      - -o
+      - jsonpath={.spec.template.spec.runtimeClassName}
+  changed_when: false
+  register: nvidia_device_plugin_runtime_class
+  # - ansible.builtin.debug:
+  #     var: nvidia_device_plugin_runtime_class.stdout
+
+- name: Patch NVIDIA device plugin to use NVIDIA RuntimeClass
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - patch
+      - daemonset
+      - nvidia-device-plugin-daemonset
+      - -n
+      - kube-system
+      - --type=merge
+      - -p={"spec":{"template":{"spec":{"runtimeClassName":"{{ nvidia_runtime_class_name }}"}}}}
+  register: nvidia_device_plugin_patch
+  changed_when: "'patched' in nvidia_device_plugin_patch.stdout"
+  when: nvidia_device_plugin_runtime_class.stdout != nvidia_runtime_class_name
+  # - ansible.builtin.debug:
+  #     var: nvidia_device_plugin_patch.stdout_lines
+
+- name: Wait for node GPU allocatable resource
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o json \
+      | jq -e '.items[].status.allocatable["nvidia.com/gpu"] | tonumber >= 1'
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: nvidia_gpu_allocatable
+  retries: 30
+  delay: 10
+  until: nvidia_gpu_allocatable.rc == 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_gpu_allocatable.stdout_lines

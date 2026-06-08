@@ -1,0 +1,62 @@
+---
+- name: Install NVIDIA container toolkit repository
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+      | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+      > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  args:
+    executable: /bin/bash
+    creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  register: nvidia_container_toolkit_repo
+
+- name: Refresh apt cache after NVIDIA toolkit repository
+  ansible.builtin.apt:
+    update_cache: true
+  when: nvidia_container_toolkit_repo.changed
+
+- name: Install NVIDIA container runtime packages
+  ansible.builtin.apt:
+    name:
+      - nvidia-container-toolkit
+      # CHANGED: nvidia-container-runtime is no longer required separately on Ubuntu 24.04;
+      # nvidia-container-toolkit provides nvidia-ctk and the runtime integration used below.
+      # - nvidia-container-runtime
+    state: present
+    update_cache: true
+
+- name: Check NVIDIA containerd runtime snippet
+  ansible.builtin.stat:
+    path: /etc/containerd/conf.d/99-nvidia.toml
+  register: nvidia_containerd_runtime_snippet
+  # - ansible.builtin.debug:
+  #     var: nvidia_containerd_runtime_snippet
+
+- name: Configure k3s containerd NVIDIA runtime
+  ansible.builtin.command:
+    argv:
+      - nvidia-ctk
+      - runtime
+      - configure
+      - --runtime=containerd
+      - --config=/var/lib/rancher/k3s/agent/etc/containerd/config.toml
+  register: nvidia_ctk_configure
+  changed_when: "'Wrote updated config' in nvidia_ctk_configure.stderr or 'Wrote updated config' in nvidia_ctk_configure.stdout"
+  when: not nvidia_containerd_runtime_snippet.stat.exists
+  # - ansible.builtin.debug:
+  #     var: nvidia_ctk_configure.stdout_lines
+
+- name: Restart k3s after NVIDIA runtime configuration
+  ansible.builtin.systemd:
+    name: k3s
+    state: restarted
+  when: nvidia_ctk_configure.changed | default(false)
+
+- name: Validate configured NVIDIA runtime
+  ansible.builtin.command: grep -R "nvidia" /var/lib/rancher/k3s/agent/etc/containerd
+  changed_when: false
+  register: nvidia_runtime_grep
+  # - ansible.builtin.debug:
+  #     var: nvidia_runtime_grep.stdout_lines

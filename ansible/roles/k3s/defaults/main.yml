@@ -1,0 +1,7 @@
+---
+k3s_use_instance_store: true
+k3s_instance_store_device: ""
+k3s_instance_store_mount: /mnt/local
+k3s_data_dir: /var/lib/rancher
+k3s_local_storage_dir: "{{ k3s_data_dir }}/k3s/storage"
+k3s_system_rollout_timeout: 180s

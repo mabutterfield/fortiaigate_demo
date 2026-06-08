@@ -1,0 +1,11 @@
+---
+- name: Report FortiAIGate deployment status
+  hosts: fortiaigate
+  become: true
+  pre_tasks:
+    - name: Load local group vars when present
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ query('first_found', {'files': ['all.yml'], 'paths': [playbook_dir + '/../group_vars'], 'skip': True}) }}"
+  roles:
+    - fortiaigate_status

@@ -1,0 +1,25 @@
+---
+fortiaigate_namespace: fortiaigate
+fortiaigate_release_name: fortiaigate
+fortiaigate_chart_path: "{{ playbook_dir }}/../../../FAIG_helm/fortiaigate"
+fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
+fortiaigate_values_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-values.yaml"
+fortiaigate_post_renderer_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-post-render.py"
+fortiaigate_chart_archive_local_path: /tmp/fortiaigate-chart.tgz
+fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
+fortiaigate_helm_wait: false
+fortiaigate_helm_timeout: 20m
+fortiaigate_image_pull_policy: IfNotPresent
+fortiaigate_image_pull_secrets: []
+fortiaigate_update_strategy: Recreate
+fortiaigate_storage_class: local-path
+fortiaigate_storage_size: 16Gi
+fortiaigate_storage_access_modes:
+  - ReadWriteOnce
+fortiaigate_ingress_class: nginx
+fortiaigate_ingress_host: ""
+fortiaigate_tls_enabled: true
+fortiaigate_license_files: []
+fortiaigate_licenses: {}
+aws_region: us-east-1
+ecr_pull_secret_name: ecr-secret

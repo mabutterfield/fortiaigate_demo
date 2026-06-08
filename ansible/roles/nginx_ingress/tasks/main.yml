@@ -1,0 +1,84 @@
+---
+- name: Install Helm when missing
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! command -v helm >/dev/null 2>&1; then
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+
+- name: Add ingress-nginx Helm repository
+  ansible.builtin.command:
+    argv:
+      - helm
+      - repo
+      - add
+      - ingress-nginx
+      - https://kubernetes.github.io/ingress-nginx
+  register: nginx_repo_add
+  changed_when: "'has been added' in nginx_repo_add.stdout"
+  failed_when:
+    - nginx_repo_add.rc != 0
+    - "'already exists' not in nginx_repo_add.stderr"
+  # - ansible.builtin.debug:
+  #     var: nginx_repo_add.stdout_lines
+
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  changed_when: false
+
+- name: Install nginx ingress controller
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - ingress-nginx
+      - ingress-nginx/ingress-nginx
+      - --namespace
+      - ingress-nginx
+      - --create-namespace
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: nginx_install
+  changed_when: "'deployed' in nginx_install.stdout or 'upgraded' in nginx_install.stdout"
+  when: nginx_ingress_chart_version | length == 0
+  # - ansible.builtin.debug:
+  #     var: nginx_install.stdout_lines
+
+- name: Install pinned nginx ingress controller
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - ingress-nginx
+      - ingress-nginx/ingress-nginx
+      - --namespace
+      - ingress-nginx
+      - --create-namespace
+      - --version
+      - "{{ nginx_ingress_chart_version }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: nginx_pinned_install
+  changed_when: "'deployed' in nginx_pinned_install.stdout or 'upgraded' in nginx_pinned_install.stdout"
+  when: nginx_ingress_chart_version | length > 0
+  # - ansible.builtin.debug:
+  #     var: nginx_pinned_install.stdout_lines
+
+- name: Wait for nginx ingress controller rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - deployment/ingress-nginx-controller
+      - -n
+      - ingress-nginx
+      - --timeout=180s
+  changed_when: false

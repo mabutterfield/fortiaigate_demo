@@ -1,0 +1,67 @@
+---
+# Copy this file to group_vars/all.yml and fill in environment-specific values.
+ansible_user: ubuntu
+aws_region: us-east-1
+ecr_account_id: "123456789012"
+ecr_registry: "{{ ecr_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
+ecr_repo_prefix: fortiaigate
+ecr_pull_secret_name: ecr-secret
+
+fortiaigate_namespace: fortiaigate
+fortiaigate_release_name: fortiaigate
+fortiaigate_chart_path: /Users/mbutterfield/code/FAIG/FAIG_helm/fortiaigate
+fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
+fortiaigate_values_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-values.yaml"
+fortiaigate_post_renderer_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-post-render.py"
+fortiaigate_chart_archive_local_path: /tmp/fortiaigate-chart.tgz
+fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
+fortiaigate_helm_wait: false
+fortiaigate_helm_timeout: 20m
+
+fortiaigate_image_repository: "{{ ecr_registry }}/{{ ecr_repo_prefix }}"
+fortiaigate_image_tag: build0024
+fortiaigate_image_pull_policy: IfNotPresent
+fortiaigate_image_pull_secrets:
+  - name: "{{ ecr_pull_secret_name }}"
+
+# The stock chart uses fixed Triton image tags. Keep these unless intentionally changed.
+fortiaigate_triton_model_image_tag: "0.1.4"
+fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
+
+fortiaigate_update_strategy: Recreate
+fortiaigate_storage_class: local-path
+fortiaigate_storage_size: 16Gi
+fortiaigate_storage_access_modes:
+  - ReadWriteOnce
+
+fortiaigate_ingress_class: nginx
+fortiaigate_ingress_host: ""
+fortiaigate_tls_enabled: true
+
+# Licenses are copied from this non-repo path into a temporary chart copy.
+license_source_dir: /Users/mbutterfield/licenses/fortiaigate
+# Single-node default: Ansible maps the first file to the discovered Kubernetes node name.
+fortiaigate_license_files:
+  - License1.lic
+
+# Optional explicit mapping. Replace the key with the Kubernetes node name.
+# fortiaigate_licenses:
+#   ip-10-42-1-10.ec2.internal: License1.lic
+fortiaigate_licenses: {}
+
+ollama_base_url: http://10.11.41.201:11434/v1
+ollama_model: llama3.2:1b
+
+nvidia_driver_package: nvidia-driver-595-server
+nvidia_utils_package: nvidia-utils-595-server
+nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
+nvidia_runtime_class_name: nvidia
+
+k3s_use_instance_store: true
+k3s_instance_store_device: ""
+k3s_instance_store_mount: /mnt/local
+k3s_data_dir: /var/lib/rancher
+k3s_local_storage_dir: "{{ k3s_data_dir }}/k3s/storage"
+k3s_system_rollout_timeout: 180s
+
+nginx_ingress_chart_version: ""

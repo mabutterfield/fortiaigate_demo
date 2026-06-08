@@ -1,0 +1,3 @@
+---
+nvidia_driver_package: nvidia-driver-595-server
+nvidia_utils_package: nvidia-utils-595-server

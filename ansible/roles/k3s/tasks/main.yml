@@ -1,0 +1,207 @@
+---
+- name: Detect AWS instance-store NVMe device
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if [ -n "{{ k3s_instance_store_device }}" ]; then
+      echo "{{ k3s_instance_store_device }}"
+    else
+      nvme list | awk '/Instance Storage/ {print $1; exit}'
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: k3s_instance_store_device_detect
+  # - ansible.builtin.debug:
+  #     var: k3s_instance_store_device_detect.stdout
+  when: k3s_use_instance_store
+
+- name: Set effective AWS instance-store device
+  ansible.builtin.set_fact:
+    k3s_effective_instance_store_device: "{{ k3s_instance_store_device_detect.stdout | trim }}"
+  when: k3s_use_instance_store
+  # - ansible.builtin.debug:
+  #     var: k3s_effective_instance_store_device
+
+- name: Check for AWS instance-store NVMe device
+  ansible.builtin.stat:
+    path: "{{ k3s_effective_instance_store_device }}"
+  register: k3s_instance_store_device_stat
+  # - ansible.builtin.debug:
+  #     var: k3s_instance_store_device_stat
+  when:
+    - k3s_use_instance_store
+    - k3s_effective_instance_store_device | length > 0
+
+- name: Prepare instance-store filesystem for k3s data
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! blkid {{ k3s_effective_instance_store_device }} >/dev/null 2>&1; then
+      mkfs.xfs -f {{ k3s_effective_instance_store_device }}
+    fi
+    mkdir -p {{ k3s_instance_store_mount }}/rancher
+    UUID="$(blkid -s UUID -o value {{ k3s_effective_instance_store_device }})"
+    test -n "${UUID}"
+    if ! grep -q "${UUID}" /etc/fstab; then
+      echo "UUID=${UUID} {{ k3s_instance_store_mount }} xfs defaults,nofail 0 2" >> /etc/fstab
+    fi
+    if ! mountpoint -q {{ k3s_instance_store_mount }}; then
+      mkdir -p {{ k3s_instance_store_mount }}
+      mount {{ k3s_instance_store_mount }}
+    fi
+    mkdir -p {{ k3s_instance_store_mount }}/rancher
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - k3s_use_instance_store
+    - k3s_effective_instance_store_device | length > 0
+    - k3s_instance_store_device_stat.stat.exists
+
+- name: Link k3s data directory to instance-store path
+  ansible.builtin.file:
+    src: "{{ k3s_instance_store_mount }}/rancher"
+    dest: "{{ k3s_data_dir }}"
+    state: link
+    force: true
+  when:
+    - k3s_use_instance_store
+    - k3s_effective_instance_store_device | length > 0
+    - k3s_instance_store_device_stat.stat.exists
+
+- name: Ensure k3s local-path storage directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_local_storage_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install k3s with Traefik disabled
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if systemctl is-active --quiet k3s; then
+      exit 0
+    fi
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik" sh -
+    echo k3s_installed
+  args:
+    executable: /bin/bash
+  register: k3s_install
+  changed_when: "'k3s_installed' in k3s_install.stdout"
+  # - ansible.builtin.debug:
+  #     var: k3s_install.stdout_lines
+
+- name: Wait for k3s node readiness
+  ansible.builtin.command: /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
+  changed_when: false
+  register: k3s_nodes
+  retries: 30
+  delay: 10
+  until: "' Ready ' in k3s_nodes.stdout or ' Ready' in k3s_nodes.stdout"
+  # - ansible.builtin.debug:
+  #     var: k3s_nodes.stdout_lines
+
+- name: Allow SSH user passwordless sudo
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ ansible_user }}-nopasswd"
+    content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: ansible_user is defined and ansible_user != "root"
+
+- name: Ensure SSH user's kubeconfig directory exists
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+  when: ansible_user is defined and ansible_user != "root"
+
+- name: Install SSH user's kubeconfig
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  when: ansible_user is defined and ansible_user != "root"
+
+- name: Export KUBECONFIG for SSH user's login shell
+  ansible.builtin.lineinfile:
+    path: "/home/{{ ansible_user }}/{{ item }}"
+    line: "export KUBECONFIG=$HOME/.kube/config"
+    create: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+  loop:
+    - .profile
+    - .bashrc
+  when: ansible_user is defined and ansible_user != "root"
+
+- name: Validate SSH user's kubectl access
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -H
+      - -u
+      - "{{ ansible_user }}"
+      - bash
+      - -lc
+      - kubectl get nodes
+  environment:
+    HOME: "/home/{{ ansible_user }}"
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  changed_when: false
+  register: k3s_user_kubectl
+  when: ansible_user is defined and ansible_user != "root"
+  # - ansible.builtin.debug:
+  #     var: k3s_user_kubectl.stdout_lines
+
+- name: Wait for k3s system deployments to be created
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ item }}"
+      - -n
+      - kube-system
+  loop:
+    - coredns
+    - local-path-provisioner
+    - metrics-server
+  changed_when: false
+  register: k3s_system_deployment_exists
+  retries: 40
+  delay: 5
+  until: k3s_system_deployment_exists.rc == 0
+  # - ansible.builtin.debug:
+  #     var: k3s_system_deployment_exists.results
+
+- name: Wait for k3s system deployments rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - "deployment/{{ item }}"
+      - -n
+      - kube-system
+      - "--timeout={{ k3s_system_rollout_timeout }}"
+  loop:
+    - coredns
+    - local-path-provisioner
+    - metrics-server
+  changed_when: false
+  register: k3s_system_rollout
+  # - ansible.builtin.debug:
+  #     var: k3s_system_rollout.results

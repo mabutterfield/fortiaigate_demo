@@ -1,0 +1,279 @@
+---
+- name: Validate FortiAIGate chart path is configured
+  ansible.builtin.assert:
+    that:
+      - fortiaigate_chart_path is defined
+      - fortiaigate_chart_path | length > 0
+      - fortiaigate_chart_path is directory
+    fail_msg: "Set fortiaigate_chart_path in ansible/group_vars/all.yml to a readable local chart directory."
+
+- name: Validate FortiAIGate deployment variables
+  ansible.builtin.assert:
+    that:
+      - ecr_registry is defined
+      - ecr_registry | length > 0
+      - fortiaigate_image_repository is defined
+      - fortiaigate_image_repository | length > 0
+      - fortiaigate_image_tag is defined
+      - fortiaigate_image_tag | length > 0
+      - fortiaigate_licenses is mapping
+      - fortiaigate_license_files is sequence
+      - fortiaigate_licenses | length > 0 or fortiaigate_license_files | length > 0
+    fail_msg: "Set ecr_registry, fortiaigate_image_repository, fortiaigate_image_tag, and either fortiaigate_licenses or fortiaigate_license_files in ansible/group_vars/all.yml."
+
+- name: Discover Kubernetes node names for license mapping
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - nodes
+      - -o
+      - jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}
+  changed_when: false
+  register: fortiaigate_k8s_nodes
+  when: fortiaigate_licenses | length == 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_k8s_nodes.stdout_lines
+
+- name: Build single-node FortiAIGate license mapping
+  ansible.builtin.set_fact:
+    fortiaigate_effective_licenses: "{{ {fortiaigate_k8s_nodes.stdout_lines[0]: fortiaigate_license_files[0]} }}"
+  when: fortiaigate_licenses | length == 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_effective_licenses
+
+- name: Use explicit FortiAIGate license mapping
+  ansible.builtin.set_fact:
+    fortiaigate_effective_licenses: "{{ fortiaigate_licenses }}"
+  when: fortiaigate_licenses | length > 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_effective_licenses
+
+- name: Validate effective FortiAIGate license mapping
+  ansible.builtin.assert:
+    that:
+      - fortiaigate_effective_licenses is mapping
+      - fortiaigate_effective_licenses | length > 0
+    fail_msg: "Could not build a FortiAIGate node-to-license mapping."
+
+- name: Check existing FortiAIGate Helm release status
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ fortiaigate_release_name }}"
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_existing_helm_status
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_existing_helm_status.stdout_lines
+
+- name: Fail when FortiAIGate Helm release has a pending operation
+  ansible.builtin.fail:
+    msg: "Helm release {{ fortiaigate_release_name }} is pending. Run: helm uninstall {{ fortiaigate_release_name }} -n {{ fortiaigate_namespace }}"
+  when: "'STATUS: pending-' in fortiaigate_existing_helm_status.stdout"
+
+- name: Create FortiAIGate namespace
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - create
+      - namespace
+      - "{{ fortiaigate_namespace }}"
+  register: fortiaigate_namespace_create
+  changed_when: "'created' in fortiaigate_namespace_create.stdout"
+  failed_when:
+    - fortiaigate_namespace_create.rc != 0
+    - "'AlreadyExists' not in fortiaigate_namespace_create.stderr"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_namespace_create.stdout_lines
+
+- name: Create or refresh ECR pull secret
+  ansible.builtin.shell: |
+    set -euo pipefail
+    TOKEN="$(aws ecr get-login-password --region {{ aws_region }})"
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ fortiaigate_namespace }} \
+      create secret docker-registry {{ ecr_pull_secret_name }} \
+      --docker-server={{ ecr_registry }} \
+      --docker-username=AWS \
+      --docker-password="${TOKEN}" \
+      --dry-run=client -o yaml \
+      | /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -f -
+  args:
+    executable: /bin/bash
+  no_log: true
+  register: ecr_secret_apply
+  changed_when: "'created' in ecr_secret_apply.stdout or 'configured' in ecr_secret_apply.stdout"
+  # - ansible.builtin.debug:
+  #     var: ecr_secret_apply.stdout_lines
+
+- name: Remove previous remote FortiAIGate chart staging directory
+  ansible.builtin.file:
+    path: "{{ fortiaigate_chart_remote_root }}"
+    state: absent
+
+- name: Create remote FortiAIGate working directory
+  ansible.builtin.file:
+    path: "{{ fortiaigate_chart_remote_root | dirname }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+
+- name: Create local FortiAIGate chart archive
+  ansible.builtin.command:
+    argv:
+      - tar
+      - -czf
+      - "{{ fortiaigate_chart_archive_local_path }}"
+      - -C
+      - "{{ fortiaigate_chart_path }}"
+      - .
+  delegate_to: localhost
+  become: false
+  changed_when: true
+
+- name: Create remote FortiAIGate chart staging directory
+  ansible.builtin.file:
+    path: "{{ fortiaigate_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+
+- name: Copy FortiAIGate chart archive to remote host
+  ansible.builtin.copy:
+    src: "{{ fortiaigate_chart_archive_local_path }}"
+    dest: "{{ fortiaigate_chart_archive_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+
+- name: Extract FortiAIGate chart archive on remote host
+  ansible.builtin.unarchive:
+    src: "{{ fortiaigate_chart_archive_remote_path }}"
+    dest: "{{ fortiaigate_chart_remote_root }}"
+    remote_src: true
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+
+- name: Ensure staged license directory exists
+  ansible.builtin.file:
+    path: "{{ fortiaigate_chart_remote_root }}/files/licenses"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0700"
+
+- name: Stage FortiAIGate license files into temporary chart copy
+  ansible.builtin.copy:
+    src: "{{ license_source_dir }}/{{ item.value }}"
+    dest: "{{ fortiaigate_chart_remote_root }}/files/licenses/{{ item.value | basename }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  loop: "{{ fortiaigate_effective_licenses | dict2items }}"
+  no_log: true
+
+- name: Render FortiAIGate values file
+  ansible.builtin.template:
+    src: fortiaigate-values.yaml.j2
+    dest: "{{ fortiaigate_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  no_log: true
+
+- name: Install FortiAIGate Helm post-renderer
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../k8s-overlays/bin/post_render_fortiaigate.py"
+    dest: "{{ fortiaigate_post_renderer_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+
+- name: Render FortiAIGate manifests for inspection
+  ansible.builtin.command:
+    argv:
+      - helm
+      - template
+      - "{{ fortiaigate_release_name }}"
+      - "{{ fortiaigate_chart_remote_root }}"
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - -f
+      - "{{ fortiaigate_values_remote_path }}"
+      - --post-renderer
+      - "{{ fortiaigate_post_renderer_remote_path }}"
+  environment:
+    FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
+    FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
+    FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+  register: fortiaigate_rendered
+  changed_when: false
+  no_log: true
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_rendered.stdout_lines
+
+- name: Submit FortiAIGate Helm chart
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ fortiaigate_release_name }}"
+      - "{{ fortiaigate_chart_remote_root }}"
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - -f
+      - "{{ fortiaigate_values_remote_path }}"
+      - --post-renderer
+      - "{{ fortiaigate_post_renderer_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  environment:
+    FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
+    FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
+    FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+  register: fortiaigate_helm_deploy
+  changed_when: "'deployed' in fortiaigate_helm_deploy.stdout or 'upgraded' in fortiaigate_helm_deploy.stdout"
+  when: not fortiaigate_helm_wait
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_helm_deploy.stdout_lines
+
+- name: Deploy and wait for FortiAIGate Helm chart
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ fortiaigate_release_name }}"
+      - "{{ fortiaigate_chart_remote_root }}"
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - -f
+      - "{{ fortiaigate_values_remote_path }}"
+      - --post-renderer
+      - "{{ fortiaigate_post_renderer_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - --wait
+      - --timeout
+      - "{{ fortiaigate_helm_timeout }}"
+  environment:
+    FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
+    FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
+    FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+  register: fortiaigate_helm_wait_deploy
+  changed_when: "'deployed' in fortiaigate_helm_wait_deploy.stdout or 'upgraded' in fortiaigate_helm_wait_deploy.stdout"
+  when: fortiaigate_helm_wait
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_helm_wait_deploy.stdout_lines

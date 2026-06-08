@@ -1,0 +1,42 @@
+global:
+  licenses:
+    ip-10-42-1-10.ec2.internal: files/licenses/License1.lic
+
+fortiaigate:
+  image:
+    repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fortiaigate
+    tag: build0024
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - name: ecr-secret
+  gpu:
+    enabled: true
+  updateStrategy: Recreate
+  env:
+    logLevel: INFO
+
+storage:
+  size: 16Gi
+  storageClass: local-path
+  accessModes:
+    - ReadWriteOnce
+  existingPvName: ""
+
+ingress:
+  className: nginx
+  host: ""
+  annotations: {}
+
+tls:
+  enabled: true
+
+triton:
+  resources:
+    requests:
+      cpu: "2"
+      memory: 16Gi
+    limits:
+      cpu: "8"
+      memory: 48Gi
+      gpuCount: 1
+      gpuResourceName: nvidia.com/gpu

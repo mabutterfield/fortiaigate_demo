@@ -1,7 +1,6 @@
 # Local .terraform directories
 .terraform/
 
-
 # .tfstate files
 *.tfstate
 *.tfstate.*
@@ -43,3 +42,31 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+# Terraform variable and plan artifacts
+*.auto.tfvars
+*.tfplan
+tfplan
+
+# Ansible local, generated, and secret-bearing files
+*.retry
+ansible/group_vars/all.yml
+ansible/host_vars/*.yml
+!ansible/group_vars/*.example.yml
+!ansible/host_vars/*.example.yml
+ansible/inventory/aws.generated.ini
+
+# Kubernetes and deployment generated files
+*.kubeconfig
+kubeconfig
+rendered.yaml
+rendered*.yaml
+
+# Secrets and private material
+*.pem
+*.key
+*.crt
+*.p12
+*.lic
+.env
+.env.*

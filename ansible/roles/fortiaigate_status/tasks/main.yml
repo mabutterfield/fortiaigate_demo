@@ -1,0 +1,102 @@
+---
+- name: Get FortiAIGate Helm release status
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ fortiaigate_release_name }}"
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_helm
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_helm.stdout_lines
+
+- name: Show FortiAIGate Helm release status
+  ansible.builtin.debug:
+    var: fortiaigate_status_helm.stdout_lines
+
+- name: Get FortiAIGate pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - -o
+      - wide
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_pods
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_pods.stdout_lines
+
+- name: Show FortiAIGate pods
+  ansible.builtin.debug:
+    var: fortiaigate_status_pods.stdout_lines
+
+- name: Get FortiAIGate persistent volume claims
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pvc
+      - -n
+      - "{{ fortiaigate_namespace }}"
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_pvc
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_pvc.stdout_lines
+
+- name: Show FortiAIGate persistent volume claims
+  ansible.builtin.debug:
+    var: fortiaigate_status_pvc.stdout_lines
+
+- name: Get FortiAIGate ingress
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - ingress
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - -o
+      - wide
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_ingress
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_ingress.stdout_lines
+
+- name: Show FortiAIGate ingress
+  ansible.builtin.debug:
+    var: fortiaigate_status_ingress.stdout_lines
+
+- name: Get recent FortiAIGate events
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get events \
+      -n {{ fortiaigate_namespace }} \
+      --sort-by=.lastTimestamp \
+      | tail -80
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_events
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_events.stdout_lines
+
+- name: Show recent FortiAIGate events
+  ansible.builtin.debug:
+    var: fortiaigate_status_events.stdout_lines

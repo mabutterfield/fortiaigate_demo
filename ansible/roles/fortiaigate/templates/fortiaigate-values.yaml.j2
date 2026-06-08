@@ -1,0 +1,56 @@
+global:
+{% if fortiaigate_effective_licenses | length > 0 %}
+  licenses:
+{% for node_name, license_file in fortiaigate_effective_licenses.items() %}
+    {{ node_name | to_json }}: {{ ("files/licenses/" ~ (license_file | basename)) | to_json }}
+{% endfor %}
+{% else %}
+  licenses: {}
+{% endif %}
+
+fortiaigate:
+  image:
+    repository: {{ fortiaigate_image_repository | to_json }}
+    tag: {{ fortiaigate_image_tag | to_json }}
+    pullPolicy: {{ fortiaigate_image_pull_policy | to_json }}
+{% if fortiaigate_image_pull_secrets | length > 0 %}
+    pullSecrets:
+{% for pull_secret in fortiaigate_image_pull_secrets %}
+      - name: {{ pull_secret.name | to_json }}
+{% endfor %}
+{% else %}
+    pullSecrets: []
+{% endif %}
+  gpu:
+    enabled: true
+  updateStrategy: {{ fortiaigate_update_strategy | to_json }}
+  env:
+    logLevel: "INFO"
+
+storage:
+  size: {{ fortiaigate_storage_size | to_json }}
+  storageClass: {{ fortiaigate_storage_class | to_json }}
+  accessModes:
+{% for access_mode in fortiaigate_storage_access_modes %}
+    - {{ access_mode | to_json }}
+{% endfor %}
+  existingPvName: ""
+
+ingress:
+  className: {{ fortiaigate_ingress_class | to_json }}
+  host: {{ fortiaigate_ingress_host | to_json }}
+  annotations: {}
+
+tls:
+  enabled: {{ fortiaigate_tls_enabled | bool | lower }}
+
+triton:
+  resources:
+    requests:
+      cpu: "2"
+      memory: 16Gi
+    limits:
+      cpu: "8"
+      memory: 48Gi
+      gpuCount: 1
+      gpuResourceName: "nvidia.com/gpu"

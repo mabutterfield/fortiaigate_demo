@@ -1,0 +1,111 @@
+---
+- name: Validate k3s node readiness
+  ansible.builtin.command: /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
+  changed_when: false
+  register: validate_nodes
+  # - ansible.builtin.debug:
+  #     var: validate_nodes.stdout_lines
+
+- name: Validate Traefik is not installed
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ! /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -A \
+      | grep -Ei 'traefik|svclb-traefik'
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: validate_no_traefik
+  # - ansible.builtin.debug:
+  #     var: validate_no_traefik.stdout_lines
+
+- name: Validate nginx ingress is installed
+  ansible.builtin.command: /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -n ingress-nginx
+  changed_when: false
+  register: validate_nginx
+  # - ansible.builtin.debug:
+  #     var: validate_nginx.stdout_lines
+
+- name: Validate GPU allocatable resource
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o json \
+      | jq -e '.items[].status.allocatable["nvidia.com/gpu"] | tonumber >= 1'
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: validate_gpu
+  # - ansible.builtin.debug:
+  #     var: validate_gpu.stdout_lines
+
+- name: Validate NVIDIA RuntimeClass
+  ansible.builtin.command: /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get runtimeclass nvidia
+  changed_when: false
+  register: validate_runtime_class
+  # - ansible.builtin.debug:
+  #     var: validate_runtime_class.stdout_lines
+
+- name: Validate Triton pod sees NVIDIA devices
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - deploy/triton-server
+      - --
+      - sh
+      - -c
+      - "ls -l /dev/nvidia*"
+  changed_when: false
+  register: validate_triton_devices
+  # - ansible.builtin.debug:
+  #     var: validate_triton_devices.stdout_lines
+
+- name: Validate Triton /dev/shm size
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - deploy/triton-server
+      - --
+      - df
+      - -h
+      - /dev/shm
+  changed_when: false
+  register: validate_triton_shm
+  # - ansible.builtin.debug:
+  #     var: validate_triton_shm.stdout_lines
+
+- name: Validate FortiAIGate UI HTTP response
+  ansible.builtin.command: curl -k -sS -o /dev/null -w "%{http_code}" https://127.0.0.1/
+  changed_when: false
+  register: validate_ui
+  failed_when: validate_ui.stdout | int < 200 or validate_ui.stdout | int >= 500
+  # - ansible.builtin.debug:
+  #     var: validate_ui.stdout
+
+- name: Validate FortiAIGate API login behavior
+  ansible.builtin.command: curl -k -sS -o /dev/null -w "%{http_code}" https://127.0.0.1/api/login
+  changed_when: false
+  register: validate_api_login
+  failed_when: validate_api_login.stdout | int < 200 or validate_api_login.stdout | int >= 500
+  # - ansible.builtin.debug:
+  #     var: validate_api_login.stdout
+
+- name: Validate FortiAIGate Ollama forwarding after manual provider setup
+  ansible.builtin.shell: |
+    curl -k -sS https://127.0.0.1/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -d '{"model":"{{ ollama_model }}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: validate_ollama_forward
+  when: ollama_model is defined
+  # - ansible.builtin.debug:
+  #     var: validate_ollama_forward.stdout_lines
