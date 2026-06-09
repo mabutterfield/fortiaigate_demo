@@ -76,13 +76,45 @@
     group: root
     mode: "0700"
 
-- name: Install k3s with Traefik disabled
+- name: Check configured k3s resolver file
+  ansible.builtin.stat:
+    path: "{{ k3s_resolv_conf }}"
+  register: k3s_resolv_conf_stat
+  when: k3s_resolv_conf | length > 0
+  # - ansible.builtin.debug:
+  #     var: k3s_resolv_conf_stat
+
+- name: Ensure k3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install k3s server config
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      disable:
+        - traefik
+      {% if k3s_resolv_conf | length > 0 and k3s_resolv_conf_stat.stat.exists | default(false) %}
+      resolv-conf: {{ k3s_resolv_conf }}
+      {% endif %}
+  register: k3s_server_config
+  # - ansible.builtin.debug:
+  #     var: k3s_server_config
+
+- name: Install k3s
   ansible.builtin.shell: |
     set -euo pipefail
     if systemctl is-active --quiet k3s; then
       exit 0
     fi
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik" sh -
+    curl -sfL https://get.k3s.io | sh -
     echo k3s_installed
   args:
     executable: /bin/bash
@@ -90,6 +122,14 @@
   changed_when: "'k3s_installed' in k3s_install.stdout"
   # - ansible.builtin.debug:
   #     var: k3s_install.stdout_lines
+
+- name: Restart k3s after server config update
+  ansible.builtin.service:
+    name: k3s
+    state: restarted
+  when:
+    - k3s_server_config.changed
+    - not k3s_install.changed
 
 - name: Wait for k3s node readiness
   ansible.builtin.command: /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
@@ -100,6 +140,29 @@
   until: "' Ready ' in k3s_nodes.stdout or ' Ready' in k3s_nodes.stdout"
   # - ansible.builtin.debug:
   #     var: k3s_nodes.stdout_lines
+
+- name: Restart k3s system deployments after resolver config update
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - restart
+      - "deployment/{{ item }}"
+      - -n
+      - kube-system
+  loop:
+    - coredns
+    - local-path-provisioner
+    - metrics-server
+  changed_when: true
+  register: k3s_resolver_config_deployment_restart
+  when:
+    - k3s_server_config.changed
+    - not k3s_install.changed
+  # - ansible.builtin.debug:
+  #     var: k3s_resolver_config_deployment_restart.results
 
 - name: Allow SSH user passwordless sudo
   ansible.builtin.copy:
@@ -202,6 +265,30 @@
   until: k3s_system_deployment_exists.rc == 0
   # - ansible.builtin.debug:
   #     var: k3s_system_deployment_exists.results
+
+- name: Restart k3s system deployments after flannel is ready
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - restart
+      - "deployment/{{ item }}"
+      - -n
+      - kube-system
+  loop:
+    - coredns
+    - local-path-provisioner
+    - metrics-server
+  changed_when: true
+  register: k3s_post_flannel_deployment_restart
+  when:
+    - k3s_restart_system_deployments_after_flannel
+    - k3s_wait_for_flannel
+    - k3s_install.changed
+  # - ansible.builtin.debug:
+  #     var: k3s_post_flannel_deployment_restart.results
 
 - name: Wait for core k3s system deployments rollout
   ansible.builtin.command:

@@ -11,11 +11,4 @@ iam_instance_profile_name = "existing-ec2-ecr-readonly-profile"
 instance_type = "g4dn.xlarge"
 
 
-# g4dn uses Nvidia Tesla T4 GPU.  Works, but not officially supported
-# g4dn.xlarge   4CPU/16GB <- smoke test linux install
-# g4dn.2xlarge  8CPU/32GB <- meets min requirements
-# g4dn.4xlarge  16CPU/64GB <- still below min requirements
-# g4dn.8xlarge  32CPU/128GB <- meets recommend CPU/RAM
-
-
 

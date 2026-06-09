@@ -10,3 +10,5 @@ k3s_flannel_wait_retries: 60
 k3s_flannel_wait_delay: 5
 k3s_flannel_settle_seconds: 10
 k3s_metrics_server_rollout_timeout: 300s
+k3s_resolv_conf: /run/systemd/resolve/resolv.conf
+k3s_restart_system_deployments_after_flannel: true

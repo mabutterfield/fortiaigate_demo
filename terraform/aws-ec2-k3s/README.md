@@ -27,21 +27,87 @@ terraform apply
 The generated inventory is written to `../../ansible/inventory/aws.generated.ini`.
 
 ---
-## Instance Sizing notes
+# AWS GPU Instance Candidates for FortiAIGate Testing
+FortiAIGate  minimum configuration:
+- 4 CPU cores
+- 725 GB RAM
+- 250 GB NVMe SSD
+- Single GPU w/24 GB VRAM
+- Supported NVIDIA GPU: L4, A10, A100
 
-| Instance | GPU Type | GPU Count | GPU VRAM | vCPU | RAM | Local NVMe | Approx $/hr us-east-1 | Notes |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| g4dn.xlarge | NVIDIA T4 | 1 | 16 GiB | 4 | 16 GiB | 125 GB | $0.5260 | Smoke test only; works but T4 not officially supported |
-| g4dn.2xlarge | NVIDIA T4 | 1 | 16 GiB | 8 | 32 GiB | 225 GB | $0.7520 | Meets minimum CPU/RAM; still T4 |
-| g4dn.4xlarge | NVIDIA T4 | 1 | 16 GiB | 16 | 64 GiB | 225 GB | $1.2040 | Better lab baseline; still below recommended RAM if recommendation is 128 GB |
-| g4dn.8xlarge | NVIDIA T4 | 1 | 16 GiB | 32 | 128 GiB | 900 GB | $2.1760 | Meets recommended CPU/RAM; still only 1 T4 |
-| g6.xlarge | NVIDIA L4 | 1 | 24 GiB | 4 | 16 GiB | 250 GB | $0.8048 | Cheapest L4 smoke test; CPU/RAM too small |
-| g6.2xlarge | NVIDIA L4 | 1 | 24 GiB | 8 | 32 GiB | 450 GB | $0.9776 | L4 minimum-ish test |
-| g6.4xlarge | NVIDIA L4 | 1 | 24 GiB | 16 | 64 GiB | 600 GB | $1.3230 | Strong candidate: supported-class GPU, sane cost |
-| g6.8xlarge | NVIDIA L4 | 1 | 24 GiB | 32 | 128 GiB | 900 GB | $2.0144 | Recommended CPU/RAM with L4; cheaper than g4dn.8xlarge |
-| g5.xlarge | NVIDIA A10G | 1 | 24 GiB | 4 | 16 GiB | 250 GB | $1.0060 | A10-class smoke test; CPU/RAM too small |
-| g5.2xlarge | NVIDIA A10G | 1 | 24 GiB | 8 | 32 GiB | 450 GB | ~$1.2120 | A10 minimum-ish test |
-| g5.4xlarge | NVIDIA A10G | 1 | 24 GiB | 16 | 64 GiB | 600 GB | $1.6240 | Good comparison against g6.4xlarge |
-| g5.8xlarge | NVIDIA A10G | 1 | 24 GiB | 32 | 128 GiB | 900 GB | $2.4480 | Recommended CPU/RAM with A10G |
-| p4d.24xlarge | NVIDIA A100 | 8 | 8 × 40 GiB | 96 | 1152 GiB | 8 TB | $21.9576 | Massive overkill; useful as official A100 comparison |
-| p4de.24xlarge | NVIDIA A100 | 8 | 8 × 80 GiB | 96 | 1152 GiB | 8 TB | $27.4471 | Even more overkill; A100 80 GB comparison |
+
+FortiAIGate recommended configuration:
+- 24 CPU cores
+- 70 GB RAM
+- 250 GB NVMe SSD
+- Single GPU w/24 GB VRAM
+- Supported NVIDIA GPU: L4, A10, A100
+
+
+---
+
+## Cheapest / Not Officially Supported (T4)
+
+| Instance | GPU | GPU Count | Total GPU RAM | vCPU | RAM | Local NVMe | Approx Cost (us-east-1) | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| g4dn.xlarge | Tesla T4 | 1 | 16 GB | 4 | 16 GB | 125 GB | ~$0.53/hr | Kubernetes smoke test only |
+| g4dn.2xlarge | Tesla T4 | 1 | 16 GB | 8 | 32 GB | 225 GB | ~$0.75/hr | Meets minimum deployment requirements |
+| g4dn.8xlarge | Tesla T4 | 1 | 16 GB | 32 | 128 GB | 900 GB | ~$2.18/hr | Meets recommended CPU/RAM/NVMe; T4 not officially supported |
+
+---
+
+## Reasonable Lab Environment
+
+| Instance | GPU | GPU Count | Total GPU RAM | vCPU | RAM | Local NVMe | Approx Cost (us-east-1) | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| g6.4xlarge | NVIDIA L4 | 1 | 24 GB | 16 | 64 GB | 600 GB | ~$1.32/hr | Strong general-purpose lab candidate |
+
+---
+
+## Recommended / Production-Like Testing
+
+| Instance | GPU | GPU Count | Total GPU RAM | vCPU | RAM | Local NVMe | Approx Cost (us-east-1) | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| g5.8xlarge | NVIDIA A10G | 1 | 24 GB | 32 | 128 GB | 900 GB | ~$2.45/hr | Meets recommended CPU/RAM  |
+| g5.12xlarge | NVIDIA A10G | 4 | 96 GB | 48 | 192 GB | 3,800 GB | ~$5.67/hr | Meets all recommendations including multi-GPU |
+| g6.8xlarge | NVIDIA L4 | 1 | 24 GB | 32 | 128 GB | 900 GB | ~$2.01/hr | Meets recommended CPU/RAM; likely best value |
+| g6.12xlarge | NVIDIA L4 | 4 | 96 GB | 48 | 192 GB | 3,800 GB | ~$4.03/hr | Meets all recommendations including multi-GPU |
+
+---
+
+## Interesting Tests
+
+These are not currently prioritized, but are compelling due to large amounts of VRAM per GPU.
+
+| Instance | GPU | GPU Count | Total GPU RAM | vCPU | RAM | Local NVMe | Approx Cost (us-east-1) | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| g6e.4xlarge | NVIDIA L40S | 1 | 48 GB | 16 | 128 GB | 940 GB | ~$3.80/hr | Large single-GPU VRAM; may eliminate need for multi-GPU |
+| g7e.4xlarge | NVIDIA RTX PRO 6000 Blackwell | 1 | 96 GB | 16 | 128 GB | 940 GB | ~$4.00/hr | Extremely large VRAM; future-looking evaluation target |
+
+---
+
+## Summary
+
+### Automation test only
+
+text g4dn.xlarge 
+
+### Lowest Cost Functional Deployment
+
+text g4dn.2xlarge 
+
+### Best Value T4 Deployment
+
+text g4dn.8xlarge 
+
+### Best Overall Lab Candidate
+
+text g6.4xlarge 
+
+### Best Production-Like Single GPU Candidate
+
+text g6.8xlarge 
+
+### Best Production-Like Multi-GPU Candidate
+
+text g6.12xlarge 
