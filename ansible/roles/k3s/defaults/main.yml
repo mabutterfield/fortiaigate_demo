@@ -5,3 +5,8 @@ k3s_instance_store_mount: /mnt/local
 k3s_data_dir: /var/lib/rancher
 k3s_local_storage_dir: "{{ k3s_data_dir }}/k3s/storage"
 k3s_system_rollout_timeout: 180s
+k3s_wait_for_flannel: true
+k3s_flannel_wait_retries: 60
+k3s_flannel_wait_delay: 5
+k3s_flannel_settle_seconds: 10
+k3s_metrics_server_rollout_timeout: 300s

@@ -162,6 +162,24 @@
   # - ansible.builtin.debug:
   #     var: k3s_user_kubectl.stdout_lines
 
+- name: Wait for flannel subnet environment
+  ansible.builtin.stat:
+    path: /run/flannel/subnet.env
+  register: k3s_flannel_subnet_env
+  retries: "{{ k3s_flannel_wait_retries }}"
+  delay: "{{ k3s_flannel_wait_delay }}"
+  until: k3s_flannel_subnet_env.stat.exists
+  when: k3s_wait_for_flannel
+  # - ansible.builtin.debug:
+  #     var: k3s_flannel_subnet_env
+
+- name: Let flannel settle before add-on rollout checks
+  ansible.builtin.pause:
+    seconds: "{{ k3s_flannel_settle_seconds | int }}"
+  when:
+    - k3s_wait_for_flannel
+    - k3s_flannel_settle_seconds | int > 0
+
 - name: Wait for k3s system deployments to be created
   ansible.builtin.command:
     argv:
@@ -185,7 +203,7 @@
   # - ansible.builtin.debug:
   #     var: k3s_system_deployment_exists.results
 
-- name: Wait for k3s system deployments rollout
+- name: Wait for core k3s system deployments rollout
   ansible.builtin.command:
     argv:
       - /usr/local/bin/kubectl
@@ -200,8 +218,62 @@
   loop:
     - coredns
     - local-path-provisioner
-    - metrics-server
   changed_when: false
   register: k3s_system_rollout
+  # metrics-server is handled separately because it can start before flannel service
+  # networking is ready, then crash-loop until the pod is recreated.
   # - ansible.builtin.debug:
   #     var: k3s_system_rollout.results
+
+- name: Check metrics-server rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - deployment/metrics-server
+      - -n
+      - kube-system
+      - "--timeout={{ k3s_metrics_server_rollout_timeout }}"
+  changed_when: false
+  failed_when: false
+  register: k3s_metrics_server_rollout_initial
+  # - ansible.builtin.debug:
+  #     var: k3s_metrics_server_rollout_initial
+
+- name: Restart metrics-server after early flannel race
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - restart
+      - deployment/metrics-server
+      - -n
+      - kube-system
+  changed_when: true
+  register: k3s_metrics_server_restart
+  when: k3s_metrics_server_rollout_initial.rc != 0
+  # - ansible.builtin.debug:
+  #     var: k3s_metrics_server_restart.stdout_lines
+
+- name: Wait for metrics-server rollout after restart
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - deployment/metrics-server
+      - -n
+      - kube-system
+      - "--timeout={{ k3s_metrics_server_rollout_timeout }}"
+  changed_when: false
+  register: k3s_metrics_server_rollout_retry
+  when: k3s_metrics_server_rollout_initial.rc != 0
+  # - ansible.builtin.debug:
+  #     var: k3s_metrics_server_rollout_retry

@@ -55,7 +55,7 @@ By default, `deploy_fortiaigate.yml` submits the Helm release and returns after 
 
 After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`, and `KUBECONFIG=$HOME/.kube/config` in `.profile` and `.bashrc`, so interactive `kubectl` works without `sudo` on the k3s host. Open a new SSH session or run `source ~/.profile` after bootstrap.
 
-Bootstrap waits for k3s system deployments (`coredns`, `local-path-provisioner`, and `metrics-server`) before continuing. On a fresh host this can take a few minutes while images pull and flannel/API networking settles. Tune `k3s_system_rollout_timeout` in `ansible/group_vars/all.yml` if needed.
+Bootstrap waits for flannel and the core k3s system deployments before continuing. `metrics-server` is checked separately because it can start before flannel service networking is ready on a fresh host; if the first rollout check fails, Ansible restarts the deployment once and waits again. Tune `k3s_system_rollout_timeout` and `k3s_metrics_server_rollout_timeout` in `ansible/group_vars/all.yml` if needed.
 
 The deploy playbook stages the chart on the remote host under `/home/<user>/tmp/fortiaigate-chart` by default. The staged chart, rendered values file, and post-renderer are left there after deployment for review.
 
