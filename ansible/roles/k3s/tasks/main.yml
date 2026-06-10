@@ -76,6 +76,49 @@
     group: root
     mode: "0700"
 
+- name: Validate k3s network ranges do not overlap
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -c
+      - |
+        import ipaddress
+        import sys
+
+        raw = [
+            ("k3s_cluster_cidr", sys.argv[1]),
+            ("k3s_service_cidr", sys.argv[2]),
+            ("aws_vpc_cidr", sys.argv[3]),
+            ("aws_public_subnet_cidr", sys.argv[4]),
+        ]
+        nets = [(name, ipaddress.ip_network(cidr, strict=False)) for name, cidr in raw if cidr]
+        cluster_dns = ipaddress.ip_address(sys.argv[5])
+        service_net = dict(nets)["k3s_service_cidr"]
+        failures = []
+
+        if cluster_dns not in service_net:
+            failures.append(f"k3s_cluster_dns {cluster_dns} is not inside k3s_service_cidr {service_net}")
+
+        for left_index, (left_name, left_net) in enumerate(nets):
+            for right_name, right_net in nets[left_index + 1:]:
+                if left_name.startswith("aws_") and right_name.startswith("aws_"):
+                    continue
+                if left_net.overlaps(right_net):
+                    failures.append(f"{left_name} {left_net} overlaps {right_name} {right_net}")
+
+        if failures:
+            print("; ".join(failures))
+            sys.exit(1)
+      - "{{ k3s_cluster_cidr }}"
+      - "{{ k3s_service_cidr }}"
+      - "{{ aws_vpc_cidr | default('') }}"
+      - "{{ aws_public_subnet_cidr | default('') }}"
+      - "{{ k3s_cluster_dns }}"
+  changed_when: false
+  register: k3s_network_validation
+  # - ansible.builtin.debug:
+  #     var: k3s_network_validation.stdout_lines
+
 - name: Check configured k3s resolver file
   ansible.builtin.stat:
     path: "{{ k3s_resolv_conf }}"
@@ -101,6 +144,9 @@
     content: |
       disable:
         - traefik
+      cluster-cidr: {{ k3s_cluster_cidr }}
+      service-cidr: {{ k3s_service_cidr }}
+      cluster-dns: {{ k3s_cluster_dns }}
       {% if k3s_resolv_conf | length > 0 and k3s_resolv_conf_stat.stat.exists | default(false) %}
       resolv-conf: {{ k3s_resolv_conf }}
       {% endif %}

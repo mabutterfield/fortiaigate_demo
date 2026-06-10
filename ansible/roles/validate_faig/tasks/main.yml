@@ -99,13 +99,13 @@
 
 - name: Validate FortiAIGate Ollama forwarding after manual provider setup
   ansible.builtin.shell: |
-    curl -k -sS https://127.0.0.1/v1/chat/completions \
+    curl -k -f -sS https://127.0.0.1/v1/chat/completions \
       -H "Content-Type: application/json" \
       -d '{"model":"{{ ollama_model }}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
   args:
     executable: /bin/bash
   changed_when: false
   register: validate_ollama_forward
-  when: ollama_model is defined
+  when: validate_faig_ollama_forwarding | bool
   # - ansible.builtin.debug:
   #     var: validate_ollama_forward.stdout_lines

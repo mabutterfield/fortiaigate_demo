@@ -20,6 +20,10 @@ fortiaigate_storage_access_modes:
 fortiaigate_ingress_class: nginx
 fortiaigate_ingress_host: ""
 fortiaigate_tls_enabled: true
+fortiaigate_ssl_cert_path: "{{ fortiaigate_chart_path }}/files/certificate/dflt.crt"
+fortiaigate_ssl_key_path: "{{ fortiaigate_chart_path }}/files/certificate/dflt.key"
+fortiaigate_ssl_cert_chart_path: files/certificate/dflt.crt
+fortiaigate_ssl_key_chart_path: files/certificate/dflt.key
 fortiaigate_license_files: []
 fortiaigate_licenses: {}
 aws_region: us-east-1

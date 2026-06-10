@@ -13,4 +13,4 @@
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/all.yml')
         }}
   roles:
-    - validation
+    - validate_faig

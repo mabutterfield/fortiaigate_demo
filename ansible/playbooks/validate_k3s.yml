@@ -1,5 +1,5 @@
 ---
-- name: Bootstrap Ubuntu GPU host for k3s
+- name: Validate k3s cluster sanity
   hosts: fortiaigate
   become: true
   pre_tasks:
@@ -8,9 +8,4 @@
         file: "{{ item }}"
       loop: "{{ query('first_found', {'files': ['all.yml'], 'paths': [playbook_dir + '/../group_vars'], 'skip': True}) }}"
   roles:
-    - common
-    - nvidia_driver
-    - k3s
-    - nvidia_container_runtime
-    - nvidia_device_plugin
     - validate_k3s

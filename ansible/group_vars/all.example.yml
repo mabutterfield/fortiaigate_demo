@@ -57,6 +57,13 @@ fortiaigate_storage_access_modes:
 fortiaigate_ingress_class: nginx
 fortiaigate_ingress_host: ""
 fortiaigate_tls_enabled: true
+fortiaigate_ssl_cert_path: "{{ fortiaigate_chart_path }}/files/certificate/dflt.crt"
+fortiaigate_ssl_key_path: "{{ fortiaigate_chart_path }}/files/certificate/dflt.key"
+fortiaigate_ssl_cert_chart_path: files/certificate/dflt.crt
+fortiaigate_ssl_key_chart_path: files/certificate/dflt.key
+# To use private TLS material, keep it outside this repo and override:
+# fortiaigate_ssl_cert_path: /path/to/private/tls.crt
+# fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 # Licenses are copied from this non-repo path into a temporary chart copy.
 license_source_dir: /path/to/licenses/fortiaigate
@@ -71,6 +78,7 @@ fortiaigate_licenses: {}
 
 ollama_base_url: http://10.11.41.201:11434/v1
 ollama_model: llama3.2:1b
+validate_faig_ollama_forwarding: false
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server
@@ -82,6 +90,12 @@ k3s_instance_store_device: ""
 k3s_instance_store_mount: /mnt/local
 k3s_data_dir: /var/lib/rancher
 k3s_local_storage_dir: "{{ k3s_data_dir }}/k3s/storage"
+# Terraform-generated AWS inventory normally supplies aws_vpc_cidr and
+# aws_public_subnet_cidr. Keep all AWS, k3s pod, and k3s service networks
+# non-overlapping. Defaults use 10.x with second octets between 20 and 90.
+k3s_cluster_cidr: 10.60.0.0/16
+k3s_service_cidr: 10.70.0.0/16
+k3s_cluster_dns: 10.70.0.10
 k3s_system_rollout_timeout: 180s
 k3s_wait_for_flannel: true
 k3s_flannel_wait_retries: 60
@@ -90,5 +104,9 @@ k3s_flannel_settle_seconds: 10
 k3s_metrics_server_rollout_timeout: 300s
 k3s_resolv_conf: /run/systemd/resolve/resolv.conf
 k3s_restart_system_deployments_after_flannel: true
+validate_k3s_wait_timeout: 180s
+validate_k3s_dns_check_image: busybox:1.36
+validate_k3s_internal_dns_name: kubernetes.default.svc.cluster.local
+validate_k3s_external_dns_name: example.com
 
 nginx_ingress_chart_version: ""

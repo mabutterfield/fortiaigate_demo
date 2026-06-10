@@ -1,74 +1,176 @@
-# FortiAIGate Demo Foundation
+# FortiAIGate Lab Deployment
 
-This repository provisions and deploys a FortiAIGate lab on AWS EC2 with k3s, NVIDIA GPU support, nginx ingress, ECR-hosted images, and an external Ollama-compatible backend.
+Infrastructure-as-code for deploying a FortiAIGate lab on AWS GPU instances and, where practical, local Ubuntu GPU hosts.
 
-Phase 1 is intentionally scoped to AWS infrastructure plus an Ansible-driven single-node k3s deployment. Local Ubuntu 24.04 GPU hardware follows the same Ansible roles later.
+This repository provides a repeatable deployment process using:
 
-## Current Target
+- Terraform for AWS infrastructure and private ECR repositories
+- Ansible for image publishing, host bootstrap, Kubernetes setup, and deployment
+- k3s for single-node Kubernetes orchestration
+- Helm plus a post-renderer for FortiAIGate deployment
+- Amazon ECR or a local registry for FortiAIGate container images
 
-- Ubuntu 24.04 on AWS EC2
-- `g4dn.xlarge` Terraform default for infrastructure smoke tests
-- `g4dn.4xlarge` recommended for full FortiAIGate validation
-- k3s with default Traefik disabled
-- nginx ingress
-- NVIDIA driver, container runtime, RuntimeClass, and device plugin
-- k3s `local-path` storage with `ReadWriteOnce`
-- FortiAIGate Helm chart supplied from an external read-only path
-- External Ollama configured manually in FortiAIGate after install
+## Goals
+
+- Deploy FortiAIGate consistently with minimal manual steps
+- Support AWS EC2 GPU labs first, then local Ubuntu 24.04 GPU hosts
+- Keep FortiAIGate charts and release images outside this repo
+- Publish release images to private ECR with immutable tags
+- Keep secrets, licenses, kubeconfigs, and generated values out of Git
+- Preserve a path for future Ollama, Bedrock, and other provider integrations
+
+## Current Status
+
+- AWS EC2 single-node k3s deployment is implemented
+- NVIDIA driver, container runtime, RuntimeClass, and device plugin are automated
+- nginx ingress replaces the default k3s Traefik path
+- Private ECR repository creation and image publishing are implemented
+- FortiAIGate Helm deployment uses external release charts and post-render patches
+- FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
+
+## To-Do
+
+- Add a first-class local Ubuntu GPU host workflow
+- Add optional Terraform support for IAM role creation
+- Move Terraform state to a remote backend when the workflow leaves phase 1
+- Automate FortiAIGate provider setup when a supported API is identified
+- Add more deployment validation around FortiAIGate application readiness
+- Add cleanup and recovery runbooks for failed Helm releases and license resets
+
+## Repository Layout
+
+```text
+terraform/      AWS infrastructure modules
+ansible/        Image publishing, host bootstrap, deploy, status, and validation playbooks
+helm-values/    Example FortiAIGate Helm values
+k8s-overlays/   Helm post-renderer and patch notes
+docs/           Deployment, ECR, Terraform, and architecture documentation
+scripts/        Reserved for future helper scripts
+```
 
 ## Prerequisites
 
+- macOS or Linux workstation
 - AWS CLI configured for IAM Identity Center / SSO
 - Terraform
 - Ansible
+- Docker
+- Helm
+- kubectl
 - SSH key pair already present in AWS
-- Existing IAM instance profile with ECR read permission, such as a role containing `AmazonEC2ContainerRegistryReadOnly`
-- FortiAIGate Helm chart available locally
-- FortiAIGate license files available locally but outside this repo
+- Existing EC2 IAM instance profile with ECR read permissions
+- FortiAIGate release image archives outside this repo
+- FortiAIGate Helm chart extracted outside this repo
+- FortiAIGate license files outside this repo
 
-Never commit real `terraform.tfvars`, Ansible secret vars, licenses, private keys, kubeconfigs, certificates, or API tokens.
-Licenses bind to the UID of the instance, and will timeout in FDS in > 1 hour.  Suggested to have several licenses available for testing that may need redeployment.
+Never commit real `terraform.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
 
-## Workflow
+## Quick Start
+
+Authenticate to AWS:
 
 ```bash
-cd terraform/aws-ec2-k3s
-cp terraform.tfvars.example terraform.tfvars
 aws sso login --profile <profile-name>
-terraform init
-terraform apply
-
-cd ../../ansible
-cp group_vars/all.example.yml group_vars/all.yml
-ansible-playbook playbooks/bootstrap_gpu_k3s.yml
-ansible-playbook playbooks/deploy_fortiaigate.yml
-ansible-playbook playbooks/status_fortiaigate.yml
-ansible-playbook playbooks/validate.yml
 ```
 
-`terraform apply` writes `ansible/inventory/aws.generated.ini`. That generated inventory is ignored by Git.
+Create or import private ECR repositories:
+
+```bash
+cd terraform/aws-ecr
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
+Publish FortiAIGate release images:
+
+```bash
+cd ../../ansible
+cp group_vars/images.example.yml group_vars/images.yml
+ansible-playbook playbooks/publish_images.yml
+```
+
+Deploy AWS infrastructure:
+
+```bash
+cd ../terraform/aws-ec2-k3s
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
+Configure deployment variables:
+
+```bash
+cd ../../ansible
+cp group_vars/all.example.yml group_vars/all.yml
+```
+
+Set local values in `group_vars/all.yml`, especially:
+
+- AWS profile/region/account values when not supplied by generated vars
+- `fortiaigate_version`
+- `fortiaigate_chart_path`
+- license source path and license file list
+- Ollama endpoint/model if used for validation
+
+Expected chart layout:
+
+```text
+FAIG_helm/
+  8.0.0/
+    FAIG_helm_chart-V8.0.0-build0024-FORTINET.tar.gz
+    fortiaigate/
+      Chart.yaml
+  8.0.1/
+    FAIG_helm_chart-V8.0.1-build0031-FORTINET.tar.gz
+    fortiaigate/
+      Chart.yaml
+```
+
+Bootstrap k3s and deploy FortiAIGate:
+
+```bash
+ansible-playbook playbooks/bootstrap_gpu_k3s.yml
+ansible-playbook playbooks/validate_k3s.yml
+ansible-playbook playbooks/deploy_fortiaigate.yml
+ansible-playbook playbooks/status_fortiaigate.yml
+ansible-playbook playbooks/validate_faig.yml
+```
+
+The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/terraform.tfvars` before creating the host if they conflict with your environment.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/deployment-runbook.md](docs/deployment-runbook.md) | End-to-end deployment workflow |
+| [docs/ECR.md](docs/ECR.md) | ECR repository and image publishing workflow |
+| [docs/terraform.md](docs/terraform.md) | Terraform module usage and import notes |
+| [docs/aws-k3s-foundation.md](docs/aws-k3s-foundation.md) | AWS k3s architecture and implementation notes |
+| [k8s-overlays/fortiaigate/README.md](k8s-overlays/fortiaigate/README.md) | Helm post-render patch behavior |
+
+## Operating Notes
 
 Run `bootstrap_gpu_k3s.yml` before `deploy_fortiaigate.yml`. The deploy playbook expects `/etc/rancher/k3s/k3s.yaml` to exist on the target host.
 
-Before deploying FortiAIGate, fill in the ignored `ansible/group_vars/all.yml` file with the ECR registry, image tag, chart path if different from the default, and license information. For a single-node lab, set `fortiaigate_license_files`; Ansible will map the first file to the discovered Kubernetes node name. Use `fortiaigate_licenses` only when you want to provide the exact node-to-license mapping yourself.
+Bootstrap runs the same k3s sanity checks as `validate_k3s.yml` before it completes. The standalone playbook is useful after rebuilds, network changes, or manual troubleshooting.
 
-By default, `deploy_fortiaigate.yml` submits the Helm release and returns after Helm accepts the install or upgrade. It does not wait for every pod to become Ready. Use `status_fortiaigate.yml` to monitor pods, PVCs, ingress, Helm release state, and recent events. Set `fortiaigate_helm_wait: true` only when you want Helm to block until Kubernetes reports readiness.
+`terraform/aws-ec2-k3s` writes `ansible/inventory/aws.generated.ini`. `terraform/aws-ecr` writes `ansible/group_vars/ecr.generated.yml`. Both generated files are ignored by Git.
 
-After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`, and `KUBECONFIG=$HOME/.kube/config` in `.profile` and `.bashrc`, so interactive `kubectl` works without `sudo` on the k3s host. Open a new SSH session or run `source ~/.profile` after bootstrap.
+By default, `deploy_fortiaigate.yml` submits the Helm release and returns after Helm accepts the install or upgrade. It does not wait for every pod to become Ready. Use `status_fortiaigate.yml` to monitor pods, PVCs, ingress, Helm release state, and recent events.
 
-Bootstrap waits for flannel and the core k3s system deployments before continuing. `metrics-server` is checked separately because it can start before flannel service networking is ready on a fresh host; if the first rollout check fails, Ansible restarts the deployment once and waits again. Tune `k3s_system_rollout_timeout` and `k3s_metrics_server_rollout_timeout` in `ansible/group_vars/all.yml` if needed.
+After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`, and shell profile configuration so interactive `kubectl` works without `sudo` on the k3s host.
 
-The deploy playbook stages the chart on the remote host under `/home/<user>/tmp/fortiaigate-chart` by default. The staged chart, rendered values file, and post-renderer are left there after deployment for review.
+FortiAIGate licenses bind to instance identity and may require time to reset after repeated destroy/redeploy cycles. Keep licenses outside this repo and use `fortiaigate_license_files` for single-node labs unless an explicit node-to-license map is required.
 
-## External Ollama
+## Branching
 
-The Helm chart inspected for FortiAIGate 8.0.0 exposes only the upstream LLM timeout in values. It does not expose a provider bootstrap value for Ollama. For phase 1, configure the provider in the FortiAIGate UI or supported API after the deployment:
+Do not work directly on `main`. Use feature branches such as:
 
 ```text
-Provider: OpenAI-compatible
-Base URL: http://<ollama-host>:11434/v1
-Model:    llama3.2:1b
-API key:  blank or a dummy value if required
+feat/<topic>
+lab/<topic>
+bugfix/<topic>
 ```
-
-The Ansible validation variables include the same endpoint and model so the final validation can exercise `/v1/chat/completions` once the provider exists.

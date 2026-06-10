@@ -1,0 +1,209 @@
+---
+- name: Validate k3s API is reachable
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - version
+      - --client=false
+  changed_when: false
+  register: validate_k3s_api
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_api.stdout_lines
+
+- name: Wait for all k3s nodes to be Ready
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - wait
+      - --for=condition=Ready
+      - node
+      - --all
+      - "--timeout={{ validate_k3s_wait_timeout }}"
+  changed_when: false
+  register: validate_k3s_nodes_ready
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_nodes_ready.stdout_lines
+
+- name: Validate kube-system deployments are available
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - wait
+      - --for=condition=Available
+      - deployment
+      - --all
+      - -n
+      - kube-system
+      - "--timeout={{ validate_k3s_wait_timeout }}"
+  changed_when: false
+  register: validate_k3s_kube_system_deployments
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_kube_system_deployments.stdout_lines
+
+- name: Validate ingress-nginx deployments are available
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - wait
+      - --for=condition=Available
+      - deployment
+      - --all
+      - -n
+      - ingress-nginx
+      - "--timeout={{ validate_k3s_wait_timeout }}"
+  changed_when: false
+  register: validate_k3s_ingress_deployments
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_ingress_deployments.stdout_lines
+
+- name: Validate NVIDIA device plugin DaemonSet is available
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - rollout
+      - status
+      - daemonset/nvidia-device-plugin-daemonset
+      - -n
+      - kube-system
+      - "--timeout={{ validate_k3s_wait_timeout }}"
+  changed_when: false
+  register: validate_k3s_nvidia_device_plugin
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_nvidia_device_plugin.stdout_lines
+
+- name: Validate all Kubernetes pods are healthy
+  ansible.builtin.shell: |
+    set -euo pipefail
+    /usr/local/bin/kubectl --kubeconfig {{ validate_k3s_kubeconfig }} get pods -A -o json \
+      | /usr/bin/python3 -c '
+    import json
+    import sys
+
+    data = json.load(sys.stdin)
+    bad = []
+    for pod in data.get("items", []):
+        namespace = pod["metadata"]["namespace"]
+        name = pod["metadata"]["name"]
+        phase = pod.get("status", {}).get("phase", "")
+        conditions = pod.get("status", {}).get("conditions", [])
+        ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
+        if phase == "Succeeded":
+            continue
+        if phase != "Running" or not ready:
+            bad.append(f"{namespace}/{name}: phase={phase}, ready={ready}")
+
+    if bad:
+        print("\n".join(bad))
+        sys.exit(1)
+    print("All pods are Running/Ready or Succeeded")
+    '
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: validate_k3s_pods_healthy
+  retries: "{{ validate_k3s_pod_wait_retries }}"
+  delay: "{{ validate_k3s_pod_wait_delay }}"
+  until: validate_k3s_pods_healthy.rc == 0
+  # - ansible.builtin.debug:
+  #     var: validate_k3s_pods_healthy.stdout_lines
+
+- name: Remove previous k3s DNS validation pod
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - "{{ validate_k3s_kubeconfig }}"
+      - delete
+      - pod
+      - "{{ validate_k3s_dns_check_pod }}"
+      - -n
+      - default
+      - --ignore-not-found=true
+      - --wait=true
+  changed_when: false
+
+- name: Validate pod DNS resolution
+  block:
+    - name: Start k3s DNS validation pod
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ validate_k3s_kubeconfig }}"
+          - run
+          - "{{ validate_k3s_dns_check_pod }}"
+          - -n
+          - default
+          - "--image={{ validate_k3s_dns_check_image }}"
+          - --restart=Never
+          - --command
+          - --
+          - sh
+          - -c
+          - >-
+            nslookup {{ validate_k3s_internal_dns_name }}
+            {% if validate_k3s_external_dns_name | length > 0 %}
+            && nslookup {{ validate_k3s_external_dns_name }}
+            {% endif %}
+      changed_when: true
+      register: validate_k3s_dns_pod_create
+      # - ansible.builtin.debug:
+      #     var: validate_k3s_dns_pod_create.stdout_lines
+
+    - name: Wait for k3s DNS validation pod to succeed
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ validate_k3s_kubeconfig }}"
+          - wait
+          - "--for=jsonpath={.status.phase}=Succeeded"
+          - "pod/{{ validate_k3s_dns_check_pod }}"
+          - -n
+          - default
+          - "--timeout={{ validate_k3s_wait_timeout }}"
+      changed_when: false
+      register: validate_k3s_dns_pod_wait
+      # - ansible.builtin.debug:
+      #     var: validate_k3s_dns_pod_wait.stdout_lines
+
+    - name: Capture k3s DNS validation logs
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ validate_k3s_kubeconfig }}"
+          - logs
+          - "{{ validate_k3s_dns_check_pod }}"
+          - -n
+          - default
+      changed_when: false
+      register: validate_k3s_dns_logs
+      # - ansible.builtin.debug:
+      #     var: validate_k3s_dns_logs.stdout_lines
+
+  always:
+    - name: Remove k3s DNS validation pod
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ validate_k3s_kubeconfig }}"
+          - delete
+          - pod
+          - "{{ validate_k3s_dns_check_pod }}"
+          - -n
+          - default
+          - --ignore-not-found=true
+          - --wait=false
+      changed_when: false

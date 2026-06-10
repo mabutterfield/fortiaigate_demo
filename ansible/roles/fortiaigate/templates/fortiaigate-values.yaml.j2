@@ -43,6 +43,8 @@ ingress:
 
 tls:
   enabled: {{ fortiaigate_tls_enabled | bool | lower }}
+  cert: {{ fortiaigate_ssl_cert_chart_path | to_json }}
+  key: {{ fortiaigate_ssl_key_chart_path | to_json }}
 
 triton:
   resources:

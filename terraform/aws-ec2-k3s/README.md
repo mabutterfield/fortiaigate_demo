@@ -1,19 +1,14 @@
 # AWS EC2 k3s Terraform Module
 
-This module creates the phase 1 AWS lab infrastructure:
+This module creates the phase 1 AWS EC2/k3s lab infrastructure and writes the generated Ansible inventory.
 
-- dedicated VPC and public subnet
-- internet gateway and public route table
-- security group allowing SSH/HTTP/HTTPS from `allowed_ingress_cidr`
-- Ubuntu 24.04 GPU EC2 instance
-- Elastic IP
-- generated Ansible inventory
+Canonical documentation:
 
-## IAM
+- [../../docs/terraform.md](../../docs/terraform.md)
+- [../../docs/aws-k3s-foundation.md](../../docs/aws-k3s-foundation.md)
+- [../../docs/deployment-runbook.md](../../docs/deployment-runbook.md)
 
-IAM role creation is intentionally out of scope. Provide an existing instance profile through `iam_instance_profile_name`. The attached role must be able to pull from ECR, for example with `AmazonEC2ContainerRegistryReadOnly`.
-
-## Usage
+Quick usage:
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
@@ -25,3 +20,5 @@ terraform apply
 ```
 
 The generated inventory is written to `../../ansible/inventory/aws.generated.ini`.
+
+Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform uses that value in both the generated Ansible inventory and the `ssh_command` output.

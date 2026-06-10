@@ -152,7 +152,12 @@ resource "aws_eip" "this" {
 resource "local_file" "ansible_inventory" {
   filename = var.inventory_output_path
   content = templatefile("${path.module}/templates/aws.generated.ini.tftpl", {
-    public_ip            = aws_eip.this.public_ip
-    ssh_private_key_file = var.ssh_private_key_file
+    public_ip              = aws_eip.this.public_ip
+    ssh_private_key_file   = var.ssh_private_key_file
+    aws_vpc_cidr           = var.vpc_cidr
+    aws_public_subnet_cidr = var.public_subnet_cidr
+    k3s_cluster_cidr       = var.k3s_cluster_cidr
+    k3s_service_cidr       = var.k3s_service_cidr
+    k3s_cluster_dns        = var.k3s_cluster_dns
   })
 }
