@@ -1,0 +1,89 @@
+---
+- name: Validate registry type
+  ansible.builtin.assert:
+    that:
+      - registry_type in ["ecr", "local"]
+    fail_msg: "registry_type must be ecr or local."
+
+- name: Validate required publish variables
+  ansible.builtin.assert:
+    that:
+      - image_archive | length > 0 or image_archive_dir | length > 0
+      - registry | length > 0
+      - repo_prefix | length > 0
+      - image_archive_patterns is sequence
+      - image_archive_patterns is not string
+      - image_archive_patterns | length > 0
+    fail_msg: "Set image_archive or image_archive_dir, registry/repo settings, and image_archive_patterns before publishing."
+
+- name: Validate explicit image map when auto mapping is disabled
+  ansible.builtin.assert:
+    that:
+      - fortiaigate_image_map is sequence
+      - fortiaigate_image_map is not string
+      - fortiaigate_image_map | length > 0
+    fail_msg: "Set fortiaigate_image_map or enable publish_auto_image_map."
+  when: not publish_auto_image_map
+
+- name: Validate ECR publish variables
+  ansible.builtin.assert:
+    that:
+      - aws_profile | length > 0
+      - aws_region | length > 0
+      - aws_account_id | length > 0
+      - ecr_registry | length > 0
+    fail_msg: "Set aws_profile, aws_region, and aws_account_id for ECR publishing."
+  when: registry_type == "ecr"
+
+- name: Check image archive exists when configured
+  ansible.builtin.stat:
+    path: "{{ image_archive }}"
+  register: publish_image_archive_stat
+  when: image_archive | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_image_archive_stat
+
+- name: Check image archive directory exists when configured
+  ansible.builtin.stat:
+    path: "{{ image_archive_dir }}"
+  register: publish_image_archive_dir_stat
+  when: image_archive_dir | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_image_archive_dir_stat
+
+- name: Fail when image archive is missing
+  ansible.builtin.assert:
+    that:
+      - publish_image_archive_stat.stat.exists
+      - publish_image_archive_stat.stat.isreg
+    fail_msg: "image_archive must point to a readable local TGZ/TAR image archive."
+  when: image_archive | length > 0
+
+- name: Fail when image archive directory is missing
+  ansible.builtin.assert:
+    that:
+      - publish_image_archive_dir_stat.stat.exists
+      - publish_image_archive_dir_stat.stat.isdir
+    fail_msg: "image_archive_dir must point to a readable local directory containing Docker image archives."
+  when: image_archive_dir | length > 0
+
+- name: Confirm Docker is available
+  ansible.builtin.command:
+    argv:
+      - docker
+      - version
+  changed_when: false
+  register: publish_docker_version
+  # - ansible.builtin.debug:
+  #     var: publish_docker_version.stdout_lines
+
+- name: Confirm AWS CLI is available for ECR publishing
+  ansible.builtin.command:
+    argv:
+      - aws
+      - --version
+  changed_when: false
+  register: publish_aws_version
+  when: registry_type == "ecr"
+  # - ansible.builtin.debug:
+  #     var: publish_aws_version.stdout_lines

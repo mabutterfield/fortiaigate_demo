@@ -1,0 +1,96 @@
+---
+- name: Extract loaded image tags from docker load output
+  ansible.builtin.set_fact:
+    publish_loaded_image_refs: >-
+      {{
+        (
+          publish_loaded_image_refs | default([])
+        )
+        + (
+          item.stdout_lines
+          | default([])
+          | select('match', '^Loaded image: ')
+          | map('regex_replace', '^Loaded image: ', '')
+          | list
+        )
+      }}
+  loop: "{{ publish_docker_load.results | default([]) }}"
+  when: publish_auto_image_map
+  # - ansible.builtin.debug:
+  #     var: publish_loaded_image_refs
+
+- name: Deduplicate loaded image tags
+  ansible.builtin.set_fact:
+    publish_loaded_image_refs: "{{ publish_loaded_image_refs | default([]) | unique | sort }}"
+  when: publish_auto_image_map
+  # - ansible.builtin.debug:
+  #     var: publish_loaded_image_refs
+
+- name: Fail when auto image map cannot find loaded tags
+  ansible.builtin.assert:
+    that:
+      - publish_loaded_image_refs | length > 0
+    fail_msg: "docker load did not report any RepoTags. Disable publish_auto_image_map and provide fortiaigate_image_map explicitly."
+  when: publish_auto_image_map
+
+- name: Reset generated FortiAIGate image map
+  ansible.builtin.set_fact:
+    fortiaigate_image_map: []
+  when: publish_auto_image_map
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_image_map
+
+- name: Build FortiAIGate image map from loaded tags
+  ansible.builtin.set_fact:
+    fortiaigate_image_map: >-
+      {{
+        fortiaigate_image_map
+        + [
+          {
+            'source': item,
+            'target_repo': item.rsplit(':', 1)[0].split('/')[-1],
+            'target_tag': item.rsplit(':', 1)[1]
+          }
+        ]
+      }}
+  loop: "{{ publish_loaded_image_refs }}"
+  when: publish_auto_image_map
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_image_map
+
+- name: Use default FortiAIGate image map when explicit map is not set
+  ansible.builtin.set_fact:
+    fortiaigate_image_map: "{{ fortiaigate_default_image_map }}"
+  when:
+    - not publish_auto_image_map
+    - fortiaigate_image_map | length == 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_image_map
+
+- name: Validate image map entries
+  ansible.builtin.assert:
+    that:
+      - fortiaigate_image_map is sequence
+      - fortiaigate_image_map is not string
+      - fortiaigate_image_map | length > 0
+      - item.source is defined
+      - item.source | length > 0
+      - item.target_repo is defined
+      - item.target_repo | length > 0
+      - item.target_tag is defined
+      - item.target_tag | length > 0
+    fail_msg: "Each fortiaigate_image_map item must include source, target_repo, and target_tag."
+  loop: "{{ fortiaigate_image_map }}"
+
+- name: Verify source images from image map exist locally
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ item.source }}"
+  loop: "{{ fortiaigate_image_map }}"
+  changed_when: false
+  register: publish_source_image_verify
+  # - ansible.builtin.debug:
+  #     var: publish_source_image_verify.results

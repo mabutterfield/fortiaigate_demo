@@ -55,6 +55,8 @@ ansible/host_vars/*.yml
 !ansible/group_vars/*.example.yml
 !ansible/host_vars/*.example.yml
 ansible/inventory/aws.generated.ini
+ansible/group_vars/ecr.generated.yml
+ansible/group_vars/images.yml
 
 # Kubernetes and deployment generated files
 *.kubeconfig
@@ -70,3 +72,10 @@ rendered*.yaml
 *.lic
 .env
 .env.*
+
+# Image archives and publishing outputs
+*.tgz
+*.tar
+*.tar.gz
+loaded-images.txt
+published-images.txt

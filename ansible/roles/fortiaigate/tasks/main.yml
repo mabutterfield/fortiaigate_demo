@@ -5,7 +5,7 @@
       - fortiaigate_chart_path is defined
       - fortiaigate_chart_path | length > 0
       - fortiaigate_chart_path is directory
-    fail_msg: "Set fortiaigate_chart_path in ansible/group_vars/all.yml to a readable local chart directory."
+    fail_msg: "Set fortiaigate_chart_path in ansible/group_vars/all.yml to a readable extracted chart directory, for example FAIG_helm/{{ fortiaigate_version | default('<version>') }}/fortiaigate."
 
 - name: Validate FortiAIGate deployment variables
   ansible.builtin.assert:
@@ -134,9 +134,16 @@
       - tar
       - -czf
       - "{{ fortiaigate_chart_archive_local_path }}"
+      - "--exclude=.DS_Store"
+      - "--exclude=._*"
+      - "--exclude=.__*"
+      - "--exclude=__MACOSX"
       - -C
       - "{{ fortiaigate_chart_path }}"
       - .
+  environment:
+    COPYFILE_DISABLE: "1"
+    COPY_EXTENDED_ATTRIBUTES_DISABLE: "1"
   delegate_to: localhost
   become: false
   changed_when: true
@@ -164,6 +171,31 @@
     remote_src: true
     owner: "{{ ansible_user | default('root') }}"
     group: "{{ ansible_user | default('root') }}"
+
+- name: Remove non-chart metadata files from staged FortiAIGate chart
+  ansible.builtin.command:
+    argv:
+      - find
+      - "{{ fortiaigate_chart_remote_root }}"
+      - "("
+      - -name
+      - .DS_Store
+      - -o
+      - -name
+      - "._*"
+      - -o
+      - -name
+      - ".__*"
+      - -o
+      - -name
+      - __MACOSX
+      - ")"
+      - -exec
+      - rm
+      - -rf
+      - "{}"
+      - "+"
+  changed_when: false
 
 - name: Ensure staged license directory exists
   ansible.builtin.file:
@@ -223,6 +255,8 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_rendered.stdout_lines
 
+# Change note: a temporary meta: end_host used while debugging render output was
+# removed so the deploy playbook continues to the Helm install/upgrade tasks.
 - name: Submit FortiAIGate Helm chart
   ansible.builtin.command:
     argv:

@@ -1,0 +1,46 @@
+---
+- name: Validate AWS SSO session for ECR publishing
+  ansible.builtin.command:
+    argv:
+      - aws
+      - sts
+      - get-caller-identity
+      - --profile
+      - "{{ aws_profile }}"
+      - --region
+      - "{{ aws_region }}"
+  changed_when: false
+  failed_when: false
+  register: publish_ecr_caller_identity
+  # - ansible.builtin.debug:
+  #     var: publish_ecr_caller_identity.stdout_lines
+
+- name: Fail when AWS SSO session is unavailable
+  ansible.builtin.fail:
+    msg: >-
+      Could not authenticate to AWS with profile {{ aws_profile }} in region {{ aws_region }}.
+      Run `aws sso login --profile {{ aws_profile }}` and verify with
+      `aws sts get-caller-identity --profile {{ aws_profile }}` before rerunning publish_images.yml.
+      AWS CLI error: {{ publish_ecr_caller_identity.stderr | default('') }}
+  when: publish_ecr_caller_identity.rc != 0
+
+- name: Show AWS account used for ECR publishing
+  ansible.builtin.debug:
+    msg: "{{ (publish_ecr_caller_identity.stdout | from_json).Account }} via profile {{ aws_profile }}"
+
+- name: Log in to private ECR registry
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password \
+      --profile {{ aws_profile | quote }} \
+      --region {{ aws_region | quote }} \
+      | docker login \
+        --username AWS \
+        --password-stdin {{ ecr_registry | quote }}
+  args:
+    executable: /bin/bash
+  no_log: true
+  register: publish_ecr_login
+  changed_when: "'Login Succeeded' in publish_ecr_login.stdout"
+  # - ansible.builtin.debug:
+  #     var: publish_ecr_login.stdout_lines

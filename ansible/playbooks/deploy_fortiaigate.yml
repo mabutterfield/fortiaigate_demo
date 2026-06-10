@@ -3,10 +3,15 @@
   hosts: fortiaigate
   become: true
   pre_tasks:
-    - name: Load local group vars when present
+    - name: Load generated and local group vars when present
       ansible.builtin.include_vars:
         file: "{{ item }}"
-      loop: "{{ query('first_found', {'files': ['all.yml'], 'paths': [playbook_dir + '/../group_vars'], 'skip': True}) }}"
+      loop: >-
+        {{
+          query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/all.yml')
+        }}
   roles:
     - nginx_ingress
     - fortiaigate

@@ -1,7 +1,8 @@
 ---
 fortiaigate_namespace: fortiaigate
 fortiaigate_release_name: fortiaigate
-fortiaigate_chart_path: "{{ playbook_dir }}/../../../FAIG_helm/fortiaigate"
+fortiaigate_version: "8.0.0"
+fortiaigate_chart_path: "{{ playbook_dir }}/../../../FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
 fortiaigate_values_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-values.yaml"
 fortiaigate_post_renderer_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-post-render.py"

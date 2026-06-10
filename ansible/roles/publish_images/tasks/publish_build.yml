@@ -1,0 +1,29 @@
+---
+- name: Apply FortiAIGate image build
+  ansible.builtin.set_fact:
+    fortiaigate_version: "{{ publish_build.version }}"
+    image_tag: "{{ publish_build.image_tag | default(publish_build.version) }}"
+    image_archive: "{{ publish_build.image_archive | default('') }}"
+    image_archive_dir: "{{ publish_build.image_archive_dir | default('') }}"
+    fortiaigate_triton_model_image_tag: "{{ publish_build.triton_model_image_tag | default(fortiaigate_triton_model_image_tag) }}"
+    fortiaigate_triton_image_tag: "{{ publish_build.triton_image_tag | default(fortiaigate_triton_image_tag) }}"
+    publish_loaded_image_refs: []
+    fortiaigate_image_map: []
+  # - ansible.builtin.debug:
+  #     msg:
+  #       version: "{{ fortiaigate_version }}"
+  #       image_tag: "{{ image_tag }}"
+  #       image_archive: "{{ image_archive }}"
+  #       image_archive_dir: "{{ image_archive_dir }}"
+
+- name: Validate selected FortiAIGate image build inputs
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Load FortiAIGate images
+  ansible.builtin.include_tasks: load_images.yml
+
+- name: Build FortiAIGate image map
+  ansible.builtin.include_tasks: build_image_map.yml
+
+- name: Publish mapped FortiAIGate images
+  ansible.builtin.include_tasks: push_images.yml

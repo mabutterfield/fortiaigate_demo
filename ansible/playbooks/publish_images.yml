@@ -1,7 +1,9 @@
 ---
-- name: Report FortiAIGate deployment status
-  hosts: fortiaigate
-  become: true
+- name: Publish FortiAIGate images
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
   pre_tasks:
     - name: Load generated and local group vars when present
       ansible.builtin.include_vars:
@@ -13,4 +15,4 @@
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/all.yml')
         }}
   roles:
-    - fortiaigate_status
+    - publish_images

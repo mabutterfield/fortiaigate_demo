@@ -1,0 +1,21 @@
+aws_profile = "AdministratorAccess-123456789012"
+aws_region  = "us-east-1"
+
+repo_prefix = "fortiaigate"
+
+repositories = [
+  "api",
+  "core",
+  "webui",
+  "scanner",
+  "logd",
+  "license_manager",
+  "triton-models",
+  "custom-triton",
+]
+
+image_tag_mutability            = "IMMUTABLE"
+scan_on_push                    = true
+lifecycle_retain_tagged_count   = 10
+ec2_pull_role_name              = ""
+ansible_ecr_vars_output_path    = "../../ansible/group_vars/ecr.generated.yml"

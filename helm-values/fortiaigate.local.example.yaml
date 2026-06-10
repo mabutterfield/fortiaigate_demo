@@ -5,7 +5,7 @@ global:
 fortiaigate:
   image:
     repository: registry.example.com/fortiaigate
-    tag: build0024
+    tag: V8.0.0-build0024
     pullPolicy: IfNotPresent
     pullSecrets: []
   gpu:

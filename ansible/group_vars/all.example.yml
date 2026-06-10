@@ -1,6 +1,7 @@
 ---
 # Copy this file to group_vars/all.yml and fill in environment-specific values.
 ansible_user: ubuntu
+aws_profile: AdministratorAccess-123456789012
 aws_region: us-east-1
 ecr_account_id: "123456789012"
 ecr_registry: "{{ ecr_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
@@ -9,7 +10,20 @@ ecr_pull_secret_name: ecr-secret
 
 fortiaigate_namespace: fortiaigate
 fortiaigate_release_name: fortiaigate
-fortiaigate_chart_path: /Users/mbutterfield/code/FAIG/FAIG_helm/fortiaigate
+# FortiAIGate deployment image tags from the original release archives.
+#
+# 8.0.0:
+fortiaigate_version: "8.0.0"
+fortiaigate_image_tag: "V8.0.0-build0024"
+fortiaigate_triton_model_image_tag: "0.1.4"
+fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
+#
+# 8.0.1:
+# fortiaigate_version: "8.0.1"
+# fortiaigate_image_tag: "V8.0.1-build0031"
+# fortiaigate_triton_model_image_tag: "0.1.6-s1"
+# fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
+fortiaigate_chart_path: "/path/to/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
 fortiaigate_values_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-values.yaml"
 fortiaigate_post_renderer_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-post-render.py"
@@ -19,14 +33,20 @@ fortiaigate_helm_wait: false
 fortiaigate_helm_timeout: 20m
 
 fortiaigate_image_repository: "{{ ecr_registry }}/{{ ecr_repo_prefix }}"
-fortiaigate_image_tag: build0024
 fortiaigate_image_pull_policy: IfNotPresent
 fortiaigate_image_pull_secrets:
   - name: "{{ ecr_pull_secret_name }}"
 
-# The stock chart uses fixed Triton image tags. Keep these unless intentionally changed.
-fortiaigate_triton_model_image_tag: "0.1.4"
-fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
+# Image publishing defaults for ansible/playbooks/publish_images.yml.
+# Prefer ansible/group_vars/images.yml for multiple builds.
+image_tag: "{{ fortiaigate_image_tag }}"
+image_archive: ""
+image_archive_dir: /path/to/images/8.0.0
+registry_type: ecr
+local_registry: localhost:5000
+
+publish_image_version: ""
+publish_image_state: active
 
 fortiaigate_update_strategy: Recreate
 fortiaigate_storage_class: local-path
@@ -39,7 +59,7 @@ fortiaigate_ingress_host: ""
 fortiaigate_tls_enabled: true
 
 # Licenses are copied from this non-repo path into a temporary chart copy.
-license_source_dir: /Users/mbutterfield/licenses/fortiaigate
+license_source_dir: /path/to/licenses/fortiaigate
 # Single-node default: Ansible maps the first file to the discovered Kubernetes node name.
 fortiaigate_license_files:
   - License1.lic

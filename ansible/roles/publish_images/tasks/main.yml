@@ -1,0 +1,54 @@
+---
+- name: Select FortiAIGate image build when catalog is configured
+  ansible.builtin.include_tasks: select_build.yml
+
+- name: Validate registry type
+  ansible.builtin.assert:
+    that:
+      - registry_type in ["ecr", "local"]
+    fail_msg: "registry_type must be ecr or local."
+
+- name: Validate ECR publish variables
+  ansible.builtin.assert:
+    that:
+      - aws_profile | length > 0
+      - aws_region | length > 0
+      - aws_account_id | length > 0
+      - ecr_registry | length > 0
+    fail_msg: "Set aws_profile, aws_region, and aws_account_id for ECR publishing."
+  when: registry_type == "ecr"
+
+- name: Confirm AWS CLI is available for ECR publishing
+  ansible.builtin.command:
+    argv:
+      - aws
+      - --version
+  changed_when: false
+  register: publish_aws_version
+  when: registry_type == "ecr"
+  # - ansible.builtin.debug:
+  #     var: publish_aws_version.stdout_lines
+
+- name: Authenticate to ECR
+  ansible.builtin.include_tasks: ecr_login.yml
+  when: registry_type == "ecr"
+
+- name: Authenticate to local registry
+  ansible.builtin.include_tasks: local_registry_login.yml
+  when: registry_type == "local"
+
+- name: Publish selected FortiAIGate image builds
+  ansible.builtin.include_tasks: publish_build.yml
+  loop: "{{ publish_selected_builds }}"
+  loop_control:
+    loop_var: publish_build
+    label: "{{ publish_build.version }}"
+
+- name: Show pushed images
+  ansible.builtin.debug:
+    var: published_images
+
+- name: Show skipped images already present with identical content
+  ansible.builtin.debug:
+    var: skipped_images
+  when: skipped_images | length > 0

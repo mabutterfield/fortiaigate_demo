@@ -5,7 +5,7 @@ global:
 fortiaigate:
   image:
     repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fortiaigate
-    tag: build0024
+    tag: V8.0.0-build0024
     pullPolicy: IfNotPresent
     pullSecrets:
       - name: ecr-secret

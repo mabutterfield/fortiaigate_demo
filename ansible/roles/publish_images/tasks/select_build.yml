@@ -1,0 +1,49 @@
+---
+- name: Select FortiAIGate image build by version
+  ansible.builtin.set_fact:
+    publish_selected_builds: "{{ fortiaigate_image_builds | selectattr('version', 'equalto', publish_image_version) | list }}"
+  when:
+    - fortiaigate_image_builds | length > 0
+    - publish_image_version | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_selected_builds
+
+- name: Select FortiAIGate image build by state
+  ansible.builtin.set_fact:
+    publish_selected_builds: "{{ fortiaigate_image_builds | selectattr('state', 'equalto', publish_image_state) | list }}"
+  when:
+    - fortiaigate_image_builds | length > 0
+    - publish_image_version | length == 0
+  # - ansible.builtin.debug:
+  #     var: publish_selected_builds
+
+- name: Use direct image settings when no build catalog is configured
+  ansible.builtin.set_fact:
+    publish_selected_builds:
+      - version: "{{ fortiaigate_version }}"
+        image_tag: "{{ image_tag }}"
+        image_archive: "{{ image_archive }}"
+        image_archive_dir: "{{ image_archive_dir }}"
+        triton_model_image_tag: "{{ fortiaigate_triton_model_image_tag }}"
+        triton_image_tag: "{{ fortiaigate_triton_image_tag }}"
+  when: fortiaigate_image_builds | length == 0
+  # - ansible.builtin.debug:
+  #     var: publish_selected_builds
+
+- name: Validate at least one FortiAIGate image build was selected
+  ansible.builtin.assert:
+    that:
+      - publish_selected_builds | length > 0
+    fail_msg: "No publishable image builds matched publish_image_version or publish_image_state."
+
+- name: Validate selected FortiAIGate image builds
+  ansible.builtin.assert:
+    that:
+      - item.version is defined
+      - item.image_archive is defined or item.image_archive_dir is defined
+    fail_msg: "Each selected image build must include version and image_archive or image_archive_dir."
+  loop: "{{ publish_selected_builds | default([]) }}"
+
+- name: Show selected FortiAIGate image builds
+  ansible.builtin.debug:
+    msg: "{{ publish_selected_builds | map(attribute='version') | list }}"

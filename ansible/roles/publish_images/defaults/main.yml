@@ -1,0 +1,54 @@
+---
+fortiaigate_version: "8.0.0"
+image_tag: "V8.0.0-build0024"
+image_archive: ""
+image_archive_dir: ""
+image_archive_patterns:
+  - "*.tar"
+fortiaigate_image_builds: []
+publish_image_version: ""
+publish_image_state: active
+publish_auto_image_map: true
+
+registry_type: ecr
+aws_profile: ""
+aws_region: us-east-1
+aws_account_id: "{{ ecr_account_id | default('') }}"
+ecr_registry: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
+local_registry: localhost:5000
+local_registry_username: "{{ lookup('env', 'LOCAL_REGISTRY_USERNAME') }}"
+local_registry_password: "{{ lookup('env', 'LOCAL_REGISTRY_PASSWORD') }}"
+registry: "{{ ecr_registry if registry_type == 'ecr' else local_registry }}"
+repo_prefix: "{{ ecr_repo_prefix | default('fortiaigate') }}"
+
+fortiaigate_triton_model_image_tag: "0.1.4"
+fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
+
+published_images: []
+skipped_images: []
+fortiaigate_image_map: []
+fortiaigate_default_image_map:
+  - source: "fortiaigate/api:{{ image_tag }}"
+    target_repo: api
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/core:{{ image_tag }}"
+    target_repo: core
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/webui:{{ image_tag }}"
+    target_repo: webui
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/scanner:{{ image_tag }}"
+    target_repo: scanner
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/logd:{{ image_tag }}"
+    target_repo: logd
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/license_manager:{{ image_tag }}"
+    target_repo: license_manager
+    target_tag: "{{ image_tag }}"
+  - source: "fortiaigate/triton-models:{{ fortiaigate_triton_model_image_tag }}"
+    target_repo: triton-models
+    target_tag: "{{ fortiaigate_triton_model_image_tag }}"
+  - source: "fortiaigate/custom-triton:{{ fortiaigate_triton_image_tag }}"
+    target_repo: custom-triton
+    target_tag: "{{ fortiaigate_triton_image_tag }}"

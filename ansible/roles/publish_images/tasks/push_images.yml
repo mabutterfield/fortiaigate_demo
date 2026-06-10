@@ -1,0 +1,7 @@
+---
+- name: Publish each mapped image
+  ansible.builtin.include_tasks: push_one.yml
+  loop: "{{ fortiaigate_image_map }}"
+  loop_control:
+    loop_var: publish_image
+    label: "{{ publish_image.source }} -> {{ registry }}/{{ repo_prefix }}/{{ publish_image.target_repo }}:{{ publish_image.target_tag | default(image_tag) }}"

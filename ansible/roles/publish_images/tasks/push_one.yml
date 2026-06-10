@@ -1,0 +1,137 @@
+---
+- name: Set target image facts
+  ansible.builtin.set_fact:
+    publish_target_tag: "{{ publish_image.target_tag | default(image_tag) }}"
+    publish_target_image: "{{ registry }}/{{ repo_prefix }}/{{ publish_image.target_repo }}:{{ publish_image.target_tag | default(image_tag) }}"
+    publish_repository_name: "{{ repo_prefix }}/{{ publish_image.target_repo }}"
+  # - ansible.builtin.debug:
+  #     msg: "{{ publish_image.source }} -> {{ publish_target_image }}"
+
+- name: Inspect local source image
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ publish_image.source }}"
+  changed_when: false
+  register: publish_source_image_inspect
+  # - ansible.builtin.debug:
+  #     var: publish_source_image_inspect.stdout
+
+- name: Set local source image ID
+  ansible.builtin.set_fact:
+    publish_source_image_id: "{{ (publish_source_image_inspect.stdout | from_json)[0].Id }}"
+  # - ansible.builtin.debug:
+  #     var: publish_source_image_id
+
+- name: Check ECR target tag
+  ansible.builtin.command:
+    argv:
+      - aws
+      - ecr
+      - describe-images
+      - --profile
+      - "{{ aws_profile }}"
+      - --region
+      - "{{ aws_region }}"
+      - --repository-name
+      - "{{ publish_repository_name }}"
+      - --image-ids
+      - "imageTag={{ publish_target_tag }}"
+  changed_when: false
+  failed_when:
+    - publish_ecr_describe_image.rc != 0
+    - "'ImageNotFoundException' not in publish_ecr_describe_image.stderr"
+  register: publish_ecr_describe_image
+  when: registry_type == "ecr"
+  # - ansible.builtin.debug:
+  #     var: publish_ecr_describe_image.stdout
+
+- name: Pull existing ECR target image for comparison
+  ansible.builtin.command:
+    argv:
+      - docker
+      - pull
+      - "{{ publish_target_image }}"
+  register: publish_existing_target_pull
+  changed_when: false
+  when:
+    - registry_type == "ecr"
+    - publish_ecr_describe_image.rc == 0
+  # - ansible.builtin.debug:
+  #     var: publish_existing_target_pull.stdout_lines
+
+- name: Inspect existing ECR target image
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ publish_target_image }}"
+  changed_when: false
+  register: publish_existing_target_inspect
+  when:
+    - registry_type == "ecr"
+    - publish_ecr_describe_image.rc == 0
+  # - ansible.builtin.debug:
+  #     var: publish_existing_target_inspect.stdout
+
+- name: Set existing ECR target image ID
+  ansible.builtin.set_fact:
+    publish_existing_target_image_id: "{{ (publish_existing_target_inspect.stdout | from_json)[0].Id }}"
+  when:
+    - registry_type == "ecr"
+    - publish_ecr_describe_image.rc == 0
+  # - ansible.builtin.debug:
+  #     var: publish_existing_target_image_id
+
+- name: Fail when immutable ECR target tag has different image content
+  ansible.builtin.fail:
+    msg: "ECR tag {{ publish_target_image }} already exists with different content. Use a new tag."
+  when:
+    - registry_type == "ecr"
+    - publish_ecr_describe_image.rc == 0
+    - publish_existing_target_image_id != publish_source_image_id
+
+- name: Record skipped ECR target with identical content
+  ansible.builtin.set_fact:
+    skipped_images: "{{ skipped_images + [publish_target_image] }}"
+  when:
+    - registry_type == "ecr"
+    - publish_ecr_describe_image.rc == 0
+    - publish_existing_target_image_id == publish_source_image_id
+  # - ansible.builtin.debug:
+  #     var: skipped_images
+
+- name: Tag image for target registry
+  ansible.builtin.command:
+    argv:
+      - docker
+      - tag
+      - "{{ publish_image.source }}"
+      - "{{ publish_target_image }}"
+  register: publish_docker_tag
+  changed_when: true
+  when: registry_type == "local" or publish_ecr_describe_image.rc != 0
+  # - ansible.builtin.debug:
+  #     var: publish_docker_tag.stdout_lines
+
+- name: Push image to target registry
+  ansible.builtin.command:
+    argv:
+      - docker
+      - push
+      - "{{ publish_target_image }}"
+  register: publish_docker_push
+  changed_when: true
+  when: registry_type == "local" or publish_ecr_describe_image.rc != 0
+  # - ansible.builtin.debug:
+  #     var: publish_docker_push.stdout_lines
+
+- name: Record pushed image
+  ansible.builtin.set_fact:
+    published_images: "{{ published_images + [publish_target_image] }}"
+  when: registry_type == "local" or publish_ecr_describe_image.rc != 0
+  # - ansible.builtin.debug:
+  #     var: published_images

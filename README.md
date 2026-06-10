@@ -27,6 +27,7 @@ Phase 1 is intentionally scoped to AWS infrastructure plus an Ansible-driven sin
 - FortiAIGate license files available locally but outside this repo
 
 Never commit real `terraform.tfvars`, Ansible secret vars, licenses, private keys, kubeconfigs, certificates, or API tokens.
+Licenses bind to the UID of the instance, and will timeout in FDS in > 1 hour.  Suggested to have several licenses available for testing that may need redeployment.
 
 ## Workflow
 

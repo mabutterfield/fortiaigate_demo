@@ -1,0 +1,46 @@
+---
+- name: Find FortiAIGate image archives in directory
+  ansible.builtin.find:
+    paths: "{{ image_archive_dir }}"
+    file_type: file
+    patterns: "{{ image_archive_patterns }}"
+  register: publish_image_archives_found
+  when: image_archive_dir | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_image_archives_found.files
+
+- name: Fail when no image archives are found in directory
+  ansible.builtin.assert:
+    that:
+      - publish_image_archives_found.files | length > 0
+    fail_msg: "image_archive_dir must contain at least one Docker image archive matching image_archive_patterns."
+  when: image_archive_dir | length > 0
+
+- name: Set FortiAIGate image archives to load
+  ansible.builtin.set_fact:
+    publish_image_archives: >-
+      {{
+        ([image_archive] if image_archive | length > 0 else [])
+        + (
+          publish_image_archives_found.files
+          | default([])
+          | map(attribute='path')
+          | sort
+          | list
+        )
+      }}
+  # - ansible.builtin.debug:
+  #     var: publish_image_archives
+
+- name: Load FortiAIGate image archive
+  ansible.builtin.command:
+    argv:
+      - docker
+      - load
+      - -i
+      - "{{ item }}"
+  loop: "{{ publish_image_archives }}"
+  register: publish_docker_load
+  changed_when: true
+  # - ansible.builtin.debug:
+  #     var: publish_docker_load.results

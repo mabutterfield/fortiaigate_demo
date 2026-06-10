@@ -1,0 +1,19 @@
+---
+- name: Log in to local registry when credentials are configured
+  ansible.builtin.command:
+    argv:
+      - docker
+      - login
+      - "{{ local_registry }}"
+      - --username
+      - "{{ local_registry_username }}"
+      - --password-stdin
+    stdin: "{{ local_registry_password }}"
+  no_log: true
+  register: publish_local_registry_login
+  changed_when: "'Login Succeeded' in publish_local_registry_login.stdout"
+  when:
+    - local_registry_username | length > 0
+    - local_registry_password | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_local_registry_login.stdout_lines
