@@ -69,7 +69,7 @@ terraform validate
 terraform apply
 ```
 
-Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
 
 After the EC2 host exists, Bedrock reads `terraform/aws-ec2-k3s/terraform.tfstate` and restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
 

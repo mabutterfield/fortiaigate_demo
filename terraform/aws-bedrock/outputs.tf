@@ -29,6 +29,11 @@ output "bedrock_region" {
   value       = var.aws_region
 }
 
+output "bedrock_allowed_regions" {
+  description = "AWS regions where the Bedrock access key can invoke selected models."
+  value       = var.bedrock_allowed_regions
+}
+
 output "bedrock_model_ids" {
   description = "Allowed Bedrock model IDs."
   value       = var.bedrock_model_ids

@@ -21,10 +21,12 @@ resource "time_offset" "bedrock_expiration" {
 locals {
   bedrock_user_name = "${var.name_prefix}-bedrock"
 
-  foundation_model_arns = [
-    for model_id in var.bedrock_model_ids :
-    "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${model_id}*"
-  ]
+  foundation_model_arns = flatten([
+    for region in var.bedrock_allowed_regions : [
+      for model_id in var.bedrock_model_ids :
+      "arn:${data.aws_partition.current.partition}:bedrock:${region}::foundation-model/${model_id}*"
+    ]
+  ])
 
   ec2_public_ip_cidr       = try("${data.terraform_remote_state.ec2_k3s[0].outputs.public_ip}/32", "")
   ec2_allowed_ingress_cidr = try(data.terraform_remote_state.ec2_k3s[0].outputs.allowed_ingress_cidr, "")

@@ -39,6 +39,10 @@ bedrock_model_ids = [
   "openai.gpt-oss-20b-1:0",
 ]
 
+# Allow selected model IDs in major commercial US regions.
+# Use ["*"] only when the selected model IDs should be allowed in any region.
+bedrock_allowed_regions = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]
+
 # By default, source IP restrictions are derived from terraform/aws-ec2-k3s:
 # - public_ip as <eip>/32
 # - allowed_ingress_cidr
@@ -53,7 +57,7 @@ Terraform creates:
 
 - IAM user named `<name_prefix>-bedrock`
 - IAM access key for that user
-- inline IAM policy allowing selected Bedrock model invocation
+- inline IAM policy allowing selected Bedrock model invocation in `bedrock_allowed_regions`
 - explicit deny after `now + credential_valid_days`
 - explicit deny when requests do not originate from the EC2 EIP, `allowed_ingress_cidr`, or `allowed_source_cidrs`
 

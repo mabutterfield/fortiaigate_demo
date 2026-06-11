@@ -77,6 +77,8 @@ terraform apply
 
 Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. This module creates a dedicated IAM user and access key for the FortiAIGate GUI.
 
+Set `bedrock_allowed_regions` to the commercial US regions where those model IDs should be invokable. Use `["*"]` only when the selected model IDs should be allowed in any region.
+
 By default, Bedrock source IP restrictions are derived from `terraform/aws-ec2-k3s` local state: the k3s host EIP as `<eip>/32` and the EC2 `allowed_ingress_cidr`. Set `no_ip_restriction = true` to disable that deny, or use `allowed_source_cidrs` for extra CIDRs.
 
 The secret access key is a sensitive Terraform output and is stored in Terraform state. Do not commit state or real `terraform.tfvars`.

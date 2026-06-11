@@ -42,6 +42,17 @@ variable "bedrock_model_ids" {
   }
 }
 
+variable "bedrock_allowed_regions" {
+  type        = list(string)
+  description = "AWS regions where the Bedrock access key can invoke the selected models. Use [\"*\"] only when the key should allow those models in any region."
+  default     = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]
+
+  validation {
+    condition     = length(var.bedrock_allowed_regions) > 0
+    error_message = "bedrock_allowed_regions must contain at least one region or \"*\"."
+  }
+}
+
 variable "ec2_k3s_state_path" {
   type        = string
   description = "Path to the terraform/aws-ec2-k3s local state file. Used to derive the k3s EIP and allowed_ingress_cidr for Bedrock source IP restrictions."
