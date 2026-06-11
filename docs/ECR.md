@@ -116,7 +116,7 @@ fortiaigate_image_builds:
   - version: "8.0.0"
     # Loaded app image tag: V8.0.0-build0024
     # image_tag: "V8.0.0-build0024"
-    image_archive_dir: /path/to/images/8.0.0
+    image_archive_dir: "{{ faig_workspace_root }}/images/8.0.0"
     state: active
     # Loaded Triton tags:
     # triton_model_image_tag: "0.1.4"
@@ -125,7 +125,7 @@ fortiaigate_image_builds:
   - version: "8.0.1"
     # Loaded app image tag: V8.0.1-build0031
     # image_tag: "V8.0.1-build0031"
-    image_archive_dir: /path/to/images/8.0.1
+    image_archive_dir: "{{ faig_workspace_root }}/images/8.0.1"
     state: archive
     # Loaded Triton tags:
     # triton_model_image_tag: "0.1.6-s1"

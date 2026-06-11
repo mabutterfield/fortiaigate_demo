@@ -45,6 +45,11 @@ output "network_cidrs" {
 }
 
 output "recommended_full_validation_instance_type" {
-  description = "Instance type known to work for full FortiAIGate validation."
-  value       = "g4dn.4xlarge"
+  description = "Recommended production-like validation instance type."
+  value       = "g6.8xlarge"
+}
+
+output "minimum_official_gpu_instance_type" {
+  description = "Lower-cost official NVIDIA L4 lab candidate."
+  value       = "g6.4xlarge"
 }

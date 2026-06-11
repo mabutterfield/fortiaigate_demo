@@ -17,8 +17,8 @@ variable "name_prefix" {
 
 variable "instance_type" {
   type        = string
-  description = "EC2 GPU instance type. Use g4dn.4xlarge for full FortiAIGate validation."
-  default     = "g4dn.xlarge"
+  description = "EC2 GPU instance type. g4dn.4xlarge is the default lab size; consider g6.8xlarge for production-like validation."
+  default     = "g4dn.4xlarge"
 }
 
 variable "ssh_key_name" {

@@ -26,3 +26,18 @@ Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not 
 Set `create_iam_instance_profile = true` when this module should create the EC2 IAM role and instance profile. Use the `iam_role_name` output as the input for ECR pull permissions.
 
 This module also outputs `public_ip` and `allowed_ingress_cidr`; the Bedrock module reads those values from local Terraform state to build its source IP restriction by default.
+
+The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger production-like L4 validation target.
+
+After apply, validate host status and SSH:
+
+```bash
+terraform output ssh_command
+aws ec2 describe-instance-status \
+  --profile <profile-name> \
+  --region <region> \
+  --instance-ids "$(terraform output -raw instance_id)" \
+  --include-all-instances \
+  --query 'InstanceStatuses[0].{Instance:InstanceState.Name,System:SystemStatus.Status,InstanceStatus:InstanceStatus.Status}' \
+  --output table
+```

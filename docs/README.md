@@ -17,6 +17,11 @@ cd ansible
 ansible-playbook playbooks/validate_k3s.yml
 ```
 
+FortiAIGate status and validation are intentionally separate:
+
+- `status_fortiaigate.yml` gives a simple `READY`, `NOT READY`, or `ERROR` answer and prints the HTTPS login URL.
+- `validate_faig.yml` runs deeper checks after status is ready, including GPU/Triton, `/dev/shm`, UI/API HTTP behavior, and optional provider forwarding.
+
 The root [README.md](../README.md) is intentionally short. Use it to get oriented and use these documents for details.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

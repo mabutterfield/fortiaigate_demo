@@ -1,6 +1,13 @@
 aws_profile               = "AdministratorAccess-123456789012"
 aws_region                = "us-east-1"
 name_prefix               = "fortiaigate-demo"
+
+# Expected local edits:
+# - aws_profile/aws_region for the target account and region
+# - ssh_key_name plus ssh_private_key_file for the key you will use
+# - allowed_ingress_cidr for your current public source IP
+# - iam_instance_profile_name or create_iam_instance_profile
+# - instance_type when changing from the default lab size
 ssh_key_name              = "my-existing-keypair"
 ssh_private_key_file      = "~/.ssh/my-existing-keypair.pem"
 allowed_ingress_cidr      = "203.0.113.10/32"
@@ -14,9 +21,9 @@ create_iam_instance_profile = false
 # iam_instance_profile_name     = "fortiaigate-demo-ec2-profile"
 # iam_role_managed_policy_arns  = []
 
-# g4dn.xlarge is the default for cheaper infrastructure smoke tests.
-# Use g4dn.4xlarge for full FortiAIGate validation.
-instance_type = "g4dn.xlarge"
+# g4dn.4xlarge is the default lab size used by this module.
+# Use g6.8xlarge for a stronger production-like L4 validation target.
+instance_type = "g4dn.4xlarge"
 
 # Keep AWS VPC, k3s pod, and k3s service networks non-overlapping.
 # Defaults intentionally use 10.x networks with second octets between 20 and 90.

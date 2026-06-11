@@ -6,7 +6,7 @@ Terraform is split into three phase 1 modules:
 - `terraform/aws-bedrock`: temporary IAM credentials for manual FortiAIGate Bedrock provider setup
 - `terraform/aws-ec2-k3s`: AWS network, GPU EC2 instance, Elastic IP, and generated Ansible inventory
 
-Both modules use local Terraform state for phase 1. Remote state is a future enhancement.
+All modules use local Terraform state for phase 1. Remote state is a future enhancement.
 
 ## AWS Authentication
 
@@ -17,6 +17,15 @@ aws sso login --profile <profile-name>
 ```
 
 Set the profile in each module's ignored `terraform.tfvars`.
+
+Useful preflight checks:
+
+```bash
+aws configure list-profiles
+aws sts get-caller-identity --profile <profile-name>
+```
+
+Terraform `.terraform.lock.hcl` files are tracked on purpose to pin provider versions. Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
 
 ## ECR Module
 
@@ -157,6 +166,21 @@ Bedrock does not use the EC2 role because FortiAIGate currently asks for Access 
 
 ## Instance Sizing
 
-The Terraform default instance type is `g4dn.xlarge` for lower-cost infrastructure smoke testing.
+The Terraform default instance type is `g4dn.4xlarge`.
 
-Use a larger override, such as `g4dn.4xlarge`, for full FortiAIGate validation. Internal GPU sizing notes should remain outside this repo.
+Use `g6.8xlarge` for a stronger production-like L4 validation target. Use `g6.4xlarge` when you want a lower-cost official L4 lab candidate.
+
+Approximate instance sizing guidance:
+
+| Instance | GPU | GPU RAM | vCPU | RAM | Local NVMe | Use |
+|---|---:|---:|---:|---:|---:|---|
+| `g4dn.xlarge` | T4 x1 | 16 GB | 4 | 16 GB | 125 GB | Kubernetes and automation smoke test only |
+| `g4dn.4xlarge` | T4 x1 | 16 GB | 16 | 64 GB | 225 GB | Default cost-conscious lab size |
+| `g6.4xlarge` | L4 x1 | 24 GB | 16 | 64 GB | 600 GB | Lower-cost official L4 lab candidate |
+| `g5.8xlarge` | A10G x1 | 24 GB | 32 | 128 GB | 900 GB | Production-like A10G validation |
+| `g6.8xlarge` | L4 x1 | 24 GB | 32 | 128 GB | 900 GB | Recommended production-like L4 validation |
+| `g6.12xlarge` | L4 x4 | 96 GB | 48 | 192 GB | 3,800 GB | Multi-GPU validation |
+| `g6e.4xlarge` | L40S x1 | 48 GB | 16 | 128 GB | 940 GB | Larger single-GPU VRAM evaluation |
+| `g7e.4xlarge` | RTX PRO 6000 Blackwell x1 | 96 GB | 16 | 128 GB | 940 GB | Future-looking large-VRAM evaluation |
+
+AWS pricing and regional availability change. Verify current availability and hourly pricing in the target region before long-running tests.

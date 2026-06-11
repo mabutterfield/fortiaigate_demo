@@ -48,6 +48,11 @@ terraform.rc
 *.tfplan
 tfplan
 
+# Python generated files
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Ansible local, generated, and secret-bearing files
 *.retry
 ansible/group_vars/all.yml

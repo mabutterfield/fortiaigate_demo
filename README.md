@@ -31,7 +31,7 @@ This repository provides a repeatable deployment process using:
 ## To-Do
 
 - Add a first-class local Ubuntu GPU host workflow
-- Add optional Terraform support for IAM role creation
+- Expand Terraform support for using existing AWS resources without import friction
 - Move Terraform state to a remote backend when the workflow leaves phase 1
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add more deployment validation around FortiAIGate application readiness
@@ -52,18 +52,47 @@ scripts/        Reserved for future helper scripts
 
 - macOS or Linux workstation
 - AWS CLI configured for IAM Identity Center / SSO
-- Terraform
-- Ansible
-- Docker
-- Helm
-- kubectl
+- Terraform, Ansible, Docker, Helm, kubectl, and SSH available on your workstation
 - SSH key pair already present in AWS
-- Existing EC2 IAM instance profile with ECR read permissions
+- Existing EC2 IAM instance profile, or allow `terraform/aws-ec2-k3s` to create one
 - FortiAIGate release image archives outside this repo
 - FortiAIGate Helm chart extracted outside this repo
 - FortiAIGate license files outside this repo
 
+No custom local Terraform or Ansible builds are required. Before starting, verify AWS CLI profile access:
+
+```bash
+aws configure list-profiles
+aws sts get-caller-identity --profile <profile-name>
+```
+
+Expected parent workspace layout:
+
+```text
+FAIG/
+  fortiaigate_demo/          this Git repo
+  FAIG_helm/
+    8.0.0/
+      fortiaigate/           extracted Helm chart directory
+    8.0.1/
+      fortiaigate/           extracted Helm chart directory
+  licenses/
+    License1.lic
+  images/
+    8.0.0/
+      FAIG_api-V8.0.0-build0024-FORTINET.tar
+      ...
+    8.0.1/
+      FAIG_api-V8.0.1-build0031-FORTINET.tar
+      ...
+  tmp/                       generated local chart archives
+```
+
+The vendor Helm chart `.tar.gz` files may be stored under `FAIG_helm/<version>/`, but the deployment uses the extracted `fortiaigate/` chart directory.
+
 Never commit real `terraform.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
+
+Terraform `.terraform.lock.hcl` files are intentionally tracked to pin provider versions. Terraform state, real `.tfvars`, and `.terraform/` working directories remain ignored.
 
 ## Quick Start
 
@@ -82,16 +111,7 @@ terraform init
 terraform apply
 ```
 
-Prepare optional Bedrock access:
-
-```bash
-cd ../aws-bedrock
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform apply
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-```
+If ECR repositories already exist, either import them into `terraform/aws-ecr` or configure the registry values manually in Ansible. See [docs/ECR.md](docs/ECR.md).
 
 Publish FortiAIGate release images:
 
@@ -110,6 +130,40 @@ terraform init
 terraform apply
 ```
 
+Minimum `terraform/aws-ec2-k3s/terraform.tfvars` values to review:
+
+- `aws_profile` and `aws_region`
+- `ssh_key_name` and `ssh_private_key_file`
+- `allowed_ingress_cidr`
+- `iam_instance_profile_name`, or `create_iam_instance_profile = true`
+- `instance_type` if the default `g4dn.4xlarge` is not the target size
+
+Validate the instance from the CLI:
+
+```bash
+terraform output ssh_command
+aws ec2 describe-instance-status \
+  --profile <profile-name> \
+  --region <region> \
+  --instance-ids "$(terraform output -raw instance_id)" \
+  --include-all-instances \
+  --query 'InstanceStatuses[0].{Instance:InstanceState.Name,System:SystemStatus.Status,InstanceStatus:InstanceStatus.Status}' \
+  --output table
+```
+
+Run the `ssh_command` output before starting Ansible. If SSH does not work, Ansible will not work.
+
+Prepare optional Bedrock access after EC2 exists:
+
+```bash
+cd ../aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+```
+
 Configure deployment variables:
 
 ```bash
@@ -122,7 +176,7 @@ Set local values in `group_vars/all.yml`, especially:
 - AWS profile/region/account values when not supplied by generated vars
 - `fortiaigate_version`
 - `faig_workspace_root` when your `FAIG` workspace is not the parent of this repo
-- license source path and license file list
+- license file list under the default `FAIG/licenses`, or a custom `license_source_dir`
 - Ollama endpoint/model if used for validation
 
 By default, `faig_workspace_root` resolves to the parent `FAIG` directory from the Ansible playbook location. You can override it per shell:
@@ -138,11 +192,9 @@ Expected chart layout:
 ```text
 FAIG_helm/
   8.0.0/
-    FAIG_helm_chart-V8.0.0-build0024-FORTINET.tar.gz
     fortiaigate/
       Chart.yaml
   8.0.1/
-    FAIG_helm_chart-V8.0.1-build0031-FORTINET.tar.gz
     fortiaigate/
       Chart.yaml
 ```
@@ -180,6 +232,12 @@ Bootstrap runs the same k3s sanity checks as `validate_k3s.yml` before it comple
 `terraform/aws-ec2-k3s` writes `ansible/inventory/aws.generated.ini`. `terraform/aws-ecr` writes `ansible/group_vars/ecr.generated.yml`. Both generated files are ignored by Git.
 
 By default, `deploy_fortiaigate.yml` submits the Helm release and returns after Helm accepts the install or upgrade. It does not wait for every pod to become Ready. Use `status_fortiaigate.yml` for the lightweight `READY` / `NOT READY` / `ERROR` answer and login URL. Use `validate_faig.yml` for deeper GPU, Triton, UI/API, and optional provider checks.
+
+Playbook intent:
+
+- `validate_k3s.yml`: validates the Kubernetes foundation, including pod health and DNS from inside the cluster
+- `status_fortiaigate.yml`: gives a simple FortiAIGate `READY`, `NOT READY`, or `ERROR` answer plus the HTTPS login URL
+- `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready
 
 After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`, and shell profile configuration so interactive `kubectl` works without `sudo` on the k3s host.
 

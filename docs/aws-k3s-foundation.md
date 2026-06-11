@@ -15,7 +15,7 @@ The phase 1 AWS foundation creates a single-node FortiAIGate lab:
 - k3s local-path storage backed by instance-store NVMe when available
 - FortiAIGate deployed with Helm and a post-renderer
 
-IAM role creation is out of scope. Use an existing EC2 instance profile with ECR read permissions.
+The EC2 Terraform module can use an existing instance profile or create a dedicated EC2 role/profile. Private ECR pull access is attached by the ECR module when `ec2_pull_role_name` is set.
 
 ## Network CIDRs
 

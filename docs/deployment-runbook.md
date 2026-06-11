@@ -2,6 +2,8 @@
 
 This runbook describes the normal AWS lab deployment workflow.
 
+Unless noted otherwise, command blocks start from the `fortiaigate_demo` repo root.
+
 ## 1. Prepare Local Inputs
 
 Required local inputs are intentionally ignored by Git:
@@ -20,16 +22,15 @@ Expected chart layout:
 ```text
 FAIG_helm/
   8.0.0/
-    FAIG_helm_chart-V8.0.0-build0024-FORTINET.tar.gz
     fortiaigate/
       Chart.yaml
   8.0.1/
-    FAIG_helm_chart-V8.0.1-build0031-FORTINET.tar.gz
     fortiaigate/
       Chart.yaml
 ```
 
 The deployment role expects `fortiaigate_chart_path` to point at the extracted chart directory, not the vendor `.tgz` file.
+The vendor Helm chart `.tar.gz` can be stored beside the extracted chart for reference, but automation does not require it.
 
 ## 2. Authenticate to AWS
 
@@ -38,6 +39,15 @@ aws sso login --profile <profile-name>
 ```
 
 Use the same profile in Terraform and Ansible variables.
+
+Quick AWS CLI troubleshooting:
+
+```bash
+aws configure list-profiles
+aws sts get-caller-identity --profile <profile-name>
+```
+
+If these fail, fix the AWS CLI/SSO session before troubleshooting Terraform.
 
 ## 3. Create ECR Repositories
 
@@ -58,33 +68,7 @@ ansible/group_vars/ecr.generated.yml
 
 If repositories already exist, import them before applying. See [terraform.md](terraform.md).
 
-## 4. Prepare Bedrock Access
-
-```bash
-cd terraform/aws-bedrock
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
-```
-
-Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
-
-After the EC2 host exists, Bedrock reads `terraform/aws-ec2-k3s/terraform.tfstate` and restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
-
-Retrieve the values after apply:
-
-```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_region
-```
-
-The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
-
-## 5. Publish Images
+## 4. Publish Images
 
 ```bash
 cd ansible
@@ -102,7 +86,7 @@ ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
 
 To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
 
-## 6. Deploy AWS Infrastructure
+## 5. Deploy AWS Infrastructure
 
 ```bash
 cd terraform/aws-ec2-k3s
@@ -119,7 +103,32 @@ Terraform writes the generated Ansible inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
+Minimum `terraform.tfvars` values to review:
+
+- `aws_profile`
+- `aws_region`
+- `ssh_key_name`
+- `ssh_private_key_file` when the AWS key pair does not use your default SSH key
+- `allowed_ingress_cidr`
+- `iam_instance_profile_name`, or `create_iam_instance_profile = true`
+- `instance_type` when changing from the default `g4dn.4xlarge`
+
 If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `terraform.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
+
+Validate AWS instance status and SSH before running Ansible:
+
+```bash
+terraform output ssh_command
+aws ec2 describe-instance-status \
+  --profile <profile-name> \
+  --region <region> \
+  --instance-ids "$(terraform output -raw instance_id)" \
+  --include-all-instances \
+  --query 'InstanceStatuses[0].{Instance:InstanceState.Name,System:SystemStatus.Status,InstanceStatus:InstanceStatus.Status}' \
+  --output table
+```
+
+Run the `ssh_command` output. If SSH does not work, fix AWS networking, the key pair, or `ssh_private_key_file` before starting Ansible.
 
 The AWS and k3s networks must not overlap. The default phase 1 layout is:
 
@@ -132,6 +141,34 @@ k3s_cluster_dns: 10.70.0.10
 ```
 
 Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
+
+## 6. Prepare Bedrock Access
+
+Run this after EC2 exists because the Bedrock module reads `terraform/aws-ec2-k3s/terraform.tfstate` for source-IP restrictions.
+
+```bash
+cd terraform/aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform fmt
+terraform validate
+terraform apply
+```
+
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
+
+By default, Bedrock restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
+
+Retrieve the values after apply:
+
+```bash
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+terraform output bedrock_key_expires_at
+terraform output bedrock_region
+```
+
+The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
 
 ## 7. Configure Deployment Variables
 
@@ -200,6 +237,15 @@ fortiaigate_ssl_key_path: /path/to/private/tls.key
 ```
 
 Ansible copies the selected files into the temporary remote chart copy before Helm renders.
+
+Minimum `group_vars/all.yml` values to review:
+
+- `fortiaigate_version` and the matching image tags
+- `faig_workspace_root` only when the repo is not under the default parent `FAIG` directory
+- `license_source_dir` only when licenses are not under `FAIG/licenses`
+- `fortiaigate_license_files`
+- `fortiaigate_ingress_host` when using DNS instead of the EC2 public IP
+- `validate_faig_ollama_forwarding` only after an Ollama provider exists in FortiAIGate
 
 ## 8. Bootstrap k3s
 
