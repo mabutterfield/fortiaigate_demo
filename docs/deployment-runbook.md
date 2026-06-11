@@ -7,6 +7,7 @@ This runbook describes the normal AWS lab deployment workflow.
 Required local inputs are intentionally ignored by Git:
 
 - `terraform/aws-ecr/terraform.tfvars`
+- `terraform/aws-bedrock/terraform.tfvars`
 - `terraform/aws-ec2-k3s/terraform.tfvars`
 - `ansible/group_vars/all.yml`
 - `ansible/group_vars/images.yml`
@@ -57,7 +58,33 @@ ansible/group_vars/ecr.generated.yml
 
 If repositories already exist, import them before applying. See [terraform.md](terraform.md).
 
-## 4. Publish Images
+## 4. Prepare Bedrock Access
+
+```bash
+cd terraform/aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform fmt
+terraform validate
+terraform apply
+```
+
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
+
+After the EC2 host exists, Bedrock reads `terraform/aws-ec2-k3s/terraform.tfstate` and restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
+
+Retrieve the values after apply:
+
+```bash
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+terraform output bedrock_key_expires_at
+terraform output bedrock_region
+```
+
+The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
+
+## 5. Publish Images
 
 ```bash
 cd ansible
@@ -75,7 +102,7 @@ ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
 
 To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
 
-## 5. Deploy AWS Infrastructure
+## 6. Deploy AWS Infrastructure
 
 ```bash
 cd terraform/aws-ec2-k3s
@@ -106,7 +133,7 @@ k3s_cluster_dns: 10.70.0.10
 
 Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
 
-## 6. Configure Deployment Variables
+## 7. Configure Deployment Variables
 
 ```bash
 cd ansible
@@ -160,7 +187,7 @@ fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 Ansible copies the selected files into the temporary remote chart copy before Helm renders.
 
-## 7. Bootstrap k3s
+## 8. Bootstrap k3s
 
 ```bash
 ansible-playbook playbooks/bootstrap_gpu_k3s.yml
@@ -187,7 +214,7 @@ Rerun the same checks independently with:
 ansible-playbook playbooks/validate_k3s.yml
 ```
 
-## 8. Deploy FortiAIGate
+## 9. Deploy FortiAIGate
 
 ```bash
 ansible-playbook playbooks/deploy_fortiaigate.yml
@@ -203,7 +230,7 @@ The deploy playbook:
 
 By default Helm does not wait for every Kubernetes workload to become Ready. This keeps the install command responsive and leaves status monitoring to the next step.
 
-## 9. Monitor Status
+## 10. Monitor Status
 
 ```bash
 ansible-playbook playbooks/status_fortiaigate.yml
@@ -220,7 +247,7 @@ kubectl get pvc -n fortiaigate
 kubectl get events -n fortiaigate --sort-by=.lastTimestamp
 ```
 
-## 10. Validate
+## 11. Validate
 
 ```bash
 ansible-playbook playbooks/validate_faig.yml

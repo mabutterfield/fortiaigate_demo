@@ -6,6 +6,14 @@ ssh_private_key_file      = "~/.ssh/my-existing-keypair.pem"
 allowed_ingress_cidr      = "203.0.113.10/32"
 iam_instance_profile_name = "existing-ec2-ecr-readonly-profile"
 
+# Optional: let this module create the EC2 IAM role/profile instead of using
+# the existing profile above. Then pass the iam_role_name Terraform output to
+# terraform/aws-ecr.ec2_pull_role_name for scoped private ECR pull access.
+create_iam_instance_profile = false
+# iam_role_name                 = "fortiaigate-demo-ec2-role"
+# iam_instance_profile_name     = "fortiaigate-demo-ec2-profile"
+# iam_role_managed_policy_arns  = []
+
 # g4dn.xlarge is the default for cheaper infrastructure smoke tests.
 # Use g4dn.4xlarge for full FortiAIGate validation.
 instance_type = "g4dn.xlarge"
@@ -17,5 +25,3 @@ public_subnet_cidr = "10.20.1.0/24"
 k3s_cluster_cidr   = "10.60.0.0/16"
 k3s_service_cidr   = "10.70.0.0/16"
 k3s_cluster_dns    = "10.70.0.10"
-
-

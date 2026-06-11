@@ -1,4 +1,7 @@
 locals {
+  created_iam_role_name               = var.iam_role_name != "" ? var.iam_role_name : "${var.name_prefix}-ec2-role"
+  effective_iam_instance_profile_name = var.iam_instance_profile_name != "" ? var.iam_instance_profile_name : "${var.name_prefix}-ec2-profile"
+
   tags = merge(
     {
       Project = "FortiAIGate Demo"
@@ -29,7 +32,50 @@ data "aws_ami" "ubuntu_2404" {
 }
 
 data "aws_iam_instance_profile" "fortiaigate" {
-  name = var.iam_instance_profile_name
+  count = var.create_iam_instance_profile || var.iam_instance_profile_name == "" ? 0 : 1
+  name  = var.iam_instance_profile_name
+}
+
+resource "aws_iam_role" "ec2" {
+  count = var.create_iam_instance_profile ? 1 : 0
+
+  name = local.created_iam_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Ec2AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = merge(local.tags, {
+    Name = local.created_iam_role_name
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_managed" {
+  for_each = var.create_iam_instance_profile ? toset(var.iam_role_managed_policy_arns) : toset([])
+
+  role       = aws_iam_role.ec2[0].name
+  policy_arn = each.value
+}
+
+resource "aws_iam_instance_profile" "ec2" {
+  count = var.create_iam_instance_profile ? 1 : 0
+
+  name = local.effective_iam_instance_profile_name
+  role = aws_iam_role.ec2[0].name
+
+  tags = merge(local.tags, {
+    Name = local.effective_iam_instance_profile_name
+  })
 }
 
 resource "aws_vpc" "this" {
@@ -124,10 +170,17 @@ resource "aws_instance" "this" {
   ami                         = data.aws_ami.ubuntu_2404.id
   instance_type               = var.instance_type
   key_name                    = var.ssh_key_name
-  iam_instance_profile        = data.aws_iam_instance_profile.fortiaigate.name
+  iam_instance_profile        = var.create_iam_instance_profile ? aws_iam_instance_profile.ec2[0].name : try(data.aws_iam_instance_profile.fortiaigate[0].name, "")
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.this.id]
   associate_public_ip_address = true
+
+  lifecycle {
+    precondition {
+      condition     = var.create_iam_instance_profile || var.iam_instance_profile_name != ""
+      error_message = "Set iam_instance_profile_name to an existing profile, or set create_iam_instance_profile=true to create one."
+    }
+  }
 
   root_block_device {
     volume_size = var.root_volume_size_gb

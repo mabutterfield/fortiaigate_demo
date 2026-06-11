@@ -6,6 +6,7 @@
     - name: Load generated and local group vars when present
       ansible.builtin.include_vars:
         file: "{{ item }}"
+      # Change note: Bedrock credentials are Terraform outputs entered manually in FortiAIGate, so no bedrock.generated.yml is loaded.
       loop: >-
         {{
           query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')

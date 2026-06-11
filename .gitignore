@@ -56,6 +56,7 @@ ansible/host_vars/*.yml
 !ansible/host_vars/*.example.yml
 ansible/inventory/aws.generated.ini
 ansible/group_vars/ecr.generated.yml
+ansible/group_vars/bedrock.generated.yml
 ansible/group_vars/images.yml
 
 # Kubernetes and deployment generated files

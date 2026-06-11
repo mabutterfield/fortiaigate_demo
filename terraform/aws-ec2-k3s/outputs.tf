@@ -8,6 +8,11 @@ output "public_ip" {
   value       = aws_eip.this.public_ip
 }
 
+output "allowed_ingress_cidr" {
+  description = "CIDR allowed to reach SSH/HTTP/HTTPS on the lab instance."
+  value       = var.allowed_ingress_cidr
+}
+
 output "ssh_command" {
   description = "SSH command for the k3s host."
   value       = var.ssh_private_key_file != "" ? "ssh -i ${var.ssh_private_key_file} ubuntu@${aws_eip.this.public_ip}" : "ssh ubuntu@${aws_eip.this.public_ip}"
@@ -16,6 +21,16 @@ output "ssh_command" {
 output "ansible_inventory" {
   description = "Generated Ansible inventory path."
   value       = local_file.ansible_inventory.filename
+}
+
+output "iam_instance_profile_name" {
+  description = "IAM instance profile attached to the k3s host."
+  value       = var.create_iam_instance_profile ? aws_iam_instance_profile.ec2[0].name : try(data.aws_iam_instance_profile.fortiaigate[0].name, null)
+}
+
+output "iam_role_name" {
+  description = "IAM role attached to the k3s host through the instance profile. Use this with the ECR Terraform module."
+  value       = var.create_iam_instance_profile ? aws_iam_role.ec2[0].name : try(data.aws_iam_instance_profile.fortiaigate[0].role_name, null)
 }
 
 output "network_cidrs" {

@@ -39,7 +39,26 @@ variable "allowed_ingress_cidr" {
 
 variable "iam_instance_profile_name" {
   type        = string
-  description = "Existing IAM instance profile name with ECR read permissions."
+  description = "IAM instance profile name. Existing profile when create_iam_instance_profile is false; profile to create when true. Leave empty with create_iam_instance_profile=true to use name_prefix."
+  default     = ""
+}
+
+variable "create_iam_instance_profile" {
+  type        = bool
+  description = "Create an EC2 IAM role and instance profile for the k3s host instead of looking up an existing profile."
+  default     = false
+}
+
+variable "iam_role_name" {
+  type        = string
+  description = "Optional IAM role name to create when create_iam_instance_profile is true. Leave empty to use name_prefix."
+  default     = ""
+}
+
+variable "iam_role_managed_policy_arns" {
+  type        = list(string)
+  description = "Optional managed policy ARNs to attach to the created EC2 IAM role. ECR and Bedrock scoped policies can also be attached by their dedicated Terraform modules."
+  default     = []
 }
 
 variable "vpc_cidr" {

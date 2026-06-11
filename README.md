@@ -82,6 +82,17 @@ terraform init
 terraform apply
 ```
 
+Prepare optional Bedrock access:
+
+```bash
+cd ../aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+```
+
 Publish FortiAIGate release images:
 
 ```bash
@@ -147,6 +158,7 @@ The default network layout avoids overlap between the AWS VPC and k3s internals:
 | [docs/README.md](docs/README.md) | Documentation index |
 | [docs/deployment-runbook.md](docs/deployment-runbook.md) | End-to-end deployment workflow |
 | [docs/ECR.md](docs/ECR.md) | ECR repository and image publishing workflow |
+| [docs/Bedrock.md](docs/Bedrock.md) | Temporary Bedrock IAM credentials for manual provider setup |
 | [docs/terraform.md](docs/terraform.md) | Terraform module usage and import notes |
 | [docs/aws-k3s-foundation.md](docs/aws-k3s-foundation.md) | AWS k3s architecture and implementation notes |
 | [k8s-overlays/fortiaigate/README.md](k8s-overlays/fortiaigate/README.md) | Helm post-render patch behavior |

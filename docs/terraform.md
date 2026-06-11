@@ -1,8 +1,9 @@
 # Terraform
 
-Terraform is split into two phase 1 modules:
+Terraform is split into three phase 1 modules:
 
 - `terraform/aws-ecr`: private ECR repositories for FortiAIGate images
+- `terraform/aws-bedrock`: temporary IAM credentials for manual FortiAIGate Bedrock provider setup
 - `terraform/aws-ec2-k3s`: AWS network, GPU EC2 instance, Elastic IP, and generated Ansible inventory
 
 Both modules use local Terraform state for phase 1. Remote state is a future enhancement.
@@ -36,7 +37,7 @@ Defaults:
 - AES256 encryption
 - lifecycle retention for tagged and untagged images
 
-Set `ec2_pull_role_name` only when Terraform should attach a scoped read policy to an existing EC2 role. Terraform does not create IAM roles.
+Set `ec2_pull_role_name` to the `terraform/aws-ec2-k3s` `iam_role_name` output when Terraform should attach a scoped read policy to the k3s host role. This works with either an existing role looked up by the EC2 module or a role created by the EC2 module.
 
 Terraform writes non-secret registry values to:
 
@@ -63,6 +64,25 @@ terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-t
 
 The import ID must match the real repository name and the configured AWS region.
 
+## Bedrock Module
+
+```bash
+cd terraform/aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform fmt
+terraform validate
+terraform apply
+```
+
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. This module creates a dedicated IAM user and access key for the FortiAIGate GUI.
+
+By default, Bedrock source IP restrictions are derived from `terraform/aws-ec2-k3s` local state: the k3s host EIP as `<eip>/32` and the EC2 `allowed_ingress_cidr`. Set `no_ip_restriction = true` to disable that deny, or use `allowed_source_cidrs` for extra CIDRs.
+
+The secret access key is a sensitive Terraform output and is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
+
+See [Bedrock.md](Bedrock.md) for credential handling and GUI setup details.
+
 ## AWS EC2 k3s Module
 
 ```bash
@@ -80,6 +100,7 @@ This module creates:
 - public subnet
 - internet gateway and public route table
 - security group for SSH, HTTP, and HTTPS from `allowed_ingress_cidr`
+- optional EC2 IAM role and instance profile
 - Ubuntu 24.04 GPU EC2 instance
 - Elastic IP
 - generated Ansible inventory
@@ -109,9 +130,28 @@ Override the values in `terraform.tfvars` when the defaults conflict with an exi
 
 ## IAM
 
-IAM role creation is intentionally out of scope for phase 1.
+By default, the EC2 module uses an existing instance profile:
 
-Provide an existing instance profile through `iam_instance_profile_name`. The attached role must be able to pull from ECR, for example through `AmazonEC2ContainerRegistryReadOnly` or the scoped policy attached by the ECR module.
+```hcl
+create_iam_instance_profile = false
+iam_instance_profile_name   = "existing-profile-name"
+```
+
+To let Terraform create the EC2 role and instance profile:
+
+```hcl
+create_iam_instance_profile = true
+iam_role_name               = "fortiaigate-demo-ec2-role"
+iam_instance_profile_name   = "fortiaigate-demo-ec2-profile"
+```
+
+If `iam_role_name` or `iam_instance_profile_name` are empty in creation mode, Terraform derives names from `name_prefix`.
+
+After applying `terraform/aws-ec2-k3s`, pass the `iam_role_name` output to:
+
+- `terraform/aws-ecr.ec2_pull_role_name` for scoped private ECR pull access
+
+Bedrock does not use the EC2 role because FortiAIGate currently asks for Access Key ID and Secret Access Key fields in the provider GUI.
 
 ## Instance Sizing
 
