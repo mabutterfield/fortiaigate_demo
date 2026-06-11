@@ -15,88 +15,141 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_status_helm.stdout_lines
 
-- name: Show FortiAIGate Helm release status
-  ansible.builtin.debug:
-    var: fortiaigate_status_helm.stdout_lines
-
-- name: Get FortiAIGate pods
-  ansible.builtin.command:
-    argv:
-      - /usr/local/bin/kubectl
-      - --kubeconfig
-      - /etc/rancher/k3s/k3s.yaml
-      - get
-      - pods
-      - -n
-      - "{{ fortiaigate_namespace }}"
-      - -o
-      - wide
-  changed_when: false
-  failed_when: false
-  register: fortiaigate_status_pods
-  # - ansible.builtin.debug:
-  #     var: fortiaigate_status_pods.stdout_lines
-
-- name: Show FortiAIGate pods
-  ansible.builtin.debug:
-    var: fortiaigate_status_pods.stdout_lines
-
-- name: Get FortiAIGate persistent volume claims
-  ansible.builtin.command:
-    argv:
-      - /usr/local/bin/kubectl
-      - --kubeconfig
-      - /etc/rancher/k3s/k3s.yaml
-      - get
-      - pvc
-      - -n
-      - "{{ fortiaigate_namespace }}"
-  changed_when: false
-  failed_when: false
-  register: fortiaigate_status_pvc
-  # - ansible.builtin.debug:
-  #     var: fortiaigate_status_pvc.stdout_lines
-
-- name: Show FortiAIGate persistent volume claims
-  ansible.builtin.debug:
-    var: fortiaigate_status_pvc.stdout_lines
-
-- name: Get FortiAIGate ingress
-  ansible.builtin.command:
-    argv:
-      - /usr/local/bin/kubectl
-      - --kubeconfig
-      - /etc/rancher/k3s/k3s.yaml
-      - get
-      - ingress
-      - -n
-      - "{{ fortiaigate_namespace }}"
-      - -o
-      - wide
-  changed_when: false
-  failed_when: false
-  register: fortiaigate_status_ingress
-  # - ansible.builtin.debug:
-  #     var: fortiaigate_status_ingress.stdout_lines
-
-- name: Show FortiAIGate ingress
-  ansible.builtin.debug:
-    var: fortiaigate_status_ingress.stdout_lines
-
-- name: Get recent FortiAIGate events
+- name: Get FortiAIGate pod readiness summary
   ansible.builtin.shell: |
-    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get events \
-      -n {{ fortiaigate_namespace }} \
-      --sort-by=.lastTimestamp \
-      | tail -80
+    set -euo pipefail
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -n {{ fortiaigate_namespace }} -o json \
+      | /usr/bin/python3 -c '
+    import json
+    import sys
+
+    data = json.load(sys.stdin)
+    pods = data.get("items", [])
+    problems = []
+    ready_count = 0
+
+    for pod in pods:
+        metadata = pod.get("metadata", {})
+        status = pod.get("status", {})
+        name = metadata.get("name", "<unknown>")
+        phase = status.get("phase", "Unknown")
+        conditions = status.get("conditions", [])
+        ready = phase == "Succeeded" or any(
+            condition.get("type") == "Ready" and condition.get("status") == "True"
+            for condition in conditions
+        )
+        waiting_reasons = []
+        for container_status in status.get("containerStatuses", []):
+            state = container_status.get("state", {})
+            waiting = state.get("waiting")
+            if waiting:
+                reason = waiting.get("reason", "Waiting")
+                message = waiting.get("message", "")
+                waiting_reasons.append(reason if not message else f"{reason}: {message}")
+        if ready and phase in ("Running", "Succeeded"):
+            ready_count += 1
+            continue
+        detail = f"{name}: phase={phase}, ready={ready}"
+        if waiting_reasons:
+            detail = detail + ", waiting=" + "; ".join(waiting_reasons)
+        problems.append(detail)
+
+    result = {
+        "ready": bool(pods) and ready_count == len(pods),
+        "ready_count": ready_count,
+        "total_count": len(pods),
+        "problems": problems,
+    }
+    print(json.dumps(result))
+    '
   args:
     executable: /bin/bash
   changed_when: false
   failed_when: false
-  register: fortiaigate_status_events
+  register: fortiaigate_status_pod_summary_raw
   # - ansible.builtin.debug:
-  #     var: fortiaigate_status_events.stdout_lines
+  #     var: fortiaigate_status_pod_summary_raw.stdout
 
-- name: Show recent FortiAIGate events
+- name: Set FortiAIGate pod summary fact
+  ansible.builtin.set_fact:
+    fortiaigate_status_pod_summary: "{{ fortiaigate_status_pod_summary_raw.stdout | from_json }}"
+  when: fortiaigate_status_pod_summary_raw.rc == 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_pod_summary
+
+- name: Set FortiAIGate pod summary error fact
+  ansible.builtin.set_fact:
+    fortiaigate_status_pod_summary:
+      ready: false
+      ready_count: 0
+      total_count: 0
+      problems:
+        - "kubectl failed: {{ fortiaigate_status_pod_summary_raw.stderr | default('unknown error') }}"
+  when: fortiaigate_status_pod_summary_raw.rc != 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_pod_summary
+
+- name: Set FortiAIGate status host fact
+  ansible.builtin.set_fact:
+    fortiaigate_status_login_host: >-
+      {{
+        fortiaigate_ingress_host
+        if (fortiaigate_ingress_host is defined and fortiaigate_ingress_host | length > 0)
+        else (
+          public_ip
+          if (public_ip is defined and public_ip | length > 0)
+          else (ansible_host | default(inventory_hostname))
+        )
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_login_host
+
+- name: Set FortiAIGate status classification
+  ansible.builtin.set_fact:
+    fortiaigate_status_state: >-
+      {{
+        'ERROR'
+        if (fortiaigate_status_helm.rc != 0 or fortiaigate_status_pod_summary_raw.rc != 0)
+        else ('READY' if fortiaigate_status_pod_summary.ready else 'NOT READY')
+      }}
+    fortiaigate_status_login_url: >-
+      {{
+        fortiaigate_status_login_url_override
+        if fortiaigate_status_login_url_override | length > 0
+        else 'https://' ~ fortiaigate_status_login_host ~ '/'
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_state
+
+- name: Set FortiAIGate interpreted problem list
+  ansible.builtin.set_fact:
+    fortiaigate_status_problems: >-
+      {{
+        (
+          ['helm status failed: ' ~ (fortiaigate_status_helm.stderr | default(fortiaigate_status_helm.stdout | default('unknown error')))]
+          if fortiaigate_status_helm.rc != 0
+          else []
+        )
+        + fortiaigate_status_pod_summary.problems
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_problems
+
+- name: Show FortiAIGate status summary
   ansible.builtin.debug:
-    var: fortiaigate_status_events.stdout_lines
+    msg:
+      - "FortiAIGate status: {{ fortiaigate_status_state }}"
+      - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
+      - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
+      - "Login URL: {{ fortiaigate_status_login_url }}"
+      - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"
+
+- name: Show raw FortiAIGate Helm release status when verbose
+  ansible.builtin.debug:
+    var: fortiaigate_status_helm.stdout_lines
+  when: fortiaigate_status_verbose | bool
+
+- name: Show raw FortiAIGate pod summary command output when verbose
+  ansible.builtin.debug:
+    var: fortiaigate_status_pod_summary_raw
+  when: fortiaigate_status_verbose | bool

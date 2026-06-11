@@ -144,7 +144,6 @@ For FortiAIGate 8.0.0:
 
 ```yaml
 fortiaigate_version: "8.0.0"
-fortiaigate_chart_path: "/path/to/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_image_tag: "V8.0.0-build0024"
 fortiaigate_triton_model_image_tag: "0.1.4"
 fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
@@ -154,22 +153,37 @@ For FortiAIGate 8.0.1:
 
 ```yaml
 fortiaigate_version: "8.0.1"
-fortiaigate_chart_path: "/path/to/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_image_tag: "V8.0.1-build0031"
 fortiaigate_triton_model_image_tag: "0.1.6-s1"
 fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
 ```
 
+By default, paths are derived from `faig_workspace_root`, which resolves to the parent `FAIG` directory from the Ansible playbook location:
+
+```yaml
+faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
+fortiaigate_chart_path: "{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
+fortiaigate_chart_archive_local_path: "{{ faig_workspace_root }}/tmp/fortiaigate-chart.tgz"
+```
+
+Set `FAIG_WORKSPACE_ROOT` when the workspace is somewhere else:
+
+```bash
+export FAIG_WORKSPACE_ROOT=/absolute/path/to/FAIG
+```
+
+Use absolute paths. Do not use `~` in these variables because Ansible path checks and `command.argv` do not shell-expand it.
+
 For single-node labs, set:
 
 ```yaml
-license_source_dir: /path/to/licenses/fortiaigate
+license_source_dir: "{{ faig_workspace_root }}/licenses"
 fortiaigate_license_files:
   - License1.lic
 fortiaigate_licenses: {}
 ```
 
-Ansible maps the first license file to the discovered Kubernetes node name. Use `fortiaigate_licenses` only when an exact node-to-license mapping is required.
+Ansible maps the first license file to the discovered Kubernetes node name. Use `fortiaigate_licenses` only when an exact node-to-license mapping is required. The default expects license files under `FAIG/licenses`; override `license_source_dir` only when they live somewhere else.
 
 By default, FortiAIGate TLS uses the chart's bundled certificate and key:
 
@@ -236,7 +250,13 @@ By default Helm does not wait for every Kubernetes workload to become Ready. Thi
 ansible-playbook playbooks/status_fortiaigate.yml
 ```
 
-This reports Helm release state, pods, PVCs, ingress, and recent events.
+This is the lightweight readiness check. It reports one of:
+
+- `READY`: Helm is reachable and all FortiAIGate pods are Ready
+- `NOT READY`: Kubernetes is reachable but at least one FortiAIGate pod is not Ready
+- `ERROR`: Helm or Kubernetes status commands failed
+
+It also prints the HTTPS login URL. The URL uses `fortiaigate_ingress_host` when set, otherwise the generated inventory `public_ip`, otherwise `ansible_host`.
 
 Useful manual commands on the k3s host:
 
@@ -254,6 +274,21 @@ ansible-playbook playbooks/validate_faig.yml
 ```
 
 Validation checks the host, Kubernetes, GPU visibility, ingress, and FortiAIGate service reachability.
+
+Use validation after status is `READY` or when you need deeper checks. It validates GPU visibility, Triton device access, `/dev/shm`, UI/API HTTP behavior, and optional provider forwarding.
+
+At the end, validation prints an interpreted summary:
+
+- `FortiAIGate status: READY` when all FortiAIGate pods are ready
+- pod ready count and problem pods when not ready
+- UI/API HTTP status checks
+- HTTPS login URL
+
+The login URL defaults to `fortiaigate_ingress_host` when set, otherwise `ansible_host`. Override the displayed URL with:
+
+```yaml
+validate_faig_login_url_override: https://faig.example.com/
+```
 
 ## External Ollama
 

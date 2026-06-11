@@ -121,9 +121,17 @@ Set local values in `group_vars/all.yml`, especially:
 
 - AWS profile/region/account values when not supplied by generated vars
 - `fortiaigate_version`
-- `fortiaigate_chart_path`
+- `faig_workspace_root` when your `FAIG` workspace is not the parent of this repo
 - license source path and license file list
 - Ollama endpoint/model if used for validation
+
+By default, `faig_workspace_root` resolves to the parent `FAIG` directory from the Ansible playbook location. You can override it per shell:
+
+```bash
+export FAIG_WORKSPACE_ROOT=/absolute/path/to/FAIG
+```
+
+Do not use `~` in `fortiaigate_chart_path` or `fortiaigate_chart_archive_local_path`; Ansible path tests and delegated `command` tasks do not reliably expand it.
 
 Expected chart layout:
 
@@ -171,11 +179,11 @@ Bootstrap runs the same k3s sanity checks as `validate_k3s.yml` before it comple
 
 `terraform/aws-ec2-k3s` writes `ansible/inventory/aws.generated.ini`. `terraform/aws-ecr` writes `ansible/group_vars/ecr.generated.yml`. Both generated files are ignored by Git.
 
-By default, `deploy_fortiaigate.yml` submits the Helm release and returns after Helm accepts the install or upgrade. It does not wait for every pod to become Ready. Use `status_fortiaigate.yml` to monitor pods, PVCs, ingress, Helm release state, and recent events.
+By default, `deploy_fortiaigate.yml` submits the Helm release and returns after Helm accepts the install or upgrade. It does not wait for every pod to become Ready. Use `status_fortiaigate.yml` for the lightweight `READY` / `NOT READY` / `ERROR` answer and login URL. Use `validate_faig.yml` for deeper GPU, Triton, UI/API, and optional provider checks.
 
 After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`, and shell profile configuration so interactive `kubectl` works without `sudo` on the k3s host.
 
-FortiAIGate licenses bind to instance identity and may require time to reset after repeated destroy/redeploy cycles. Keep licenses outside this repo and use `fortiaigate_license_files` for single-node labs unless an explicit node-to-license map is required.
+FortiAIGate licenses bind to instance identity and may require time to reset after repeated destroy/redeploy cycles. Keep licenses outside this repo; the default `license_source_dir` is `{{ faig_workspace_root }}/licenses`, which resolves to `FAIG/licenses`. Use `fortiaigate_license_files` for single-node labs unless an explicit node-to-license map is required.
 
 ## Branching
 

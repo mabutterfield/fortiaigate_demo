@@ -13,4 +13,5 @@
     - k3s
     - nvidia_container_runtime
     - nvidia_device_plugin
+    - nginx_ingress
     - validate_k3s

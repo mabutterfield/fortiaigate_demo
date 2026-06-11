@@ -67,6 +67,25 @@
       - fortiaigate_effective_licenses | length > 0
     fail_msg: "Could not build a FortiAIGate node-to-license mapping."
 
+- name: Validate FortiAIGate license source directory
+  ansible.builtin.assert:
+    that:
+      - license_source_dir is defined
+      - license_source_dir | length > 0
+      - license_source_dir is directory
+    fail_msg: "Set license_source_dir to a readable local license directory, for example {{ faig_workspace_root }}/licenses."
+  delegate_to: localhost
+  become: false
+
+- name: Validate FortiAIGate license source files
+  ansible.builtin.assert:
+    that:
+      - (license_source_dir ~ '/' ~ item.value) is file
+    fail_msg: "License file {{ item.value }} was not found under {{ license_source_dir }}."
+  loop: "{{ fortiaigate_effective_licenses | dict2items }}"
+  delegate_to: localhost
+  become: false
+
 - name: Check existing FortiAIGate Helm release status
   ansible.builtin.command:
     argv:
@@ -136,6 +155,14 @@
     owner: "{{ ansible_user | default('root') }}"
     group: "{{ ansible_user | default('root') }}"
     mode: "0755"
+
+- name: Ensure local FortiAIGate temp directory exists
+  ansible.builtin.file:
+    path: "{{ fortiaigate_chart_archive_local_path | dirname }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
 
 - name: Create local FortiAIGate chart archive
   ansible.builtin.command:

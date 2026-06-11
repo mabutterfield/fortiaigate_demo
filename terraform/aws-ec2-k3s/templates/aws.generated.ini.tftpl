@@ -3,6 +3,7 @@ faig-aws ansible_host=${public_ip} ansible_user=ubuntu%{ if ssh_private_key_file
 
 [fortiaigate:vars]
 ansible_python_interpreter=/usr/bin/python3
+public_ip=${public_ip}
 aws_vpc_cidr=${aws_vpc_cidr}
 aws_public_subnet_cidr=${aws_public_subnet_cidr}
 k3s_cluster_cidr=${k3s_cluster_cidr}

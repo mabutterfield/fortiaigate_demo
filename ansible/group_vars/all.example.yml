@@ -23,11 +23,13 @@ fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
 # fortiaigate_image_tag: "V8.0.1-build0031"
 # fortiaigate_triton_model_image_tag: "0.1.6-s1"
 # fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
-fortiaigate_chart_path: "/path/to/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
+faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
+faig_local_tmp_dir: "{{ faig_workspace_root }}/tmp"
+fortiaigate_chart_path: "{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
 fortiaigate_values_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-values.yaml"
 fortiaigate_post_renderer_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-post-render.py"
-fortiaigate_chart_archive_local_path: /tmp/fortiaigate-chart.tgz
+fortiaigate_chart_archive_local_path: "{{ faig_local_tmp_dir }}/fortiaigate-chart.tgz"
 fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
 fortiaigate_helm_wait: false
 fortiaigate_helm_timeout: 20m
@@ -66,7 +68,8 @@ fortiaigate_ssl_key_chart_path: files/certificate/dflt.key
 # fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 # Licenses are copied from this non-repo path into a temporary chart copy.
-license_source_dir: /path/to/licenses/fortiaigate
+# Default expects FAIG/licenses next to FAIG_helm and fortiaigate_demo.
+license_source_dir: "{{ faig_workspace_root }}/licenses"
 # Single-node default: Ansible maps the first file to the discovered Kubernetes node name.
 fortiaigate_license_files:
   - License1.lic
@@ -78,7 +81,12 @@ fortiaigate_licenses: {}
 
 ollama_base_url: http://10.11.41.201:11434/v1
 ollama_model: llama3.2:1b
+fortiaigate_status_verbose: false
+# Optional display URL for status_fortiaigate.yml output. Defaults to fortiaigate_ingress_host or ansible_host.
+fortiaigate_status_login_url_override: ""
 validate_faig_ollama_forwarding: false
+# Optional display URL for validate_faig.yml output. Defaults to fortiaigate_ingress_host or ansible_host.
+validate_faig_login_url_override: ""
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server

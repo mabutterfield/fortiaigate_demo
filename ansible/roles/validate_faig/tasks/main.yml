@@ -109,3 +109,95 @@
   when: validate_faig_ollama_forwarding | bool
   # - ansible.builtin.debug:
   #     var: validate_ollama_forward.stdout_lines
+
+- name: Build FortiAIGate readiness summary
+  ansible.builtin.shell: |
+    set -euo pipefail
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -n {{ fortiaigate_namespace }} -o json \
+      | /usr/bin/python3 -c '
+    import json
+    import sys
+
+    data = json.load(sys.stdin)
+    pods = data.get("items", [])
+    problems = []
+    ready_count = 0
+
+    for pod in pods:
+        metadata = pod.get("metadata", {})
+        status = pod.get("status", {})
+        name = metadata.get("name", "<unknown>")
+        phase = status.get("phase", "Unknown")
+        conditions = status.get("conditions", [])
+        ready = phase == "Succeeded" or any(
+            condition.get("type") == "Ready" and condition.get("status") == "True"
+            for condition in conditions
+        )
+        waiting_reasons = []
+        for container_status in status.get("containerStatuses", []):
+            state = container_status.get("state", {})
+            waiting = state.get("waiting")
+            if waiting:
+                reason = waiting.get("reason", "Waiting")
+                message = waiting.get("message", "")
+                waiting_reasons.append(reason if not message else f"{reason}: {message}")
+        if ready and phase in ("Running", "Succeeded"):
+            ready_count += 1
+            continue
+        detail = f"{name}: phase={phase}, ready={ready}"
+        if waiting_reasons:
+            detail = detail + ", waiting=" + "; ".join(waiting_reasons)
+        problems.append(detail)
+
+    result = {
+        "ready": bool(pods) and ready_count == len(pods),
+        "ready_count": ready_count,
+        "total_count": len(pods),
+        "problems": problems,
+    }
+    print(json.dumps(result))
+    '
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: validate_faig_readiness_summary_raw
+  # - ansible.builtin.debug:
+  #     var: validate_faig_readiness_summary_raw.stdout
+
+- name: Set FortiAIGate readiness summary facts
+  ansible.builtin.set_fact:
+    validate_faig_readiness_summary: "{{ validate_faig_readiness_summary_raw.stdout | from_json }}"
+    validate_faig_login_host: >-
+      {{
+        fortiaigate_ingress_host
+        if (fortiaigate_ingress_host is defined and fortiaigate_ingress_host | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}
+  # - ansible.builtin.debug:
+  #     var: validate_faig_readiness_summary
+
+- name: Set FortiAIGate login URL
+  ansible.builtin.set_fact:
+    validate_faig_login_url: >-
+      {{
+        validate_faig_login_url_override
+        if validate_faig_login_url_override | length > 0
+        else 'https://' ~ validate_faig_login_host ~ '/'
+      }}
+  # - ansible.builtin.debug:
+  #     var: validate_faig_login_url
+
+- name: Show FortiAIGate validation summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate status: {{ 'READY' if validate_faig_readiness_summary.ready else 'NOT READY' }}"
+      - "Pods ready: {{ validate_faig_readiness_summary.ready_count }}/{{ validate_faig_readiness_summary.total_count }}"
+      - "UI check HTTP status: {{ validate_ui.stdout }}"
+      - "API login check HTTP status: {{ validate_api_login.stdout }}"
+      - "Login URL: {{ validate_faig_login_url }}"
+      - "Problems: {{ validate_faig_readiness_summary.problems | join(' | ') if validate_faig_readiness_summary.problems | length > 0 else 'none' }}"
+
+- name: Fail when FortiAIGate is not ready
+  ansible.builtin.fail:
+    msg: "FortiAIGate is not ready: {{ validate_faig_readiness_summary.problems | join(' | ') }}"
+  when: not validate_faig_readiness_summary.ready

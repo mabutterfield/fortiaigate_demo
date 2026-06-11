@@ -95,8 +95,11 @@ FAIG_helm/<version>/fortiaigate
 Set:
 
 ```yaml
-fortiaigate_chart_path: "/path/to/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
+faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
+fortiaigate_chart_path: "{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 ```
+
+Override `FAIG_WORKSPACE_ROOT` when the parent workspace is not the default parent directory of this repo. Use an absolute path, not `~`.
 
 Ansible copies the extracted chart to the remote host under `fortiaigate_chart_remote_root`, stages licenses into that temporary copy, renders values, and runs Helm with the post-renderer.
 
@@ -132,7 +135,7 @@ validate_faig_ollama_forwarding: true
 
 - `terraform/aws-ec2-k3s/terraform.tfvars`
 - `ansible/group_vars/all.yml`
-- license files in `license_source_dir`
+- license files in `FAIG/licenses` by default, or another `license_source_dir`
 - FortiAIGate chart under `FAIG_helm/<version>/fortiaigate`
 - AWS SSO session before Terraform and ECR operations
 
