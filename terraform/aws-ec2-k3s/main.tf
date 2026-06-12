@@ -1,6 +1,10 @@
 locals {
   created_iam_role_name               = var.iam_role_name != "" ? var.iam_role_name : "${var.name_prefix}-ec2-role"
   effective_iam_instance_profile_name = var.iam_instance_profile_name != "" ? var.iam_instance_profile_name : "${var.name_prefix}-ec2-profile"
+  supported_instance_availability_zones = sort(
+    data.aws_ec2_instance_type_offerings.available.locations
+  )
+  selected_availability_zone = var.availability_zone != "" ? var.availability_zone : try(local.supported_instance_availability_zones[0], "")
 
   tags = merge(
     {
@@ -9,6 +13,15 @@ locals {
     },
     var.tags
   )
+}
+
+data "aws_ec2_instance_type_offerings" "available" {
+  location_type = "availability-zone"
+
+  filter {
+    name   = "instance-type"
+    values = [var.instance_type]
+  }
 }
 
 data "aws_ami" "ubuntu_2404" {
@@ -99,7 +112,20 @@ resource "aws_internet_gateway" "this" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.public_subnet_cidr
+  availability_zone       = local.selected_availability_zone
   map_public_ip_on_launch = true
+
+  lifecycle {
+    precondition {
+      condition     = length(local.supported_instance_availability_zones) > 0
+      error_message = "No Availability Zones in the selected AWS region offer the requested instance_type."
+    }
+
+    precondition {
+      condition     = var.availability_zone == "" || contains(local.supported_instance_availability_zones, var.availability_zone)
+      error_message = "availability_zone must be empty or set to an Availability Zone that offers the requested instance_type."
+    }
+  }
 
   tags = merge(local.tags, {
     Name = "${var.name_prefix}-public"

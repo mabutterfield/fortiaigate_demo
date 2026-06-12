@@ -1,0 +1,11 @@
+---
+fortiaigate_test_api_key: ""
+fortiaigate_test_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-bedrock"
+fortiaigate_test_endpoint_path: /v1/chat/completions
+fortiaigate_test_host_override: ""
+fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
+fortiaigate_test_model: ""
+fortiaigate_test_script: "{{ playbook_dir }}/../../tests/fortiaigate_chat_test.py"
+fortiaigate_test_timeout_seconds: 60
+fortiaigate_test_use_bedrock_output: true
+fortiaigate_test_fallback_model: openai.gpt-oss-20b-1:0

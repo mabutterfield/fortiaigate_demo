@@ -13,6 +13,16 @@ output "allowed_ingress_cidr" {
   value       = var.allowed_ingress_cidr
 }
 
+output "instance_type" {
+  description = "EC2 instance type configured for the k3s host."
+  value       = var.instance_type
+}
+
+output "selected_availability_zone" {
+  description = "Availability Zone selected for the public subnet and k3s EC2 instance."
+  value       = local.selected_availability_zone
+}
+
 output "ssh_command" {
   description = "SSH command for the k3s host."
   value       = var.ssh_private_key_file != "" ? "ssh -i ${var.ssh_private_key_file} ubuntu@${aws_eip.this.public_ip}" : "ssh ubuntu@${aws_eip.this.public_ip}"
@@ -42,14 +52,4 @@ output "network_cidrs" {
     k3s_service_cidr       = var.k3s_service_cidr
     k3s_cluster_dns        = var.k3s_cluster_dns
   }
-}
-
-output "recommended_full_validation_instance_type" {
-  description = "Recommended production-like validation instance type."
-  value       = "g6.8xlarge"
-}
-
-output "minimum_official_gpu_instance_type" {
-  description = "Lower-cost official NVIDIA L4 lab candidate."
-  value       = "g6.4xlarge"
 }

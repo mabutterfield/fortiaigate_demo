@@ -153,17 +153,6 @@ aws ec2 describe-instance-status \
 
 Run the `ssh_command` output before starting Ansible. If SSH does not work, Ansible will not work.
 
-Prepare optional Bedrock access after EC2 exists:
-
-```bash
-cd ../aws-bedrock
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform apply
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-```
-
 Configure deployment variables:
 
 ```bash
@@ -243,12 +232,46 @@ After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`
 
 FortiAIGate licenses bind to instance identity and may require time to reset after repeated destroy/redeploy cycles. Keep licenses outside this repo; the default `license_source_dir` is `{{ faig_workspace_root }}/licenses`, which resolves to `FAIG/licenses`. Use `fortiaigate_license_files` for single-node labs unless an explicit node-to-license map is required.
 
-## Branching
+## Bedrock First Guard
 
-Do not work directly on `main`. Use feature branches such as:
+After `status_fortiaigate.yml` reports `READY`, use the printed HTTPS login URL to sign in to FortiAIGate and change the default password.
 
-```text
-feat/<topic>
-lab/<topic>
-bugfix/<topic>
+Then create temporary Bedrock credentials from the repo root:
+
+```bash
+cd terraform/aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+terraform output bedrock_model_ids
+terraform output bedrock_allowed_regions
 ```
+
+In FortiAIGate, create the first Bedrock-backed guard/provider with:
+
+- Access Key ID from `terraform output bedrock_access_key_id`
+- Secret Access Key from `terraform output -raw bedrock_secret_access_key`
+- Region from the permitted `bedrock_allowed_regions`
+- Model ID from the permitted `bedrock_model_ids`
+
+To test Bedrock directly before configuring the FortiAIGate guard:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_model_direct.yml
+```
+
+The Bedrock direct test uses `tests/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock smoke test; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
+
+Set `direct_model_provider=ollama` to use the same playbook for direct Ollama testing.
+
+After the guard is configured, generate and run the first external chat test:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_fortiaigate_chat.yml
+```
+
+The playbook uses `tests/fortiaigate_chat_test.py` to send a short test prompt through `https://<fortiaigate-public-ip>:443/v1/chat/completions`, asks the routed model to identify itself, and summarizes the HTTP status and response.

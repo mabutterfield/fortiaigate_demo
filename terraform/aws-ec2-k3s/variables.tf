@@ -21,6 +21,12 @@ variable "instance_type" {
   default     = "g4dn.4xlarge"
 }
 
+variable "availability_zone" {
+  type        = string
+  description = "Optional Availability Zone for the public subnet and EC2 instance. Leave empty to auto-select the first AZ that offers instance_type."
+  default     = ""
+}
+
 variable "ssh_key_name" {
   type        = string
   description = "Existing AWS EC2 key pair name."

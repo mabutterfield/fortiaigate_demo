@@ -25,6 +25,10 @@ create_iam_instance_profile = false
 # Use g6.8xlarge for a stronger production-like L4 validation target.
 instance_type = "g4dn.4xlarge"
 
+# Leave empty to auto-select the first AZ that offers instance_type.
+# Set explicitly when AWS recommends a specific AZ, for example us-east-1a.
+availability_zone = ""
+
 # Keep AWS VPC, k3s pod, and k3s service networks non-overlapping.
 # Defaults intentionally use 10.x networks with second octets between 20 and 90.
 vpc_cidr           = "10.20.0.0/16"

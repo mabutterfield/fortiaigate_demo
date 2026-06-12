@@ -127,6 +127,16 @@ Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not 
 - `ansible_ssh_private_key_file` in the generated inventory
 - the `ssh_command` output as `ssh -i <keypath> ubuntu@<public-ip>`
 
+The public subnet controls the EC2 instance Availability Zone. By default, Terraform queries EC2 instance type offerings, sorts the AZs that offer `instance_type`, and selects the first one. This makes placement deterministic instead of relying on AWS implicit subnet placement.
+
+Set `availability_zone` in `terraform.tfvars` only when you need to force a specific AZ, such as one recommended by an AWS launch error:
+
+```hcl
+availability_zone = "us-east-1a"
+```
+
+The offerings query confirms the instance type is offered in an AZ; it does not guarantee current On-Demand capacity. If AWS returns a capacity error, set `availability_zone` to another AZ recommended by AWS or retry later.
+
 The module also writes these non-secret network values into the generated inventory so Ansible uses the same plan for k3s:
 
 ```ini
@@ -170,17 +180,4 @@ The Terraform default instance type is `g4dn.4xlarge`.
 
 Use `g6.8xlarge` for a stronger production-like L4 validation target. Use `g6.4xlarge` when you want a lower-cost official L4 lab candidate.
 
-Approximate instance sizing guidance:
-
-| Instance | GPU | GPU RAM | vCPU | RAM | Local NVMe | Use |
-|---|---:|---:|---:|---:|---:|---|
-| `g4dn.xlarge` | T4 x1 | 16 GB | 4 | 16 GB | 125 GB | Kubernetes and automation smoke test only |
-| `g4dn.4xlarge` | T4 x1 | 16 GB | 16 | 64 GB | 225 GB | Default cost-conscious lab size |
-| `g6.4xlarge` | L4 x1 | 24 GB | 16 | 64 GB | 600 GB | Lower-cost official L4 lab candidate |
-| `g5.8xlarge` | A10G x1 | 24 GB | 32 | 128 GB | 900 GB | Production-like A10G validation |
-| `g6.8xlarge` | L4 x1 | 24 GB | 32 | 128 GB | 900 GB | Recommended production-like L4 validation |
-| `g6.12xlarge` | L4 x4 | 96 GB | 48 | 192 GB | 3,800 GB | Multi-GPU validation |
-| `g6e.4xlarge` | L40S x1 | 48 GB | 16 | 128 GB | 940 GB | Larger single-GPU VRAM evaluation |
-| `g7e.4xlarge` | RTX PRO 6000 Blackwell x1 | 96 GB | 16 | 128 GB | 940 GB | Future-looking large-VRAM evaluation |
-
-AWS pricing and regional availability change. Verify current availability and hourly pricing in the target region before long-running tests.
+See [aws_instance.MD](aws_instance.MD) for the detailed table separating test infrastructure, supported validation infrastructure, and experimental instance families.

@@ -1,0 +1,409 @@
+---
+- name: Validate direct model provider selection
+  ansible.builtin.assert:
+    that:
+      - direct_model_provider in ["bedrock", "ollama"]
+    fail_msg: "Set direct_model_provider to either 'bedrock' or 'ollama'."
+
+- name: Read approved Bedrock model IDs from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ direct_model_bedrock_module_path }}"
+      - output
+      - -json
+      - bedrock_model_ids
+  changed_when: false
+  failed_when: false
+  register: direct_model_bedrock_models_raw
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_bedrock_use_terraform_output | bool
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_models_raw.stdout_lines
+
+- name: Read approved Bedrock regions from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ direct_model_bedrock_module_path }}"
+      - output
+      - -json
+      - bedrock_allowed_regions
+  changed_when: false
+  failed_when: false
+  register: direct_model_bedrock_regions_raw
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_bedrock_use_terraform_output | bool
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_regions_raw.stdout_lines
+
+- name: Read Bedrock module region from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ direct_model_bedrock_module_path }}"
+      - output
+      - -raw
+      - bedrock_region
+  changed_when: false
+  failed_when: false
+  register: direct_model_bedrock_region_raw
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_bedrock_use_terraform_output | bool
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_region_raw.stdout_lines
+
+- name: Read Bedrock access key ID from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ direct_model_bedrock_module_path }}"
+      - output
+      - -raw
+      - bedrock_access_key_id
+  changed_when: false
+  failed_when: false
+  no_log: true
+  register: direct_model_bedrock_access_key_raw
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_bedrock_read_credentials_from_terraform | bool
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_access_key_raw.stdout_lines
+
+- name: Read Bedrock secret access key from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ direct_model_bedrock_module_path }}"
+      - output
+      - -raw
+      - bedrock_secret_access_key
+  changed_when: false
+  failed_when: false
+  no_log: true
+  register: direct_model_bedrock_secret_key_raw
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_bedrock_read_credentials_from_terraform | bool
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_secret_key_raw.stdout_lines
+
+- name: Set Bedrock Terraform output facts
+  ansible.builtin.set_fact:
+    direct_model_bedrock_models: >-
+      {{
+        direct_model_bedrock_models_raw.stdout | from_json
+        if (
+          direct_model_bedrock_models_raw is defined
+          and direct_model_bedrock_models_raw.rc == 0
+          and direct_model_bedrock_models_raw.stdout | length > 0
+        )
+        else []
+      }}
+    direct_model_bedrock_regions: >-
+      {{
+        direct_model_bedrock_regions_raw.stdout | from_json
+        if (
+          direct_model_bedrock_regions_raw is defined
+          and direct_model_bedrock_regions_raw.rc == 0
+          and direct_model_bedrock_regions_raw.stdout | length > 0
+        )
+        else []
+      }}
+    direct_model_bedrock_module_region: >-
+      {{
+        direct_model_bedrock_region_raw.stdout
+        if (
+          direct_model_bedrock_region_raw is defined
+          and direct_model_bedrock_region_raw.rc == 0
+          and direct_model_bedrock_region_raw.stdout | length > 0
+        )
+        else ""
+      }}
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_models
+
+- name: Set effective Bedrock credentials
+  ansible.builtin.set_fact:
+    direct_model_effective_aws_access_key_id: >-
+      {{
+        direct_model_aws_access_key_id | trim
+        if direct_model_aws_access_key_id | length > 0
+        else (
+          direct_model_bedrock_access_key_raw.stdout | trim
+          if (
+            direct_model_bedrock_access_key_raw is defined
+            and direct_model_bedrock_access_key_raw.rc == 0
+          )
+          else ""
+        )
+      }}
+    direct_model_effective_aws_secret_access_key: >-
+      {{
+        direct_model_aws_secret_access_key | trim
+        if direct_model_aws_secret_access_key | length > 0
+        else (
+          direct_model_bedrock_secret_key_raw.stdout | trim
+          if (
+            direct_model_bedrock_secret_key_raw is defined
+            and direct_model_bedrock_secret_key_raw.rc == 0
+          )
+          else ""
+        )
+      }}
+  no_log: true
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_effective_aws_access_key_id
+
+- name: Set effective Bedrock target facts
+  ansible.builtin.set_fact:
+    direct_model_effective_region: >-
+      {{
+        direct_model_bedrock_region
+        if direct_model_bedrock_region | length > 0
+        else (
+          direct_model_bedrock_module_region
+          if direct_model_bedrock_module_region | length > 0
+          else (
+            direct_model_bedrock_regions[0]
+            if direct_model_bedrock_regions | length > 0
+            else aws_region | default("us-east-1")
+          )
+        )
+      }}
+    direct_model_effective_model: >-
+      {{
+        direct_model_bedrock_model
+        if direct_model_bedrock_model | length > 0
+        else (
+          direct_model_bedrock_models[0]
+          if direct_model_bedrock_models | length > 0
+          else direct_model_bedrock_fallback_model
+        )
+      }}
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_effective_model
+
+- name: Validate Bedrock credentials are available
+  ansible.builtin.assert:
+    that:
+      - direct_model_effective_aws_access_key_id | length > 0
+      - direct_model_effective_aws_secret_access_key | length > 0
+    fail_msg: >-
+      Bedrock direct test needs credentials. Run terraform/aws-bedrock apply and keep
+      direct_model_bedrock_read_credentials_from_terraform=true, or set
+      direct_model_aws_access_key_id/direct_model_aws_secret_access_key, or export
+      AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.
+  when: direct_model_provider == "bedrock"
+
+- name: Check local curl is available
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl --version >/dev/null
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: direct_model_curl_check
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_curl_check.rc
+
+- name: Fail when local curl is unavailable
+  ansible.builtin.fail:
+    msg: "The local curl binary is required for the direct Bedrock curl test."
+  when:
+    - direct_model_provider == "bedrock"
+    - direct_model_curl_check.rc != 0
+
+- name: Set Bedrock Converse URL and payload
+  ansible.builtin.set_fact:
+    direct_model_url: "https://bedrock-runtime.{{ direct_model_effective_region }}.amazonaws.com/model/{{ direct_model_effective_model }}/converse"
+    direct_model_payload:
+      messages:
+        - role: user
+          content:
+            - text: "{{ direct_model_message }}"
+      inferenceConfig:
+        maxTokens: "{{ direct_model_max_tokens }}"
+        temperature: 0.2
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_payload
+
+- name: Set Ollama target facts
+  ansible.builtin.set_fact:
+    direct_model_effective_model: "{{ direct_model_ollama_model }}"
+    direct_model_url: "{{ direct_model_ollama_base_url | regex_replace('/+$', '') }}/chat/completions"
+    direct_model_payload:
+      model: "{{ direct_model_ollama_model }}"
+      messages:
+        - role: user
+          content: "{{ direct_model_message }}"
+  when: direct_model_provider == "ollama"
+  # - ansible.builtin.debug:
+  #     var: direct_model_payload
+
+- name: Show editable direct Ollama curl command
+  ansible.builtin.debug:
+    msg:
+      - "Editable direct Ollama curl command:"
+      - >-
+        curl -sS -X POST '{{ direct_model_url }}'
+        -H 'Content-Type: application/json'
+        -d '{{ direct_model_payload | to_json }}'
+      - "If your Ollama endpoint requires a token, add: -H 'Authorization: Bearer <token>'"
+  when: direct_model_provider == "ollama"
+
+- name: Send direct Bedrock model test
+  # Change note: Bedrock SigV4 signing moved to a repo-owned test script to avoid
+  # Ansible debug escaping issues and stale signed curl output.
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ direct_model_bedrock_test_script }}"
+      - --region
+      - "{{ direct_model_effective_region }}"
+      - --model-id
+      - "{{ direct_model_effective_model }}"
+      - --message
+      - "{{ direct_model_message }}"
+      - --timeout
+      - "{{ direct_model_timeout_seconds | string }}"
+      - --max-tokens
+      - "{{ direct_model_max_tokens | string }}"
+      - --ansible-raw
+  changed_when: false
+  failed_when: false
+  register: direct_model_bedrock_response_raw
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ direct_model_effective_aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ direct_model_effective_aws_secret_access_key }}"
+    AWS_SESSION_TOKEN: "{{ direct_model_aws_session_token }}"
+  when: direct_model_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: direct_model_bedrock_response_raw.stdout_lines
+
+- name: Send direct Ollama model test
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if [ -n "${DIRECT_MODEL_OLLAMA_API_KEY:-}" ]; then
+      curl -sS --max-time {{ direct_model_timeout_seconds }} \
+        -w '\n__HTTP_STATUS__:%{http_code}' \
+        -X POST '{{ direct_model_url }}' \
+        -H 'Content-Type: application/json' \
+        -H "Authorization: Bearer ${DIRECT_MODEL_OLLAMA_API_KEY}" \
+        --data '{{ direct_model_payload | to_json }}'
+    else
+      curl -sS --max-time {{ direct_model_timeout_seconds }} \
+        -w '\n__HTTP_STATUS__:%{http_code}' \
+        -X POST '{{ direct_model_url }}' \
+        -H 'Content-Type: application/json' \
+        --data '{{ direct_model_payload | to_json }}'
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+  register: direct_model_ollama_response_raw
+  environment:
+    DIRECT_MODEL_OLLAMA_API_KEY: "{{ direct_model_ollama_api_key }}"
+  when: direct_model_provider == "ollama"
+  # - ansible.builtin.debug:
+  #     var: direct_model_ollama_response_raw.stdout_lines
+
+- name: Set direct model provider response fact
+  ansible.builtin.set_fact:
+    direct_model_response_raw: >-
+      {{
+        direct_model_bedrock_response_raw
+        if direct_model_provider == "bedrock"
+        else direct_model_ollama_response_raw
+      }}
+  # - ansible.builtin.debug:
+  #     var: direct_model_response_raw
+
+- name: Set direct model response facts
+  ansible.builtin.set_fact:
+    direct_model_http_status: "{{ direct_model_response_raw.stdout | regex_findall('__HTTP_STATUS__:(\\d+)$') | first | default('000') }}"
+    direct_model_response_body: "{{ direct_model_response_raw.stdout | regex_replace('\\n__HTTP_STATUS__:\\d+$', '') }}"
+    direct_model_curl_rc: "{{ direct_model_response_raw.rc | default(0) }}"
+    direct_model_curl_stderr: "{{ direct_model_response_raw.stderr | default('') }}"
+  # - ansible.builtin.debug:
+  #     var: direct_model_http_status
+
+- name: Build friendly direct model response summary
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    import json
+    import os
+
+    provider = os.environ.get("DIRECT_MODEL_PROVIDER", "")
+    body = os.environ.get("DIRECT_MODEL_RESPONSE_BODY", "")
+    if not body.strip():
+        print("<empty response body>")
+        raise SystemExit(0)
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        print(body[:4000])
+        raise SystemExit(0)
+
+    content = None
+    if provider == "bedrock":
+        for block in data.get("output", {}).get("message", {}).get("content", []):
+            if isinstance(block, dict) and block.get("text"):
+                content = block["text"]
+                break
+    else:
+        choices = data.get("choices") if isinstance(data, dict) else None
+        if choices:
+            first = choices[0]
+            message = first.get("message") if isinstance(first, dict) else None
+            if isinstance(message, dict):
+                content = message.get("content")
+            if not content and isinstance(first, dict):
+                content = first.get("text")
+
+    if content:
+        print(content)
+    else:
+        print(json.dumps(data, indent=2)[:4000])
+    PY
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: direct_model_response_summary
+  environment:
+    DIRECT_MODEL_PROVIDER: "{{ direct_model_provider }}"
+    DIRECT_MODEL_RESPONSE_BODY: "{{ direct_model_response_body }}"
+  # - ansible.builtin.debug:
+  #     var: direct_model_response_summary.stdout_lines
+
+- name: Show direct model test result
+  ansible.builtin.debug:
+    msg:
+      - "Direct model provider: {{ direct_model_provider }}"
+      - "Model: {{ direct_model_effective_model }}"
+      - "URL: {{ direct_model_url }}"
+      - "HTTP status: {{ direct_model_http_status }}"
+      - "curl exit code: {{ direct_model_curl_rc }}"
+      - "curl stderr: {{ direct_model_curl_stderr if direct_model_curl_stderr | length > 0 else 'none' }}"
+      - "Response:"
+      - "{{ direct_model_response_summary.stdout }}"
+
+- name: Fail when direct model test did not return HTTP 2xx
+  ansible.builtin.fail:
+    msg: >-
+      Direct {{ direct_model_provider }} model test failed with HTTP {{ direct_model_http_status }}.
+      curl exit code={{ direct_model_curl_rc }}.
+      stderr={{ direct_model_curl_stderr if direct_model_curl_stderr | length > 0 else 'none' }}.
+      body={{ direct_model_response_body if direct_model_response_body | length > 0 else '<empty>' }}
+  when: direct_model_http_status | int < 200 or direct_model_http_status | int >= 300

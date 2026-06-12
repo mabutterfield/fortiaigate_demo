@@ -23,6 +23,8 @@ The generated inventory is written to `../../ansible/inventory/aws.generated.ini
 
 Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform uses that value in both the generated Ansible inventory and the `ssh_command` output.
 
+Leave `availability_zone = ""` to let Terraform select the first sorted AZ that offers `instance_type`. Set it explicitly when AWS recommends a specific AZ.
+
 Set `create_iam_instance_profile = true` when this module should create the EC2 IAM role and instance profile. Use the `iam_role_name` output as the input for ECR pull permissions.
 
 This module also outputs `public_ip` and `allowed_ingress_cidr`; the Bedrock module reads those values from local Terraform state to build its source IP restriction by default.

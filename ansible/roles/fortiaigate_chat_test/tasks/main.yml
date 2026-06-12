@@ -1,0 +1,177 @@
+---
+- name: Read approved Bedrock model IDs from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ fortiaigate_test_bedrock_module_path }}"
+      - output
+      - -json
+      - bedrock_model_ids
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_test_bedrock_models_raw
+  when: fortiaigate_test_use_bedrock_output | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_bedrock_models_raw.stdout_lines
+
+- name: Set approved Bedrock model list from Terraform
+  ansible.builtin.set_fact:
+    fortiaigate_test_bedrock_models: "{{ fortiaigate_test_bedrock_models_raw.stdout | from_json }}"
+  when: >-
+    fortiaigate_test_use_bedrock_output | bool
+    and fortiaigate_test_bedrock_models_raw is defined
+    and fortiaigate_test_bedrock_models_raw.rc == 0
+    and fortiaigate_test_bedrock_models_raw.stdout | length > 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_bedrock_models
+
+- name: Set empty approved Bedrock model list when Terraform output is unavailable
+  ansible.builtin.set_fact:
+    fortiaigate_test_bedrock_models: []
+  when: fortiaigate_test_bedrock_models is not defined
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_bedrock_models
+
+- name: Set FortiAIGate test target facts
+  ansible.builtin.set_fact:
+    fortiaigate_test_host: >-
+      {{
+        fortiaigate_test_host_override
+        if fortiaigate_test_host_override | length > 0
+        else (
+          public_ip
+          if (public_ip is defined and public_ip | length > 0)
+          else (ansible_host | default(inventory_hostname))
+        )
+      }}
+    fortiaigate_test_effective_model: >-
+      {{
+        fortiaigate_test_model
+        if fortiaigate_test_model | length > 0
+        else (
+          fortiaigate_test_bedrock_models[0]
+          if fortiaigate_test_bedrock_models | length > 0
+          else fortiaigate_test_fallback_model
+        )
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_effective_model
+
+- name: Set FortiAIGate test URL and payload
+  ansible.builtin.set_fact:
+    fortiaigate_test_url: "https://{{ fortiaigate_test_host }}:443{{ fortiaigate_test_endpoint_path }}"
+    fortiaigate_test_payload:
+      model: "{{ fortiaigate_test_effective_model }}"
+      messages:
+        - role: user
+          content: "{{ fortiaigate_test_message }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_payload
+
+- name: Show FortiAIGate chat test target
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate chat test URL: {{ fortiaigate_test_url }}"
+      - "Model: {{ fortiaigate_test_effective_model }}"
+      - "Prompt: {{ fortiaigate_test_message }}"
+      - "Authorization header: {{ 'enabled' if fortiaigate_test_api_key | length > 0 else 'disabled' }}"
+
+- name: Send FortiAIGate chat completion test
+  # Change note: curl execution moved to a repo-owned Python script so the JSON
+  # payload is sent through subprocess argv instead of shell quoting.
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ fortiaigate_test_script }}"
+      - --url
+      - "{{ fortiaigate_test_url }}"
+      - --model
+      - "{{ fortiaigate_test_effective_model }}"
+      - --prompt
+      - "{{ fortiaigate_test_message }}"
+      - --timeout
+      - "{{ fortiaigate_test_timeout_seconds | string }}"
+      - --ansible-raw
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_test_response_raw
+  environment:
+    FORTIAIGATE_TEST_API_KEY: "{{ fortiaigate_test_api_key }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_response_raw.stdout_lines
+
+- name: Set FortiAIGate test response facts
+  ansible.builtin.set_fact:
+    fortiaigate_test_http_status: "{{ fortiaigate_test_response_raw.stdout | regex_findall('__HTTP_STATUS__:(\\d+)$') | first | default('000') }}"
+    fortiaigate_test_response_body: "{{ fortiaigate_test_response_raw.stdout | regex_replace('\\n__HTTP_STATUS__:\\d+$', '') }}"
+    fortiaigate_test_curl_rc: "{{ fortiaigate_test_response_raw.rc | default(0) }}"
+    fortiaigate_test_curl_stderr: "{{ fortiaigate_test_response_raw.stderr | default('') }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_http_status
+
+- name: Build friendly FortiAIGate test response summary
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    import json
+    import os
+
+    body = os.environ.get("FORTIAIGATE_TEST_RESPONSE_BODY", "")
+    if not body.strip():
+        print("<empty response body>")
+        raise SystemExit(0)
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        print(body[:4000])
+        raise SystemExit(0)
+
+    content = None
+    choices = data.get("choices") if isinstance(data, dict) else None
+    if choices:
+        first = choices[0]
+        message = first.get("message") if isinstance(first, dict) else None
+        if isinstance(message, dict):
+            content = message.get("content")
+        if not content and isinstance(first, dict):
+            content = first.get("text")
+
+    if content:
+        print(content)
+    else:
+        print(json.dumps(data, indent=2)[:4000])
+    PY
+  args:
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fortiaigate_test_response_summary
+  environment:
+    FORTIAIGATE_TEST_RESPONSE_BODY: "{{ fortiaigate_test_response_body }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_response_summary.stdout_lines
+
+- name: Show FortiAIGate chat test result
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate test URL: {{ fortiaigate_test_url }}"
+      - "Model: {{ fortiaigate_test_effective_model }}"
+      - "HTTP status: {{ fortiaigate_test_http_status }}"
+      - "curl exit code: {{ fortiaigate_test_curl_rc }}"
+      - "curl stderr: {{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}"
+      - "Response:"
+      - "{{ fortiaigate_test_response_summary.stdout }}"
+
+- name: Fail when FortiAIGate chat test did not return HTTP 2xx
+  ansible.builtin.fail:
+    msg: >-
+      FortiAIGate chat test failed with HTTP {{ fortiaigate_test_http_status }}.
+      curl exit code={{ fortiaigate_test_curl_rc }}.
+      stderr={{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}.
+      body={{ fortiaigate_test_response_body if fortiaigate_test_response_body | length > 0 else '<empty>' }}
+  when: fortiaigate_test_http_status | int < 200 or fortiaigate_test_http_status | int >= 300

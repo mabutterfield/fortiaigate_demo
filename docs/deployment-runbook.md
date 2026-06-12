@@ -142,35 +142,7 @@ k3s_cluster_dns: 10.70.0.10
 
 Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
 
-## 6. Prepare Bedrock Access
-
-Run this after EC2 exists because the Bedrock module reads `terraform/aws-ec2-k3s/terraform.tfstate` for source-IP restrictions.
-
-```bash
-cd terraform/aws-bedrock
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
-```
-
-Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
-
-By default, Bedrock restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
-
-Retrieve the values after apply:
-
-```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_region
-```
-
-The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
-
-## 7. Configure Deployment Variables
+## 6. Configure Deployment Variables
 
 ```bash
 cd ansible
@@ -247,7 +219,7 @@ Minimum `group_vars/all.yml` values to review:
 - `fortiaigate_ingress_host` when using DNS instead of the EC2 public IP
 - `validate_faig_ollama_forwarding` only after an Ollama provider exists in FortiAIGate
 
-## 8. Bootstrap k3s
+## 7. Bootstrap k3s
 
 ```bash
 ansible-playbook playbooks/bootstrap_gpu_k3s.yml
@@ -274,7 +246,7 @@ Rerun the same checks independently with:
 ansible-playbook playbooks/validate_k3s.yml
 ```
 
-## 9. Deploy FortiAIGate
+## 8. Deploy FortiAIGate
 
 ```bash
 ansible-playbook playbooks/deploy_fortiaigate.yml
@@ -290,7 +262,7 @@ The deploy playbook:
 
 By default Helm does not wait for every Kubernetes workload to become Ready. This keeps the install command responsive and leaves status monitoring to the next step.
 
-## 10. Monitor Status
+## 9. Monitor Status
 
 ```bash
 ansible-playbook playbooks/status_fortiaigate.yml
@@ -313,7 +285,7 @@ kubectl get pvc -n fortiaigate
 kubectl get events -n fortiaigate --sort-by=.lastTimestamp
 ```
 
-## 11. Validate
+## 10. Validate
 
 ```bash
 ansible-playbook playbooks/validate_faig.yml
@@ -348,6 +320,167 @@ API key:  blank or a dummy value if required
 ```
 
 The Ansible validation variables keep the same endpoint/model so validation can exercise the provider after it exists. The forwarding check is disabled by default; set `validate_faig_ollama_forwarding: true` only after the FortiAIGate provider is configured.
+
+## Bedrock First Guard
+
+Run this after FortiAIGate status is `READY`. Use the login URL from `status_fortiaigate.yml`, sign in to FortiAIGate, and change the default password before creating the first guard/provider.
+
+The Bedrock module reads `terraform/aws-ec2-k3s/terraform.tfstate` for source-IP restrictions, so the EC2 module must already be applied.
+
+```bash
+cd terraform/aws-bedrock
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform fmt
+terraform validate
+terraform apply
+```
+
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
+
+By default, Bedrock restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
+
+Retrieve the values after apply:
+
+```bash
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+terraform output bedrock_key_expires_at
+terraform output bedrock_allowed_regions
+terraform output bedrock_model_ids
+```
+
+Paste the Access Key ID, Secret Access Key, one permitted region, and one permitted model ID into the FortiAIGate Bedrock guard/provider setup.
+
+To test Bedrock directly before configuring the FortiAIGate guard/provider, run the direct model playbook:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_model_direct.yml
+```
+
+By default, `test_model_direct.yml` reads these values directly from `terraform/aws-bedrock` outputs:
+
+- `bedrock_access_key_id`
+- `bedrock_secret_access_key`
+- `bedrock_region`
+- `bedrock_allowed_regions`
+- `bedrock_model_ids`
+
+No shell exports are required for the Ansible default path. The playbook calls the repo-owned `tests/bedrock_direct_test.py` script, which signs the request at runtime with AWS SigV4 and summarizes the response.
+
+To run with exported credentials instead of reading Terraform outputs, export the standard AWS credential variables from the Bedrock outputs:
+
+```bash
+cd terraform/aws-bedrock
+export AWS_ACCESS_KEY_ID="$(terraform output -raw bedrock_access_key_id)"
+export AWS_SECRET_ACCESS_KEY="$(terraform output -raw bedrock_secret_access_key)"
+# Only needed for temporary session credentials; the Bedrock module creates a normal IAM access key.
+# export AWS_SESSION_TOKEN="<session-token>"
+cd ../../ansible
+ansible-playbook playbooks/test_model_direct.yml \
+  -e direct_model_bedrock_read_credentials_from_terraform=false
+```
+
+To run the direct Bedrock script manually from the repo root:
+
+```bash
+python3 tests/bedrock_direct_test.py --region us-east-1
+```
+
+Use `--prompt` to send a different test question:
+
+```bash
+python3 tests/bedrock_direct_test.py \
+  --region us-east-1 \
+  --prompt "what is the square root of pi"
+```
+
+The script reads permitted model IDs from `terraform/aws-bedrock` and prompts for a model when run interactively. Set `BEDROCK_MODEL` when you want to skip the prompt:
+
+```bash
+export BEDROCK_MODEL="openai.gpt-oss-20b-1:0"
+python3 tests/bedrock_direct_test.py --region us-east-1
+```
+
+The script reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` from the environment. If the access key or secret key is missing and the script is run interactively, it prompts for the missing value. In non-interactive automation, missing credentials fail clearly.
+
+If `terraform output -raw bedrock_secret_access_key` appears to end with `%` in an interactive zsh terminal, that `%` is zsh showing that the command did not print a trailing newline. It is not part of the secret. Command substitution in the `export` example above captures the secret value without that prompt marker. The Ansible playbook and direct script also trim surrounding whitespace from credential input before signing.
+
+The direct model playbook sends `Hello, is this thing on? Reply in one short sentence and include the name of the model answering.` and summarizes the provider response. Set `direct_model_provider=ollama` to use the same playbook against the configured Ollama endpoint.
+
+After the guard is configured, run:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_fortiaigate_chat.yml
+```
+
+The playbook calls the repo-owned `tests/fortiaigate_chat_test.py` script, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format.
+
+The same test can be run directly from the repo root:
+
+```bash
+python3 tests/fortiaigate_chat_test.py \
+  --host 3.233.174.17 \
+  --model openai.gpt-oss-20b-1:0 \
+  --prompt "hello, this is a test. Reply in one short sentence and include the name of the model answering."
+```
+
+When `--host` is omitted, the script tries `terraform/aws-ec2-k3s` output `public_ip`. When `--model` is omitted, it prompts from `terraform/aws-bedrock` output `bedrock_model_ids` in interactive mode, or uses the first permitted model in non-interactive mode.
+
+The script only sends an API key header when a key is provided. The default key source is `FAIG_API_KEY`, then `FORTIAIGATE_API_KEY`, then `FORTIAIGATE_TEST_API_KEY`. The default header name is `Authorization`, or set `AIG_HEADER` when FortiAIGate is configured with a custom authentication header:
+
+```bash
+export FAIG_API_KEY="<api-key>"
+export AIG_HEADER="X-FAIG-Key"
+python3 tests/fortiaigate_chat_test.py --host 3.233.174.17
+```
+
+The same settings can be passed as arguments:
+
+```bash
+python3 tests/fortiaigate_chat_test.py \
+  --host 3.233.174.17 \
+  --apikey "<api-key>" \
+  --auth-header "X-FAIG-Key"
+```
+
+JWT-backed authentication commonly expects `Authorization: Bearer <jwt>`. Use `--jwt` for that format:
+
+```bash
+python3 tests/fortiaigate_chat_test.py \
+  --host 3.233.174.17 \
+  --apikey "<jwt>" \
+  --jwt
+```
+
+By default the API key is sent as the raw header value, for example `Authorization: <api-key>`. If a deployment expects another prefix, set it explicitly:
+
+```bash
+python3 tests/fortiaigate_chat_test.py \
+  --host 3.233.174.17 \
+  --apikey "<token>" \
+  --api-key-prefix Bearer
+```
+
+Additional headers can be repeated:
+
+```bash
+python3 tests/fortiaigate_chat_test.py \
+  --host 3.233.174.17 \
+  --header "X-Test-Run: fresh-install" \
+  --header "X-Trace-Source: local"
+```
+
+Use `--debug` to print the effective curl command before it runs. API key values are redacted by default:
+
+```bash
+FAIG_API_KEY="<api-key>" AIG_HEADER="X-FAIG-Key" \
+python3 tests/fortiaigate_chat_test.py --host 3.233.174.17 --debug
+```
+
+Only use `--debug-show-secrets` when you need an exact local copy/paste command and will not paste the output into logs or tickets.
 
 ## Cleanup
 

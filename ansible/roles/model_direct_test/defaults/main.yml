@@ -1,0 +1,20 @@
+---
+direct_model_provider: bedrock
+direct_model_message: "Hello, is this thing on? Reply in one short sentence and include the name of the model answering."
+direct_model_max_tokens: 512
+direct_model_timeout_seconds: 60
+
+direct_model_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-bedrock"
+direct_model_bedrock_region: ""
+direct_model_bedrock_model: ""
+direct_model_bedrock_fallback_model: openai.gpt-oss-20b-1:0
+direct_model_bedrock_use_terraform_output: true
+direct_model_bedrock_read_credentials_from_terraform: true
+direct_model_bedrock_test_script: "{{ playbook_dir }}/../../tests/bedrock_direct_test.py"
+direct_model_aws_access_key_id: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') | default('', true) }}"
+direct_model_aws_secret_access_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') | default('', true) }}"
+direct_model_aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') | default('', true) }}"
+
+direct_model_ollama_base_url: "{{ ollama_base_url | default('http://127.0.0.1:11434/v1') }}"
+direct_model_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
+direct_model_ollama_api_key: ""

@@ -89,6 +89,37 @@ Region Name:       terraform output bedrock_region
 Model ID:          one value from terraform output bedrock_model_ids
 ```
 
+To test Bedrock directly before configuring FortiAIGate:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_model_direct.yml
+```
+
+The direct test uses the generic Bedrock Converse API, calls the repo-owned `tests/bedrock_direct_test.py` signer, asks for a short response plus the model name, and summarizes the response.
+
+To run the same script manually from the repo root:
+
+```bash
+export AWS_ACCESS_KEY_ID="$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_access_key_id)"
+export AWS_SECRET_ACCESS_KEY="$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_secret_access_key)"
+python3 tests/bedrock_direct_test.py \
+  --region "$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_region)"
+```
+
+The script reads `terraform/aws-bedrock` permitted model IDs and prompts for one when run interactively. Set `BEDROCK_MODEL` to skip the prompt. It generates AWS SigV4 headers at runtime. If the access key or secret key is not exported and the script is run interactively, it prompts for the missing value.
+
+After FortiAIGate status is `READY`, log in with the URL from `status_fortiaigate.yml`, change the default password, and create the first Bedrock guard/provider with the values above.
+
+Then run the first external chat test:
+
+```bash
+cd ansible
+ansible-playbook playbooks/test_fortiaigate_chat.yml
+```
+
+The playbook reads the first permitted model ID from `terraform/aws-bedrock` when available, calls `tests/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response.
+
 ## Refresh Expiration
 
 Change `credential_generation` and apply again:

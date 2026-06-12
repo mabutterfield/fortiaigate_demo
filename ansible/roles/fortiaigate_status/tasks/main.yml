@@ -135,15 +135,6 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_status_problems
 
-- name: Show FortiAIGate status summary
-  ansible.builtin.debug:
-    msg:
-      - "FortiAIGate status: {{ fortiaigate_status_state }}"
-      - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
-      - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
-      - "Login URL: {{ fortiaigate_status_login_url }}"
-      - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"
-
 - name: Show raw FortiAIGate Helm release status when verbose
   ansible.builtin.debug:
     var: fortiaigate_status_helm.stdout_lines
@@ -153,3 +144,17 @@
   ansible.builtin.debug:
     var: fortiaigate_status_pod_summary_raw
   when: fortiaigate_status_verbose | bool
+
+- name: Fail when FortiAIGate status data collection failed
+  ansible.builtin.fail:
+    msg: "{{ fortiaigate_status_problems | join(' | ') }}"
+  when: fortiaigate_status_state == "ERROR"
+
+- name: Show FortiAIGate status summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate status: {{ fortiaigate_status_state }}"
+      - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
+      - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
+      - "Login URL: {{ fortiaigate_status_login_url }}"
+      - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"
