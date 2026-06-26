@@ -25,7 +25,7 @@ aws configure list-profiles
 aws sts get-caller-identity --profile <profile-name>
 ```
 
-Terraform `.terraform.lock.hcl` files are tracked on purpose to pin provider versions. Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
+Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
 
 ## ECR Module
 

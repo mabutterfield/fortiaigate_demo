@@ -12,6 +12,8 @@ fortiaigate_chart_archive_local_path: "{{ faig_local_tmp_dir }}/fortiaigate-char
 fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
 fortiaigate_helm_wait: false
 fortiaigate_helm_timeout: 20m
+fortiaigate_triton_probe_initial_delay_seconds: 300
+fortiaigate_triton_probe_failure_threshold: 30
 fortiaigate_image_pull_policy: IfNotPresent
 fortiaigate_image_pull_secrets: []
 fortiaigate_update_strategy: Recreate

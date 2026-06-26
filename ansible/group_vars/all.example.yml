@@ -19,16 +19,16 @@ fortiaigate_release_name: fortiaigate
 # FortiAIGate deployment image tags from the original release archives.
 #
 # 8.0.0:
-fortiaigate_version: "8.0.0"
-fortiaigate_image_tag: "V8.0.0-build0024"
-fortiaigate_triton_model_image_tag: "0.1.4"
-fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
+# fortiaigate_version: "8.0.0"
+# fortiaigate_image_tag: "V8.0.0-build0024"
+# fortiaigate_triton_model_image_tag: "0.1.4"
+# fortiaigate_triton_image_tag: "25.11-onnx-trt-agt"
 #
 # 8.0.1:
-# fortiaigate_version: "8.0.1"
-# fortiaigate_image_tag: "V8.0.1-build0031"
-# fortiaigate_triton_model_image_tag: "0.1.6-s1"
-# fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
+fortiaigate_version: "8.0.1"
+fortiaigate_image_tag: "V8.0.1-build0031"
+fortiaigate_triton_model_image_tag: "0.1.6-s1"
+fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
 faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
 faig_local_tmp_dir: "{{ faig_workspace_root }}/tmp"
 fortiaigate_chart_path: "{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
@@ -39,6 +39,11 @@ fortiaigate_chart_archive_local_path: "{{ faig_local_tmp_dir }}/fortiaigate-char
 fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
 fortiaigate_helm_wait: false
 fortiaigate_helm_timeout: 20m
+# FortiAIGate 8.0.1 Triton startup can be slower after image pull or upgrade.
+# These probe values are conservative lab defaults pending more investigation;
+# they may not be optimal for every instance type or release.
+fortiaigate_triton_probe_initial_delay_seconds: 300
+fortiaigate_triton_probe_failure_threshold: 30
 
 fortiaigate_image_repository: "{{ ecr_registry }}/{{ ecr_repo_prefix }}"
 fortiaigate_image_pull_policy: IfNotPresent
@@ -87,6 +92,8 @@ fortiaigate_licenses: {}
 
 ollama_base_url: http://10.11.41.201:11434/v1
 ollama_model: llama3.2:1b
+# FortiAIGate 8.0.1 serves the UI under /ui/. 8.0.0 used /.
+fortiaigate_ui_path: "{{ '/ui/' if fortiaigate_version is version('8.0.1', '>=') else '/' }}"
 fortiaigate_status_verbose: false
 # Optional display URL for status_fortiaigate.yml output. Defaults to fortiaigate_ingress_host or ansible_host.
 fortiaigate_status_login_url_override: ""
@@ -96,6 +103,7 @@ validate_faig_login_url_override: ""
 
 # Optional first external chat test after a guard/provider is configured.
 # test_fortiaigate_chat.yml reads the first allowed model from terraform/aws-bedrock when available.
+# Leave fortiaigate_test_api_key empty unless the FortiAIGate guard requires an auth token.
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
 fortiaigate_test_model: ""
 fortiaigate_test_api_key: ""
@@ -103,7 +111,7 @@ fortiaigate_test_host_override: ""
 
 # Optional direct provider smoke test before FortiAIGate guard setup.
 direct_model_provider: bedrock
-direct_model_message: "Hello, is this thing on?"
+direct_model_message: "Hello, is this thing on? Reply in one short sentence and include the name of the model answering."
 direct_model_bedrock_model: ""
 direct_model_bedrock_region: ""
 direct_model_bedrock_read_credentials_from_terraform: true
@@ -135,6 +143,11 @@ k3s_metrics_server_rollout_timeout: 300s
 k3s_resolv_conf: /run/systemd/resolve/resolv.conf
 k3s_restart_system_deployments_after_flannel: true
 validate_k3s_wait_timeout: 180s
+validate_k3s_pod_wait_retries: 1
+validate_k3s_pod_wait_delay: 0
+validate_k3s_pod_health_namespaces:
+  - kube-system
+  - ingress-nginx
 validate_k3s_dns_check_image: busybox:1.36
 validate_k3s_internal_dns_name: kubernetes.default.svc.cluster.local
 validate_k3s_external_dns_name: example.com

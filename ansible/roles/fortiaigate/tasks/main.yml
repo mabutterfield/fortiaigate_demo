@@ -314,6 +314,8 @@
     FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
     FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+    FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
+    FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
   register: fortiaigate_rendered
   changed_when: false
   no_log: true
@@ -342,6 +344,8 @@
     FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
     FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+    FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
+    FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
   register: fortiaigate_helm_deploy
   changed_when: "'deployed' in fortiaigate_helm_deploy.stdout or 'upgraded' in fortiaigate_helm_deploy.stdout"
   when: not fortiaigate_helm_wait
@@ -371,6 +375,8 @@
     FORTIAIGATE_IMAGE_REPOSITORY: "{{ fortiaigate_image_repository }}"
     FORTIAIGATE_TRITON_MODEL_IMAGE_TAG: "{{ fortiaigate_triton_model_image_tag }}"
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
+    FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
+    FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
   register: fortiaigate_helm_wait_deploy
   changed_when: "'deployed' in fortiaigate_helm_wait_deploy.stdout or 'upgraded' in fortiaigate_helm_wait_deploy.stdout"
   when: fortiaigate_helm_wait

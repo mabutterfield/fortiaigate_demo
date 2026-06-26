@@ -1,0 +1,201 @@
+---
+- name: Reset expected image metadata for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_expected_images: []
+    publish_archive_index_digest_by_tag: {}
+    publish_archive_source_images_requiring_load: []
+    publish_archive_images_requiring_load: []
+  # - ansible.builtin.debug:
+  #     msg:
+  #       expected_images: "{{ publish_archive_expected_images }}"
+  #       index_digest_by_tag: "{{ publish_archive_index_digest_by_tag }}"
+  #       source_images_requiring_load: "{{ publish_archive_source_images_requiring_load }}"
+  #       images_requiring_load: "{{ publish_archive_images_requiring_load }}"
+
+- name: Read OCI archive index {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - tar
+      - -xOf
+      - "{{ publish_image_archive }}"
+      - index.json
+  changed_when: false
+  failed_when: false
+  register: publish_archive_index_raw
+  # - ansible.builtin.debug:
+  #     var: publish_archive_index_raw.stdout
+
+- name: Read Docker archive manifest {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - tar
+      - -xOf
+      - "{{ publish_image_archive }}"
+      - manifest.json
+  changed_when: false
+  register: publish_archive_manifest_raw
+  # - ansible.builtin.debug:
+  #     var: publish_archive_manifest_raw.stdout
+
+- name: Parse Docker archive manifest {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_manifest_entries: "{{ publish_archive_manifest_raw.stdout | from_json }}"
+  # - ansible.builtin.debug:
+  #     var: publish_archive_manifest_entries
+
+- name: Parse OCI archive index {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_index_entries: "{{ ((publish_archive_index_raw.stdout | from_json).manifests | default([])) if publish_archive_index_raw.rc == 0 else [] }}"
+  # - ansible.builtin.debug:
+  #     var: publish_archive_index_entries
+
+- name: Build OCI image digest lookup for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_index_digest_by_tag: "{{ publish_archive_index_digest_by_tag | combine({item.annotations['io.containerd.image.name']: item.digest}) }}"
+  loop: "{{ publish_archive_index_entries }}"
+  loop_control:
+    label: "{{ item.annotations['io.containerd.image.name'] | default(item.digest) }}"
+  when:
+    - item.annotations is defined
+    - item.annotations['io.containerd.image.name'] is defined
+    - item.digest is defined
+  # - ansible.builtin.debug:
+  #     var: publish_archive_index_digest_by_tag
+
+- name: Validate Docker archive manifest metadata {{ publish_image_archive }}
+  ansible.builtin.assert:
+    that:
+      - publish_archive_manifest_entries is sequence
+      - publish_archive_manifest_entries | length > 0
+      - (publish_archive_manifest_entries | selectattr('Config', 'defined') | list | length) == (publish_archive_manifest_entries | length)
+      - (publish_archive_manifest_entries | selectattr('RepoTags', 'defined') | list | length) == (publish_archive_manifest_entries | length)
+    fail_msg: "Docker archive {{ publish_image_archive }} must include manifest.json entries with Config and RepoTags metadata."
+
+- name: Build expected local image metadata for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_expected_images: >-
+      {{
+        publish_archive_expected_images
+        + [
+          {
+            'tag': item.1,
+            'target_image': registry ~ '/' ~ repo_prefix ~ '/' ~ item.1.rsplit(':', 1)[0].split('/')[-1] ~ ':' ~ item.1.rsplit(':', 1)[1],
+            'image_id': publish_archive_index_digest_by_tag[item.1] | default('sha256:' ~ (item.0.Config | basename | regex_replace('^sha256:', '') | regex_replace('[.]json$', '')))
+          }
+        ]
+      }}
+  loop: "{{ publish_archive_manifest_entries | subelements('RepoTags') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  # - ansible.builtin.debug:
+  #     var: publish_archive_expected_images
+
+- name: Validate expected local image metadata {{ publish_image_archive }}
+  ansible.builtin.assert:
+    that:
+      - publish_archive_expected_images | length > 0
+    fail_msg: "Docker archive {{ publish_image_archive }} must include at least one RepoTags entry."
+
+- name: Record loaded image refs from archive metadata {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_loaded_image_refs: "{{ (publish_loaded_image_refs | default([])) + (publish_archive_expected_images | map(attribute='tag') | list) }}"
+  when: publish_auto_image_map
+  # - ansible.builtin.debug:
+  #     var: publish_loaded_image_refs
+
+- name: Inspect expected local image tags for archive {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ item.tag }}"
+  loop: "{{ publish_archive_expected_images }}"
+  loop_control:
+    label: "{{ item.tag }}"
+  changed_when: false
+  failed_when: false
+  register: publish_archive_local_inspect
+  # - ansible.builtin.debug:
+  #     var: publish_archive_local_inspect.results
+
+- name: Record missing local image tags for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_source_images_requiring_load: "{{ publish_archive_source_images_requiring_load + [item.item] }}"
+  loop: "{{ publish_archive_local_inspect.results }}"
+  loop_control:
+    label: "{{ item.item.tag }}"
+  when: item.rc != 0
+  # - ansible.builtin.debug:
+  #     var: publish_archive_source_images_requiring_load
+
+- name: Record mismatched local image tags for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_source_images_requiring_load: "{{ publish_archive_source_images_requiring_load + [item.item] }}"
+  loop: "{{ publish_archive_local_inspect.results }}"
+  loop_control:
+    label: "{{ item.item.tag }}"
+  when:
+    - item.rc == 0
+    - (item.stdout | from_json)[0].Id != item.item.image_id
+  # - ansible.builtin.debug:
+  #     var: publish_archive_source_images_requiring_load
+
+- name: Inspect local target image tags for archive {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ item.target_image }}"
+  loop: "{{ publish_archive_source_images_requiring_load }}"
+  loop_control:
+    label: "{{ item.target_image }}"
+  changed_when: false
+  failed_when: false
+  register: publish_archive_target_inspect
+  # - ansible.builtin.debug:
+  #     var: publish_archive_target_inspect.results
+
+- name: Restore source image tag from matching local target tag for archive {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - tag
+      - "{{ item.item.target_image }}"
+      - "{{ item.item.tag }}"
+  loop: "{{ publish_archive_target_inspect.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.target_image }} -> {{ item.item.tag }}"
+  changed_when: true
+  when:
+    - item.rc == 0
+    - (item.stdout | from_json)[0].Id == item.item.image_id
+
+- name: Record image tags still requiring docker load for archive {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_images_requiring_load: "{{ publish_archive_images_requiring_load + [item.item.tag] }}"
+  loop: "{{ publish_archive_target_inspect.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.tag }}"
+  when: item.rc != 0 or (item.stdout | from_json)[0].Id != item.item.image_id
+  # - ansible.builtin.debug:
+  #     var: publish_archive_images_requiring_load
+
+- name: Skip docker load for archive {{ publish_image_archive }}
+  ansible.builtin.debug:
+    msg: "All archive image tags already exist locally with matching image IDs."
+  when: publish_archive_images_requiring_load | length == 0
+
+- name: Load FortiAIGate image archive {{ publish_image_archive }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - load
+      - -i
+      - "{{ publish_image_archive }}"
+  register: publish_docker_load_result
+  changed_when: true
+  when: publish_archive_images_requiring_load | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_docker_load_result.stdout_lines

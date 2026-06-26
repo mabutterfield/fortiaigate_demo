@@ -1,3 +1,4 @@
 ---
 fortiaigate_status_login_url_override: ""
 fortiaigate_status_verbose: false
+fortiaigate_status_ui_path: "{{ fortiaigate_ui_path | default(('/ui/' if (fortiaigate_version | default('8.0.1')) is version('8.0.1', '>=') else '/')) }}"

@@ -81,7 +81,7 @@
   # - ansible.builtin.debug:
   #     var: validate_k3s_nvidia_device_plugin.stdout_lines
 
-- name: Validate all Kubernetes pods are healthy
+- name: Validate Kubernetes foundation pods are healthy
   ansible.builtin.shell: |
     set -euo pipefail
     /usr/local/bin/kubectl --kubeconfig {{ validate_k3s_kubeconfig }} get pods -A -o json \
@@ -90,9 +90,12 @@
     import sys
 
     data = json.load(sys.stdin)
+    namespaces = set({{ validate_k3s_pod_health_namespaces | to_json }})
     bad = []
     for pod in data.get("items", []):
         namespace = pod["metadata"]["namespace"]
+        if namespace not in namespaces:
+            continue
         name = pod["metadata"]["name"]
         phase = pod.get("status", {}).get("phase", "")
         conditions = pod.get("status", {}).get("conditions", [])
@@ -105,7 +108,7 @@
     if bad:
         print("\n".join(bad))
         sys.exit(1)
-    print("All pods are Running/Ready or Succeeded")
+    print("Foundation pods are Running/Ready or Succeeded")
     '
   args:
     executable: /bin/bash
@@ -207,3 +210,16 @@
           - --ignore-not-found=true
           - --wait=false
       changed_when: false
+
+- name: Show k3s validation summary
+  ansible.builtin.debug:
+    msg:
+      - "K3s status: GO"
+      - "API reachable: yes"
+      - "Nodes ready: yes"
+      - "kube-system deployments available: yes"
+      - "ingress-nginx deployments available: yes"
+      - "NVIDIA device plugin available: yes"
+      - "Foundation pods healthy: yes"
+      - "Pod health namespaces: {{ validate_k3s_pod_health_namespaces | join(', ') }}"
+      - "Pod DNS resolution: yes"

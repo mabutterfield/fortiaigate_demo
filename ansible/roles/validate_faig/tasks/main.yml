@@ -82,7 +82,16 @@
   #     var: validate_triton_shm.stdout_lines
 
 - name: Validate FortiAIGate UI HTTP response
-  ansible.builtin.command: curl -k -sS -o /dev/null -w "%{http_code}" https://127.0.0.1/
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -k
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "https://127.0.0.1{{ validate_faig_ui_path }}"
   changed_when: false
   register: validate_ui
   failed_when: validate_ui.stdout | int < 200 or validate_ui.stdout | int >= 500
@@ -167,6 +176,7 @@
 - name: Set FortiAIGate readiness summary facts
   ansible.builtin.set_fact:
     validate_faig_readiness_summary: "{{ validate_faig_readiness_summary_raw.stdout | from_json }}"
+    validate_faig_effective_ui_path: "{{ validate_faig_ui_path }}"
     validate_faig_login_host: >-
       {{
         fortiaigate_ingress_host
@@ -182,7 +192,7 @@
       {{
         validate_faig_login_url_override
         if validate_faig_login_url_override | length > 0
-        else 'https://' ~ validate_faig_login_host ~ '/'
+        else 'https://' ~ validate_faig_login_host ~ validate_faig_effective_ui_path
       }}
   # - ansible.builtin.debug:
   #     var: validate_faig_login_url
@@ -192,6 +202,7 @@
     msg:
       - "FortiAIGate status: {{ 'READY' if validate_faig_readiness_summary.ready else 'NOT READY' }}"
       - "Pods ready: {{ validate_faig_readiness_summary.ready_count }}/{{ validate_faig_readiness_summary.total_count }}"
+      - "UI check path: {{ validate_faig_effective_ui_path }}"
       - "UI check HTTP status: {{ validate_ui.stdout }}"
       - "API login check HTTP status: {{ validate_api_login.stdout }}"
       - "Login URL: {{ validate_faig_login_url }}"

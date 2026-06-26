@@ -32,15 +32,9 @@
   # - ansible.builtin.debug:
   #     var: publish_image_archives
 
-- name: Load FortiAIGate image archive
-  ansible.builtin.command:
-    argv:
-      - docker
-      - load
-      - -i
-      - "{{ item }}"
+- name: Load FortiAIGate image archives when local Docker tags are missing
+  ansible.builtin.include_tasks: load_one_image.yml
   loop: "{{ publish_image_archives }}"
-  register: publish_docker_load
-  changed_when: true
-  # - ansible.builtin.debug:
-  #     var: publish_docker_load.results
+  loop_control:
+    loop_var: publish_image_archive
+    label: "{{ publish_image_archive }}"

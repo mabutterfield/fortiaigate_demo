@@ -7,5 +7,32 @@
       ansible.builtin.include_vars:
         file: "{{ item }}"
       loop: "{{ query('first_found', {'files': ['all.yml'], 'paths': [playbook_dir + '/../group_vars'], 'skip': True}) }}"
-  roles:
-    - validate_k3s
+  tasks:
+    - name: Run k3s validation with go/no-go summary
+      block:
+        - name: Validate k3s cluster
+          ansible.builtin.include_role:
+            name: validate_k3s
+      rescue:
+        - name: Set k3s validation no-go summary
+          ansible.builtin.set_fact:
+            validate_k3s_state: "NO GO"
+            validate_k3s_failed_task: "{{ ansible_failed_task.name | default('unknown task') }}"
+            validate_k3s_failure_detail: >-
+              {{
+                ansible_failed_result.msg
+                | default(ansible_failed_result.stderr | default(ansible_failed_result.stdout | default('unknown validation failure')))
+              }}
+          # - ansible.builtin.debug:
+          #     var: validate_k3s_failure_detail
+
+        - name: Show k3s validation no-go summary
+          ansible.builtin.debug:
+            msg:
+              - "K3s status: {{ validate_k3s_state }}"
+              - "Failed check: {{ validate_k3s_failed_task }}"
+              - "Reason: {{ validate_k3s_failure_detail }}"
+
+        - name: Fail when k3s validation is no-go
+          ansible.builtin.fail:
+            msg: "K3s status: {{ validate_k3s_state }} - {{ validate_k3s_failed_task }}"

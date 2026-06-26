@@ -3,6 +3,16 @@ output "instance_id" {
   value       = aws_instance.this.id
 }
 
+output "aws_profile" {
+  description = "AWS CLI profile used by this Terraform module."
+  value       = var.aws_profile
+}
+
+output "aws_region" {
+  description = "AWS region used by this Terraform module."
+  value       = var.aws_region
+}
+
 output "public_ip" {
   description = "Elastic public IP for the k3s host."
   value       = aws_eip.this.public_ip

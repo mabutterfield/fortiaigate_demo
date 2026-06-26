@@ -83,13 +83,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-key-prefix",
-        default=os.environ.get("FAIG_API_KEY_PREFIX", ""),
-        help="Optional API key value prefix, for example Bearer.",
+        default=os.environ.get("FAIG_API_KEY_PREFIX", "Bearer"),
+        help="Optional API key value prefix. Defaults to Bearer.",
     )
     parser.add_argument(
         "--jwt",
         action="store_true",
-        help="Send the API key as a JWT bearer token. Equivalent to --api-key-prefix Bearer.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--header",
@@ -350,7 +350,7 @@ def auth_hint(args: argparse.Namespace, status: str) -> str:
     if header_name.lower() == "authorization" and looks_like_jwt(args.api_key) and prefix.lower() != "bearer":
         return (
             "HTTP 401: token looks like a JWT sent in Authorization without Bearer. "
-            "Try --jwt or --api-key-prefix Bearer."
+            "Use the default bearer format or set FAIG_API_KEY_PREFIX=Bearer."
         )
     if header_name.lower() != "authorization":
         return (
@@ -364,8 +364,8 @@ def auth_hint(args: argparse.Namespace, status: str) -> str:
             "current, copied fully, and belongs to the configured AI Flow/guard."
         )
     return (
-        "HTTP 401: authentication header was sent but rejected. If this is JWT auth, try --jwt. "
-        "Also confirm the token is current and belongs to the configured AI Flow/guard."
+        "HTTP 401: authentication header was sent but rejected. Confirm the token is current "
+        "and belongs to the configured AI Flow/guard."
     )
 
 

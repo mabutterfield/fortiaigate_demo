@@ -96,14 +96,14 @@ cd ansible
 ansible-playbook playbooks/test_model_direct.yml
 ```
 
-The direct test uses the generic Bedrock Converse API, calls the repo-owned `tests/bedrock_direct_test.py` signer, asks for a short response plus the model name, and summarizes the response.
+The direct test uses the generic Bedrock Converse API, calls the repo-owned `scripts/bedrock_direct_test.py` signer, asks for a short response plus the model name, and summarizes the response.
 
 To run the same script manually from the repo root:
 
 ```bash
 export AWS_ACCESS_KEY_ID="$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_access_key_id)"
 export AWS_SECRET_ACCESS_KEY="$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_secret_access_key)"
-python3 tests/bedrock_direct_test.py \
+python3 scripts/bedrock_direct_test.py \
   --region "$(terraform -chdir=terraform/aws-bedrock output -raw bedrock_region)"
 ```
 
@@ -118,7 +118,7 @@ cd ansible
 ansible-playbook playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook reads the first permitted model ID from `terraform/aws-bedrock` when available, calls `tests/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response.
+The playbook reads the first permitted model ID from `terraform/aws-bedrock` when available, calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response.
 
 ## Refresh Expiration
 

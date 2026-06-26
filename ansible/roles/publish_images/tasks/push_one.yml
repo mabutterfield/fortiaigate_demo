@@ -7,7 +7,7 @@
   # - ansible.builtin.debug:
   #     msg: "{{ publish_image.source }} -> {{ publish_target_image }}"
 
-- name: Inspect local source image
+- name: Inspect local source image {{ publish_image.source }}
   ansible.builtin.command:
     argv:
       - docker
@@ -25,7 +25,7 @@
   # - ansible.builtin.debug:
   #     var: publish_source_image_id
 
-- name: Check ECR target tag
+- name: Check ECR target tag {{ publish_target_image }}
   ansible.builtin.command:
     argv:
       - aws
@@ -48,7 +48,7 @@
   # - ansible.builtin.debug:
   #     var: publish_ecr_describe_image.stdout
 
-- name: Pull existing ECR target image for comparison
+- name: Pull existing ECR target image {{ publish_target_image }} for comparison
   ansible.builtin.command:
     argv:
       - docker
@@ -62,7 +62,7 @@
   # - ansible.builtin.debug:
   #     var: publish_existing_target_pull.stdout_lines
 
-- name: Inspect existing ECR target image
+- name: Inspect existing ECR target image {{ publish_target_image }}
   ansible.builtin.command:
     argv:
       - docker
@@ -86,7 +86,7 @@
   # - ansible.builtin.debug:
   #     var: publish_existing_target_image_id
 
-- name: Fail when immutable ECR target tag has different image content
+- name: Fail when immutable ECR target tag {{ publish_target_image }} has different image content
   ansible.builtin.fail:
     msg: "ECR tag {{ publish_target_image }} already exists with different content. Use a new tag."
   when:
@@ -94,7 +94,7 @@
     - publish_ecr_describe_image.rc == 0
     - publish_existing_target_image_id != publish_source_image_id
 
-- name: Record skipped ECR target with identical content
+- name: Record skipped ECR target {{ publish_target_image }} with identical content
   ansible.builtin.set_fact:
     skipped_images: "{{ skipped_images + [publish_target_image] }}"
   when:
@@ -104,7 +104,7 @@
   # - ansible.builtin.debug:
   #     var: skipped_images
 
-- name: Tag image for target registry
+- name: Tag image {{ publish_image.source }} as {{ publish_target_image }}
   ansible.builtin.command:
     argv:
       - docker
@@ -117,7 +117,7 @@
   # - ansible.builtin.debug:
   #     var: publish_docker_tag.stdout_lines
 
-- name: Push image to target registry
+- name: Push image {{ publish_target_image }} to target registry
   ansible.builtin.command:
     argv:
       - docker
@@ -129,7 +129,7 @@
   # - ansible.builtin.debug:
   #     var: publish_docker_push.stdout_lines
 
-- name: Record pushed image
+- name: Record pushed image {{ publish_target_image }}
   ansible.builtin.set_fact:
     published_images: "{{ published_images + [publish_target_image] }}"
   when: registry_type == "local" or publish_ecr_describe_image.rc != 0

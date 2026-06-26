@@ -19,6 +19,16 @@ def ensure_named_env(container, name, value):
     env.append({"name": name, "value": value})
 
 
+def env_int(name, default):
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise SystemExit(f"{name} must be an integer, got {value!r}") from exc
+
+
 def patch_storage_pvc(doc):
     metadata = doc.get("metadata", {})
     name = metadata.get("name", "")
@@ -58,6 +68,8 @@ def patch_triton_deployment(doc):
     image_repository = os.environ.get("FORTIAIGATE_IMAGE_REPOSITORY", "").rstrip("/")
     triton_model_image_tag = os.environ.get("FORTIAIGATE_TRITON_MODEL_IMAGE_TAG", "")
     triton_image_tag = os.environ.get("FORTIAIGATE_TRITON_IMAGE_TAG", "")
+    triton_probe_initial_delay = env_int("FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS", 300)
+    triton_probe_failure_threshold = env_int("FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD", 30)
 
     for container in pod_spec.get("initContainers", []):
         if container.get("name") == "model-loader" and image_repository and triton_model_image_tag:
@@ -84,6 +96,16 @@ def patch_triton_deployment(doc):
                 "nvidia.com/gpu": "1",
             },
         }
+
+        # FortiAIGate 8.0.1 Triton startup can take materially longer while
+        # models initialize after image pull or upgrade. These values are a
+        # conservative operational workaround, not proven optimal sizing.
+        for probe_name in ("livenessProbe", "readinessProbe"):
+            probe = container.get(probe_name)
+            if not probe:
+                continue
+            probe["initialDelaySeconds"] = triton_probe_initial_delay
+            probe["failureThreshold"] = triton_probe_failure_threshold
 
     for volume in pod_spec.get("volumes", []):
         if volume.get("name") == "shm-memory":

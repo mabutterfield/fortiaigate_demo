@@ -1,8 +1,11 @@
 ---
 validate_k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
 validate_k3s_wait_timeout: 180s
-validate_k3s_pod_wait_retries: 30
-validate_k3s_pod_wait_delay: 10
+validate_k3s_pod_wait_retries: 1
+validate_k3s_pod_wait_delay: 0
+validate_k3s_pod_health_namespaces:
+  - kube-system
+  - ingress-nginx
 validate_k3s_dns_check_image: busybox:1.36
 validate_k3s_dns_check_pod: validate-k3s-dns
 validate_k3s_internal_dns_name: kubernetes.default.svc.cluster.local

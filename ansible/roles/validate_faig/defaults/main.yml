@@ -1,3 +1,4 @@
 ---
 validate_faig_ollama_forwarding: false
 validate_faig_login_url_override: ""
+validate_faig_ui_path: "{{ fortiaigate_ui_path | default(('/ui/' if (fortiaigate_version | default('8.0.1')) is version('8.0.1', '>=') else '/')) }}"

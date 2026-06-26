@@ -116,7 +116,7 @@
       {{
         fortiaigate_status_login_url_override
         if fortiaigate_status_login_url_override | length > 0
-        else 'https://' ~ fortiaigate_status_login_host ~ '/'
+        else 'https://' ~ fortiaigate_status_login_host ~ fortiaigate_status_ui_path
       }}
   # - ansible.builtin.debug:
   #     var: fortiaigate_status_state

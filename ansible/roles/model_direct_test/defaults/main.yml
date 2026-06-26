@@ -10,7 +10,7 @@ direct_model_bedrock_model: ""
 direct_model_bedrock_fallback_model: openai.gpt-oss-20b-1:0
 direct_model_bedrock_use_terraform_output: true
 direct_model_bedrock_read_credentials_from_terraform: true
-direct_model_bedrock_test_script: "{{ playbook_dir }}/../../tests/bedrock_direct_test.py"
+direct_model_bedrock_test_script: "{{ playbook_dir }}/../../scripts/bedrock_direct_test.py"
 direct_model_aws_access_key_id: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') | default('', true) }}"
 direct_model_aws_secret_access_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') | default('', true) }}"
 direct_model_aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') | default('', true) }}"

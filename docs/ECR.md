@@ -10,6 +10,9 @@ This workflow separates registry infrastructure from image publishing:
 ```bash
 cd terraform/aws-ecr
 cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars before terraform init. Set non-secret values such as
+# aws_profile, aws_region, repo_prefix, and optional ec2_pull_role_name.
+# Do not put secrets or access keys in this file.
 aws sso login --profile <profile-name>
 terraform init
 terraform fmt
@@ -17,7 +20,7 @@ terraform validate
 terraform apply
 ```
 
-Set `ec2_pull_role_name` only when Terraform should attach a scoped pull policy to an existing EC2 role. Terraform does not create IAM roles.
+Set `ec2_pull_role_name` only when this module should attach a scoped pull policy to an EC2 role. The ECR module does not create IAM roles. To create the k3s host role and instance profile with Terraform, use `terraform/aws-ec2-k3s` with `create_iam_instance_profile = true`, then pass its `iam_role_name` output back to this module.
 
 Terraform also writes non-secret Ansible registry vars to:
 
@@ -42,7 +45,19 @@ terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-t
 
 ## Publish Images
 
-The publisher runs on the local workstation and expects Docker plus AWS CLI SSO access.
+The publisher runs on the local workstation and expects Docker plus AWS CLI SSO access. Docker must be usable by the current workstation user without `sudo`.
+
+The current publish workflow is a local Docker staging workflow. It reads each
+archive manifest, skips `docker load` when the archive's source tags already
+exist locally with matching image IDs, inspects the local source images, tags
+them for the target registry, and then runs `docker push`. When an immutable
+ECR tag already exists, it may also pull the existing target image locally to
+compare content before deciding whether to skip or fail.
+
+Plan local disk capacity accordingly. Keep at least 2x-3x the total release
+image archive size available on the local Docker disk before publishing. This
+headroom accounts for the original archives, the loaded image layers, target
+tags, and any existing ECR images pulled for comparison.
 
 ```bash
 cd ansible

@@ -5,11 +5,12 @@ name_prefix               = "fortiaigate-demo"
 # Expected local edits:
 # - aws_profile/aws_region for the target account and region
 # - ssh_key_name plus ssh_private_key_file for the key you will use
-# - allowed_ingress_cidr for your current public source IP
+# - allowed_ingress_cidr as a valid CIDR for your current public source IP
 # - iam_instance_profile_name or create_iam_instance_profile
 # - instance_type when changing from the default lab size
 ssh_key_name              = "my-existing-keypair"
 ssh_private_key_file      = "~/.ssh/my-existing-keypair.pem"
+# Must be a valid CIDR. Use /32 for one public client IP.
 allowed_ingress_cidr      = "203.0.113.10/32"
 iam_instance_profile_name = "existing-ec2-ecr-readonly-profile"
 

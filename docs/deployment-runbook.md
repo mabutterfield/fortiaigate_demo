@@ -76,7 +76,11 @@ cp group_vars/images.example.yml group_vars/images.yml
 ansible-playbook playbooks/publish_images.yml
 ```
 
-The image publisher loads release archives locally with Docker, preserves the tags embedded in the archives, and pushes to the configured registry.
+The image publisher reads release archive metadata, loads only missing or changed source images into local Docker, preserves the tags embedded in the archives, and pushes to the configured registry. Docker must be usable by the current workstation user without `sudo`.
+
+The current workflow stages images through the local Docker image store before
+ECR upload. Keep at least 2x-3x the total release image archive size available
+on the local Docker disk before publishing.
 
 To publish one version:
 
@@ -118,14 +122,23 @@ If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `t
 Validate AWS instance status and SSH before running Ansible:
 
 ```bash
-terraform output ssh_command
+AWS_PROFILE="$(terraform output -raw aws_profile)"
+AWS_REGION="$(terraform output -raw aws_region)"
+INSTANCE_ID="$(terraform output -raw instance_id)"
+
 aws ec2 describe-instance-status \
-  --profile <profile-name> \
-  --region <region> \
-  --instance-ids "$(terraform output -raw instance_id)" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --instance-ids "$INSTANCE_ID" \
   --include-all-instances \
   --query 'InstanceStatuses[0].{Instance:InstanceState.Name,System:SystemStatus.Status,InstanceStatus:InstanceStatus.Status}' \
   --output table
+```
+
+Get the SSH command:
+
+```bash
+terraform output ssh_command
 ```
 
 Run the `ssh_command` output. If SSH does not work, fix AWS networking, the key pair, or `ssh_private_key_file` before starting Ansible.
@@ -237,8 +250,13 @@ Bootstrap ends with the `validate_k3s` role. It verifies:
 - all nodes are Ready
 - kube-system and ingress-nginx deployments are Available
 - NVIDIA device plugin DaemonSet rollout completed
-- all pods are Running/Ready or Succeeded
+- foundation pods in `kube-system` and `ingress-nginx` are Running/Ready or Succeeded
 - DNS resolution from inside a temporary pod works
+
+A successful validation prints `K3s status: GO`. The standalone validation
+playbook prints `K3s status: NO GO` with the failed check before exiting on a
+validation failure. Application namespaces such as `fortiaigate` are intentionally
+left to `status_fortiaigate.yml` and `validate_faig.yml`.
 
 Rerun the same checks independently with:
 
@@ -276,6 +294,11 @@ This is the lightweight readiness check. It reports one of:
 
 It also prints the HTTPS login URL. The URL uses `fortiaigate_ingress_host` when set, otherwise the generated inventory `public_ip`, otherwise `ansible_host`.
 
+FortiAIGate 8.0.1 serves the web UI under `/ui/`; `/` is preserved for the
+chart's core service route. `status_fortiaigate.yml` and `validate_faig.yml`
+use `fortiaigate_ui_path` to print and check the correct UI URL for the selected
+FortiAIGate version.
+
 Useful manual commands on the k3s host:
 
 ```bash
@@ -293,7 +316,7 @@ ansible-playbook playbooks/validate_faig.yml
 
 Validation checks the host, Kubernetes, GPU visibility, ingress, and FortiAIGate service reachability.
 
-Use validation after status is `READY` or when you need deeper checks. It validates GPU visibility, Triton device access, `/dev/shm`, UI/API HTTP behavior, and optional provider forwarding.
+Use validation after status is `READY` or when you need deeper checks. It validates GPU visibility, Triton device access, `/dev/shm`, UI/API HTTP behavior, and optional provider forwarding. The UI check uses `fortiaigate_ui_path`, which defaults to `/ui/` for FortiAIGate 8.0.1 and `/` for older releases.
 
 At the end, validation prints an interpreted summary:
 
@@ -367,7 +390,7 @@ By default, `test_model_direct.yml` reads these values directly from `terraform/
 - `bedrock_allowed_regions`
 - `bedrock_model_ids`
 
-No shell exports are required for the Ansible default path. The playbook calls the repo-owned `tests/bedrock_direct_test.py` script, which signs the request at runtime with AWS SigV4 and summarizes the response.
+No shell exports are required for the Ansible default path. The playbook calls the repo-owned `scripts/bedrock_direct_test.py` script, which signs the request at runtime with AWS SigV4 and summarizes the response.
 
 To run with exported credentials instead of reading Terraform outputs, export the standard AWS credential variables from the Bedrock outputs:
 
@@ -385,13 +408,13 @@ ansible-playbook playbooks/test_model_direct.yml \
 To run the direct Bedrock script manually from the repo root:
 
 ```bash
-python3 tests/bedrock_direct_test.py --region us-east-1
+python3 scripts/bedrock_direct_test.py --region us-east-1
 ```
 
 Use `--prompt` to send a different test question:
 
 ```bash
-python3 tests/bedrock_direct_test.py \
+python3 scripts/bedrock_direct_test.py \
   --region us-east-1 \
   --prompt "what is the square root of pi"
 ```
@@ -400,7 +423,7 @@ The script reads permitted model IDs from `terraform/aws-bedrock` and prompts fo
 
 ```bash
 export BEDROCK_MODEL="openai.gpt-oss-20b-1:0"
-python3 tests/bedrock_direct_test.py --region us-east-1
+python3 scripts/bedrock_direct_test.py --region us-east-1
 ```
 
 The script reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` from the environment. If the access key or secret key is missing and the script is run interactively, it prompts for the missing value. In non-interactive automation, missing credentials fail clearly.
@@ -416,12 +439,12 @@ cd ansible
 ansible-playbook playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook calls the repo-owned `tests/fortiaigate_chat_test.py` script, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format.
+The playbook calls the repo-owned `scripts/fortiaigate_chat_test.py` script, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format.
 
 The same test can be run directly from the repo root:
 
 ```bash
-python3 tests/fortiaigate_chat_test.py \
+python3 scripts/fortiaigate_chat_test.py \
   --host 3.233.174.17 \
   --model openai.gpt-oss-20b-1:0 \
   --prompt "hello, this is a test. Reply in one short sentence and include the name of the model answering."
@@ -429,45 +452,27 @@ python3 tests/fortiaigate_chat_test.py \
 
 When `--host` is omitted, the script tries `terraform/aws-ec2-k3s` output `public_ip`. When `--model` is omitted, it prompts from `terraform/aws-bedrock` output `bedrock_model_ids` in interactive mode, or uses the first permitted model in non-interactive mode.
 
-The script only sends an API key header when a key is provided. The default key source is `FAIG_API_KEY`, then `FORTIAIGATE_API_KEY`, then `FORTIAIGATE_TEST_API_KEY`. The default header name is `Authorization`, or set `AIG_HEADER` when FortiAIGate is configured with a custom authentication header:
+The script only sends an API key header when a key is provided. The default key source is `FAIG_API_KEY`, then `FORTIAIGATE_API_KEY`, then `FORTIAIGATE_TEST_API_KEY`. The default header name is `Authorization`, or set `AIG_HEADER` when the FortiAIGate AI Flow is configured with a custom authentication header:
 
 ```bash
 export FAIG_API_KEY="<api-key>"
 export AIG_HEADER="X-FAIG-Key"
-python3 tests/fortiaigate_chat_test.py --host 3.233.174.17
+python3 scripts/fortiaigate_chat_test.py --host 3.233.174.17
 ```
 
 The same settings can be passed as arguments:
 
 ```bash
-python3 tests/fortiaigate_chat_test.py \
+python3 scripts/fortiaigate_chat_test.py \
   --host 3.233.174.17 \
   --apikey "<api-key>" \
   --auth-header "X-FAIG-Key"
 ```
 
-JWT-backed authentication commonly expects `Authorization: Bearer <jwt>`. Use `--jwt` for that format:
+Additional headers can be added:
 
 ```bash
-python3 tests/fortiaigate_chat_test.py \
-  --host 3.233.174.17 \
-  --apikey "<jwt>" \
-  --jwt
-```
-
-By default the API key is sent as the raw header value, for example `Authorization: <api-key>`. If a deployment expects another prefix, set it explicitly:
-
-```bash
-python3 tests/fortiaigate_chat_test.py \
-  --host 3.233.174.17 \
-  --apikey "<token>" \
-  --api-key-prefix Bearer
-```
-
-Additional headers can be repeated:
-
-```bash
-python3 tests/fortiaigate_chat_test.py \
+python3 scripts/fortiaigate_chat_test.py \
   --host 3.233.174.17 \
   --header "X-Test-Run: fresh-install" \
   --header "X-Trace-Source: local"
@@ -477,7 +482,7 @@ Use `--debug` to print the effective curl command before it runs. API key values
 
 ```bash
 FAIG_API_KEY="<api-key>" AIG_HEADER="X-FAIG-Key" \
-python3 tests/fortiaigate_chat_test.py --host 3.233.174.17 --debug
+python3 scripts/fortiaigate_chat_test.py --host 3.233.174.17 --debug
 ```
 
 Only use `--debug-show-secrets` when you need an exact local copy/paste command and will not paste the output into logs or tickets.

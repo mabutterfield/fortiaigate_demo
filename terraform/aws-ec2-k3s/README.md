@@ -34,12 +34,21 @@ The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger pro
 After apply, validate host status and SSH:
 
 ```bash
-terraform output ssh_command
+AWS_PROFILE="$(terraform output -raw aws_profile)"
+AWS_REGION="$(terraform output -raw aws_region)"
+INSTANCE_ID="$(terraform output -raw instance_id)"
+
 aws ec2 describe-instance-status \
-  --profile <profile-name> \
-  --region <region> \
-  --instance-ids "$(terraform output -raw instance_id)" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --instance-ids "$INSTANCE_ID" \
   --include-all-instances \
   --query 'InstanceStatuses[0].{Instance:InstanceState.Name,System:SystemStatus.Status,InstanceStatus:InstanceStatus.Status}' \
   --output table
+```
+
+Get the SSH command:
+
+```bash
+terraform output ssh_command
 ```
