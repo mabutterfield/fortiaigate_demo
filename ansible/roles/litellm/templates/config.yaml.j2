@@ -1,0 +1,29 @@
+model_list:
+{% for model in litellm_models %}
+  - model_name: {{ model.name | to_json }}
+    litellm_params:
+      model: {{ model.provider_model | to_json }}
+{% if model.aws_region_name | default('') | length > 0 %}
+      aws_region_name: {{ model.aws_region_name | to_json }}
+{% endif %}
+{% if model.api_base | default('') | length > 0 %}
+      api_base: {{ model.api_base | to_json }}
+{% endif %}
+{% if model.api_key | default('') | length > 0 %}
+      api_key: {{ model.api_key | to_json }}
+{% endif %}
+{% if model.temperature is defined %}
+      temperature: {{ model.temperature }}
+{% endif %}
+{% if model.max_tokens is defined %}
+      max_tokens: {{ model.max_tokens }}
+{% endif %}
+{% endfor %}
+
+litellm_settings:
+  callbacks:
+    - custom_callbacks.proxy_handler_instance
+
+general_settings:
+  database_connection_pool_limit: {{ litellm_database_connection_pool_limit }}
+  database_connection_timeout: {{ litellm_database_connection_timeout }}

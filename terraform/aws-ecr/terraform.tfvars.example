@@ -1,5 +1,5 @@
-aws_profile = "AdministratorAccess-123456789012"
-aws_region  = "us-east-1"
+# terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
+# allowed_ingress_cidr, and tags.
 
 repo_prefix = "fortiaigate"
 
@@ -12,13 +12,11 @@ repositories = [
   "license_manager",
   "triton-models",
   "custom-triton",
+  "chatbot-basic",
 ]
 
-image_tag_mutability            = "IMMUTABLE"
-scan_on_push                    = true
-lifecycle_retain_tagged_count   = 10
+image_tag_mutability          = "IMMUTABLE"
+scan_on_push                  = true
+lifecycle_retain_tagged_count = 10
 
-# Use terraform/aws-ec2-k3s output iam_role_name when you want this module
-# to attach scoped ECR pull permissions to the k3s host role.
-ec2_pull_role_name              = ""
-ansible_ecr_vars_output_path    = "../../ansible/group_vars/ecr.generated.yml"
+ansible_ecr_vars_output_path = "../../ansible/group_vars/ecr.generated.yml"

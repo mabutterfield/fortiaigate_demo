@@ -1,17 +1,18 @@
 ---
-# Copy this file to group_vars/all.yml and fill in environment-specific values.
+# Copy this file to group_vars/all.yml and fill in FortiAIGate-specific values.
 #
 # Expected local edits:
-# - aws_profile, aws_region, and ecr_account_id when not using ecr.generated.yml
 # - fortiaigate_version and matching image tags
 # - fortiaigate_license_files under FAIG/licenses, or license_source_dir
 # - fortiaigate_ingress_host when using DNS instead of the EC2 public IP
-ansible_user: ubuntu
-aws_profile: AdministratorAccess-123456789012
-aws_region: us-east-1
-ecr_account_id: "123456789012"
-ecr_registry: "{{ ecr_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
-ecr_repo_prefix: fortiaigate
+#
+# AWS/common environment values normally live in ansible/group_vars/env.yml.
+# The automated quick start syncs aws_profile and aws_region there from
+# terraform/common.tfvars. Uncomment only when intentionally overriding env.yml
+# for a special local run.
+# aws_profile: AdministratorAccess-123456789012
+# aws_region: us-east-1
+# registry_type: ecr
 ecr_pull_secret_name: ecr-secret
 
 fortiaigate_namespace: fortiaigate
@@ -29,7 +30,6 @@ fortiaigate_version: "8.0.1"
 fortiaigate_image_tag: "V8.0.1-build0031"
 fortiaigate_triton_model_image_tag: "0.1.6-s1"
 fortiaigate_triton_image_tag: "25.11-onnx-trt-agt-s1"
-faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
 faig_local_tmp_dir: "{{ faig_workspace_root }}/tmp"
 fortiaigate_chart_path: "{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate"
 fortiaigate_chart_remote_root: "/home/{{ ansible_user }}/tmp/fortiaigate-chart"
@@ -39,13 +39,15 @@ fortiaigate_chart_archive_local_path: "{{ faig_local_tmp_dir }}/fortiaigate-char
 fortiaigate_chart_archive_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-chart.tgz"
 fortiaigate_helm_wait: false
 fortiaigate_helm_timeout: 20m
+# Use the EC2 instance role by default for ECR pull-token generation.
+# Set to controller_profile only when the k3s host role cannot read ECR.
+fortiaigate_ecr_token_source: instance_role
 # FortiAIGate 8.0.1 Triton startup can be slower after image pull or upgrade.
 # These probe values are conservative lab defaults pending more investigation;
 # they may not be optimal for every instance type or release.
 fortiaigate_triton_probe_initial_delay_seconds: 300
 fortiaigate_triton_probe_failure_threshold: 30
 
-fortiaigate_image_repository: "{{ ecr_registry }}/{{ ecr_repo_prefix }}"
 fortiaigate_image_pull_policy: IfNotPresent
 fortiaigate_image_pull_secrets:
   - name: "{{ ecr_pull_secret_name }}"
@@ -55,8 +57,6 @@ fortiaigate_image_pull_secrets:
 image_tag: "{{ fortiaigate_image_tag }}"
 image_archive: ""
 image_archive_dir: "{{ faig_workspace_root }}/images/{{ fortiaigate_version }}"
-registry_type: ecr
-local_registry: localhost:5000
 
 publish_image_version: ""
 publish_image_state: active
@@ -102,7 +102,7 @@ validate_faig_ollama_forwarding: false
 validate_faig_login_url_override: ""
 
 # Optional first external chat test after a guard/provider is configured.
-# test_fortiaigate_chat.yml reads the first allowed model from terraform/aws-bedrock when available.
+# test_fortiaigate_chat.yml reads the first allowed model from terraform/aws-prep when available.
 # Leave fortiaigate_test_api_key empty unless the FortiAIGate guard requires an auth token.
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
 fortiaigate_test_model: ""
@@ -117,6 +117,123 @@ direct_model_bedrock_region: ""
 direct_model_bedrock_read_credentials_from_terraform: true
 direct_model_ollama_base_url: "{{ ollama_base_url }}"
 direct_model_ollama_model: "{{ ollama_model }}"
+
+# === LiteLLM proxy: ansible/playbooks/deploy_litellm.yml ===
+# LiteLLM is the shared OpenAI-compatible model proxy for demo UIs.
+# Direct path: UI -> LiteLLM -> Bedrock. FAIG path: UI -> FortiAIGate -> LiteLLM -> Bedrock.
+litellm_enabled: true
+litellm_namespace: litellm
+litellm_release_name: litellm
+# Port values normally come from terraform/aws-ec2-k3s generated
+# ansible/group_vars/ports.generated.yml. The defaults keep local-only
+# deployments usable before Terraform has generated that file.
+litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
+litellm_master_key: sk-litellm-demo-change-me
+litellm_ui_username: admin
+litellm_ui_password: litellm-demo-change-me
+litellm_model_alias: demo-profile
+litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
+litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
+litellm_bedrock_read_from_terraform: true
+litellm_instruction_profile_source_path: "{{ chatbot_instruction_root | default(faig_workspace_root ~ '/fortiaigate_demo/chatbot/instructions') }}/default/instructions.txt"
+litellm_instruction_debug: false
+# Empty map applies the default instruction profile to every configured LiteLLM model.
+# Use literal model names here only when different models need different profiles.
+litellm_model_instruction_profiles: {}
+litellm_instruction_profile_injection_position: prepend
+litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:4000/v1"
+litellm_faig_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1"
+
+# === Open WebUI deployment: ansible/playbooks/deploy_openwebui.yml ===
+# Consolidated single Open WebUI instance. Provider selection happens inside
+# Open WebUI using the configured direct LiteLLM and FortiAIGate base URLs.
+openwebui_enabled: true
+openwebui_namespace: openwebui
+openwebui_release_name: openwebui
+openwebui_direct_provider: litellm
+openwebui_direct_openai_base_url: "{{ litellm_internal_base_url }}"
+openwebui_direct_openai_api_key: "{{ litellm_master_key }}"
+openwebui_faig_openai_base_url: "{{ litellm_faig_base_url }}"
+openwebui_faig_openai_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
+openwebui_openai_base_urls: "{{ openwebui_direct_openai_base_url }};{{ openwebui_faig_openai_base_url }}"
+openwebui_openai_api_keys: "{{ openwebui_direct_openai_api_key }};{{ openwebui_faig_openai_api_key }}"
+openwebui_webui_auth: false
+openwebui_instances:
+  - name: openwebui
+    namespace: "{{ openwebui_namespace }}"
+    release_name: "{{ openwebui_release_name }}"
+    node_port: "{{ demo_openwebui_http_port | default(30080) }}"
+    openai_base_url: "{{ openwebui_openai_base_urls }}"
+    openai_api_key: "{{ openwebui_openai_api_keys }}"
+    bedrock_proxy_enabled: false
+    ingress_host: ""
+
+# === Chatbot image publishing: ansible/playbooks/publish_chatbot_images.yml ===
+# Publishes only the demo chatbot image. FortiAIGate image publishing remains
+# in ansible/playbooks/publish_images.yml.
+chatbot_publish_enabled: true
+# ECR repositories are immutable by default; bump this tag when rebuilding a
+# changed chatbot image.
+chatbot_image_tag: v0.2.0
+chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
+# EC2 GPU nodes are x86_64. Keep this as linux/amd64 when publishing from
+# Apple Silicon or other non-amd64 workstations.
+chatbot_publish_platform: linux/amd64
+
+# === Chatbot deployment: ansible/playbooks/deploy_chatbots.yml ===
+# Consolidated single Python chatbot UI. The UI runtime selector switches
+# between direct LiteLLM and FortiAIGate paths. Backend demo instructions are
+# injected by LiteLLM, not by this frontend.
+chatbots_enabled: true
+chatbot_namespace: chatbot
+chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
+chatbot_service_type: NodePort
+chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
+chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
+chatbot_direct_base_url: "{{ litellm_internal_base_url }}"
+chatbot_direct_api_key: "{{ litellm_master_key }}"
+chatbot_faig_base_url: "{{ litellm_faig_base_url }}"
+chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
+chatbot_model: "{{ litellm_model_alias }}"
+chatbot_frontend_system_prompt: ""
+chatbot_instances:
+  - name: chatbot
+    instruction_set: consolidated
+    namespace: "{{ chatbot_namespace }}"
+    release_name: chatbot
+    node_port: "{{ demo_chatbot_http_port | default(30081) }}"
+    direct_base_url: "{{ chatbot_direct_base_url }}"
+    direct_api_key: "{{ chatbot_direct_api_key }}"
+    faig_base_url: "{{ chatbot_faig_base_url }}"
+    faig_api_key: "{{ chatbot_faig_api_key }}"
+    model: "{{ chatbot_model }}"
+    frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
+    title: "Demo Chatbot"
+    header_title: "FortiAIGate Demo Chatbot"
+    provider_label: Direct or FortiAIGate
+    ingress_host: ""
+
+# === Demo home page: ansible/playbooks/deploy_demo_home.yml ===
+demo_home_enabled: true
+demo_home_namespace: demo-home
+demo_home_release_name: demo-home
+demo_home_node_port: "{{ demo_home_http_port | default(30082) }}"
+demo_home_page_title: FortiAIGate Demo Home
+demo_home_ingress_host: ""
+
+# === Optional HTTPS gateway: ansible/playbooks/deploy_demo_https_gateway.yml ===
+# Disabled by default. When enabled, nginx exposes HTTPS NodePorts and proxies
+# to the existing internal HTTP services. Keep internal cluster traffic HTTP;
+# this only encrypts optional public browser/API access.
+# terraform/aws-ec2-k3s opens the generated HTTP and HTTPS demo ports.
+demo_https_gateway_enabled: false
+demo_https_gateway_self_signed: true
+demo_https_gateway_cert_local_path: ""
+demo_https_gateway_key_local_path: ""
+demo_https_gateway_openwebui_https_port: "{{ demo_openwebui_https_port | default(30443) }}"
+demo_https_gateway_chatbot_https_port: "{{ demo_chatbot_https_port | default(30444) }}"
+demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(30445) }}"
+demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server

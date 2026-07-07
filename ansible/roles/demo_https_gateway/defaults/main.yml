@@ -1,0 +1,43 @@
+---
+demo_https_gateway_enabled: false
+demo_https_gateway_namespace: demo-https-gateway
+demo_https_gateway_release_name: demo-https-gateway
+demo_https_gateway_chart_local_path: "{{ playbook_dir }}/../../chatbot/https-gateway/chart"
+demo_https_gateway_chart_remote_root: "/home/{{ ansible_user }}/tmp/demo-https-gateway-chart"
+demo_https_gateway_values_remote_path: "/home/{{ ansible_user }}/tmp/demo-https-gateway-values.yaml"
+
+demo_https_gateway_image_repository: nginx
+demo_https_gateway_image_tag: "1.27-alpine"
+demo_https_gateway_image_pull_policy: IfNotPresent
+
+demo_https_gateway_self_signed: true
+demo_https_gateway_cert_local_path: ""
+demo_https_gateway_key_local_path: ""
+demo_https_gateway_remote_cert_dir: "/home/{{ ansible_user }}/tmp/demo-https-gateway-cert"
+demo_https_gateway_remote_cert_path: "{{ demo_https_gateway_remote_cert_dir }}/tls.crt"
+demo_https_gateway_remote_key_path: "{{ demo_https_gateway_remote_cert_dir }}/tls.key"
+demo_https_gateway_cert_common_name: "fortiaigate-demo.local"
+demo_https_gateway_cert_days: 365
+
+demo_https_gateway_openwebui_https_port: "{{ demo_openwebui_https_port | default(30443) }}"
+demo_https_gateway_chatbot_https_port: "{{ demo_chatbot_https_port | default(30444) }}"
+demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(30445) }}"
+demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
+
+demo_https_gateway_routes:
+  - name: openwebui
+    display_name: OpenWebUI
+    external_port: "{{ demo_https_gateway_openwebui_https_port }}"
+    upstream: "http://{{ openwebui_release_name | default('openwebui') }}.{{ openwebui_namespace | default('openwebui') }}.svc.cluster.local:80"
+  - name: chatbot
+    display_name: Chat Front-End
+    external_port: "{{ demo_https_gateway_chatbot_https_port }}"
+    upstream: "http://{{ chatbot_instances[0].release_name | default('chatbot') }}.{{ chatbot_instances[0].namespace | default('chatbot') }}.svc.cluster.local:80"
+  - name: demo-home
+    display_name: Demo Home
+    external_port: "{{ demo_https_gateway_demo_home_https_port }}"
+    upstream: "http://{{ demo_home_release_name | default('demo-home') }}.{{ demo_home_namespace | default('demo-home') }}.svc.cluster.local:80"
+  - name: litellm
+    display_name: LiteLLM Admin/API
+    external_port: "{{ demo_https_gateway_litellm_https_port }}"
+    upstream: "http://{{ litellm_release_name | default('litellm') }}.{{ litellm_namespace | default('litellm') }}.svc.cluster.local:{{ litellm_service_port | default(4000) }}"

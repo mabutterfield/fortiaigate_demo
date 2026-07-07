@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+authorized_keys="/home/ubuntu/.ssh/authorized_keys"
+install -d -m 700 -o ubuntu -g ubuntu /home/ubuntu/.ssh
+touch "$authorized_keys"
+chown ubuntu:ubuntu "$authorized_keys"
+chmod 600 "$authorized_keys"
+
+%{ for username in github_usernames ~}
+curl -fsSL "https://github.com/${username}.keys" >> "$authorized_keys"
+%{ endfor ~}
+
+sort -u "$authorized_keys" -o "$authorized_keys"
+chown ubuntu:ubuntu "$authorized_keys"
+chmod 600 "$authorized_keys"

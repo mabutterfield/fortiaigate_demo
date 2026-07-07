@@ -1,0 +1,14 @@
+nameOverride: direct-bedrock-proxy
+
+image:
+  repository: ghcr.io/berriai/litellm
+  tag: main-stable
+  pullPolicy: IfNotPresent
+
+service:
+  port: 4000
+
+bedrock:
+  modelAlias: direct-bedrock
+  modelId: openai.gpt-oss-20b-1:0
+  region: us-east-1

@@ -1,0 +1,70 @@
+{{- if .Values.bedrockProxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+  labels:
+    app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: litellm
+          image: "{{ .Values.bedrockProxy.image.repository }}:{{ .Values.bedrockProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.bedrockProxy.image.pullPolicy }}
+          args:
+            - --config
+            - /etc/litellm/config.yaml
+            - --host
+            - 0.0.0.0
+            - --port
+            - "{{ .Values.bedrockProxy.service.port }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.bedrockProxy.service.port }}
+          env:
+            - name: AWS_REGION_NAME
+              value: {{ .Values.bedrockProxy.region | quote }}
+            - name: AWS_REGION
+              value: {{ .Values.bedrockProxy.region | quote }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.bedrockProxy.region | quote }}
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "false"
+{{- range .Values.bedrockProxy.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+{{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/litellm
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+{{- end }}

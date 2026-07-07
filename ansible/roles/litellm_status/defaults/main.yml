@@ -1,0 +1,9 @@
+---
+litellm_enabled: true
+litellm_namespace: litellm
+litellm_release_name: litellm
+litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
+litellm_master_key: sk-litellm-demo-change-me
+litellm_status_fail_on_not_ready: false
+litellm_status_health_path: /health/readiness
+litellm_status_ui_path: /ui

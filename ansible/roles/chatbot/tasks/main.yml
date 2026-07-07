@@ -1,0 +1,306 @@
+---
+- name: Skip chatbot deployment when disabled
+  ansible.builtin.debug:
+    msg: "chatbots_enabled=false; skipping chatbot deployment."
+  when: not chatbots_enabled | bool
+
+- name: Validate chatbot instance definitions
+  ansible.builtin.assert:
+    that:
+      - chatbot_instances is sequence
+      - chatbot_instances | length > 0
+      - item.name is defined
+      - item.name | length > 0
+      - item.namespace is defined
+      - item.namespace | length > 0
+      - item.release_name is defined
+      - item.release_name | length > 0
+      - item.direct_base_url is defined
+      - item.direct_base_url | length > 0
+      - item.faig_base_url is defined
+      - item.faig_base_url | length > 0
+      - item.node_port is defined
+      - item.node_port | int >= 30000
+      - item.node_port | int <= 32767
+    fail_msg: "Each chatbot instance needs name, namespace, release_name, direct_base_url, faig_base_url, and a NodePort between 30000 and 32767."
+  loop: "{{ chatbot_instances }}"
+  when: chatbots_enabled | bool
+
+- name: Install Helm when missing
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! command -v helm >/dev/null 2>&1; then
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+  when: chatbots_enabled | bool
+
+- name: Set chatbot namespace facts
+  ansible.builtin.set_fact:
+    chatbot_namespaces: "{{ chatbot_instances | map(attribute='namespace') | list | unique }}"
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_namespaces
+
+- name: Validate chatbot ECR pull secret settings
+  ansible.builtin.assert:
+    that:
+      - chatbot_ecr_token_source in ['instance_role', 'controller_profile']
+      - aws_region is defined
+      - aws_region | length > 0
+      - ecr_registry is defined
+      - ecr_registry | length > 0
+      - ecr_pull_secret_name is defined
+      - ecr_pull_secret_name | length > 0
+    fail_msg: "Chatbot ECR image pulls require aws_region, ecr_registry, ecr_pull_secret_name, and chatbot_ecr_token_source as instance_role or controller_profile."
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+
+- name: Create chatbot namespaces
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - create
+      - namespace
+      - "{{ item }}"
+  loop: "{{ chatbot_namespaces }}"
+  register: chatbot_namespace_create
+  changed_when: "'created' in chatbot_namespace_create.stdout"
+  failed_when:
+    - chatbot_namespace_create.rc != 0
+    - "'AlreadyExists' not in chatbot_namespace_create.stderr"
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_namespace_create.results
+
+- name: Get chatbot ECR pull token from EC2 instance role
+  ansible.builtin.shell: |
+    set -euo pipefail
+    /usr/local/bin/aws ecr get-login-password --region {{ aws_region | quote }}
+  args:
+    executable: /bin/bash
+  no_log: true
+  register: chatbot_ecr_instance_role_pull_token
+  changed_when: false
+  failed_when: false
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+    - chatbot_ecr_token_source == "instance_role"
+  # - ansible.builtin.debug:
+  #     var: chatbot_ecr_instance_role_pull_token.rc
+
+- name: Get chatbot ECR pull token from controller AWS profile
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --profile {{ aws_profile | quote }} --region {{ aws_region | quote }}
+  args:
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  no_log: true
+  register: chatbot_ecr_controller_profile_pull_token
+  changed_when: false
+  failed_when: false
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+    - chatbot_ecr_token_source == "controller_profile"
+  # - ansible.builtin.debug:
+  #     var: chatbot_ecr_controller_profile_pull_token.rc
+
+- name: Set effective chatbot ECR pull token result
+  ansible.builtin.set_fact:
+    chatbot_ecr_pull_token_result: >-
+      {{
+        chatbot_ecr_instance_role_pull_token
+        if chatbot_ecr_token_source == 'instance_role'
+        else chatbot_ecr_controller_profile_pull_token
+      }}
+  no_log: true
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_ecr_pull_token_result.rc
+
+- name: Fail when chatbot ECR pull token retrieval failed
+  ansible.builtin.fail:
+    msg: >-
+      Could not get an ECR pull token for chatbot image pulls using
+      {{ chatbot_ecr_token_source }}. For instance_role, make sure the EC2
+      instance profile role has scoped ECR pull permissions from terraform/aws-prep.
+      For controller_profile, run `aws sso login --profile {{ aws_profile }}`.
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+    - chatbot_ecr_pull_token_result.rc != 0
+
+- name: Create or refresh chatbot ECR pull secret
+  ansible.builtin.shell: |
+    set -euo pipefail
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ item | quote }} \
+      create secret docker-registry {{ ecr_pull_secret_name }} \
+      --docker-server={{ ecr_registry }} \
+      --docker-username=AWS \
+      --docker-password={{ chatbot_ecr_pull_token_result.stdout | quote }} \
+      --dry-run=client -o yaml \
+      | /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -f -
+  args:
+    executable: /bin/bash
+  loop: "{{ chatbot_namespaces }}"
+  no_log: true
+  register: chatbot_ecr_secret_apply
+  changed_when: "'created' in chatbot_ecr_secret_apply.stdout or 'configured' in chatbot_ecr_secret_apply.stdout"
+  failed_when: false
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_ecr_secret_apply.results
+
+- name: Fail when chatbot ECR pull secret refresh failed
+  ansible.builtin.fail:
+    msg: >-
+      Could not refresh ECR pull secret {{ ecr_pull_secret_name }} in one or
+      more chatbot namespaces. Check the previous task output with no_log
+      temporarily disabled if deeper troubleshooting is needed.
+  when:
+    - chatbots_enabled | bool
+    - chatbot_image_pull_secrets | length > 0
+    - chatbot_ecr_secret_apply.results | selectattr('rc', 'ne', 0) | list | length > 0
+
+- name: Remove previous remote chatbot chart staging directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ chatbot_chart_remote_root }}"
+  when: chatbots_enabled | bool
+
+- name: Create remote chatbot chart staging directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  loop:
+    - "{{ chatbot_chart_remote_root }}"
+  when: chatbots_enabled | bool
+
+- name: Copy chatbot Helm charts to remote host
+  ansible.builtin.copy:
+    src: "{{ item.src }}/"
+    dest: "{{ item.dest }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  loop:
+    - src: "{{ chatbot_chart_local_path }}"
+      dest: "{{ chatbot_chart_remote_root }}"
+  when: chatbots_enabled | bool
+
+- name: Create remote chatbot values directory
+  ansible.builtin.file:
+    path: "{{ chatbot_values_remote_dir }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0700"
+  when: chatbots_enabled | bool
+
+- name: Render chatbot Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ chatbot_values_remote_dir }}/{{ item.name }}.yaml"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  loop: "{{ chatbot_instances }}"
+  no_log: true
+  when: chatbots_enabled | bool
+
+- name: Deploy chatbot releases
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ item.release_name }}"
+      - "{{ chatbot_chart_remote_root }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ chatbot_values_remote_dir }}/{{ item.name }}.yaml"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  loop: "{{ chatbot_instances }}"
+  register: chatbot_helm_deploy
+  changed_when: "'deployed' in chatbot_helm_deploy.stdout or 'upgraded' in chatbot_helm_deploy.stdout"
+  when:
+    - chatbots_enabled | bool
+    - not chatbot_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_helm_deploy.stdout_lines
+
+- name: Deploy chatbot releases and wait
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ item.release_name }}"
+      - "{{ chatbot_chart_remote_root }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ chatbot_values_remote_dir }}/{{ item.name }}.yaml"
+      - --wait
+      - --timeout
+      - "{{ chatbot_helm_timeout }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  loop: "{{ chatbot_instances }}"
+  register: chatbot_helm_wait_deploy
+  changed_when: "'deployed' in chatbot_helm_wait_deploy.stdout or 'upgraded' in chatbot_helm_wait_deploy.stdout"
+  when:
+    - chatbots_enabled | bool
+    - chatbot_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_helm_wait_deploy.stdout_lines
+
+- name: Set chatbot access URL facts
+  ansible.builtin.set_fact:
+    chatbot_access_urls: >-
+      {{
+        chatbot_access_urls | default([])
+        + [
+          item.name ~ ': http://' ~
+          (
+            public_ip
+            if (public_ip is defined and public_ip | length > 0)
+            else (ansible_host | default(inventory_hostname))
+          )
+          ~ ':' ~ (item.node_port | string)
+        ]
+      }}
+  loop: "{{ chatbot_instances }}"
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_access_urls
+
+- name: Show chatbot deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "Chatbot releases: {{ chatbot_instances | map(attribute='release_name') | join(', ') }}"
+      - "Chatbot URLs: {{ chatbot_access_urls | default([]) | join(' | ') }}"
+      - "Helm accepted the install or upgrade; run status_chatbots.yml to check READY/NOT READY."
+  when: chatbots_enabled | bool

@@ -1,0 +1,249 @@
+---
+- name: Skip Open WebUI status when disabled
+  ansible.builtin.debug:
+    msg: "openwebui_enabled=false; skipping Open WebUI status."
+  when: not openwebui_enabled | bool
+
+- name: Check Open WebUI Helm releases
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ item.release_name }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_helm
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_helm.results
+
+- name: Check Open WebUI deployments
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ item.release_name }}"
+      - -n
+      - "{{ item.namespace }}"
+      - -o
+      - json
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_deployments
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_deployments.results
+
+- name: Check Open WebUI pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ item.namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ item.release_name }}"
+      - -o
+      - json
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_pods
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_pods.results
+
+- name: Check Open WebUI local health endpoints
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ item.node_port }}{{ openwebui_status_health_path }}"
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_health
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_health.results
+
+- name: Check Open WebUI Bedrock proxy deployments
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ item.release_name }}-bedrock-proxy"
+      - -n
+      - "{{ item.namespace }}"
+      - -o
+      - json
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_bedrock_proxy_deployments
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_bedrock_proxy_deployments.results
+
+- name: Build Open WebUI status summary
+  ansible.builtin.set_fact:
+    openwebui_status_summary: "{{ openwebui_status_summary | default([]) + [openwebui_status_item] }}"
+  vars:
+    deployment_result: "{{ openwebui_status_deployments.results[index] }}"
+    pod_result: "{{ openwebui_status_pods.results[index] }}"
+    helm_result: "{{ openwebui_status_helm.results[index] }}"
+    health_result: "{{ openwebui_status_health.results[index] }}"
+    bedrock_proxy_result: "{{ openwebui_status_bedrock_proxy_deployments.results[index] }}"
+    deployment_json: "{{ deployment_result.stdout | default('{}') | from_json if deployment_result.rc == 0 else {} }}"
+    pod_json: "{{ pod_result.stdout | default('{\"items\": []}') | from_json if pod_result.rc == 0 else {'items': []} }}"
+    bedrock_proxy_json: "{{ bedrock_proxy_result.stdout | default('{}') | from_json if bedrock_proxy_result.rc == 0 else {} }}"
+    bedrock_proxy_enabled: "{{ item.bedrock_proxy_enabled | default(false) | bool }}"
+    desired_replicas: "{{ deployment_json.spec.replicas | default(1) | int }}"
+    available_replicas: "{{ deployment_json.status.availableReplicas | default(0) | int }}"
+    bedrock_proxy_available_replicas: "{{ bedrock_proxy_json.status.availableReplicas | default(0) | int }}"
+    ready_pods: >-
+      {{
+        pod_json['items']
+        | selectattr('status.phase', 'equalto', 'Running')
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses.0.ready', 'equalto', true)
+        | list
+        | length
+      }}
+    pod_problems: >-
+      {{
+        pod_json['items']
+        | rejectattr('status.phase', 'equalto', 'Running')
+        | map(attribute='metadata.name')
+        | list
+      }}
+    health_status: "{{ health_result.stdout | default('000') }}"
+    instance_url: >-
+      http://{{
+        public_ip
+        if (public_ip is defined and public_ip | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}:{{ item.node_port }}
+    openwebui_status_item:
+      name: "{{ item.name }}"
+      release_name: "{{ item.release_name }}"
+      namespace: "{{ item.namespace }}"
+      helm_present: "{{ helm_result.rc == 0 }}"
+      deployment_present: "{{ deployment_result.rc == 0 }}"
+      desired_replicas: "{{ desired_replicas }}"
+      available_replicas: "{{ available_replicas }}"
+      ready_pods: "{{ ready_pods }}"
+      pod_count: "{{ pod_json['items'] | length }}"
+      health_status: "{{ health_status }}"
+      bedrock_proxy_enabled: "{{ bedrock_proxy_enabled }}"
+      bedrock_proxy_ready: "{{ not bedrock_proxy_enabled or (bedrock_proxy_result.rc == 0 and bedrock_proxy_available_replicas >= 1) }}"
+      url: "{{ instance_url }}"
+      ready: "{{ helm_result.rc == 0 and deployment_result.rc == 0 and available_replicas == desired_replicas and (health_status | int) >= 200 and (health_status | int) < 500 and (not bedrock_proxy_enabled or (bedrock_proxy_result.rc == 0 and bedrock_proxy_available_replicas >= 1)) }}"
+      problems: >-
+        {{
+          []
+          + (['Helm release missing'] if helm_result.rc != 0 else [])
+          + (['Deployment missing'] if deployment_result.rc != 0 else [])
+          + (['Available replicas ' ~ available_replicas ~ '/' ~ desired_replicas] if deployment_result.rc == 0 and available_replicas != desired_replicas else [])
+          + (['Health HTTP status ' ~ health_status] if (health_status | int) < 200 or (health_status | int) >= 500 else [])
+          + (['Bedrock proxy missing or not ready'] if bedrock_proxy_enabled and (bedrock_proxy_result.rc != 0 or bedrock_proxy_available_replicas < 1) else [])
+          + (['Pods not running: ' ~ (pod_problems | join(', '))] if pod_problems | length > 0 else [])
+        }}
+  loop: "{{ openwebui_instances }}"
+  loop_control:
+    index_var: index
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_summary
+
+- name: Set Open WebUI overall status facts
+  ansible.builtin.set_fact:
+    openwebui_status_ready_count: "{{ openwebui_status_summary | default([]) | selectattr('ready', 'equalto', true) | list | length }}"
+    openwebui_status_total_count: "{{ openwebui_status_summary | default([]) | length }}"
+    openwebui_status_state: >-
+      {{
+        'READY'
+        if (
+          openwebui_status_summary | default([]) | length > 0
+          and openwebui_status_summary | default([]) | selectattr('ready', 'equalto', false) | list | length == 0
+        )
+        else 'NOT READY'
+      }}
+    openwebui_status_instance_lines: []
+    openwebui_status_url_lines: []
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_state
+
+- name: Build Open WebUI status display lines
+  ansible.builtin.set_fact:
+    openwebui_status_instance_lines: >-
+      {{
+        openwebui_status_instance_lines
+        + [
+          item.name ~ ': '
+          ~ ('READY' if item.ready else 'NOT READY')
+          ~ ', Helm release=' ~ ('present' if item.helm_present else 'missing')
+          ~ ', Pods ready=' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string)
+          ~ ', Components=' ~ ('Open WebUI + local Bedrock proxy' if item.bedrock_proxy_enabled else 'Open WebUI')
+          ~ ', Bedrock proxy=' ~ ('disabled' if not item.bedrock_proxy_enabled else 'ready' if item.bedrock_proxy_ready else 'not ready')
+          ~ ', Health HTTP status=' ~ (item.health_status | string)
+          ~ ', Problems=' ~ (item.problems | join(' | ') if item.problems | length > 0 else 'none')
+        ]
+      }}
+    openwebui_status_url_lines: "{{ openwebui_status_url_lines + [item.name ~ ': ' ~ item.url] }}"
+  loop: "{{ openwebui_status_summary | default([]) }}"
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_instance_lines
+
+- name: Show Open WebUI status summary
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        [
+          'Open WebUI status: ' ~ openwebui_status_state,
+          'Instances ready: ' ~ (openwebui_status_ready_count | string) ~ '/' ~ (openwebui_status_total_count | string),
+          'URLs:'
+        ]
+        + openwebui_status_url_lines
+        + [
+          'Instance details:'
+        ]
+        + openwebui_status_instance_lines
+      }}
+  when: openwebui_enabled | bool
+
+- name: Fail when Open WebUI is not ready
+  ansible.builtin.fail:
+    msg: >-
+      Open WebUI validation did not pass:
+      {{
+        openwebui_status_summary
+        | selectattr('ready', 'equalto', false)
+        | map(attribute='name')
+        | join(', ')
+      }}
+  when:
+    - openwebui_enabled | bool
+    - openwebui_status_fail_on_not_ready | bool
+    - openwebui_status_summary | default([]) | selectattr('ready', 'equalto', false) | list | length > 0

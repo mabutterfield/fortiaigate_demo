@@ -1,12 +1,13 @@
 # Terraform
 
-Terraform is split into three phase 1 modules:
+Terraform is split into user-facing steps that keep AWS setup in Terraform before switching to Ansible:
 
-- `terraform/aws-ecr`: private ECR repositories for FortiAIGate images
-- `terraform/aws-bedrock`: temporary IAM credentials for manual FortiAIGate Bedrock provider setup
-- `terraform/aws-ec2-k3s`: AWS network, GPU EC2 instance, Elastic IP, and generated Ansible inventory
+- `terraform/common.tfvars`: shared local configuration for all Terraform modules
+- `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
+- `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
+- `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
 
-All modules use local Terraform state for phase 1. Remote state is a future enhancement.
+All modules use local Terraform state for now. Remote state is a future enhancement.
 
 ## AWS Authentication
 
@@ -16,16 +17,48 @@ Use AWS IAM Identity Center / SSO profiles:
 aws sso login --profile <profile-name>
 ```
 
-Set the profile in each module's ignored `terraform.tfvars`.
-
-Useful preflight checks:
+Set shared values once:
 
 ```bash
-aws configure list-profiles
-aws sts get-caller-identity --profile <profile-name>
+cd terraform
+cp common.tfvars.example common.tfvars
+```
+
+Edit `common.tfvars`:
+
+```hcl
+aws_profile          = "AdministratorAccess-123456789012"
+aws_region           = "us-east-1"
+name_prefix          = "fortiaigate-demo"
+allowed_ingress_cidr = [
+  "203.0.113.10/32",
+]
+tags                 = {}
+```
+
+`allowed_ingress_cidr` accepts either a single CIDR string or a list of CIDR
+strings. The list form is preferred when multiple operators need direct lab
+access.
+
+Each Terraform module has a tracked `common.auto.tfvars` symlink to
+`../common.tfvars`, so the shared values are loaded automatically:
+
+```bash
+terraform plan
+terraform apply
 ```
 
 Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
+
+Before Terraform imports, destructive changes, or larger refactors, create a
+local backup of operator config, generated values, inventory, and Terraform
+state:
+
+```bash
+python3 scripts/backup_config.py
+```
+
+Use `python3 scripts/backup_config.py --dry-run` to preview the selected files.
 
 ## ECR Module
 
@@ -38,23 +71,13 @@ terraform validate
 terraform apply
 ```
 
-Defaults:
-
-- private ECR repositories
-- immutable tags
-- basic scan-on-push
-- AES256 encryption
-- lifecycle retention for tagged and untagged images
-
-Set `ec2_pull_role_name` to the `terraform/aws-ec2-k3s` `iam_role_name` output when Terraform should attach a scoped read policy to the k3s host role. This works with either an existing role looked up by the EC2 module or a role created by the EC2 module.
-
-Terraform writes non-secret registry values to:
+This module creates or imports private ECR repositories and writes non-secret registry values to:
 
 ```text
 ansible/group_vars/ecr.generated.yml
 ```
 
-The Ansible playbooks load this generated file before `group_vars/all.yml`.
+ECR pull permissions are owned by `terraform/aws-prep`, not this module.
 
 ### Import Existing ECR Repositories
 
@@ -71,12 +94,10 @@ terraform import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-m
 terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
 ```
 
-The import ID must match the real repository name and the configured AWS region.
-
-## Bedrock Module
+## AWS Prep Module
 
 ```bash
-cd terraform/aws-bedrock
+cd terraform/aws-prep
 cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform fmt
@@ -84,15 +105,38 @@ terraform validate
 terraform apply
 ```
 
-Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. This module creates a dedicated IAM user and access key for the FortiAIGate GUI.
+This module creates:
 
-Set `bedrock_allowed_regions` to the commercial US regions where those model IDs should be invokable. Use `["*"]` only when the selected model IDs should be allowed in any region.
+- EC2 IAM role and instance profile for the k3s host
+- scoped ECR pull policy attachment when `registry_backend = "ecr"`
+- scoped Bedrock invoke policy attachment when `enable_ec2_bedrock_iam = true`
+- preallocated EIPs for selected entry points
+- trusted source CIDR outputs
+- optional Bedrock IAM user, access key, and policy
 
-By default, Bedrock source IP restrictions are derived from `terraform/aws-ec2-k3s` local state: the k3s host EIP as `<eip>/32` and the EC2 `allowed_ingress_cidr`. Set `no_ip_restriction = true` to disable that deny, or use `allowed_source_cidrs` for extra CIDRs.
+The EC2 module reads this module's local state by default through:
 
-The secret access key is a sensitive Terraform output and is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
+```hcl
+aws_prep_state_path = "../aws-prep/terraform.tfstate"
+```
 
-See [Bedrock.md](Bedrock.md) for credential handling and GUI setup details.
+When `registry_backend = "ecr"`, this module reads ECR repository ARNs from:
+
+```hcl
+aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
+```
+
+Retrieve Bedrock GUI values from this module when `enable_bedrock_iam = true`:
+
+```bash
+terraform output bedrock_access_key_id
+terraform output -raw bedrock_secret_access_key
+terraform output bedrock_key_expires_at
+terraform output bedrock_allowed_regions
+terraform output bedrock_model_ids
+```
+
+The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
 
 ## AWS EC2 k3s Module
 
@@ -108,12 +152,13 @@ terraform apply
 This module creates:
 
 - dedicated VPC
-- public subnet
+- k3s public subnet without automatic public-IP assignment
+- k3s private subnet
+- FortiGate and FortiWeb public placeholder subnets without automatic public-IP assignment
 - internet gateway and public route table
-- security group for SSH, HTTP, and HTTPS from `allowed_ingress_cidr`
-- optional EC2 IAM role and instance profile
+- security group for SSH, HTTP, and HTTPS from the trusted CIDR in `aws-prep`
 - Ubuntu 24.04 GPU EC2 instance
-- Elastic IP
+- prep-owned EIP association in public k3s mode
 - generated Ansible inventory
 
 Terraform writes the inventory to:
@@ -125,54 +170,40 @@ ansible/inventory/aws.generated.ini
 Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform includes that path in both:
 
 - `ansible_ssh_private_key_file` in the generated inventory
-- the `ssh_command` output as `ssh -i <keypath> ubuntu@<public-ip>`
+- the `ssh_command` output as `ssh -i <keypath> ubuntu@<host-ip>`
 
-The public subnet controls the EC2 instance Availability Zone. By default, Terraform queries EC2 instance type offerings, sorts the AZs that offer `instance_type`, and selects the first one. This makes placement deterministic instead of relying on AWS implicit subnet placement.
+Set `ec2_pull_github_keys = ["<github-user>"]` only when the instance should
+pull public GitHub SSH keys into `/home/ubuntu/.ssh/authorized_keys` during
+first boot. Leave it empty to skip. This requires the instance to reach GitHub
+during cloud-init and does not re-run automatically on an existing instance.
 
-Set `availability_zone` in `terraform.tfvars` only when you need to force a specific AZ, such as one recommended by an AWS launch error:
+The selected Availability Zone controls the k3s and appliance subnets. By default, Terraform queries EC2 instance type offerings, sorts the AZs that offer `instance_type`, and selects the first one.
 
-```hcl
-availability_zone = "us-east-1a"
-```
-
-The offerings query confirms the instance type is offered in an AZ; it does not guarantee current On-Demand capacity. If AWS returns a capacity error, set `availability_zone` to another AZ recommended by AWS or retry later.
-
-The module also writes these non-secret network values into the generated inventory so Ansible uses the same plan for k3s:
+The module writes these non-secret network values into the generated inventory:
 
 ```ini
 aws_vpc_cidr=10.20.0.0/16
 aws_public_subnet_cidr=10.20.1.0/24
+aws_k3s_private_subnet_cidr=10.20.2.0/24
+aws_fortigate_public_subnet_cidr=10.20.10.0/24
+aws_fortiweb_public_subnet_cidr=10.20.11.0/24
+aws_k3s_subnet_mode=public
 k3s_cluster_cidr=10.60.0.0/16
 k3s_service_cidr=10.70.0.0/16
 k3s_cluster_dns=10.70.0.10
 ```
 
-Override the values in `terraform.tfvars` when the defaults conflict with an existing route domain. Keep AWS VPC, k3s pod, and k3s service networks non-overlapping.
+Keep AWS VPC, k3s pod, and k3s service networks non-overlapping. Change these values before cluster creation. Public-mode k3s access uses the prep-owned EIP only; the EC2 instance and public subnets do not request auto-assigned ephemeral public IPv4 addresses.
 
-## IAM
+`terraform/aws-ec2-k3s` generates the standard demo port assignments, opens
+those ports from `allowed_ingress_cidr`, and writes
+`ansible/group_vars/ports.generated.yml` for Ansible. The default generated
+HTTP ports are Open WebUI `30080`, custom chatbot `30081`, demo home `30082`,
+and LiteLLM Admin/API `30083`. The optional HTTPS gateway uses matching
+offsets: `30443`, `30444`, `30445`, and `30446`.
 
-By default, the EC2 module uses an existing instance profile:
-
-```hcl
-create_iam_instance_profile = false
-iam_instance_profile_name   = "existing-profile-name"
-```
-
-To let Terraform create the EC2 role and instance profile:
-
-```hcl
-create_iam_instance_profile = true
-iam_role_name               = "fortiaigate-demo-ec2-role"
-iam_instance_profile_name   = "fortiaigate-demo-ec2-profile"
-```
-
-If `iam_role_name` or `iam_instance_profile_name` are empty in creation mode, Terraform derives names from `name_prefix`.
-
-After applying `terraform/aws-ec2-k3s`, pass the `iam_role_name` output to:
-
-- `terraform/aws-ecr.ec2_pull_role_name` for scoped private ECR pull access
-
-Bedrock does not use the EC2 role because FortiAIGate currently asks for Access Key ID and Secret Access Key fields in the provider GUI.
+`additional_ingress_tcp_ports` is only for extra public TCP listeners beyond
+those generated demo ports.
 
 ## Instance Sizing
 

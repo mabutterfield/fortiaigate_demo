@@ -1,0 +1,4 @@
+---
+chatbots_enabled: true
+chatbot_status_fail_on_not_ready: false
+chatbot_status_health_path: /

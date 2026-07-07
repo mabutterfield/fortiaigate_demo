@@ -8,9 +8,11 @@ Unless noted otherwise, command blocks start from the `fortiaigate_demo` repo ro
 
 Required local inputs are intentionally ignored by Git:
 
+- `terraform/common.tfvars`
 - `terraform/aws-ecr/terraform.tfvars`
-- `terraform/aws-bedrock/terraform.tfvars`
+- `terraform/aws-prep/terraform.tfvars`
 - `terraform/aws-ec2-k3s/terraform.tfvars`
+- `ansible/group_vars/env.yml`
 - `ansible/group_vars/all.yml`
 - `ansible/group_vars/images.yml`
 - FortiAIGate license files
@@ -49,10 +51,21 @@ aws sts get-caller-identity --profile <profile-name>
 
 If these fail, fix the AWS CLI/SSO session before troubleshooting Terraform.
 
-## 3. Create ECR Repositories
+## 3. Configure Shared Terraform Values
 
 ```bash
-cd terraform/aws-ecr
+cd terraform
+cp common.tfvars.example common.tfvars
+```
+
+Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
+any shared tags in `common.tfvars`. `allowed_ingress_cidr` can be one CIDR
+string or a list of CIDR strings; use `/32` entries for individual public IPs.
+
+## 4. Create ECR Repositories
+
+```bash
+cd aws-ecr
 cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform fmt
@@ -68,32 +81,30 @@ ansible/group_vars/ecr.generated.yml
 
 If repositories already exist, import them before applying. See [terraform.md](terraform.md).
 
-## 4. Publish Images
+After ECR create/import completes, image publishing can start. Publishing may
+take a while because Docker loads, tags, compares, and pushes large release
+images.
+
+## 5. Prepare AWS IAM, EIPs, and Bedrock Credentials
 
 ```bash
-cd ansible
-cp group_vars/images.example.yml group_vars/images.yml
-ansible-playbook playbooks/publish_images.yml
+cd ../aws-prep
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform fmt
+terraform validate
+terraform apply
 ```
 
-The image publisher reads release archive metadata, loads only missing or changed source images into local Docker, preserves the tags embedded in the archives, and pushes to the configured registry. Docker must be usable by the current workstation user without `sudo`.
+This creates the k3s EC2 role/profile, scoped ECR pull permissions, trusted
+source CIDRs, prep-owned public EIPs, and optional Bedrock IAM credentials. When
+`registry_backend = "ecr"`, the pull policy uses repository ARNs from the ECR
+Terraform state configured by `aws_ecr_state_path`.
 
-The current workflow stages images through the local Docker image store before
-ECR upload. Keep at least 2x-3x the total release image archive size available
-on the local Docker disk before publishing.
-
-To publish one version:
-
-```bash
-ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
-```
-
-To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
-
-## 5. Deploy AWS Infrastructure
+## 6. Deploy AWS Infrastructure
 
 ```bash
-cd terraform/aws-ec2-k3s
+cd ../aws-ec2-k3s
 cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform fmt
@@ -109,15 +120,18 @@ ansible/inventory/aws.generated.ini
 
 Minimum `terraform.tfvars` values to review:
 
-- `aws_profile`
-- `aws_region`
+- `aws_prep_state_path`
 - `ssh_key_name`
 - `ssh_private_key_file` when the AWS key pair does not use your default SSH key
-- `allowed_ingress_cidr`
-- `iam_instance_profile_name`, or `create_iam_instance_profile = true`
+- `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`
+- VPC, subnet, k3s pod, and k3s service CIDRs
 
 If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `terraform.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
+
+If `ec2_pull_github_keys` is set, cloud-init appends those public GitHub SSH
+keys to `/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty
+for the default AWS key-pair-only behavior.
 
 Validate AWS instance status and SSH before running Ansible:
 
@@ -148,6 +162,9 @@ The AWS and k3s networks must not overlap. The default phase 1 layout is:
 ```yaml
 vpc_cidr: 10.20.0.0/16
 public_subnet_cidr: 10.20.1.0/24
+k3s_private_subnet_cidr: 10.20.2.0/24
+fortigate_public_subnet_cidr: 10.20.10.0/24
+fortiweb_public_subnet_cidr: 10.20.11.0/24
 k3s_cluster_cidr: 10.60.0.0/16
 k3s_service_cidr: 10.70.0.0/16
 k3s_cluster_dns: 10.70.0.10
@@ -155,12 +172,31 @@ k3s_cluster_dns: 10.70.0.10
 
 Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
 
-## 6. Configure Deployment Variables
+The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browser access through the prep-owned k3s Elastic IP. The k3s instance does not request an auto-assigned ephemeral public IP. Use `private` only when a private management path or FortiGate/FortiWeb front end is ready.
+
+## 7. Configure Ansible Variables and Publish Images
 
 ```bash
-cd ansible
+cd ../../ansible
+cp group_vars/env.example.yml group_vars/env.yml
+cp group_vars/images.example.yml group_vars/images.yml
 cp group_vars/all.example.yml group_vars/all.yml
+ansible-playbook playbooks/publish_images.yml
 ```
+
+The image publisher reads release archive metadata, loads only missing or changed source images into local Docker, preserves the tags embedded in the archives, and pushes to the configured registry. Docker must be usable by the current workstation user without `sudo`.
+
+The current workflow stages images through the local Docker image store before
+ECR upload. Keep at least 2x-3x the total release image archive size available
+on the local Docker disk before publishing.
+
+To publish one version:
+
+```bash
+ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
+```
+
+To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
 
 For FortiAIGate 8.0.0:
 
@@ -223,16 +259,16 @@ fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 Ansible copies the selected files into the temporary remote chart copy before Helm renders.
 
-Minimum `group_vars/all.yml` values to review:
+Minimum `group_vars/env.yml` and `group_vars/all.yml` values to review:
 
 - `fortiaigate_version` and the matching image tags
-- `faig_workspace_root` only when the repo is not under the default parent `FAIG` directory
+- `faig_workspace_root` in `env.yml` only when the repo is not under the default parent `FAIG` directory
 - `license_source_dir` only when licenses are not under `FAIG/licenses`
 - `fortiaigate_license_files`
 - `fortiaigate_ingress_host` when using DNS instead of the EC2 public IP
 - `validate_faig_ollama_forwarding` only after an Ollama provider exists in FortiAIGate
 
-## 7. Bootstrap k3s
+## 8. Bootstrap k3s
 
 ```bash
 ansible-playbook playbooks/bootstrap_gpu_k3s.yml
@@ -264,7 +300,7 @@ Rerun the same checks independently with:
 ansible-playbook playbooks/validate_k3s.yml
 ```
 
-## 8. Deploy FortiAIGate
+## 9. Deploy FortiAIGate
 
 ```bash
 ansible-playbook playbooks/deploy_fortiaigate.yml
@@ -272,15 +308,86 @@ ansible-playbook playbooks/deploy_fortiaigate.yml
 
 The deploy playbook:
 
-- creates or refreshes the ECR pull secret
+- gets an ECR login token from the k3s host EC2 instance role by default
+- creates or refreshes the ECR pull secret on the k3s host
 - copies the extracted chart to the remote host
 - stages licenses into the temporary remote chart copy
 - renders values
 - runs Helm with the FortiAIGate post-renderer
 
+The default `fortiaigate_ecr_token_source: instance_role` expects the EC2
+instance profile role to have scoped ECR pull permissions. `terraform/aws-prep`
+attaches those permissions when `registry_backend = "ecr"`. Set
+`fortiaigate_ecr_token_source: controller_profile` only when the controller AWS
+profile should generate the ECR token instead.
+
 By default Helm does not wait for every Kubernetes workload to become Ready. This keeps the install command responsive and leaves status monitoring to the next step.
 
-## 9. Monitor Status
+## 10. Deploy LiteLLM Proxy
+
+```bash
+ansible-playbook playbooks/deploy_litellm.yml
+```
+
+LiteLLM is the shared OpenAI-compatible model proxy for the demo UIs. Direct
+traffic uses `UI -> LiteLLM -> Bedrock`. FortiAIGate-inspected traffic uses
+`UI -> FortiAIGate /v1 -> LiteLLM -> Bedrock` after FortiAIGate is manually
+configured to use LiteLLM as an upstream OpenAI-compatible provider.
+
+Check LiteLLM status separately:
+
+```bash
+ansible-playbook playbooks/status_litellm.yml
+```
+
+Use this when a failing validation gate is preferred:
+
+```bash
+ansible-playbook playbooks/validate_litellm.yml
+```
+
+The default LiteLLM Admin/API NodePort is `30083`; the Admin UI path is `/ui/`.
+Backend demo instructions are injected by LiteLLM through its custom pre-call
+hook so the frontend applications do not own the hidden demo prompt.
+
+## 11. Deploy Open WebUI
+
+```bash
+ansible-playbook playbooks/deploy_openwebui.yml
+```
+
+The deploy playbook starts or upgrades the Helm releases and then returns. It
+does not wait for every Open WebUI pod to become Ready by default.
+
+Check Open WebUI status separately:
+
+```bash
+ansible-playbook playbooks/status_openwebui.yml
+```
+
+Use this when a failing validation gate is preferred:
+
+```bash
+ansible-playbook playbooks/validate_openwebui.yml
+```
+
+This deploys one Open WebUI release in namespace `openwebui`, exposed on
+NodePort `30080`. It is configured with both direct LiteLLM and FortiAIGate
+provider URLs. The FortiAIGate URL defaults to the in-cluster nginx ingress
+service at `http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1`,
+which avoids public-IP hairpin behavior and avoids making Open WebUI trust the
+lab's self-signed public TLS certificate.
+
+Open WebUI should not be path-prefixed by default. Use NodePort for the no-DNS
+lab default, or set `ingress_host` values later when host-based routing is
+available.
+
+For AWS public k3s mode, `terraform/aws-ec2-k3s` generates and opens the
+standard demo ports, then writes `ansible/group_vars/ports.generated.yml`.
+The default generated HTTP ports are OpenWebUI `30080`, chatbot `30081`,
+demo home `30082`, and LiteLLM Admin/API `30083`.
+
+## 12. Monitor Status
 
 ```bash
 ansible-playbook playbooks/status_fortiaigate.yml
@@ -308,7 +415,7 @@ kubectl get pvc -n fortiaigate
 kubectl get events -n fortiaigate --sort-by=.lastTimestamp
 ```
 
-## 10. Validate
+## 12. Validate
 
 ```bash
 ansible-playbook playbooks/validate_faig.yml
@@ -348,29 +455,22 @@ The Ansible validation variables keep the same endpoint/model so validation can 
 
 Run this after FortiAIGate status is `READY`. Use the login URL from `status_fortiaigate.yml`, sign in to FortiAIGate, and change the default password before creating the first guard/provider.
 
-The Bedrock module reads `terraform/aws-ec2-k3s/terraform.tfstate` for source-IP restrictions, so the EC2 module must already be applied.
+`terraform/aws-prep` creates temporary IAM user credentials for manual FortiAIGate GUI entry when `enable_bedrock_iam = true`.
 
-```bash
-cd terraform/aws-bedrock
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
-```
+Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable.
 
-Set `bedrock_model_ids` after choosing models and confirming model access in the AWS account/region. Use exact Bedrock model IDs, for example `openai.gpt-oss-20b-1:0`, not short display names. Set `bedrock_allowed_regions` to the commercial US regions where those models should be invokable. Terraform creates temporary IAM user credentials for manual FortiAIGate GUI entry.
-
-By default, Bedrock restricts credentials to the k3s EIP plus `allowed_ingress_cidr`. Set `no_ip_restriction = true` only when the key should work from any source IP.
+By default, Bedrock restricts credentials to the prep-owned k3s EIP plus the
+CIDR or CIDRs in `allowed_ingress_cidr`. Set `bedrock_no_ip_restriction = true`
+only when the key should work from any source IP.
 
 Retrieve the values after apply:
 
 ```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_allowed_regions
-terraform output bedrock_model_ids
+terraform -chdir=terraform/aws-prep output bedrock_access_key_id
+terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
+terraform -chdir=terraform/aws-prep output bedrock_key_expires_at
+terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
+terraform -chdir=terraform/aws-prep output bedrock_model_ids
 ```
 
 Paste the Access Key ID, Secret Access Key, one permitted region, and one permitted model ID into the FortiAIGate Bedrock guard/provider setup.
@@ -382,7 +482,7 @@ cd ansible
 ansible-playbook playbooks/test_model_direct.yml
 ```
 
-By default, `test_model_direct.yml` reads these values directly from `terraform/aws-bedrock` outputs:
+By default, `test_model_direct.yml` reads these values directly from `terraform/aws-prep` outputs:
 
 - `bedrock_access_key_id`
 - `bedrock_secret_access_key`
@@ -395,10 +495,10 @@ No shell exports are required for the Ansible default path. The playbook calls t
 To run with exported credentials instead of reading Terraform outputs, export the standard AWS credential variables from the Bedrock outputs:
 
 ```bash
-cd terraform/aws-bedrock
+cd terraform/aws-prep
 export AWS_ACCESS_KEY_ID="$(terraform output -raw bedrock_access_key_id)"
 export AWS_SECRET_ACCESS_KEY="$(terraform output -raw bedrock_secret_access_key)"
-# Only needed for temporary session credentials; the Bedrock module creates a normal IAM access key.
+# Only needed for temporary session credentials; aws-prep creates a normal IAM access key.
 # export AWS_SESSION_TOKEN="<session-token>"
 cd ../../ansible
 ansible-playbook playbooks/test_model_direct.yml \
@@ -419,7 +519,7 @@ python3 scripts/bedrock_direct_test.py \
   --prompt "what is the square root of pi"
 ```
 
-The script reads permitted model IDs from `terraform/aws-bedrock` and prompts for a model when run interactively. Set `BEDROCK_MODEL` when you want to skip the prompt:
+The script reads permitted model IDs from `terraform/aws-prep` and prompts for a model when run interactively. Set `BEDROCK_MODEL` when you want to skip the prompt:
 
 ```bash
 export BEDROCK_MODEL="openai.gpt-oss-20b-1:0"
@@ -450,7 +550,7 @@ python3 scripts/fortiaigate_chat_test.py \
   --prompt "hello, this is a test. Reply in one short sentence and include the name of the model answering."
 ```
 
-When `--host` is omitted, the script tries `terraform/aws-ec2-k3s` output `public_ip`. When `--model` is omitted, it prompts from `terraform/aws-bedrock` output `bedrock_model_ids` in interactive mode, or uses the first permitted model in non-interactive mode.
+When `--host` is omitted, the script tries `terraform/aws-ec2-k3s` output `public_ip`. When `--model` is omitted, it prompts from `terraform/aws-prep` output `bedrock_model_ids` in interactive mode, or uses the first permitted model in non-interactive mode.
 
 The script only sends an API key header when a key is provided. The default key source is `FAIG_API_KEY`, then `FORTIAIGATE_API_KEY`, then `FORTIAIGATE_TEST_API_KEY`. The default header name is `Authorization`, or set `AIG_HEADER` when the FortiAIGate AI Flow is configured with a custom authentication header:
 
@@ -493,6 +593,8 @@ Destroy AWS infrastructure only when the FortiAIGate license lifecycle is unders
 
 ```bash
 cd terraform/aws-ec2-k3s
+terraform destroy
+cd ../aws-prep
 terraform destroy
 ```
 

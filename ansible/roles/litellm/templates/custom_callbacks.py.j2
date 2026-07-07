@@ -1,0 +1,116 @@
+import os
+from typing import Literal
+
+import yaml
+from litellm.integrations.custom_logger import CustomLogger
+
+
+class DemoInstructionInjector(CustomLogger):
+    def __init__(self):
+        super().__init__()
+        self.profile_path = os.getenv(
+            "LITELLM_DEMO_INSTRUCTIONS_PATH",
+            "/etc/litellm/instruction-profiles.yaml",
+        )
+        self.debug_enabled = os.getenv("LITELLM_DEMO_INSTRUCTIONS_DEBUG", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        self._profile_mtime = None
+        self._profile_data = {}
+
+    def _debug(self, message):
+        if self.debug_enabled:
+            print(f"[litellm-demo-instructions] {message}", flush=True)
+
+    def _load_profiles(self):
+        try:
+            mtime = os.path.getmtime(self.profile_path)
+        except OSError:
+            self._debug(f"profile file not found: {self.profile_path}")
+            return {}
+
+        if self._profile_mtime == mtime:
+            return self._profile_data
+
+        with open(self.profile_path, "r", encoding="utf-8") as profile_file:
+            self._profile_data = yaml.safe_load(profile_file) or {}
+        self._profile_mtime = mtime
+        self._debug(
+            "loaded profiles: "
+            f"default={self._profile_data.get('default_profile', '')}, "
+            f"models={list((self._profile_data.get('model_profiles') or {}).keys())}"
+        )
+        return self._profile_data
+
+    def _instruction_for_model(self, model_name):
+        profiles = self._load_profiles()
+        model_map = profiles.get("model_profiles", {})
+        profile_name = model_map.get(model_name, profiles.get("default_profile", ""))
+        if not profile_name:
+            self._debug(f"no profile selected for model={model_name}")
+            return None
+
+        profile = profiles.get("profiles", {}).get(profile_name, {})
+        if not profile.get("enabled", True):
+            self._debug(f"profile disabled for model={model_name}, profile={profile_name}")
+            return None
+
+        instruction = profile.get("instruction", "")
+        if not instruction:
+            self._debug(f"profile has no instruction for model={model_name}, profile={profile_name}")
+            return None
+
+        return {
+            "content": instruction,
+            "position": profile.get("position", "prepend"),
+            "profile": profile_name,
+        }
+
+    async def async_pre_call_hook(
+        self,
+        user_api_key_dict,
+        cache,
+        data: dict,
+        call_type: Literal[
+            "completion",
+            "text_completion",
+            "embeddings",
+            "image_generation",
+            "moderation",
+            "audio_transcription",
+        ],
+    ):
+        self._debug(f"pre-call hook received call_type={call_type}, model={data.get('model')}")
+        if call_type not in ("completion", "acompletion"):
+            return data
+
+        instruction = self._instruction_for_model(data.get("model"))
+        if instruction is None:
+            return data
+
+        messages = list(data.get("messages") or [])
+        system_message = {"role": "system", "content": instruction["content"]}
+
+        if instruction["position"] == "append":
+            insert_at = 0
+            for index, message in enumerate(messages):
+                if message.get("role") == "system":
+                    insert_at = index + 1
+            messages.insert(insert_at, system_message)
+        else:
+            messages.insert(0, system_message)
+
+        data["messages"] = messages
+        self._debug(
+            "injected instruction "
+            f"profile={instruction['profile']}, "
+            f"position={instruction['position']}, "
+            f"message_count={len(messages)}"
+        )
+        return data
+
+
+proxy_handler_instance = DemoInstructionInjector()

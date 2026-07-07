@@ -1,0 +1,11 @@
+---
+demo_outputs_aws_prep_module_path: "{{ playbook_dir }}/../../terraform/aws-prep"
+demo_outputs_aws_ec2_module_path: "{{ playbook_dir }}/../../terraform/aws-ec2-k3s"
+demo_outputs_show_secrets: false
+
+demo_outputs_litellm_api_endpoint: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
+demo_outputs_litellm_api_key: "{{ litellm_master_key | default('') }}"
+demo_outputs_litellm_model_name: "{{ litellm_model_alias | default('demo-profile') }}"
+
+demo_outputs_secret_command: "terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key"
+demo_outputs_fortiaigate_ui_path: "{{ fortiaigate_ui_path | default('/ui/') }}"

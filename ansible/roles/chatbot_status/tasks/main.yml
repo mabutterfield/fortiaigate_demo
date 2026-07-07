@@ -1,0 +1,229 @@
+---
+- name: Skip chatbot status when disabled
+  ansible.builtin.debug:
+    msg: "chatbots_enabled=false; skipping chatbot status."
+  when: not chatbots_enabled | bool
+
+# Removed 2026-07-01: the consolidated chatbot uses the shared LiteLLM
+# deployment. There is no per-chatbot Bedrock proxy to validate here.
+
+- name: Check chatbot Helm releases
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ item.release_name }}"
+      - --namespace
+      - "{{ item.namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  loop: "{{ chatbot_instances }}"
+  changed_when: false
+  failed_when: false
+  register: chatbot_status_helm
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_helm.results
+
+- name: Check chatbot deployments
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ item.release_name }}"
+      - -n
+      - "{{ item.namespace }}"
+      - -o
+      - json
+  loop: "{{ chatbot_instances }}"
+  changed_when: false
+  failed_when: false
+  register: chatbot_status_deployments
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_deployments.results
+
+- name: Check chatbot pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ item.namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ item.release_name }}"
+      - -o
+      - json
+  loop: "{{ chatbot_instances }}"
+  changed_when: false
+  failed_when: false
+  register: chatbot_status_pods
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_pods.results
+
+- name: Check chatbot local health endpoints
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ item.node_port }}{{ chatbot_status_health_path }}"
+  loop: "{{ chatbot_instances }}"
+  changed_when: false
+  failed_when: false
+  register: chatbot_status_health
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_health.results
+
+- name: Build chatbot status summary
+  ansible.builtin.set_fact:
+    chatbot_status_summary: "{{ chatbot_status_summary | default([]) + [chatbot_status_item] }}"
+  vars:
+    deployment_result: "{{ chatbot_status_deployments.results[index] }}"
+    pod_result: "{{ chatbot_status_pods.results[index] }}"
+    helm_result: "{{ chatbot_status_helm.results[index] }}"
+    health_result: "{{ chatbot_status_health.results[index] }}"
+    deployment_json: "{{ deployment_result.stdout | default('{}') | from_json if deployment_result.rc == 0 else {} }}"
+    pod_json: "{{ pod_result.stdout | default('{\"items\": []}') | from_json if pod_result.rc == 0 else {'items': []} }}"
+    desired_replicas: "{{ deployment_json.spec.replicas | default(1) | int }}"
+    available_replicas: "{{ deployment_json.status.availableReplicas | default(0) | int }}"
+    ready_pods: >-
+      {{
+        pod_json['items']
+        | selectattr('status.phase', 'equalto', 'Running')
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses.0.ready', 'equalto', true)
+        | list
+        | length
+      }}
+    pod_problems: >-
+      {{
+        pod_json['items']
+        | rejectattr('status.phase', 'equalto', 'Running')
+        | map(attribute='metadata.name')
+        | list
+      }}
+    health_status: "{{ health_result.stdout | default('000') }}"
+    instance_url: >-
+      http://{{
+        public_ip
+        if (public_ip is defined and public_ip | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}:{{ item.node_port }}
+    chatbot_status_item:
+      name: "{{ item.name }}"
+      instruction_set: "{{ item.instruction_set | default(item.name) }}"
+      release_name: "{{ item.release_name }}"
+      namespace: "{{ item.namespace }}"
+      provider_label: "{{ item.provider_label | default('Model') }}"
+      helm_present: "{{ helm_result.rc == 0 }}"
+      deployment_present: "{{ deployment_result.rc == 0 }}"
+      desired_replicas: "{{ desired_replicas }}"
+      available_replicas: "{{ available_replicas }}"
+      ready_pods: "{{ ready_pods }}"
+      pod_count: "{{ pod_json['items'] | length }}"
+      health_status: "{{ health_status }}"
+      url: "{{ instance_url }}"
+      ready: "{{ helm_result.rc == 0 and deployment_result.rc == 0 and available_replicas == desired_replicas and (health_status | int) >= 200 and (health_status | int) < 500 }}"
+      problems: >-
+        {{
+          []
+          + (['Helm release missing'] if helm_result.rc != 0 else [])
+          + (['Deployment missing'] if deployment_result.rc != 0 else [])
+          + (['Available replicas ' ~ available_replicas ~ '/' ~ desired_replicas] if deployment_result.rc == 0 and available_replicas != desired_replicas else [])
+          + (['Health HTTP status ' ~ health_status] if (health_status | int) < 200 or (health_status | int) >= 500 else [])
+          + (['Pods not running: ' ~ (pod_problems | join(', '))] if pod_problems | length > 0 else [])
+        }}
+  loop: "{{ chatbot_instances }}"
+  loop_control:
+    index_var: index
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_summary
+
+- name: Set chatbot overall status facts
+  ansible.builtin.set_fact:
+    chatbot_status_ready_count: "{{ chatbot_status_summary | default([]) | selectattr('ready', 'equalto', true) | list | length }}"
+    chatbot_status_total_count: "{{ chatbot_status_summary | default([]) | length }}"
+    chatbot_status_instruction_sets: "{{ chatbot_status_summary | default([]) | map(attribute='instruction_set') | unique | list }}"
+    chatbot_status_state: >-
+      {{
+        'READY'
+        if (
+          chatbot_status_summary | default([]) | length > 0
+          and chatbot_status_summary | default([]) | selectattr('ready', 'equalto', false) | list | length == 0
+        )
+        else 'NOT READY'
+      }}
+    chatbot_status_url_lines: []
+    chatbot_status_instance_lines: []
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_state
+
+- name: Build chatbot status display lines
+  ansible.builtin.set_fact:
+    chatbot_status_url_lines: "{{ chatbot_status_url_lines + [item.name ~ ': ' ~ item.url] }}"
+    chatbot_status_instance_lines: >-
+      {{
+        chatbot_status_instance_lines
+        + [
+          item.name ~ ': '
+          ~ ('READY' if item.ready else 'NOT READY')
+          ~ ', Instruction set=' ~ item.instruction_set
+          ~ ', Provider=' ~ item.provider_label
+          ~ ', Helm release=' ~ ('present' if item.helm_present else 'missing')
+          ~ ', Pods ready=' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string)
+          ~ ', Health HTTP status=' ~ (item.health_status | string)
+          ~ ', Problems=' ~ (item.problems | join(' | ') if item.problems | length > 0 else 'none')
+        ]
+      }}
+  loop: "{{ chatbot_status_summary | default([]) }}"
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_instance_lines
+
+- name: Show chatbot status summary
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        [
+          'Chatbot status: ' ~ chatbot_status_state,
+          'Instruction sets: ' ~ (chatbot_status_instruction_sets | length | string),
+          'Instances ready: ' ~ (chatbot_status_ready_count | string) ~ '/' ~ (chatbot_status_total_count | string),
+          'Backend paths: Direct LiteLLM and FortiAIGate',
+          'URLs:'
+        ]
+        + chatbot_status_url_lines
+        + [
+          'Instance details:'
+        ]
+        + chatbot_status_instance_lines
+      }}
+  when: chatbots_enabled | bool
+
+- name: Fail when chatbot is not ready
+  ansible.builtin.fail:
+    msg: >-
+      Chatbot validation did not pass:
+      {{
+        chatbot_status_summary
+        | selectattr('ready', 'equalto', false)
+        | map(attribute='name')
+        | join(', ')
+      }}
+  when:
+    - chatbots_enabled | bool
+    - chatbot_status_fail_on_not_ready | bool
+    - chatbot_status_summary | default([]) | selectattr('ready', 'equalto', false) | list | length > 0

@@ -1,0 +1,53 @@
+---
+litellm_enabled: true
+litellm_namespace: litellm
+litellm_release_name: litellm
+litellm_chart_local_path: "{{ playbook_dir }}/../../chatbot/litellm-chart"
+litellm_chart_remote_root: "/home/{{ ansible_user }}/tmp/litellm-chart"
+litellm_values_remote_path: "/home/{{ ansible_user }}/tmp/litellm-values.yaml"
+litellm_helm_wait: false
+litellm_helm_timeout: 10m
+
+litellm_image_repository: ghcr.io/berriai/litellm
+litellm_image_tag: main-stable
+litellm_image_pull_policy: IfNotPresent
+litellm_service_type: NodePort
+litellm_service_port: 4000
+litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
+
+litellm_master_key: sk-litellm-demo-change-me
+litellm_ui_username: admin
+litellm_ui_password: litellm-demo-change-me
+
+litellm_postgres_enabled: true
+litellm_postgres_image_repository: postgres
+litellm_postgres_image_tag: "16-alpine"
+litellm_postgres_image_pull_policy: IfNotPresent
+litellm_postgres_storage_class: local-path
+litellm_postgres_storage_size: 5Gi
+litellm_postgres_database: litellm
+litellm_postgres_username: litellm
+litellm_postgres_password: litellm-demo-change-me
+litellm_database_connection_pool_limit: 10
+litellm_database_connection_timeout: 60
+
+litellm_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-prep"
+litellm_bedrock_use_terraform_output: true
+litellm_bedrock_model_id: "{{ direct_model_bedrock_model | default('') }}"
+litellm_bedrock_fallback_model_id: "{{ direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0') }}"
+litellm_bedrock_region: "{{ direct_model_bedrock_region | default('') }}"
+litellm_model_alias: demo-profile
+litellm_instruction_debug: false
+litellm_models:
+  - name: "{{ litellm_model_alias }}"
+    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
+    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
+
+litellm_instruction_profile_source_path: "{{ chatbot_instruction_root | default(playbook_dir + '/../../chatbot/instructions') }}/default/instructions.txt"
+litellm_default_instruction_profile: default
+litellm_instruction_profile_injection_position: prepend
+litellm_model_instruction_profiles: {}
+litellm_instruction_profiles: []
+
+litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:{{ litellm_service_port }}/v1"
+litellm_faig_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1"

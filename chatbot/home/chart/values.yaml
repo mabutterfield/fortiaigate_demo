@@ -1,0 +1,22 @@
+nameOverride: demo-home
+
+image:
+  repository: nginx
+  tag: alpine
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30082
+
+home:
+  html: ""
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  tls:
+    enabled: false
+    secretName: ""

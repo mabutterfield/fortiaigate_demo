@@ -23,8 +23,8 @@ from pathlib import Path
 
 DEFAULT_MESSAGE = "Hello, is this thing on? Reply in one short sentence and include the name of the model answering."
 DEFAULT_MODEL_ID = "openai.gpt-oss-20b-1:0"
-DEFAULT_TERRAFORM_BEDROCK_PATH = (
-    Path(__file__).resolve().parents[1] / "terraform" / "aws-bedrock"
+DEFAULT_TERRAFORM_PREP_PATH = (
+    Path(__file__).resolve().parents[1] / "terraform" / "aws-prep"
 )
 
 
@@ -43,16 +43,17 @@ def parse_args() -> argparse.Namespace:
         or os.environ.get("BEDROCK_MODEL_ID"),
         help=(
             "Bedrock model ID. Defaults to BEDROCK_MODEL, then BEDROCK_MODEL_ID, "
-            "then an interactive selection from terraform/aws-bedrock outputs."
+            "then an interactive selection from terraform/aws-prep outputs."
         ),
     )
     parser.add_argument(
         "--terraform-bedrock-path",
+        "--terraform-prep-path",
         default=os.environ.get(
-            "BEDROCK_TERRAFORM_PATH",
-            str(DEFAULT_TERRAFORM_BEDROCK_PATH),
+            "AWS_PREP_TERRAFORM_PATH",
+            os.environ.get("BEDROCK_TERRAFORM_PATH", str(DEFAULT_TERRAFORM_PREP_PATH)),
         ),
-        help="Path to the terraform/aws-bedrock module used for permitted model output.",
+        help="Path to terraform/aws-prep for permitted model output.",
     )
     parser.add_argument(
         "--prompt",

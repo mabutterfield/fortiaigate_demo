@@ -1,0 +1,35 @@
+nameOverride: "{{ litellm_release_name }}"
+
+image:
+  repository: "{{ litellm_image_repository }}"
+  tag: "{{ litellm_image_tag }}"
+  pullPolicy: "{{ litellm_image_pull_policy }}"
+
+service:
+  type: "{{ litellm_service_type }}"
+  port: {{ litellm_service_port }}
+  nodePort: {{ litellm_node_port }}
+
+litellm:
+  masterKey: "{{ litellm_master_key }}"
+  uiUsername: "{{ litellm_ui_username }}"
+  uiPassword: "{{ litellm_ui_password }}"
+  instructionDebug: {{ (litellm_instruction_debug | bool) | ternary('true', 'false') }}
+  config: |
+{{ litellm_config_content | indent(4, true) }}
+  customCallbacks: |
+{{ litellm_custom_callbacks_content | indent(4, true) }}
+  instructionProfiles: |
+{{ litellm_instruction_profiles_content | indent(4, true) }}
+
+postgres:
+  enabled: {{ (litellm_postgres_enabled | bool) | ternary('true', 'false') }}
+  image:
+    repository: "{{ litellm_postgres_image_repository }}"
+    tag: "{{ litellm_postgres_image_tag }}"
+    pullPolicy: "{{ litellm_postgres_image_pull_policy }}"
+  storageClass: "{{ litellm_postgres_storage_class }}"
+  storageSize: "{{ litellm_postgres_storage_size }}"
+  database: "{{ litellm_postgres_database }}"
+  username: "{{ litellm_postgres_username }}"
+  password: "{{ litellm_postgres_password }}"

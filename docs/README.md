@@ -1,33 +1,50 @@
-# Documentation
+# FortiAIGate Demo Documentation
 
-This directory holds the canonical operational documentation for the FortiAIGate lab deployment.
+This is the main documentation landing page for the FortiAIGate demo deployment.
+Start with one quick start, then use the topic docs for details and recovery.
+
+## Quick Starts
+
+| Goal | Document |
+|---|---|
+| Guided/scripted setup path | [Automated Quick Start](quickstart-automated.md) |
+| Step-by-step operator-run deployment | [Manual Quick Start](quickstart-manual.md) |
+| End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
+
+## Core Topics
+
+| Topic | Document |
+|---|---|
+| Architecture overview | [Architecture](architecture.md) |
+| AWS infrastructure and instance sizing | [AWS](aws.md) |
+| ECR repositories and image publishing | [ECR](ecr.md) |
+| Kubernetes and k3s operations | [Kubernetes](kubernetes.md) |
+| Helm chart deployment and post-rendering | [Helm](helm.md) |
+| Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
+| Ollama provider notes | [Ollama](ollama.md) |
+| Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
+
+## FortiAIGate Setup
 
 | Document | Purpose |
 |---|---|
-| [deployment-runbook.md](deployment-runbook.md) | End-to-end deployment steps from local inputs through validation |
-| [FortiAIGate-initial-config.MD](FortiAIGate-initial-config.MD) | First GUI login, AI flow, guard, deploy, and lab API-key setup |
-| [ECR.md](ECR.md) | Private ECR repositories, image publishing, immutable tag handling, and deployment tag mapping |
-| [Bedrock.md](Bedrock.md) | Temporary Bedrock IAM credentials for manual FortiAIGate provider setup |
-| [terraform.md](terraform.md) | Terraform module usage, generated Ansible files, and import commands |
-| [aws_instance.MD](aws_instance.MD) | AWS GPU instance sizing guidance |
-| [aws-k3s-foundation.md](aws-k3s-foundation.md) | AWS k3s architecture, host bootstrap behavior, and FortiAIGate deployment mechanics |
+| [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) | First GUI login, AI flow, guard, deploy, and lab API-key setup |
+| [AWS k3s Foundation](aws-k3s-foundation.md) | Detailed AWS k3s architecture, host bootstrap behavior, and FortiAIGate deployment mechanics |
+| [AWS Instance Sizing](aws_instance.MD) | GPU instance sizing guidance |
+| [Terraform Reference](terraform.md) | Terraform module usage, generated Ansible files, and import commands |
 
-The standalone k3s sanity check is:
+## Playbook Intent
 
-```bash
-cd ansible
-ansible-playbook playbooks/validate_k3s.yml
-```
-
-FortiAIGate status and validation are intentionally separate:
-
-- `status_fortiaigate.yml` gives a simple `READY`, `NOT READY`, or `ERROR` answer and prints the HTTPS login URL.
-- `validate_faig.yml` runs deeper checks after status is ready, including GPU/Triton, `/dev/shm`, UI/API HTTP behavior, and optional provider forwarding.
-- `test_model_direct.yml` runs a direct Bedrock or Ollama model test; Bedrock signing is handled by `scripts/bedrock_direct_test.py`.
-- `test_fortiaigate_chat.yml` runs the first external chat completion test after a guard/provider is configured; request execution is handled by `scripts/fortiaigate_chat_test.py`.
-
-The repo-owned scripts in `../scripts/` can also be run directly from the repo root for faster provider/API troubleshooting.
-
-The root [README.md](../README.md) is intentionally short. Use it to get oriented and use these documents for details.
+- `publish_images.yml`: publishes FortiAIGate release images to ECR.
+- `publish_chatbot_images.yml`: builds and publishes the demo chatbot image.
+- `bootstrap_gpu_k3s.yml`: configures the GPU host, k3s, NVIDIA runtime, and ingress foundation.
+- `validate_k3s.yml`: validates the Kubernetes foundation and prints `GO` or `NO GO`.
+- `deploy_fortiaigate.yml`: submits the FortiAIGate Helm release.
+- `status_fortiaigate.yml`: gives a simple FortiAIGate `READY`, `NOT READY`, or `ERROR` answer plus the login URL.
+- `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready.
+- `deploy_litellm.yml`, `deploy_openwebui.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the demo application layer.
+- `deploy_demo_https_gateway.yml`: optionally adds self-signed HTTPS listeners for HTTP-only demo services.
+- `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
+- `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

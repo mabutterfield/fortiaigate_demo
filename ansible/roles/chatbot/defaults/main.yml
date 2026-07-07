@@ -1,0 +1,50 @@
+---
+chatbots_enabled: true
+chatbot_chart_local_path: "{{ playbook_dir }}/../../chatbot/chart"
+chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/chatbot-chart"
+chatbot_values_remote_dir: "/home/{{ ansible_user }}/tmp/chatbot-values"
+chatbot_helm_wait: false
+chatbot_helm_timeout: 5m
+
+chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else 'fortiaigate/chatbot-basic') }}"
+chatbot_image_tag: local
+chatbot_image_pull_policy: IfNotPresent
+chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
+chatbot_image_pull_secrets:
+  - name: "{{ ecr_pull_secret_name | default('ecr-secret') }}"
+
+chatbot_service_type: NodePort
+chatbot_service_port: 80
+chatbot_container_port: 8501
+chatbot_web_health_path: /
+chatbot_ingress_class: nginx
+chatbot_ingress_tls_enabled: false
+chatbot_ingress_tls_secret_name: ""
+
+chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
+chatbot_namespace: chatbot
+chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
+
+chatbot_direct_base_url: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
+chatbot_direct_api_key: "{{ litellm_master_key | default('sk-litellm-demo-change-me') }}"
+chatbot_faig_base_url: "{{ litellm_faig_base_url | default('http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1') }}"
+chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
+chatbot_model: "{{ litellm_model_alias | default('demo-profile') }}"
+chatbot_frontend_system_prompt: ""
+
+chatbot_instances:
+  - name: chatbot
+    instruction_set: consolidated
+    namespace: "{{ chatbot_namespace }}"
+    release_name: chatbot
+    node_port: "{{ demo_chatbot_http_port | default(30081) }}"
+    direct_base_url: "{{ chatbot_direct_base_url }}"
+    direct_api_key: "{{ chatbot_direct_api_key }}"
+    faig_base_url: "{{ chatbot_faig_base_url }}"
+    faig_api_key: "{{ chatbot_faig_api_key }}"
+    model: "{{ chatbot_model }}"
+    frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
+    title: "Demo Chatbot"
+    header_title: "FortiAIGate Demo Chatbot"
+    provider_label: Direct or FortiAIGate
+    ingress_host: ""

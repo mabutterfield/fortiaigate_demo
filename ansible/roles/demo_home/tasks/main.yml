@@ -1,0 +1,192 @@
+---
+- name: Skip demo home deployment when disabled
+  ansible.builtin.debug:
+    msg: "demo_home_enabled=false; skipping demo home deployment."
+  when: not demo_home_enabled | bool
+
+- name: Set demo home host fact
+  ansible.builtin.set_fact:
+    demo_home_host: >-
+      {{
+        public_ip
+        if (public_ip is defined and public_ip | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_host
+
+- name: Build demo home link facts
+  ansible.builtin.set_fact:
+    demo_home_fortiaigate_url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
+    demo_home_litellm_url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+    demo_home_links:
+      - label: "Demo Home HTTP"
+        url: "http://{{ demo_home_host }}:{{ demo_home_node_port }}"
+    demo_home_litellm_links:
+      - label: "LiteLLM Admin UI HTTP"
+        url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+    demo_home_openwebui_display_links: []
+    demo_home_chatbot_display_links: []
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_fortiaigate_url
+
+- name: Add optional HTTPS demo home links
+  ansible.builtin.set_fact:
+    demo_home_links: "{{ demo_home_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "Demo Home HTTPS"
+      url: "https://{{ demo_home_host }}:{{ demo_https_gateway_demo_home_https_port }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_links
+
+- name: Add optional HTTPS LiteLLM links
+  ansible.builtin.set_fact:
+    demo_home_litellm_links: "{{ demo_home_litellm_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "LiteLLM Admin UI HTTPS"
+      url: "https://{{ demo_home_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
+  when:
+    - demo_home_enabled | bool
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_litellm_links
+
+- name: Build demo home OpenWebUI links
+  ansible.builtin.set_fact:
+    demo_home_openwebui_display_links: "{{ demo_home_openwebui_display_links | default([]) + demo_home_links_for_item }}"
+  vars:
+    demo_home_links_for_item: >-
+      {{
+        [
+          {
+            'label': 'OpenWebUI ' ~ item.name ~ ' HTTP',
+            'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
+          }
+        ]
+        + (
+          [
+            {
+              'label': 'OpenWebUI ' ~ item.name ~ ' HTTPS',
+              'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
+            }
+          ]
+          if demo_https_gateway_enabled | default(false) | bool
+          else []
+        )
+      }}
+  loop: "{{ openwebui_instances | default([]) }}"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_openwebui_display_links
+
+- name: Build demo home chatbot links
+  ansible.builtin.set_fact:
+    demo_home_chatbot_display_links: "{{ demo_home_chatbot_display_links | default([]) + demo_home_links_for_item }}"
+  vars:
+    demo_home_links_for_item: >-
+      {{
+        [
+          {
+            'label': item.name ~ ' HTTP (' ~ (item.provider_label | default('Model')) ~ ')',
+            'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
+          }
+        ]
+        + (
+          [
+            {
+              'label': item.name ~ ' HTTPS (' ~ (item.provider_label | default('Model')) ~ ')',
+              'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
+            }
+          ]
+          if demo_https_gateway_enabled | default(false) | bool
+          else []
+        )
+      }}
+  loop: "{{ chatbot_instances | default([]) }}"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_chatbot_display_links
+
+- name: Set demo home display link facts
+  ansible.builtin.set_fact:
+    demo_home_openwebui_links: "{{ demo_home_openwebui_display_links | default([]) }}"
+    demo_home_chatbot_links: "{{ demo_home_chatbot_display_links | default([]) }}"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_openwebui_links
+
+- name: Render demo home HTML fact
+  ansible.builtin.set_fact:
+    demo_home_html: "{{ lookup('ansible.builtin.template', role_path + '/templates/index.html.j2') }}"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_html
+
+- name: Remove previous remote demo home chart staging directory
+  ansible.builtin.file:
+    path: "{{ demo_home_chart_remote_root }}"
+    state: absent
+  when: demo_home_enabled | bool
+
+- name: Create remote demo home chart staging directory
+  ansible.builtin.file:
+    path: "{{ demo_home_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: demo_home_enabled | bool
+
+- name: Copy demo home Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ demo_home_chart_local_path }}/"
+    dest: "{{ demo_home_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: demo_home_enabled | bool
+
+- name: Render demo home Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ demo_home_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  when: demo_home_enabled | bool
+
+- name: Deploy demo home release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ demo_home_release_name }}"
+      - "{{ demo_home_chart_remote_root }}"
+      - --namespace
+      - "{{ demo_home_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ demo_home_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: demo_home_helm_deploy
+  changed_when: "'deployed' in demo_home_helm_deploy.stdout or 'upgraded' in demo_home_helm_deploy.stdout"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_helm_deploy.stdout_lines
+
+- name: Show demo home deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "Demo home release: {{ demo_home_release_name }}"
+      - "Demo home URL: http://{{ demo_home_host }}:{{ demo_home_node_port }}"
+      - "Helm accepted the install or upgrade; run status_demo_home.yml to check READY/NOT READY."
+  when: demo_home_enabled | bool

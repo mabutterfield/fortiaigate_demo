@@ -9,6 +9,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "name_prefix" {
+  type        = string
+  description = "Shared name prefix from terraform/common.tfvars. Accepted for common config consistency; ECR uses repo_prefix for repository names."
+}
+
+variable "allowed_ingress_cidr" {
+  type        = any
+  description = "Shared trusted source CIDR or list of CIDRs from terraform/common.tfvars. Accepted for common config consistency; not used by ECR."
+}
+
 variable "repo_prefix" {
   type        = string
   description = "Repository namespace prefix."
@@ -27,6 +37,7 @@ variable "repositories" {
     "license_manager",
     "triton-models",
     "custom-triton",
+    "chatbot-basic",
   ]
 }
 
@@ -56,12 +67,6 @@ variable "lifecycle_retain_tagged_count" {
     condition     = var.lifecycle_retain_tagged_count > 0
     error_message = "lifecycle_retain_tagged_count must be greater than zero."
   }
-}
-
-variable "ec2_pull_role_name" {
-  type        = string
-  description = "Optional existing EC2 IAM role name to grant scoped ECR read permissions. Terraform does not create this role."
-  default     = ""
 }
 
 variable "ansible_ecr_vars_output_path" {

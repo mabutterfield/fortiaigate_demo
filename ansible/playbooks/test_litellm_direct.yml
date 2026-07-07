@@ -1,0 +1,18 @@
+---
+- name: Test LiteLLM direct chat completion endpoint
+  hosts: fortiaigate
+  become: false
+  pre_tasks:
+    - name: Load environment, generated, and local group vars when present
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: >-
+        {{
+          query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/all.yml')
+        }}
+  roles:
+    - litellm_direct_test

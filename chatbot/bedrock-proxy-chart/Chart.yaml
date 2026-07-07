@@ -1,0 +1,6 @@
+apiVersion: v2
+name: direct-bedrock-proxy
+description: Shared LiteLLM Bedrock proxy for direct demo apps
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

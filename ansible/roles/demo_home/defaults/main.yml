@@ -1,0 +1,18 @@
+---
+demo_home_enabled: true
+demo_home_namespace: demo-home
+demo_home_release_name: demo-home
+demo_home_chart_local_path: "{{ playbook_dir }}/../../chatbot/home/chart"
+demo_home_chart_remote_root: "/home/{{ ansible_user }}/tmp/demo-home-chart"
+demo_home_values_remote_path: "/home/{{ ansible_user }}/tmp/demo-home-values.yaml"
+demo_home_node_port: "{{ demo_home_http_port | default(30082) }}"
+demo_home_service_type: NodePort
+demo_home_service_port: 80
+demo_home_image_repository: nginx
+demo_home_image_tag: alpine
+demo_home_image_pull_policy: IfNotPresent
+demo_home_page_title: FortiAIGate Demo Home
+demo_home_ingress_class: nginx
+demo_home_ingress_host: ""
+demo_home_ingress_tls_enabled: false
+demo_home_ingress_tls_secret_name: ""

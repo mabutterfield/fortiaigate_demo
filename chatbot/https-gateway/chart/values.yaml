@@ -1,0 +1,28 @@
+nameOverride: demo-https-gateway
+
+image:
+  repository: nginx
+  tag: "1.27-alpine"
+  pullPolicy: IfNotPresent
+
+tls:
+  cert: ""
+  key: ""
+
+routes:
+  - name: openwebui
+    displayName: OpenWebUI
+    externalPort: 30443
+    upstream: http://openwebui.openwebui.svc.cluster.local:80
+  - name: chatbot
+    displayName: Chat Front-End
+    externalPort: 30444
+    upstream: http://chatbot.chatbot.svc.cluster.local:80
+  - name: demo-home
+    displayName: Demo Home
+    externalPort: 30445
+    upstream: http://demo-home.demo-home.svc.cluster.local:80
+  - name: litellm
+    displayName: LiteLLM Admin/API
+    externalPort: 30446
+    upstream: http://litellm.litellm.svc.cluster.local:4000

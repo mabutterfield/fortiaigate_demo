@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "litellm-demo.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "litellm-demo.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "litellm-demo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ include "litellm-demo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: litellm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --config
+            - /etc/litellm/config.yaml
+            - --host
+            - 0.0.0.0
+            - --port
+            - "{{ .Values.service.port }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: PYTHONPATH
+              value: /etc/litellm
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "litellm-demo.name" . }}
+                  key: litellm-master-key
+            - name: UI_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "litellm-demo.name" . }}
+                  key: ui-username
+            - name: UI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "litellm-demo.name" . }}
+                  key: ui-password
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "litellm-demo.name" . }}
+                  key: database-url
+            - name: DIRECT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "litellm-demo.name" . }}
+                  key: database-url
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "false"
+            - name: LITELLM_DEMO_INSTRUCTIONS_PATH
+              value: /etc/litellm/instruction-profiles.yaml
+            - name: LITELLM_DEMO_INSTRUCTIONS_DEBUG
+              value: {{ .Values.litellm.instructionDebug | quote }}
+            - name: ROOT_REDIRECT_URL
+              value: /ui
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/litellm
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "litellm-demo.name" . }}

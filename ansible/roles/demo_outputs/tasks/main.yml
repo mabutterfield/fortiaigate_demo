@@ -1,0 +1,282 @@
+---
+- name: Read Bedrock model IDs from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_prep_module_path }}"
+      - output
+      - -json
+      - bedrock_model_ids
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_bedrock_models_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_models_raw.stdout_lines
+
+- name: Read Bedrock allowed regions from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_prep_module_path }}"
+      - output
+      - -json
+      - bedrock_allowed_regions
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_bedrock_regions_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_regions_raw.stdout_lines
+
+- name: Read Bedrock access key ID from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_prep_module_path }}"
+      - output
+      - -raw
+      - bedrock_access_key_id
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_bedrock_access_key_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_access_key_raw.stdout_lines
+
+- name: Read k3s public IP from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_ec2_module_path }}"
+      - output
+      - -raw
+      - public_ip
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_public_ip_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_public_ip_raw.stdout_lines
+
+- name: Read Bedrock secret access key from Terraform output when explicitly requested
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_prep_module_path }}"
+      - output
+      - -raw
+      - bedrock_secret_access_key
+  changed_when: false
+  failed_when: false
+  no_log: "{{ not (demo_outputs_show_secrets | bool) }}"
+  register: demo_outputs_bedrock_secret_key_raw
+  when: demo_outputs_show_secrets | bool
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_secret_key_raw.stdout_lines
+
+- name: Set consolidated demo output facts
+  ansible.builtin.set_fact:
+    demo_outputs_bedrock_models: >-
+      {{
+        demo_outputs_bedrock_models_raw.stdout | from_json
+        if (
+          demo_outputs_bedrock_models_raw.rc == 0
+          and demo_outputs_bedrock_models_raw.stdout | default('') | length > 0
+        )
+        else []
+      }}
+    demo_outputs_bedrock_regions: >-
+      {{
+        demo_outputs_bedrock_regions_raw.stdout | from_json
+        if (
+          demo_outputs_bedrock_regions_raw.rc == 0
+          and demo_outputs_bedrock_regions_raw.stdout | default('') | length > 0
+        )
+        else []
+      }}
+    demo_outputs_bedrock_access_key_id: >-
+      {{
+        demo_outputs_bedrock_access_key_raw.stdout | trim
+        if (
+          demo_outputs_bedrock_access_key_raw.rc == 0
+          and demo_outputs_bedrock_access_key_raw.stdout | default('') | length > 0
+        )
+        else 'unavailable'
+      }}
+    demo_outputs_bedrock_secret_access_key: >-
+      {{
+        demo_outputs_bedrock_secret_key_raw.stdout | trim
+        if (
+          demo_outputs_show_secrets | bool
+          and demo_outputs_bedrock_secret_key_raw is defined
+          and demo_outputs_bedrock_secret_key_raw.rc == 0
+          and demo_outputs_bedrock_secret_key_raw.stdout | default('') | length > 0
+        )
+        else ''
+      }}
+  no_log: "{{ demo_outputs_show_secrets | bool }}"
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_models
+
+- name: Set consolidated demo display facts
+  ansible.builtin.set_fact:
+    demo_outputs_access_host: >-
+      {{
+        demo_outputs_public_ip_raw.stdout | trim
+        if (
+          demo_outputs_public_ip_raw.rc == 0
+          and demo_outputs_public_ip_raw.stdout | default('') | trim | length > 0
+        )
+        else (
+          public_ip
+          if public_ip is defined and public_ip | length > 0
+          else (
+            ansible_host
+            if ansible_host is defined and ansible_host not in ['localhost', '127.0.0.1']
+            else ''
+          )
+        )
+      }}
+    demo_outputs_bedrock_model_display: >-
+      {{
+        direct_model_bedrock_model
+        if direct_model_bedrock_model is defined and direct_model_bedrock_model | length > 0
+        else (
+          demo_outputs_bedrock_models[0]
+          if demo_outputs_bedrock_models | length > 0
+          else 'unavailable'
+        )
+      }}
+    demo_outputs_bedrock_region_display: >-
+      {{
+        direct_model_bedrock_region
+        if direct_model_bedrock_region is defined and direct_model_bedrock_region | length > 0
+        else (
+          demo_outputs_bedrock_regions[0]
+          if demo_outputs_bedrock_regions | length > 0
+          else aws_region | default('unavailable')
+        )
+      }}
+    demo_outputs_bedrock_secret_display: >-
+      {{
+        demo_outputs_bedrock_secret_access_key
+        if demo_outputs_show_secrets | bool
+        else 'run: ' ~ demo_outputs_secret_command
+      }}
+  no_log: "{{ demo_outputs_show_secrets | bool }}"
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_bedrock_model_display
+
+- name: Build demo access URL facts
+  ansible.builtin.set_fact:
+    demo_outputs_fortiaigate_admin_url: >-
+      {{
+        fortiaigate_status_login_url_override
+        if fortiaigate_status_login_url_override is defined and fortiaigate_status_login_url_override | length > 0
+        else 'https://' ~ demo_outputs_access_host ~ demo_outputs_fortiaigate_ui_path
+      }}
+    demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
+  loop: "{{ chatbot_instances | default([]) }}"
+  when: demo_outputs_access_host | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_chatbot_urls
+
+- name: Build demo OpenWebUI URL facts
+  ansible.builtin.set_fact:
+    demo_outputs_openwebui_urls: "{{ demo_outputs_openwebui_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
+  loop: "{{ openwebui_instances | default([]) }}"
+  when: demo_outputs_access_host | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_openwebui_urls
+
+- name: Set demo access URL defaults
+  ansible.builtin.set_fact:
+    demo_outputs_fortiaigate_admin_url: "{{ demo_outputs_fortiaigate_admin_url | default('unavailable') }}"
+    demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default(['unavailable']) }}"
+    demo_outputs_openwebui_urls: "{{ demo_outputs_openwebui_urls | default(['unavailable']) }}"
+    demo_outputs_litellm_admin_url: >-
+      {{
+        'http://' ~ demo_outputs_access_host ~ ':' ~ (litellm_node_port | default(demo_litellm_http_port | default(30083)) | string) ~ '/ui/'
+        if demo_outputs_access_host | length > 0
+        else 'unavailable'
+      }}
+    demo_outputs_demo_home_url: >-
+      {{
+        'http://' ~ demo_outputs_access_host ~ ':' ~ (demo_home_node_port | default(demo_home_http_port | default(30082)) | string)
+        if demo_outputs_access_host | length > 0
+        else 'unavailable'
+      }}
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "{{ demo_outputs_demo_home_url }}"
+  #       - "{{ demo_outputs_litellm_admin_url }}"
+
+- name: Set optional HTTPS access URL facts
+  ansible.builtin.set_fact:
+    demo_outputs_https_urls:
+      - "OpenWebUI HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_openwebui_https_port }}"
+      - "Chat Front-End HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_chatbot_https_port }}"
+      - "Demo Home HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_demo_home_https_port }}"
+      - "LiteLLM Admin HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
+      - "LiteLLM API HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_litellm_https_port }}/v1"
+  when:
+    - demo_https_gateway_enabled | default(false) | bool
+    - demo_outputs_access_host | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_https_urls
+
+- name: Show consolidated demo outputs
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate demo configuration outputs"
+      - "Bedrock direct provider:"
+      - "  LLM model: {{ demo_outputs_bedrock_model_display }}"
+      - "  Region: {{ demo_outputs_bedrock_region_display }}"
+      - "  Access key ID: {{ demo_outputs_bedrock_access_key_id }}"
+      - "  Secret access key: {{ demo_outputs_bedrock_secret_display }}"
+      - "LiteLLM proxy provider:"
+      - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
+      - "  API key: {{ demo_outputs_litellm_api_key }}"
+      - "  Model name: {{ demo_outputs_litellm_model_name }}"
+      - "Note: the LiteLLM endpoint above is the in-cluster service URL for FortiAIGate or other Kubernetes workloads."
+  no_log: "{{ demo_outputs_show_secrets | bool }}"
+
+- name: Show demo access URLs
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        [
+          'Demo access URLs',
+          'FAIG Admin UI: ' ~ demo_outputs_fortiaigate_admin_url,
+          'Chat Front-End:'
+        ]
+        + demo_outputs_chatbot_urls
+        + [
+          'OpenWebUI:'
+        ]
+        + demo_outputs_openwebui_urls
+        + [
+          'Demo Home: ' ~ demo_outputs_demo_home_url,
+          'LiteLLM Admin: ' ~ demo_outputs_litellm_admin_url
+        ]
+      }}
+
+- name: Show optional HTTPS access URLs
+  ansible.builtin.debug:
+    msg: "{{ ['Optional HTTPS access URLs'] + demo_outputs_https_urls }}"
+  when:
+    - demo_https_gateway_enabled | default(false) | bool
+    - demo_outputs_https_urls is defined
+
+- name: Show consolidated demo outputs including requested secret
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate demo configuration outputs"
+      - "Bedrock direct provider:"
+      - "  LLM model: {{ demo_outputs_bedrock_model_display }}"
+      - "  Region: {{ demo_outputs_bedrock_region_display }}"
+      - "  Access key ID: {{ demo_outputs_bedrock_access_key_id }}"
+      - "  Secret access key: {{ demo_outputs_bedrock_secret_display }}"
+      - "LiteLLM proxy provider:"
+      - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
+      - "  API key: {{ demo_outputs_litellm_api_key }}"
+      - "  Model name: {{ demo_outputs_litellm_model_name }}"
+      - "Note: demo_outputs_show_secrets=true prints sensitive values into terminal scrollback."
+  when: demo_outputs_show_secrets | bool

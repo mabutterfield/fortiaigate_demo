@@ -20,3 +20,5 @@ terraform apply
 ```
 
 The generated Ansible vars file is written to `../../ansible/group_vars/ecr.generated.yml`.
+
+Scoped ECR pull permissions are created by `terraform/aws-prep`.

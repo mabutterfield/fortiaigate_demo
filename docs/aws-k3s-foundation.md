@@ -4,7 +4,9 @@
 
 The phase 1 AWS foundation creates a single-node FortiAIGate lab:
 
-- new AWS VPC and public subnet
+- new AWS VPC
+- public and private k3s subnets
+- FortiGate and FortiWeb public placeholder subnets
 - internet gateway and public route table
 - security group for SSH, HTTP, and HTTPS
 - Ubuntu 24.04 GPU EC2 instance
@@ -15,7 +17,9 @@ The phase 1 AWS foundation creates a single-node FortiAIGate lab:
 - k3s local-path storage backed by instance-store NVMe when available
 - FortiAIGate deployed with Helm and a post-renderer
 
-The EC2 Terraform module can use an existing instance profile or create a dedicated EC2 role/profile. Private ECR pull access is attached by the ECR module when `ec2_pull_role_name` is set.
+`terraform/aws-prep` creates the EC2 IAM role/profile and attaches scoped ECR
+pull access when `registry_backend = "ecr"`. The EC2 module consumes the prep
+state and attaches the prepared instance profile to the k3s host.
 
 ## Network CIDRs
 
@@ -24,12 +28,17 @@ AWS VPC, k3s pod, and k3s service networks must not overlap. The defaults intent
 | Network | Default |
 |---|---|
 | AWS VPC | `10.20.0.0/16` |
-| AWS public subnet | `10.20.1.0/24` |
+| AWS k3s public subnet | `10.20.1.0/24` |
+| AWS k3s private subnet | `10.20.2.0/24` |
+| AWS FortiGate public subnet | `10.20.10.0/24` |
+| AWS FortiWeb public subnet | `10.20.11.0/24` |
 | k3s pod network | `10.60.0.0/16` |
 | k3s service network | `10.70.0.0/16` |
 | k3s cluster DNS | `10.70.0.10` |
 
 Terraform passes the k3s values into the generated Ansible inventory. The k3s role then writes them into `/etc/rancher/k3s/config.yaml` as `cluster-cidr`, `service-cidr`, and `cluster-dns`.
+
+`k3s_subnet_mode = "public"` is the default and preserves direct SSH/HTTP/HTTPS access through the prep-owned k3s Elastic IP. The k3s host does not request an auto-assigned ephemeral public IP. `k3s_subnet_mode = "private"` places the k3s host in the private subnet without a public IP; use private mode only after a private management path or FortiGate/FortiWeb appliance-fronted path exists.
 
 The k3s role validates that the k3s networks do not overlap with each other or with the AWS networks supplied by inventory. Change these values before cluster creation; changing k3s network CIDRs on an existing cluster requires a rebuild.
 

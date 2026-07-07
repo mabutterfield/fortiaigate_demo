@@ -4,7 +4,7 @@ direct_model_message: "Hello, is this thing on? Reply in one short sentence and 
 direct_model_max_tokens: 512
 direct_model_timeout_seconds: 60
 
-direct_model_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-bedrock"
+direct_model_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-prep"
 direct_model_bedrock_region: ""
 direct_model_bedrock_model: ""
 direct_model_bedrock_fallback_model: openai.gpt-oss-20b-1:0

@@ -1,0 +1,55 @@
+---
+openwebui_enabled: true
+openwebui_chart_remote_root: "/home/{{ ansible_user }}/tmp/openwebui-chart"
+openwebui_values_remote_dir: "/home/{{ ansible_user }}/tmp/openwebui-values"
+openwebui_helm_wait: false
+openwebui_wait_for_rollout: false
+openwebui_helm_timeout: 10m
+openwebui_image_repository: ghcr.io/open-webui/open-webui
+openwebui_image_tag: main
+openwebui_image_pull_policy: IfNotPresent
+openwebui_service_type: NodePort
+openwebui_service_port: 80
+openwebui_container_port: 8080
+openwebui_storage_class: local-path
+openwebui_storage_size: 10Gi
+openwebui_webui_auth: false
+openwebui_enable_signup: false
+openwebui_ingress_class: nginx
+openwebui_ingress_tls_enabled: false
+openwebui_ingress_tls_secret_name: ""
+openwebui_namespace: openwebui
+openwebui_release_name: openwebui
+openwebui_direct_provider: litellm
+openwebui_direct_release_name: "{{ openwebui_release_name }}"
+openwebui_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-prep"
+openwebui_bedrock_use_terraform_output: true
+openwebui_bedrock_model_id: "{{ direct_model_bedrock_model | default('') }}"
+openwebui_bedrock_fallback_model_id: "{{ direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0') }}"
+openwebui_bedrock_region: "{{ direct_model_bedrock_region | default('') }}"
+openwebui_bedrock_model_alias: direct-bedrock
+openwebui_bedrock_proxy_image_repository: ghcr.io/berriai/litellm
+openwebui_bedrock_proxy_image_tag: main-stable
+openwebui_bedrock_proxy_image_pull_policy: IfNotPresent
+openwebui_bedrock_proxy_service_port: 4000
+openwebui_bedrock_proxy_extra_env: []
+openwebui_direct_bedrock_base_url: "http://{{ openwebui_direct_release_name }}-bedrock-proxy:{{ openwebui_bedrock_proxy_service_port }}/v1"
+openwebui_direct_litellm_base_url: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
+openwebui_direct_ollama_base_url: "{{ ollama_base_url | default('http://127.0.0.1:11434/v1') }}"
+openwebui_direct_openai_base_url: "{{ openwebui_direct_bedrock_base_url if openwebui_direct_provider == 'bedrock' else (openwebui_direct_ollama_base_url if openwebui_direct_provider == 'ollama' else openwebui_direct_litellm_base_url) }}"
+openwebui_direct_openai_api_key: "{{ 'not-used' if openwebui_direct_provider == 'bedrock' else ((ollama_api_key | default('not-used')) if openwebui_direct_provider == 'ollama' else (litellm_master_key | default('sk-litellm-demo-change-me'))) }}"
+openwebui_faig_openai_base_url: "{{ openwebui_faig_default_base_url }}"
+openwebui_faig_openai_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
+openwebui_faig_default_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1"
+openwebui_openai_base_urls: "{{ openwebui_direct_openai_base_url }};{{ openwebui_faig_openai_base_url }}"
+openwebui_openai_api_keys: "{{ openwebui_direct_openai_api_key }};{{ openwebui_faig_openai_api_key }}"
+openwebui_extra_env: []
+openwebui_instances:
+  - name: openwebui
+    namespace: "{{ openwebui_namespace }}"
+    release_name: "{{ openwebui_release_name }}"
+    node_port: "{{ demo_openwebui_http_port | default(30080) }}"
+    openai_base_url: "{{ openwebui_openai_base_urls }}"
+    openai_api_key: "{{ openwebui_openai_api_keys }}"
+    bedrock_proxy_enabled: false
+    ingress_host: ""

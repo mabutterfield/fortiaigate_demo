@@ -23,7 +23,7 @@ variable "instance_type" {
 
 variable "availability_zone" {
   type        = string
-  description = "Optional Availability Zone for the public subnet and EC2 instance. Leave empty to auto-select the first AZ that offers instance_type."
+  description = "Optional Availability Zone for the k3s and appliance subnets. Leave empty to auto-select the first AZ that offers instance_type."
   default     = ""
 }
 
@@ -38,33 +38,28 @@ variable "ssh_private_key_file" {
   default     = ""
 }
 
-variable "allowed_ingress_cidr" {
-  type        = string
-  description = "CIDR allowed to reach SSH/HTTP/HTTPS on the lab instance."
-}
-
-variable "iam_instance_profile_name" {
-  type        = string
-  description = "IAM instance profile name. Existing profile when create_iam_instance_profile is false; profile to create when true. Leave empty with create_iam_instance_profile=true to use name_prefix."
-  default     = ""
-}
-
-variable "create_iam_instance_profile" {
-  type        = bool
-  description = "Create an EC2 IAM role and instance profile for the k3s host instead of looking up an existing profile."
-  default     = false
-}
-
-variable "iam_role_name" {
-  type        = string
-  description = "Optional IAM role name to create when create_iam_instance_profile is true. Leave empty to use name_prefix."
-  default     = ""
-}
-
-variable "iam_role_managed_policy_arns" {
+variable "ec2_pull_github_keys" {
   type        = list(string)
-  description = "Optional managed policy ARNs to attach to the created EC2 IAM role. ECR and Bedrock scoped policies can also be attached by their dedicated Terraform modules."
+  description = "Optional GitHub usernames whose public SSH keys should be imported into the ubuntu user's authorized_keys on first boot."
   default     = []
+
+  validation {
+    condition = alltrue([
+      for username in var.ec2_pull_github_keys : can(regex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$", username))
+    ])
+    error_message = "ec2_pull_github_keys entries must be valid GitHub usernames."
+  }
+}
+
+variable "allowed_ingress_cidr" {
+  type        = any
+  description = "Shared trusted source CIDR or list of CIDRs from terraform/common.tfvars. terraform/aws-prep is the effective source of truth for EC2 security group rules."
+}
+
+variable "aws_prep_state_path" {
+  type        = string
+  description = "Path to terraform/aws-prep local state. Used for IAM profile, trusted CIDR, and prep-owned EIP allocation."
+  default     = "../aws-prep/terraform.tfstate"
 }
 
 variable "vpc_cidr" {
@@ -80,13 +75,110 @@ variable "vpc_cidr" {
 
 variable "public_subnet_cidr" {
   type        = string
-  description = "CIDR for the public lab subnet."
+  description = "CIDR for the public k3s lab subnet. Kept as public_subnet_cidr for compatibility with existing tfvars."
   default     = "10.20.1.0/24"
 
   validation {
     condition     = can(cidrhost(var.public_subnet_cidr, 0))
     error_message = "public_subnet_cidr must be a valid CIDR block."
   }
+}
+
+variable "k3s_subnet_mode" {
+  type        = string
+  description = "Subnet placement for the k3s host. public keeps the current direct-access behavior; private places k3s in the private subnet without a public IP."
+  default     = "public"
+
+  validation {
+    condition     = contains(["public", "private"], var.k3s_subnet_mode)
+    error_message = "k3s_subnet_mode must be public or private."
+  }
+}
+
+variable "k3s_private_subnet_cidr" {
+  type        = string
+  description = "CIDR for the optional private k3s subnet used when k3s_subnet_mode is private."
+  default     = "10.20.2.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.k3s_private_subnet_cidr, 0))
+    error_message = "k3s_private_subnet_cidr must be a valid CIDR block."
+  }
+}
+
+variable "fortigate_public_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiGate public/front-end subnet placeholder."
+  default     = "10.20.10.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortigate_public_subnet_cidr, 0))
+    error_message = "fortigate_public_subnet_cidr must be a valid CIDR block."
+  }
+}
+
+variable "fortiweb_public_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiWeb public/front-end subnet placeholder."
+  default     = "10.20.11.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortiweb_public_subnet_cidr, 0))
+    error_message = "fortiweb_public_subnet_cidr must be a valid CIDR block."
+  }
+}
+
+variable "k3s_private_default_route_network_interface_id" {
+  type        = string
+  description = "Optional network interface ID for the private k3s subnet default route, typically a FortiGate internal/traffic interface. Leave empty until an appliance route target exists."
+  default     = ""
+}
+
+variable "appliance_ingress_to_k3s_enabled" {
+  type        = bool
+  description = "Allow HTTP/HTTPS from the FortiGate and FortiWeb public subnet CIDRs to the k3s security group for appliance proxy/SNAT test paths."
+  default     = true
+}
+
+variable "additional_ingress_tcp_ports" {
+  type        = set(number)
+  description = "Additional TCP ports to allow from allowed_ingress_cidr beyond the generated demo HTTP/HTTPS port assignments."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for port in var.additional_ingress_tcp_ports : port >= 1 && port <= 65535
+    ])
+    error_message = "additional_ingress_tcp_ports values must be valid TCP ports between 1 and 65535."
+  }
+}
+
+variable "demo_http_base_port" {
+  type        = number
+  description = "Base NodePort for generated HTTP demo services. Slots are openwebui, chatbot, demo_home, and litellm."
+  default     = 30080
+
+  validation {
+    condition     = var.demo_http_base_port >= 30000 && var.demo_http_base_port + 3 <= 32767
+    error_message = "demo_http_base_port must allow four Kubernetes NodePorts between 30000 and 32767."
+  }
+}
+
+variable "demo_https_base_port" {
+  type        = number
+  description = "Base host port for generated optional HTTPS demo gateway services. The offset matches demo_http_base_port."
+  default     = 30443
+
+  validation {
+    condition     = var.demo_https_base_port >= 1 && var.demo_https_base_port + 3 <= 65535
+    error_message = "demo_https_base_port must allow four valid TCP ports between 1 and 65535."
+  }
+}
+
+variable "ansible_ports_vars_output_path" {
+  type        = string
+  description = "Path for generated Ansible demo port variables, relative to this Terraform module."
+  default     = "../../ansible/group_vars/ports.generated.yml"
 }
 
 variable "k3s_cluster_cidr" {
@@ -133,4 +225,55 @@ variable "tags" {
   type        = map(string)
   description = "Additional tags for AWS resources."
   default     = {}
+}
+
+# Phase 2 routing placeholders. These variables are intentionally defined now
+# so AWS and local Ubuntu deployments can share the same vocabulary when app
+# ingress manifests are added. Terraform does not create DNS records yet.
+
+variable "ingress_routing_strategy" {
+  type        = string
+  description = "Application ingress routing strategy placeholder. path_based is the no-domain default; port_based supports root-path apps; host_based is for future DNS-backed demos."
+  default     = "path_based"
+
+  validation {
+    condition     = contains(["path_based", "port_based", "host_based"], var.ingress_routing_strategy)
+    error_message = "ingress_routing_strategy must be path_based, port_based, or host_based."
+  }
+}
+
+variable "ingress_base_domain" {
+  type        = string
+  description = "Optional DNS base domain for future host_based routing, for example example.com. Leave empty for path_based or port_based demos."
+  default     = ""
+}
+
+variable "ingress_host_prefixes" {
+  type        = map(string)
+  description = "Hostname prefixes for future host_based routing. Combined with ingress_base_domain when DNS-backed routing is implemented."
+  default = {
+    faig           = "faig"
+    chatbot        = "chatbot"
+    openwebui      = "openwebui"
+    direct_bedrock = "direct-bedrock"
+    mcp_echo       = "mcp-echo"
+  }
+}
+
+variable "route53_zone_id" {
+  type        = string
+  description = "Optional Route53 hosted zone ID for future DNS record creation when ingress_routing_strategy is host_based."
+  default     = ""
+}
+
+variable "create_route53_records" {
+  type        = bool
+  description = "Future placeholder for creating Route53 records for host_based routing. Currently documented only; no DNS resources are created by this module."
+  default     = false
+}
+
+variable "magic_dns_zone" {
+  type        = string
+  description = "Optional magic DNS suffix for no-owned-domain labs, such as sslip.io or nip.io. Placeholder for future generated URLs."
+  default     = "sslip.io"
 }

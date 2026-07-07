@@ -1,0 +1,60 @@
+nameOverride: "{{ item.release_name }}"
+
+image:
+  repository: "{{ item.image_repository | default(openwebui_image_repository) }}"
+  tag: "{{ item.image_tag | default(openwebui_image_tag) }}"
+  pullPolicy: "{{ item.image_pull_policy | default(openwebui_image_pull_policy) }}"
+
+service:
+  type: "{{ item.service_type | default(openwebui_service_type) }}"
+  port: {{ item.service_port | default(openwebui_service_port) }}
+  nodePort: {{ item.node_port }}
+
+containerPort: {{ item.container_port | default(openwebui_container_port) }}
+
+persistence:
+  enabled: true
+  storageClass: "{{ item.storage_class | default(openwebui_storage_class) }}"
+  size: "{{ item.storage_size | default(openwebui_storage_size) }}"
+
+openai:
+  baseUrl: "{{ item.openai_base_url }}"
+  apiKey: "{{ item.openai_api_key | default('not-used') }}"
+
+bedrockProxy:
+  enabled: {{ (item.bedrock_proxy_enabled | default(false) | bool) | ternary('true', 'false') }}
+  image:
+    repository: "{{ item.bedrock_proxy_image_repository | default(openwebui_bedrock_proxy_image_repository) }}"
+    tag: "{{ item.bedrock_proxy_image_tag | default(openwebui_bedrock_proxy_image_tag) }}"
+    pullPolicy: "{{ item.bedrock_proxy_image_pull_policy | default(openwebui_bedrock_proxy_image_pull_policy) }}"
+  service:
+    port: {{ item.bedrock_proxy_service_port | default(openwebui_bedrock_proxy_service_port) }}
+  modelAlias: "{{ item.bedrock_model_alias | default(openwebui_bedrock_model_alias) }}"
+  modelId: "{{ item.bedrock_model_id | default(openwebui_effective_bedrock_model_id | default(openwebui_bedrock_model_id)) }}"
+  region: "{{ item.bedrock_region | default(openwebui_effective_bedrock_region | default(openwebui_bedrock_region)) }}"
+{% set bedrock_extra_env = item.bedrock_proxy_extra_env | default(openwebui_bedrock_proxy_extra_env) %}
+  extraEnv:{% if bedrock_extra_env | length == 0 %} []{% endif %}
+{% for env_var in bedrock_extra_env %}
+    - name: "{{ env_var.name }}"
+      value: "{{ env_var.value }}"
+{% endfor %}
+
+webui:
+  auth: "{{ (item.webui_auth | default(openwebui_webui_auth) | bool) | ternary('true', 'false') }}"
+  enableSignup: "{{ (item.enable_signup | default(openwebui_enable_signup) | bool) | ternary('true', 'false') }}"
+  secretKey: "{{ item.webui_secret_key | default(item.release_name ~ '-demo-secret') }}"
+
+ingress:
+  enabled: {{ (item.ingress_host is defined and item.ingress_host | length > 0) | ternary('true', 'false') }}
+  className: "{{ item.ingress_class | default(openwebui_ingress_class) }}"
+  host: "{{ item.ingress_host | default('') }}"
+  tls:
+    enabled: {{ openwebui_ingress_tls_enabled | ternary('true', 'false') }}
+    secretName: "{{ openwebui_ingress_tls_secret_name }}"
+
+{% set effective_extra_env = item.extra_env | default(openwebui_extra_env) %}
+extraEnv:{% if effective_extra_env | length == 0 %} []{% endif %}
+{% for env_var in effective_extra_env %}
+  - name: "{{ env_var.name }}"
+    value: "{{ env_var.value }}"
+{% endfor %}

@@ -3,6 +3,63 @@
 This guide covers the first FortiAIGate GUI steps after the Helm deployment is
 ready. Use it after `status_fortiaigate.yml` reports `FortiAIGate status: READY`.
 
+## Required Provider Inputs
+
+Before starting the GUI flow, collect the provider values you will enter into
+FortiAIGate. The consolidated output playbook prints the current values from
+Terraform outputs and Ansible vars. It also prints the main access URLs for
+FortiAIGate, the chatbot front end, OpenWebUI, and LiteLLM Admin:
+
+```bash
+ansible-playbook ansible/playbooks/show_demo_outputs.yml
+```
+
+By default, the playbook does not print the Bedrock secret access key. To print
+it for GUI entry, run:
+
+```bash
+ansible-playbook ansible/playbooks/show_demo_outputs.yml -e demo_outputs_show_secrets=true
+```
+
+Treat terminal scrollback as sensitive when printing secrets.
+
+### Bedrock Direct Provider
+
+Use these values if FortiAIGate will connect directly to AWS Bedrock:
+
+| FortiAIGate input | Source |
+|---|---|
+| LLM model | `terraform -chdir=terraform/aws-prep output bedrock_model_ids` |
+| Access key ID | `terraform -chdir=terraform/aws-prep output bedrock_access_key_id` |
+| Secret access key | `terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key` |
+
+Use one of the permitted regions from:
+
+```bash
+terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
+```
+
+### LiteLLM Proxy Provider
+
+Use these values when FortiAIGate should proxy through the in-cluster LiteLLM
+provider:
+
+| FortiAIGate input | Default/source |
+|---|---|
+| API endpoint | `http://litellm.litellm.svc.cluster.local:4000/v1` |
+| API key | `litellm_master_key` in `ansible/group_vars/all.yml` |
+| Model name | `litellm_model_alias`, default `demo-profile` |
+
+The LiteLLM API endpoint is private to the Kubernetes cluster. It is reachable
+from FortiAIGate pods and other in-cluster workloads, but not directly from a
+browser unless you use the LiteLLM NodePort or another published route.
+
+If `demo_https_gateway_enabled` is true, `show_demo_outputs.yml` also prints
+optional HTTPS URLs for OpenWebUI, the chatbot front end, demo home, and
+LiteLLM Admin/API. These URLs use a self-signed certificate by default and are
+an optional encrypted public access path; the primary internal provider
+endpoint remains plain HTTP inside the cluster.
+
 ## 1. Log In
 
 Open the login URL printed by `status_fortiaigate.yml`.
@@ -30,7 +87,7 @@ Create the initial AI flow that will receive OpenAI-compatible chat requests.
 
 Create the Bedrock-backed guard/provider. This step needs the Bedrock access
 key, secret access key, permitted region, and model ID from
-`terraform/aws-bedrock`.
+`terraform/aws-prep`.
 
 ![Define guard](images/step2.png)
 

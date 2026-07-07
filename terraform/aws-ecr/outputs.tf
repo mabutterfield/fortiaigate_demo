@@ -22,11 +22,6 @@ output "repository_arns" {
   }
 }
 
-output "ec2_pull_policy_arn" {
-  description = "Optional IAM policy ARN attached to the existing EC2 pull role."
-  value       = var.ec2_pull_role_name == "" ? null : aws_iam_policy.ec2_ecr_pull[0].arn
-}
-
 output "ansible_ecr_vars" {
   description = "Generated Ansible ECR vars path."
   value       = local_file.ansible_ecr_vars.filename

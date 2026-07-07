@@ -1,0 +1,14 @@
+nameOverride: "{{ chatbot_direct_shared_bedrock_proxy_name }}"
+
+image:
+  repository: "{{ chatbot_direct_shared_bedrock_proxy_image_repository }}"
+  tag: "{{ chatbot_direct_shared_bedrock_proxy_image_tag }}"
+  pullPolicy: "{{ chatbot_direct_shared_bedrock_proxy_image_pull_policy }}"
+
+service:
+  port: {{ chatbot_direct_shared_bedrock_proxy_port }}
+
+bedrock:
+  modelAlias: "{{ chatbot_bedrock_model_alias }}"
+  modelId: "{{ chatbot_effective_bedrock_model_id }}"
+  region: "{{ chatbot_effective_bedrock_region }}"

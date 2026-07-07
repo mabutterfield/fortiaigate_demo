@@ -1,0 +1,40 @@
+nameOverride: chatbot
+
+image:
+  repository: fortiaigate/chatbot-basic
+  tag: local
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30081
+
+containerPort: 8501
+
+chatbot:
+  directBaseUrl: ""
+  directApiKey: not-used
+  faigBaseUrl: ""
+  faigApiKey: not-used
+  model: auto
+  pageTitle: AI Chatbot
+  headerTitle: AI Chatbot
+  frontendSystemPrompt: ""
+  temperature: "0.0"
+  maxTokens: "4096"
+  streaming: "false"
+  verifyTls: "false"
+
+instructions:
+  content: "You are a helpful AI assistant."
+  llamaContent: ""
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  tls:
+    enabled: false
+    secretName: ""

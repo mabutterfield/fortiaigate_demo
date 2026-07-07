@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-demo.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: openwebui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+          env:
+            - name: WEBUI_AUTH
+              value: {{ .Values.webui.auth | quote }}
+            - name: ENABLE_SIGNUP
+              value: {{ .Values.webui.enableSignup | quote }}
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-demo.name" . }}
+                  key: webui-secret-key
+            - name: ENABLE_OLLAMA_API
+              value: "false"
+            - name: OPENAI_API_BASE_URLS
+              value: {{ .Values.openai.baseUrl | quote }}
+            - name: OPENAI_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-demo.name" . }}
+                  key: openai-api-key
+{{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+{{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+      volumes:
+        - name: data
+{{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "openwebui-demo.name" . }}
+{{- else }}
+          emptyDir: {}
+{{- end }}

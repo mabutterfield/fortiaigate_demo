@@ -1,0 +1,5 @@
+---
+openwebui_status_fail_on_not_ready: false
+openwebui_status_health_path: /health
+# Removed 2026-07-01: Open WebUI status no longer needs default names for the
+# old paired direct/FAIG releases. It reads openwebui_instances from group vars.

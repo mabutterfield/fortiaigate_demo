@@ -70,6 +70,27 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_status_pod_summary_raw.stdout
 
+- name: Get NVIDIA GPU status
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_nvidia_smi
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_nvidia_smi.stdout_lines
+
+- name: Set NVIDIA GPU status summary
+  ansible.builtin.set_fact:
+    fortiaigate_status_gpu_summary: >-
+      {{
+        ['nvidia-smi: available']
+        if fortiaigate_status_nvidia_smi.rc == 0
+        else ['nvidia-smi failed: ' ~ (fortiaigate_status_nvidia_smi.stderr | default('unknown error'))]
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_gpu_summary
+
 - name: Set FortiAIGate pod summary fact
   ansible.builtin.set_fact:
     fortiaigate_status_pod_summary: "{{ fortiaigate_status_pod_summary_raw.stdout | from_json }}"
@@ -145,6 +166,15 @@
     var: fortiaigate_status_pod_summary_raw
   when: fortiaigate_status_verbose | bool
 
+- name: Show raw NVIDIA status output when verbose
+  ansible.builtin.debug:
+    var: fortiaigate_status_nvidia_smi
+  when: fortiaigate_status_verbose | bool
+
+- name: Show NVIDIA GPU status
+  ansible.builtin.debug:
+    msg: "{{ fortiaigate_status_nvidia_smi.stdout_lines if fortiaigate_status_nvidia_smi.rc == 0 else fortiaigate_status_gpu_summary }}"
+
 - name: Fail when FortiAIGate status data collection failed
   ansible.builtin.fail:
     msg: "{{ fortiaigate_status_problems | join(' | ') }}"
@@ -156,5 +186,6 @@
       - "FortiAIGate status: {{ fortiaigate_status_state }}"
       - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
       - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
+      - "NVIDIA GPU: {{ fortiaigate_status_gpu_summary | join(' | ') }}"
       - "Login URL: {{ fortiaigate_status_login_url }}"
       - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"

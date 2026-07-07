@@ -45,6 +45,7 @@ terraform.rc
 
 # Terraform variable and plan artifacts
 *.auto.tfvars
+!terraform/*/common.auto.tfvars
 *.tfplan
 tfplan
 
@@ -56,12 +57,14 @@ __pycache__/
 # Ansible local, generated, and secret-bearing files
 *.retry
 ansible/group_vars/all.yml
+ansible/group_vars/env.yml
 ansible/host_vars/*.yml
 !ansible/group_vars/*.example.yml
 !ansible/host_vars/*.example.yml
 ansible/inventory/aws.generated.ini
 ansible/group_vars/ecr.generated.yml
 ansible/group_vars/bedrock.generated.yml
+ansible/group_vars/ports.generated.yml
 ansible/group_vars/images.yml
 
 # Kubernetes and deployment generated files

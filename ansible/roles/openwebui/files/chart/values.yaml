@@ -1,0 +1,50 @@
+nameOverride: openwebui
+
+image:
+  repository: ghcr.io/open-webui/open-webui
+  tag: main
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30080
+
+containerPort: 8080
+
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 10Gi
+
+openai:
+  baseUrl: http://127.0.0.1:11434/v1
+  apiKey: not-used
+
+bedrockProxy:
+  enabled: false
+  image:
+    repository: ghcr.io/berriai/litellm
+    tag: main-stable
+    pullPolicy: IfNotPresent
+  service:
+    port: 4000
+  modelAlias: direct-bedrock
+  modelId: openai.gpt-oss-20b-1:0
+  region: us-east-1
+  extraEnv: []
+
+webui:
+  auth: "false"
+  enableSignup: "false"
+  secretKey: openwebui-demo-secret
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  tls:
+    enabled: false
+    secretName: ""
+
+extraEnv: []

@@ -1,0 +1,19 @@
+default_profile: {{ litellm_default_instruction_profile | to_json }}
+model_profiles:
+{% if litellm_model_instruction_profiles | length > 0 %}
+{% for item in litellm_model_instruction_profiles | dict2items %}
+  {{ item.key | to_json }}: {{ item.value | to_json }}
+{% endfor %}
+{% else %}
+{% for model in litellm_models %}
+  {{ model.name | to_json }}: {{ litellm_default_instruction_profile | to_json }}
+{% endfor %}
+{% endif %}
+profiles:
+{% for profile in litellm_effective_instruction_profiles %}
+  {{ profile.name | to_json }}:
+    enabled: {{ (profile.enabled | default(true) | bool) | ternary('true', 'false') }}
+    position: {{ profile.position | default('prepend') | to_json }}
+    instruction: |
+{{ profile.instruction | indent(6, true) }}
+{% endfor %}

@@ -58,6 +58,7 @@
       - -c
       - "ls -l /dev/nvidia*"
   changed_when: false
+  failed_when: false
   register: validate_triton_devices
   # - ansible.builtin.debug:
   #     var: validate_triton_devices.stdout_lines
@@ -77,6 +78,7 @@
       - -h
       - /dev/shm
   changed_when: false
+  failed_when: false
   register: validate_triton_shm
   # - ansible.builtin.debug:
   #     var: validate_triton_shm.stdout_lines
@@ -94,7 +96,7 @@
       - "https://127.0.0.1{{ validate_faig_ui_path }}"
   changed_when: false
   register: validate_ui
-  failed_when: validate_ui.stdout | int < 200 or validate_ui.stdout | int >= 500
+  failed_when: false
   # - ansible.builtin.debug:
   #     var: validate_ui.stdout
 
@@ -102,7 +104,7 @@
   ansible.builtin.command: curl -k -sS -o /dev/null -w "%{http_code}" https://127.0.0.1/api/login
   changed_when: false
   register: validate_api_login
-  failed_when: validate_api_login.stdout | int < 200 or validate_api_login.stdout | int >= 500
+  failed_when: false
   # - ansible.builtin.debug:
   #     var: validate_api_login.stdout
 
@@ -114,6 +116,7 @@
   args:
     executable: /bin/bash
   changed_when: false
+  failed_when: false
   register: validate_ollama_forward
   when: validate_faig_ollama_forwarding | bool
   # - ansible.builtin.debug:
@@ -197,6 +200,40 @@
   # - ansible.builtin.debug:
   #     var: validate_faig_login_url
 
+- name: Build FortiAIGate validation problem list
+  ansible.builtin.set_fact:
+    validate_faig_validation_problems: >-
+      {{
+        []
+        + (
+          ['Triton NVIDIA device check failed: ' ~ ((validate_triton_devices.stderr | default('')) if (validate_triton_devices.stderr | default('') | length > 0) else (validate_triton_devices.stdout | default('unknown error')))]
+          if (validate_triton_devices.rc | default(0)) != 0
+          else []
+        )
+        + (
+          ['Triton /dev/shm check failed: ' ~ ((validate_triton_shm.stderr | default('')) if (validate_triton_shm.stderr | default('') | length > 0) else (validate_triton_shm.stdout | default('unknown error')))]
+          if (validate_triton_shm.rc | default(0)) != 0
+          else []
+        )
+        + (
+          ['UI HTTP check failed: status=' ~ (validate_ui.stdout | default('unknown')) ~ ' stderr=' ~ (validate_ui.stderr | default(''))]
+          if ((validate_ui.stdout | default('0') | int) < 200 or (validate_ui.stdout | default('0') | int) >= 500)
+          else []
+        )
+        + (
+          ['API login HTTP check failed: status=' ~ (validate_api_login.stdout | default('unknown')) ~ ' stderr=' ~ (validate_api_login.stderr | default(''))]
+          if ((validate_api_login.stdout | default('0') | int) < 200 or (validate_api_login.stdout | default('0') | int) >= 500)
+          else []
+        )
+        + (
+          ['Ollama forwarding check failed: ' ~ ((validate_ollama_forward.stderr | default('')) if (validate_ollama_forward.stderr | default('') | length > 0) else (validate_ollama_forward.stdout | default('unknown error')))]
+          if (validate_faig_ollama_forwarding | bool and validate_ollama_forward is defined and (validate_ollama_forward.rc | default(0)) != 0)
+          else []
+        )
+      }}
+  # - ansible.builtin.debug:
+  #     var: validate_faig_validation_problems
+
 - name: Show FortiAIGate validation summary
   ansible.builtin.debug:
     msg:
@@ -207,8 +244,11 @@
       - "API login check HTTP status: {{ validate_api_login.stdout }}"
       - "Login URL: {{ validate_faig_login_url }}"
       - "Problems: {{ validate_faig_readiness_summary.problems | join(' | ') if validate_faig_readiness_summary.problems | length > 0 else 'none' }}"
+      - "Validation problems: {{ validate_faig_validation_problems | join(' | ') if validate_faig_validation_problems | length > 0 else 'none' }}"
 
-- name: Fail when FortiAIGate is not ready
+- name: Fail when FortiAIGate validation did not pass
   ansible.builtin.fail:
-    msg: "FortiAIGate is not ready: {{ validate_faig_readiness_summary.problems | join(' | ') }}"
-  when: not validate_faig_readiness_summary.ready
+    msg: >-
+      FortiAIGate validation did not pass:
+      {{ (validate_faig_readiness_summary.problems + validate_faig_validation_problems) | join(' | ') }}
+  when: not validate_faig_readiness_summary.ready or validate_faig_validation_problems | length > 0

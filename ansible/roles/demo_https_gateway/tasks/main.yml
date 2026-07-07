@@ -1,0 +1,217 @@
+---
+- name: Skip demo HTTPS gateway when disabled
+  ansible.builtin.debug:
+    msg: "demo_https_gateway_enabled=false; skipping optional demo HTTPS gateway."
+  when: not demo_https_gateway_enabled | bool
+
+- name: Validate demo HTTPS gateway settings
+  ansible.builtin.assert:
+    that:
+      - demo_https_gateway_namespace | length > 0
+      - demo_https_gateway_release_name | length > 0
+      - demo_https_gateway_chart_local_path is directory
+      - demo_https_gateway_routes is sequence
+      - demo_https_gateway_routes | length > 0
+      - demo_https_gateway_self_signed | bool or (demo_https_gateway_cert_local_path | length > 0 and demo_https_gateway_key_local_path | length > 0)
+    fail_msg: "Demo HTTPS gateway requires a chart path, at least one route, and either self-signed cert generation or a cert/key pair."
+  when: demo_https_gateway_enabled | bool
+
+- name: Validate demo HTTPS gateway route ports
+  ansible.builtin.assert:
+    that:
+      - item.name | length > 0
+      - item.upstream | length > 0
+      - item.external_port | int >= 1
+      - item.external_port | int <= 65535
+    fail_msg: "Each demo HTTPS gateway route needs name, upstream, and external_port between 1 and 65535."
+  loop: "{{ demo_https_gateway_routes }}"
+  when: demo_https_gateway_enabled | bool
+
+- name: Install Helm when missing
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! command -v helm >/dev/null 2>&1; then
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+  when: demo_https_gateway_enabled | bool
+
+- name: Create self-signed certificate directory
+  ansible.builtin.file:
+    path: "{{ demo_https_gateway_remote_cert_dir }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0700"
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+
+- name: Render self-signed certificate OpenSSL config
+  ansible.builtin.copy:
+    dest: "{{ demo_https_gateway_remote_cert_dir }}/openssl.cnf"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+    content: |
+      [req]
+      distinguished_name = req_distinguished_name
+      x509_extensions = v3_req
+      prompt = no
+
+      [req_distinguished_name]
+      CN = {{ demo_https_gateway_cert_common_name }}
+
+      [v3_req]
+      subjectAltName = @alt_names
+
+      [alt_names]
+      DNS.1 = {{ demo_https_gateway_cert_common_name }}
+      {% if public_ip is defined and public_ip | length > 0 %}
+      IP.1 = {{ public_ip }}
+      {% endif %}
+      {% if ansible_host is defined and ansible_host is match('^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$') and (public_ip is not defined or ansible_host != public_ip) %}
+      IP.2 = {{ ansible_host }}
+      {% endif %}
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+
+- name: Generate self-signed certificate when missing
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "{{ demo_https_gateway_cert_days }}"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ demo_https_gateway_remote_key_path }}"
+      - -out
+      - "{{ demo_https_gateway_remote_cert_path }}"
+      - -config
+      - "{{ demo_https_gateway_remote_cert_dir }}/openssl.cnf"
+  args:
+    creates: "{{ demo_https_gateway_remote_cert_path }}"
+  register: demo_https_gateway_cert_generate
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_cert_generate.stdout_lines
+
+- name: Read self-signed certificate
+  ansible.builtin.slurp:
+    src: "{{ demo_https_gateway_remote_cert_path }}"
+  register: demo_https_gateway_remote_cert
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+
+- name: Read self-signed private key
+  ansible.builtin.slurp:
+    src: "{{ demo_https_gateway_remote_key_path }}"
+  register: demo_https_gateway_remote_key
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+
+- name: Set self-signed certificate facts
+  ansible.builtin.set_fact:
+    demo_https_gateway_cert_content: "{{ demo_https_gateway_remote_cert.content | b64decode }}"
+    demo_https_gateway_key_content: "{{ demo_https_gateway_remote_key.content | b64decode }}"
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - demo_https_gateway_self_signed | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_cert_content
+
+- name: Set provided certificate facts
+  ansible.builtin.set_fact:
+    demo_https_gateway_cert_content: "{{ lookup('ansible.builtin.file', demo_https_gateway_cert_local_path) }}"
+    demo_https_gateway_key_content: "{{ lookup('ansible.builtin.file', demo_https_gateway_key_local_path) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - not demo_https_gateway_self_signed | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_cert_content
+
+- name: Remove previous remote demo HTTPS gateway chart staging directory
+  ansible.builtin.file:
+    path: "{{ demo_https_gateway_chart_remote_root }}"
+    state: absent
+  when: demo_https_gateway_enabled | bool
+
+- name: Create remote demo HTTPS gateway chart staging directory
+  ansible.builtin.file:
+    path: "{{ demo_https_gateway_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: demo_https_gateway_enabled | bool
+
+- name: Copy demo HTTPS gateway Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ demo_https_gateway_chart_local_path }}/"
+    dest: "{{ demo_https_gateway_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: demo_https_gateway_enabled | bool
+
+- name: Render demo HTTPS gateway Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ demo_https_gateway_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  no_log: true
+  when: demo_https_gateway_enabled | bool
+
+- name: Deploy demo HTTPS gateway release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ demo_https_gateway_release_name }}"
+      - "{{ demo_https_gateway_chart_remote_root }}"
+      - --namespace
+      - "{{ demo_https_gateway_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ demo_https_gateway_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: demo_https_gateway_helm_deploy
+  changed_when: "'deployed' in demo_https_gateway_helm_deploy.stdout or 'upgraded' in demo_https_gateway_helm_deploy.stdout"
+  when: demo_https_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_helm_deploy.stdout_lines
+
+- name: Show demo HTTPS gateway deployment summary
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        ['Demo HTTPS gateway release: ' ~ demo_https_gateway_release_name]
+        + (
+          demo_https_gateway_routes
+          | map(attribute='display_name')
+          | list
+        )
+        + ['Run show_demo_outputs.yml to print HTTPS URLs.']
+      }}
+  when: demo_https_gateway_enabled | bool

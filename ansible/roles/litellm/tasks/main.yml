@@ -1,0 +1,233 @@
+---
+- name: Skip LiteLLM deployment when disabled
+  ansible.builtin.debug:
+    msg: "litellm_enabled=false; skipping LiteLLM deployment."
+  when: not litellm_enabled | bool
+
+- name: Validate LiteLLM deployment settings
+  ansible.builtin.assert:
+    that:
+      - litellm_namespace | length > 0
+      - litellm_release_name | length > 0
+      - litellm_chart_local_path is directory
+      - litellm_master_key | length > 0
+      - litellm_ui_username | length > 0
+      - litellm_ui_password | length > 0
+      - litellm_postgres_password | length > 0
+      - litellm_models is sequence
+      - litellm_models | length > 0
+    fail_msg: "LiteLLM requires namespace/release, chart path, master/admin keys, Postgres password, and at least one model."
+  when: litellm_enabled | bool
+
+- name: Install Helm when missing
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! command -v helm >/dev/null 2>&1; then
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+  when: litellm_enabled | bool
+
+- name: Read LiteLLM Bedrock model IDs from Terraform
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ litellm_bedrock_module_path }}"
+      - output
+      - -json
+      - bedrock_model_ids
+  changed_when: false
+  failed_when: false
+  register: litellm_bedrock_models_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - litellm_enabled | bool
+    - litellm_bedrock_use_terraform_output | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_bedrock_models_raw.stdout_lines
+
+- name: Read LiteLLM Bedrock region from Terraform
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ litellm_bedrock_module_path }}"
+      - output
+      - -raw
+      - bedrock_region
+  changed_when: false
+  failed_when: false
+  register: litellm_bedrock_region_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - litellm_enabled | bool
+    - litellm_bedrock_use_terraform_output | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_bedrock_region_raw.stdout_lines
+
+- name: Set LiteLLM Bedrock facts
+  ansible.builtin.set_fact:
+    litellm_effective_bedrock_region: >-
+      {{
+        litellm_bedrock_region
+        if litellm_bedrock_region | length > 0
+        else (
+          litellm_bedrock_region_raw.stdout | trim
+          if (
+            litellm_bedrock_region_raw is defined
+            and litellm_bedrock_region_raw.rc == 0
+            and litellm_bedrock_region_raw.stdout | length > 0
+          )
+          else aws_region
+        )
+      }}
+    litellm_effective_bedrock_model_id: >-
+      {{
+        litellm_bedrock_model_id
+        if litellm_bedrock_model_id | length > 0
+        else (
+          (litellm_bedrock_models_raw.stdout | from_json)[0]
+          if (
+            litellm_bedrock_models_raw is defined
+            and litellm_bedrock_models_raw.rc == 0
+            and litellm_bedrock_models_raw.stdout | length > 0
+            and (litellm_bedrock_models_raw.stdout | from_json | length) > 0
+          )
+          else litellm_bedrock_fallback_model_id
+        )
+      }}
+  when: litellm_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_effective_bedrock_model_id
+
+- name: Read default LiteLLM instruction profile
+  ansible.builtin.set_fact:
+    litellm_default_instruction_content: "{{ lookup('ansible.builtin.file', litellm_instruction_profile_source_path) }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - litellm_enabled | bool
+    - litellm_instruction_profiles | length == 0
+  # - ansible.builtin.debug:
+  #     var: litellm_default_instruction_content
+
+- name: Set effective LiteLLM instruction profiles
+  ansible.builtin.set_fact:
+    litellm_effective_instruction_profiles: >-
+      {{
+        litellm_instruction_profiles
+        if litellm_instruction_profiles | length > 0
+        else [
+          {
+            'name': litellm_default_instruction_profile,
+            'enabled': true,
+            'position': litellm_instruction_profile_injection_position,
+            'instruction': litellm_default_instruction_content
+          }
+        ]
+      }}
+  when: litellm_enabled | bool
+
+- name: Render LiteLLM config content facts
+  ansible.builtin.set_fact:
+    litellm_config_content: "{{ lookup('ansible.builtin.template', role_path + '/templates/config.yaml.j2') }}"
+    litellm_custom_callbacks_content: "{{ lookup('ansible.builtin.template', role_path + '/templates/custom_callbacks.py.j2') }}"
+    litellm_instruction_profiles_content: "{{ lookup('ansible.builtin.template', role_path + '/templates/instruction-profiles.yaml.j2') }}"
+  when: litellm_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_config_content
+
+- name: Remove previous remote LiteLLM chart staging directory
+  ansible.builtin.file:
+    path: "{{ litellm_chart_remote_root }}"
+    state: absent
+  when: litellm_enabled | bool
+
+- name: Create remote LiteLLM chart staging directory
+  ansible.builtin.file:
+    path: "{{ litellm_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: litellm_enabled | bool
+
+- name: Copy LiteLLM Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ litellm_chart_local_path }}/"
+    dest: "{{ litellm_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: litellm_enabled | bool
+
+- name: Render LiteLLM Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ litellm_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  no_log: true
+  when: litellm_enabled | bool
+
+- name: Deploy LiteLLM release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ litellm_release_name }}"
+      - "{{ litellm_chart_remote_root }}"
+      - --namespace
+      - "{{ litellm_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ litellm_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: litellm_helm_deploy
+  changed_when: "'deployed' in litellm_helm_deploy.stdout or 'upgraded' in litellm_helm_deploy.stdout"
+  when:
+    - litellm_enabled | bool
+    - not litellm_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_helm_deploy.stdout_lines
+
+- name: Deploy LiteLLM release and wait
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ litellm_release_name }}"
+      - "{{ litellm_chart_remote_root }}"
+      - --namespace
+      - "{{ litellm_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ litellm_values_remote_path }}"
+      - --wait
+      - --timeout
+      - "{{ litellm_helm_timeout }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: litellm_helm_wait_deploy
+  changed_when: "'deployed' in litellm_helm_wait_deploy.stdout or 'upgraded' in litellm_helm_wait_deploy.stdout"
+  when:
+    - litellm_enabled | bool
+    - litellm_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_helm_wait_deploy.stdout_lines
+
+- name: Show LiteLLM deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "LiteLLM release: {{ litellm_release_name }}"
+      - "LiteLLM internal URL: {{ litellm_internal_base_url }}"
+      - "LiteLLM Admin/API URL: http://{{ public_ip if (public_ip is defined and public_ip | length > 0) else (ansible_host | default(inventory_hostname)) }}:{{ litellm_node_port }}/ui/"
+      - "Helm accepted the install or upgrade; run status_litellm.yml to check READY/NOT READY."
+  when: litellm_enabled | bool

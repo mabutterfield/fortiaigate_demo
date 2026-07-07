@@ -1,0 +1,18 @@
+{{- if .Values.bedrockProxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+  labels:
+    app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.bedrockProxy.service.port }}
+      targetPort: http
+{{- end }}

@@ -1,11 +1,16 @@
 [fortiaigate]
-faig-aws ansible_host=${public_ip} ansible_user=ubuntu%{ if ssh_private_key_file != "" } ansible_ssh_private_key_file=${ssh_private_key_file}%{ endif }
+faig-aws ansible_host=${ansible_host} ansible_user=ubuntu%{ if ssh_private_key_file != "" } ansible_ssh_private_key_file=${ssh_private_key_file}%{ endif }
 
 [fortiaigate:vars]
 ansible_python_interpreter=/usr/bin/python3
 public_ip=${public_ip}
+private_ip=${private_ip}
 aws_vpc_cidr=${aws_vpc_cidr}
 aws_public_subnet_cidr=${aws_public_subnet_cidr}
+aws_k3s_private_subnet_cidr=${aws_k3s_private_subnet_cidr}
+aws_fortigate_public_subnet_cidr=${aws_fortigate_public_subnet_cidr}
+aws_fortiweb_public_subnet_cidr=${aws_fortiweb_public_subnet_cidr}
+aws_k3s_subnet_mode=${aws_k3s_subnet_mode}
 k3s_cluster_cidr=${k3s_cluster_cidr}
 k3s_service_cidr=${k3s_service_cidr}
 k3s_cluster_dns=${k3s_cluster_dns}

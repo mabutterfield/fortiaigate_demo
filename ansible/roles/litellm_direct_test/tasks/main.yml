@@ -1,0 +1,76 @@
+---
+- name: Validate LiteLLM direct test settings
+  ansible.builtin.assert:
+    that:
+      - litellm_master_key is defined
+      - litellm_master_key | length > 0
+      - litellm_direct_test_base_url | length > 0
+      - litellm_direct_test_model | length > 0
+      - litellm_direct_test_message | length > 0
+    fail_msg: "LiteLLM direct test requires litellm_master_key, base URL, model, and message."
+
+- name: List LiteLLM models through direct endpoint
+  ansible.builtin.uri:
+    url: "{{ litellm_direct_test_base_url }}/models"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ litellm_master_key }}"
+    return_content: true
+    status_code: 200
+    timeout: "{{ litellm_direct_test_timeout_seconds }}"
+  no_log: true
+  register: litellm_direct_test_models_response
+
+- name: Send LiteLLM direct chat completion
+  ansible.builtin.uri:
+    url: "{{ litellm_direct_test_base_url }}/chat/completions"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ litellm_master_key }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      model: "{{ litellm_direct_test_model }}"
+      messages:
+        - role: user
+          content: "{{ litellm_direct_test_message }}"
+      temperature: "{{ litellm_direct_test_temperature }}"
+      max_tokens: "{{ litellm_direct_test_max_tokens }}"
+    return_content: true
+    status_code: 200
+    timeout: "{{ litellm_direct_test_timeout_seconds }}"
+  no_log: true
+  register: litellm_direct_test_chat_response
+
+- name: Set LiteLLM direct test facts
+  ansible.builtin.set_fact:
+    litellm_direct_test_model_ids: "{{ litellm_direct_test_models_response.json.data | default([]) | map(attribute='id') | list }}"
+    litellm_direct_test_response_text: "{{ litellm_direct_test_chat_response.json.choices[0].message.content | default('') }}"
+    litellm_direct_test_expected_present: >-
+      {{
+        litellm_direct_test_expected_text | length == 0
+        or litellm_direct_test_expected_text in (litellm_direct_test_chat_response.json.choices[0].message.content | default(''))
+      }}
+  # - ansible.builtin.debug:
+  #     var: litellm_direct_test_response_text
+
+- name: Show LiteLLM direct test summary
+  ansible.builtin.debug:
+    msg:
+      - "LiteLLM direct test: {{ 'PASS' if litellm_direct_test_expected_present else 'CHECK RESPONSE' }}"
+      - "Base URL: {{ litellm_direct_test_base_url }}"
+      - "Available models: {{ litellm_direct_test_model_ids | join(', ') }}"
+      - "Requested model: {{ litellm_direct_test_model }}"
+      - "Expected text: {{ litellm_direct_test_expected_text if litellm_direct_test_expected_text | length > 0 else 'not set' }}"
+      - "Expected text present: {{ litellm_direct_test_expected_present }}"
+      - "Response: {{ litellm_direct_test_response_text }}"
+
+- name: Fail when expected text is missing
+  ansible.builtin.fail:
+    msg: >-
+      LiteLLM direct response did not include expected text
+      {{ litellm_direct_test_expected_text }}. Response was:
+      {{ litellm_direct_test_response_text }}
+  when:
+    - litellm_direct_test_fail_on_missing_expected_text | bool
+    - not litellm_direct_test_expected_present

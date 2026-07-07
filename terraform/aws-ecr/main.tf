@@ -1,10 +1,5 @@
 data "aws_caller_identity" "current" {}
 
-data "aws_iam_role" "ec2_pull" {
-  count = var.ec2_pull_role_name == "" ? 0 : 1
-  name  = var.ec2_pull_role_name
-}
-
 locals {
   ecr_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 
@@ -74,50 +69,6 @@ resource "aws_ecr_lifecycle_policy" "this" {
       },
     ]
   })
-}
-
-resource "aws_iam_policy" "ec2_ecr_pull" {
-  count = var.ec2_pull_role_name == "" ? 0 : 1
-
-  name        = "${var.repo_prefix}-ecr-pull"
-  description = "Allow EC2 hosts to pull FortiAIGate images from managed private ECR repositories."
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "EcrAuthToken"
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "EcrPullFortiAIGateImages"
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:BatchGetImage",
-          "ecr:DescribeImages",
-          "ecr:DescribeRepositories",
-          "ecr:GetDownloadUrlForLayer",
-        ]
-        Resource = [
-          for repository in aws_ecr_repository.this : repository.arn
-        ]
-      },
-    ]
-  })
-
-  tags = local.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_ecr_pull" {
-  count = var.ec2_pull_role_name == "" ? 0 : 1
-
-  role       = data.aws_iam_role.ec2_pull[0].name
-  policy_arn = aws_iam_policy.ec2_ecr_pull[0].arn
 }
 
 resource "local_file" "ansible_ecr_vars" {

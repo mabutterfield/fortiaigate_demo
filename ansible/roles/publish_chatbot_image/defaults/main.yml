@@ -1,0 +1,6 @@
+---
+chatbot_publish_enabled: true
+chatbot_image_source_dir: "{{ playbook_dir }}/../../chatbot/app"
+chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
+chatbot_image_tag: local
+chatbot_publish_platform: linux/amd64

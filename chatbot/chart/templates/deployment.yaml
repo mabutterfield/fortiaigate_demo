@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chatbot-demo.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "chatbot-demo.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "chatbot-demo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "chatbot-demo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{- range .Values.image.pullSecrets }}
+        - name: {{ .name }}
+{{- end }}
+{{- end }}
+      containers:
+        - name: chatbot
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+          env:
+            - name: CHATBOT_DIRECT_BASE_URL
+              value: {{ .Values.chatbot.directBaseUrl | quote }}
+            - name: CHATBOT_DIRECT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-direct-api-key
+            - name: CHATBOT_FAIG_BASE_URL
+              value: {{ .Values.chatbot.faigBaseUrl | quote }}
+            - name: CHATBOT_FAIG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-faig-api-key
+            - name: CHATBOT_MODEL
+              value: {{ .Values.chatbot.model | quote }}
+            - name: CHATBOT_PAGE_TITLE
+              value: {{ .Values.chatbot.pageTitle | quote }}
+            - name: CHATBOT_HEADER_TITLE
+              value: {{ .Values.chatbot.headerTitle | quote }}
+            - name: CHATBOT_FRONTEND_SYSTEM_PROMPT
+              value: {{ .Values.chatbot.frontendSystemPrompt | quote }}
+            - name: CHATBOT_TEMPERATURE
+              value: {{ .Values.chatbot.temperature | quote }}
+            - name: CHATBOT_MAX_TOKENS
+              value: {{ .Values.chatbot.maxTokens | quote }}
+            - name: CHATBOT_STREAMING
+              value: {{ .Values.chatbot.streaming | quote }}
+            - name: CHATBOT_VERIFY_TLS
+              value: {{ .Values.chatbot.verifyTls | quote }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            failureThreshold: 6

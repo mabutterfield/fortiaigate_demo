@@ -1,0 +1,16 @@
+{{- if .Values.bedrockProxy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+  labels:
+    app.kubernetes.io/name: {{ include "openwebui-demo.name" . }}-bedrock-proxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  config.yaml: |
+    model_list:
+      - model_name: {{ .Values.bedrockProxy.modelAlias | quote }}
+        litellm_params:
+          model: {{ printf "bedrock/%s" .Values.bedrockProxy.modelId | quote }}
+          aws_region_name: {{ .Values.bedrockProxy.region | quote }}
+{{- end }}

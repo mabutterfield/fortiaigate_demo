@@ -1,0 +1,7 @@
+apiVersion: v2
+name: litellm-demo
+description: LiteLLM proxy for the FortiAIGate demo
+type: application
+version: 0.1.0
+appVersion: "main-stable"
+

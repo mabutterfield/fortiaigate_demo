@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/tls: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+{{- range .Values.routes }}
+            - name: {{ .name | trunc 15 | trimSuffix "-" }}
+              containerPort: {{ .externalPort }}
+              protocol: TCP
+{{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ (index .Values.routes 0).externalPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: {{ (index .Values.routes 0).externalPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tls
+              mountPath: /etc/nginx/tls
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "demo-https-gateway.name" . }}
+        - name: tls
+          secret:
+            secretName: {{ include "demo-https-gateway.name" . }}-tls

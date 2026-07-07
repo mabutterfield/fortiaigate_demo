@@ -1,0 +1,6 @@
+apiVersion: v2
+name: demo-https-gateway
+description: Optional HTTPS gateway for FortiAIGate demo HTTP services
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,103 @@
+---
+- name: Skip demo home status when disabled
+  ansible.builtin.debug:
+    msg: "demo_home_enabled=false; skipping demo home status."
+  when: not demo_home_enabled | bool
+
+- name: Check demo home Helm release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ demo_home_release_name }}"
+      - --namespace
+      - "{{ demo_home_namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+  register: demo_home_status_helm
+  when: demo_home_enabled | bool
+
+- name: Check demo home deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ demo_home_release_name }}"
+      - -n
+      - "{{ demo_home_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: demo_home_status_deployment
+  when: demo_home_enabled | bool
+
+- name: Check demo home local health endpoint
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ demo_home_node_port }}{{ demo_home_status_health_path }}"
+  changed_when: false
+  failed_when: false
+  register: demo_home_status_health
+  when: demo_home_enabled | bool
+
+- name: Set demo home status facts
+  ansible.builtin.set_fact:
+    demo_home_status_host: >-
+      {{
+        public_ip
+        if (public_ip is defined and public_ip | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}
+    demo_home_status_deployment_json: "{{ demo_home_status_deployment.stdout | default('{}') | from_json if demo_home_status_deployment.rc == 0 else {} }}"
+  when: demo_home_enabled | bool
+
+- name: Set demo home status summary facts
+  ansible.builtin.set_fact:
+    demo_home_status_ready: >-
+      {{
+        demo_home_status_helm.rc == 0
+        and demo_home_status_deployment.rc == 0
+        and (demo_home_status_deployment_json.status.availableReplicas | default(0) | int) >= 1
+        and (demo_home_status_health.stdout | default('0') | int) >= 200
+        and (demo_home_status_health.stdout | default('0') | int) < 500
+      }}
+    demo_home_status_url: "http://{{ demo_home_status_host }}:{{ demo_home_node_port }}"
+    demo_home_status_problems: >-
+      {{
+        []
+        + (['Helm release missing'] if demo_home_status_helm.rc != 0 else [])
+        + (['Deployment missing'] if demo_home_status_deployment.rc != 0 else [])
+        + (['Available replicas ' ~ (demo_home_status_deployment_json.status.availableReplicas | default(0) | string) ~ '/1'] if demo_home_status_deployment.rc == 0 and (demo_home_status_deployment_json.status.availableReplicas | default(0) | int) < 1 else [])
+        + (['Health HTTP status ' ~ (demo_home_status_health.stdout | default('000'))] if (demo_home_status_health.stdout | default('0') | int) < 200 or (demo_home_status_health.stdout | default('0') | int) >= 500 else [])
+      }}
+  when: demo_home_enabled | bool
+
+- name: Show demo home status summary
+  ansible.builtin.debug:
+    msg:
+      - "Demo home status: {{ 'READY' if demo_home_status_ready else 'NOT READY' }}"
+      - "Helm release: {{ 'present' if demo_home_status_helm.rc == 0 else 'missing' }}"
+      - "Health HTTP status: {{ demo_home_status_health.stdout | default('unknown') }}"
+      - "URL: {{ demo_home_status_url }}"
+      - "Problems: {{ demo_home_status_problems | join(' | ') if demo_home_status_problems | length > 0 else 'none' }}"
+  when: demo_home_enabled | bool
+
+- name: Fail when demo home is not ready
+  ansible.builtin.fail:
+    msg: "Demo home validation did not pass: {{ demo_home_status_problems | join(' | ') }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_status_fail_on_not_ready | bool
+    - not demo_home_status_ready

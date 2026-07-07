@@ -1,0 +1,12 @@
+{{- if .Values.instructions.content }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chatbot-demo.name" . }}-instructions
+  labels:
+    app.kubernetes.io/name: {{ include "chatbot-demo.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  instructions.txt: |
+{{ .Values.instructions.content | indent 4 }}
+{{- end }}

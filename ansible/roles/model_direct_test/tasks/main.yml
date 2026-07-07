@@ -197,7 +197,7 @@
       - direct_model_effective_aws_access_key_id | length > 0
       - direct_model_effective_aws_secret_access_key | length > 0
     fail_msg: >-
-      Bedrock direct test needs credentials. Run terraform/aws-bedrock apply and keep
+      Bedrock direct test needs credentials. Run terraform/aws-prep apply and keep
       direct_model_bedrock_read_credentials_from_terraform=true, or set
       direct_model_aws_access_key_id/direct_model_aws_secret_access_key, or export
       AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.

@@ -1,0 +1,32 @@
+nameOverride: litellm
+
+image:
+  repository: ghcr.io/berriai/litellm
+  tag: main-stable
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 4000
+  nodePort: 30083
+
+litellm:
+  masterKey: sk-litellm-demo-change-me
+  uiUsername: admin
+  uiPassword: litellm-demo-change-me
+  instructionDebug: false
+  config: ""
+  customCallbacks: ""
+  instructionProfiles: ""
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  storageClass: local-path
+  storageSize: 5Gi
+  database: litellm
+  username: litellm
+  password: litellm-demo-change-me

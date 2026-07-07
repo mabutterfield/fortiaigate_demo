@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "direct-bedrock-proxy.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "direct-bedrock-proxy.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  config.yaml: |
+    model_list:
+      - model_name: {{ .Values.bedrock.modelAlias | quote }}
+        litellm_params:
+          model: {{ printf "bedrock/%s" .Values.bedrock.modelId | quote }}
+          aws_region_name: {{ .Values.bedrock.region | quote }}

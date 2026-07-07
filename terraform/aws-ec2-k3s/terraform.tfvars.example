@@ -1,26 +1,15 @@
-aws_profile               = "AdministratorAccess-123456789012"
-aws_region                = "us-east-1"
-name_prefix               = "fortiaigate-demo"
+# terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
+# allowed_ingress_cidr, and tags.
 
-# Expected local edits:
-# - aws_profile/aws_region for the target account and region
-# - ssh_key_name plus ssh_private_key_file for the key you will use
-# - allowed_ingress_cidr as a valid CIDR for your current public source IP
-# - iam_instance_profile_name or create_iam_instance_profile
-# - instance_type when changing from the default lab size
-ssh_key_name              = "my-existing-keypair"
-ssh_private_key_file      = "~/.ssh/my-existing-keypair.pem"
-# Must be a valid CIDR. Use /32 for one public client IP.
-allowed_ingress_cidr      = "203.0.113.10/32"
-iam_instance_profile_name = "existing-ec2-ecr-readonly-profile"
+aws_prep_state_path = "../aws-prep/terraform.tfstate"
 
-# Optional: let this module create the EC2 IAM role/profile instead of using
-# the existing profile above. Then pass the iam_role_name Terraform output to
-# terraform/aws-ecr.ec2_pull_role_name for scoped private ECR pull access.
-create_iam_instance_profile = false
-# iam_role_name                 = "fortiaigate-demo-ec2-role"
-# iam_instance_profile_name     = "fortiaigate-demo-ec2-profile"
-# iam_role_managed_policy_arns  = []
+ssh_key_name         = "my-existing-keypair"
+ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
+
+# Optional GitHub usernames whose public SSH keys should be appended to
+# /home/ubuntu/.ssh/authorized_keys on first boot. Leave empty to skip.
+# Example: ["mabutterfield"]
+ec2_pull_github_keys = []
 
 # g4dn.4xlarge is the default lab size used by this module.
 # Use g6.8xlarge for a stronger production-like L4 validation target.
@@ -32,8 +21,40 @@ availability_zone = ""
 
 # Keep AWS VPC, k3s pod, and k3s service networks non-overlapping.
 # Defaults intentionally use 10.x networks with second octets between 20 and 90.
-vpc_cidr           = "10.20.0.0/16"
-public_subnet_cidr = "10.20.1.0/24"
-k3s_cluster_cidr   = "10.60.0.0/16"
-k3s_service_cidr   = "10.70.0.0/16"
-k3s_cluster_dns    = "10.70.0.10"
+vpc_cidr                     = "10.20.0.0/16"
+public_subnet_cidr           = "10.20.1.0/24"
+k3s_private_subnet_cidr      = "10.20.2.0/24"
+fortigate_public_subnet_cidr = "10.20.10.0/24"
+fortiweb_public_subnet_cidr  = "10.20.11.0/24"
+k3s_cluster_cidr             = "10.60.0.0/16"
+k3s_service_cidr             = "10.70.0.0/16"
+k3s_cluster_dns              = "10.70.0.10"
+
+# Public preserves the current direct-access lab behavior. Private places the
+# k3s host in the private subnet without a public IP; use that only when an
+# appliance or other private access path is ready.
+k3s_subnet_mode = "public"
+
+# Optional private subnet default route target for a future FortiGate traffic
+# interface. Leave empty until that interface exists.
+k3s_private_default_route_network_interface_id = ""
+
+# Terraform generates the standard demo port assignments once and writes them
+# to ansible/group_vars/ports.generated.yml:
+# - OpenWebUI: 30080 HTTP, 30443 HTTPS
+# - Chatbot: 30081 HTTP, 30444 HTTPS
+# - Demo home: 30082 HTTP, 30445 HTTPS
+# - LiteLLM Admin/API: 30083 HTTP, 30446 HTTPS
+demo_http_base_port  = 30080
+demo_https_base_port = 30443
+
+# Use this only for extra public TCP listeners beyond the generated demo ports.
+additional_ingress_tcp_ports = []
+
+# Phase 2 application routing placeholders. path_based is the no-domain default
+# for a distributable demo. host_based is for future DNS-backed environments.
+ingress_routing_strategy = "path_based"
+ingress_base_domain      = ""
+route53_zone_id          = ""
+create_route53_records   = false
+magic_dns_zone           = "sslip.io"

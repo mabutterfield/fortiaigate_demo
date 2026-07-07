@@ -1,0 +1,23 @@
+nameOverride: "{{ demo_home_release_name }}"
+
+image:
+  repository: "{{ demo_home_image_repository }}"
+  tag: "{{ demo_home_image_tag }}"
+  pullPolicy: "{{ demo_home_image_pull_policy }}"
+
+service:
+  type: "{{ demo_home_service_type }}"
+  port: {{ demo_home_service_port }}
+  nodePort: {{ demo_home_node_port }}
+
+home:
+  html: |
+{{ demo_home_html | indent(4, true) }}
+
+ingress:
+  enabled: {{ (demo_home_ingress_host | length > 0) | ternary('true', 'false') }}
+  className: "{{ demo_home_ingress_class }}"
+  host: "{{ demo_home_ingress_host }}"
+  tls:
+    enabled: {{ demo_home_ingress_tls_enabled | ternary('true', 'false') }}
+    secretName: "{{ demo_home_ingress_tls_secret_name }}"

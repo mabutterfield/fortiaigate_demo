@@ -17,8 +17,8 @@ from urllib.parse import urlparse
 DEFAULT_ENDPOINT_PATH = "/v1/chat/completions"
 DEFAULT_MODEL_ID = "openai.gpt-oss-20b-1:0"
 DEFAULT_PROMPT = "hello, this is a test. Reply in one short sentence and include the name of the model answering."
-DEFAULT_TERRAFORM_BEDROCK_PATH = (
-    Path(__file__).resolve().parents[1] / "terraform" / "aws-bedrock"
+DEFAULT_TERRAFORM_PREP_PATH = (
+    Path(__file__).resolve().parents[1] / "terraform" / "aws-prep"
 )
 DEFAULT_TERRAFORM_EC2_PATH = (
     Path(__file__).resolve().parents[1] / "terraform" / "aws-ec2-k3s"
@@ -106,11 +106,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--terraform-bedrock-path",
+        "--terraform-prep-path",
         default=os.environ.get(
-            "BEDROCK_TERRAFORM_PATH",
-            str(DEFAULT_TERRAFORM_BEDROCK_PATH),
+            "AWS_PREP_TERRAFORM_PATH",
+            os.environ.get("BEDROCK_TERRAFORM_PATH", str(DEFAULT_TERRAFORM_PREP_PATH)),
         ),
-        help="Path to terraform/aws-bedrock for permitted model output.",
+        help="Path to terraform/aws-prep for permitted model output.",
     )
     parser.add_argument(
         "--terraform-ec2-path",

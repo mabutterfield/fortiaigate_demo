@@ -1,0 +1,28 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY chatbot.py .
+
+EXPOSE 8501
+
+ENV PYTHONUNBUFFERED=1
+ENV CHATBOT_BASE_URL=""
+ENV CHATBOT_API_KEY="not-used"
+ENV CHATBOT_MODEL="auto"
+ENV CHATBOT_PAGE_TITLE="AI Chatbot"
+ENV CHATBOT_HEADER_TITLE="AI Chatbot"
+ENV CHATBOT_DIRECT_BASE_URL=""
+ENV CHATBOT_DIRECT_API_KEY="not-used"
+ENV CHATBOT_FAIG_BASE_URL=""
+ENV CHATBOT_FAIG_API_KEY="not-used"
+ENV CHATBOT_FRONTEND_SYSTEM_PROMPT=""
+ENV CHATBOT_TEMPERATURE="0.0"
+ENV CHATBOT_MAX_TOKENS="4096"
+ENV CHATBOT_STREAMING="false"
+ENV CHATBOT_VERIFY_TLS="false"
+
+CMD ["streamlit", "run", "chatbot.py", "--server.port=8501", "--server.address=0.0.0.0"]

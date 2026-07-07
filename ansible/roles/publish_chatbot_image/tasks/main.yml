@@ -1,0 +1,152 @@
+---
+- name: Skip chatbot image publish when disabled
+  ansible.builtin.debug:
+    msg: "chatbot_publish_enabled=false; skipping chatbot image publish."
+  when: not chatbot_publish_enabled | bool
+
+- name: Validate chatbot image publish settings
+  ansible.builtin.assert:
+    that:
+      - registry_type | default('ecr') == 'ecr'
+      - aws_region is defined
+      - aws_region | length > 0
+      - aws_profile is defined
+      - aws_profile | length > 0
+      - chatbot_image_repository is defined
+      - chatbot_image_repository | length > 0
+      - chatbot_image_tag is defined
+      - chatbot_image_tag | length > 0
+      - lookup('ansible.builtin.fileglob', chatbot_image_source_dir + '/Dockerfile') | length > 0
+    fail_msg: "Chatbot image publishing requires ECR registry settings, aws_profile/aws_region, a chatbot image repository, tag, and app Dockerfile."
+  when: chatbot_publish_enabled | bool
+
+- name: Set chatbot ECR registry fact
+  ansible.builtin.set_fact:
+    chatbot_publish_ecr_registry: "{{ chatbot_image_repository.split('/')[0] }}"
+    chatbot_publish_repository_name: "{{ chatbot_image_repository.split('/')[1:] | join('/') }}"
+    chatbot_publish_target_image: "{{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+  when: chatbot_publish_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_ecr_registry
+
+- name: Check ECR target tag {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
+  ansible.builtin.command:
+    argv:
+      - aws
+      - ecr
+      - describe-images
+      - --profile
+      - "{{ aws_profile }}"
+      - --region
+      - "{{ aws_region }}"
+      - --repository-name
+      - "{{ chatbot_publish_repository_name }}"
+      - --image-ids
+      - "imageTag={{ chatbot_image_tag }}"
+  changed_when: false
+  failed_when:
+    - chatbot_publish_ecr_describe_image.rc != 0
+    - "'ImageNotFoundException' not in chatbot_publish_ecr_describe_image.stderr"
+  register: chatbot_publish_ecr_describe_image
+  when: chatbot_publish_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_ecr_describe_image.stdout
+
+- name: Skip chatbot image publish when ECR target tag already exists
+  ansible.builtin.debug:
+    msg:
+      - "Chatbot image already exists in ECR: {{ chatbot_publish_target_image }}"
+      - "ECR tags are immutable by default; bump chatbot_image_tag to publish changed chatbot code."
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc == 0
+
+- name: Log in Docker to ECR for chatbot image publish
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --profile {{ aws_profile | quote }} --region {{ aws_region | quote }} \
+      | docker login --username AWS --password-stdin {{ chatbot_publish_ecr_registry | quote }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0
+
+- name: Build chatbot image {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - build
+      - -t
+      - "{{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+      - "{{ chatbot_image_source_dir }}"
+  register: chatbot_publish_build
+  changed_when: true
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_platform | length == 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_build.stdout_lines
+
+- name: Build chatbot image {{ chatbot_image_repository }}:{{ chatbot_image_tag }} for {{ chatbot_publish_platform }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - buildx
+      - build
+      - --platform
+      - "{{ chatbot_publish_platform }}"
+      - --load
+      - -t
+      - "{{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+      - "{{ chatbot_image_source_dir }}"
+  register: chatbot_publish_build_platform
+  changed_when: true
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_platform | length > 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_build_platform.stdout_lines
+
+- name: Inspect built chatbot image platform
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "--format={{ '{{' }}.Os{{ '}}' }}/{{ '{{' }}.Architecture{{ '}}' }}"
+      - "{{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+  changed_when: false
+  register: chatbot_publish_image_platform
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_image_platform.stdout_lines
+
+- name: Push chatbot image {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - push
+      - "{{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+  register: chatbot_publish_push
+  changed_when: true
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_push.stdout_lines
+
+- name: Show chatbot image publish summary
+  ansible.builtin.debug:
+    msg:
+      - "Chatbot image published: {{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
+      - "Built platform: {{ chatbot_publish_image_platform.stdout | default('unknown') }}"
+      - "Deploy with: ansible-playbook playbooks/deploy_chatbots.yml"
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc != 0

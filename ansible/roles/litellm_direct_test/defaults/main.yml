@@ -1,0 +1,9 @@
+---
+litellm_direct_test_base_url: "http://127.0.0.1:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/v1"
+litellm_direct_test_model: "{{ litellm_model_alias | default('demo-profile') }}"
+litellm_direct_test_message: "What is your name?"
+litellm_direct_test_expected_text: ""
+litellm_direct_test_fail_on_missing_expected_text: false
+litellm_direct_test_timeout_seconds: 120
+litellm_direct_test_max_tokens: 512
+litellm_direct_test_temperature: 0

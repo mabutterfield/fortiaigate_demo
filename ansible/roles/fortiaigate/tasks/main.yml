@@ -10,6 +10,11 @@
 - name: Validate FortiAIGate deployment variables
   ansible.builtin.assert:
     that:
+      - aws_profile is defined
+      - aws_profile | length > 0
+      - aws_region is defined
+      - aws_region | length > 0
+      - fortiaigate_ecr_token_source in ['instance_role', 'controller_profile']
       - ecr_registry is defined
       - ecr_registry | length > 0
       - fortiaigate_image_repository is defined
@@ -19,7 +24,7 @@
       - fortiaigate_licenses is mapping
       - fortiaigate_license_files is sequence
       - fortiaigate_licenses | length > 0 or fortiaigate_license_files | length > 0
-    fail_msg: "Set ecr_registry, fortiaigate_image_repository, fortiaigate_image_tag, and either fortiaigate_licenses or fortiaigate_license_files in ansible/group_vars/all.yml."
+    fail_msg: "Set aws_profile, aws_region, ecr_registry, fortiaigate_image_repository, fortiaigate_image_tag, fortiaigate_ecr_token_source as instance_role or controller_profile, and either fortiaigate_licenses or fortiaigate_license_files in ansible/group_vars/all.yml."
 
 - name: Validate FortiAIGate TLS certificate files
   ansible.builtin.assert:
@@ -77,12 +82,37 @@
   delegate_to: localhost
   become: false
 
-- name: Validate FortiAIGate license source files
-  ansible.builtin.assert:
-    that:
-      - (license_source_dir ~ '/' ~ item.value) is file
-    fail_msg: "License file {{ item.value }} was not found under {{ license_source_dir }}."
+# Change note: the previous inline assert for license files was replaced with
+# the explicit stat/fail preflight below so missing license output names the
+# node and exact source path before chart packaging starts.
+# - name: Validate FortiAIGate license source files
+#   ansible.builtin.assert:
+#     that:
+#       - (license_source_dir ~ '/' ~ item.value) is file
+#     fail_msg: "License file {{ item.value }} was not found under {{ license_source_dir }}."
+#   loop: "{{ fortiaigate_effective_licenses | dict2items }}"
+#   delegate_to: localhost
+#   become: false
+
+- name: Preflight FortiAIGate license files before chart packaging
+  ansible.builtin.stat:
+    path: "{{ license_source_dir }}/{{ item.value }}"
   loop: "{{ fortiaigate_effective_licenses | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} -> {{ license_source_dir }}/{{ item.value }}"
+  delegate_to: localhost
+  become: false
+  register: fortiaigate_license_source_stats
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_license_source_stats.results
+
+- name: Fail when required FortiAIGate license files are missing
+  ansible.builtin.fail:
+    msg: "Required FortiAIGate license for node {{ item.item.key }} is not a readable file: {{ license_source_dir }}/{{ item.item.value }}"
+  loop: "{{ fortiaigate_license_source_stats.results }}"
+  loop_control:
+    label: "{{ item.item.key }} -> {{ license_source_dir }}/{{ item.item.value }}"
+  when: (not item.stat.exists) or (not item.stat.isreg | default(false))
   delegate_to: localhost
   become: false
 
@@ -124,15 +154,67 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_namespace_create.stdout_lines
 
+- name: Get ECR pull token from EC2 instance role
+  ansible.builtin.shell: |
+    set -euo pipefail
+    /usr/local/bin/aws ecr get-login-password --region {{ aws_region | quote }}
+  args:
+    executable: /bin/bash
+  no_log: true
+  register: ecr_instance_role_pull_token
+  changed_when: false
+  failed_when: false
+  when: fortiaigate_ecr_token_source == "instance_role"
+  # - ansible.builtin.debug:
+  #     var: ecr_instance_role_pull_token.rc
+
+- name: Get ECR pull token from controller AWS profile
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --profile {{ aws_profile | quote }} --region {{ aws_region | quote }}
+  args:
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  no_log: true
+  register: ecr_controller_profile_pull_token
+  changed_when: false
+  failed_when: false
+  when: fortiaigate_ecr_token_source == "controller_profile"
+  # - ansible.builtin.debug:
+  #     var: ecr_controller_profile_pull_token.rc
+
+- name: Set effective ECR pull token result
+  ansible.builtin.set_fact:
+    ecr_pull_token_result: >-
+      {{
+        ecr_instance_role_pull_token
+        if fortiaigate_ecr_token_source == 'instance_role'
+        else ecr_controller_profile_pull_token
+      }}
+  no_log: true
+  # - ansible.builtin.debug:
+  #     var: ecr_pull_token_result.rc
+
+- name: Fail when ECR pull token retrieval failed
+  ansible.builtin.fail:
+    msg: >-
+      Could not get an ECR pull token using {{ fortiaigate_ecr_token_source }}.
+      For instance_role, make sure the EC2 instance profile role has scoped ECR
+      pull permissions. terraform/aws-prep creates and attaches those permissions
+      when registry_backend=ecr. For controller_profile, run
+      `aws sso login --profile {{ aws_profile }}` when using SSO and verify
+      `aws sts get-caller-identity --profile {{ aws_profile }}`.
+  when: ecr_pull_token_result.rc != 0
+
 - name: Create or refresh ECR pull secret
   ansible.builtin.shell: |
     set -euo pipefail
-    TOKEN="$(aws ecr get-login-password --region {{ aws_region }})"
     /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ fortiaigate_namespace }} \
       create secret docker-registry {{ ecr_pull_secret_name }} \
       --docker-server={{ ecr_registry }} \
       --docker-username=AWS \
-      --docker-password="${TOKEN}" \
+      --docker-password={{ ecr_pull_token_result.stdout | quote }} \
       --dry-run=client -o yaml \
       | /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -f -
   args:
@@ -140,8 +222,18 @@
   no_log: true
   register: ecr_secret_apply
   changed_when: "'created' in ecr_secret_apply.stdout or 'configured' in ecr_secret_apply.stdout"
+  failed_when: false
   # - ansible.builtin.debug:
   #     var: ecr_secret_apply.stdout_lines
+
+- name: Fail when ECR pull secret refresh failed
+  ansible.builtin.fail:
+    msg: >-
+      Could not refresh ECR pull secret {{ ecr_pull_secret_name }} in namespace
+      {{ fortiaigate_namespace }}. Error: {{
+        ecr_secret_apply.stderr | default(ecr_secret_apply.stdout | default('unknown error'))
+      }}
+  when: ecr_secret_apply.rc != 0
 
 - name: Remove previous remote FortiAIGate chart staging directory
   ansible.builtin.file:

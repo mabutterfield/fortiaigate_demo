@@ -1,0 +1,42 @@
+nameOverride: "{{ item.release_name }}"
+
+image:
+  repository: "{{ item.image_repository | default(chatbot_image_repository) }}"
+  tag: "{{ item.image_tag | default(chatbot_image_tag) }}"
+  pullPolicy: "{{ item.image_pull_policy | default(chatbot_image_pull_policy) }}"
+  pullSecrets:
+{% for pull_secret in item.image_pull_secrets | default(chatbot_image_pull_secrets) %}
+    - name: "{{ pull_secret.name }}"
+{% endfor %}
+
+service:
+  type: "{{ item.service_type | default(chatbot_service_type) }}"
+  port: {{ item.service_port | default(chatbot_service_port) }}
+  nodePort: {{ item.node_port }}
+
+containerPort: {{ item.container_port | default(chatbot_container_port) }}
+
+chatbot:
+  directBaseUrl: "{{ item.direct_base_url | default(chatbot_direct_base_url) }}"
+  directApiKey: "{{ item.direct_api_key | default(chatbot_direct_api_key) }}"
+  faigBaseUrl: "{{ item.faig_base_url | default(chatbot_faig_base_url) }}"
+  faigApiKey: "{{ item.faig_api_key | default(chatbot_faig_api_key) }}"
+  model: "{{ item.model | default('auto') }}"
+  pageTitle: "{{ item.title }}"
+  headerTitle: "{{ item.header_title }}"
+  frontendSystemPrompt: "{{ item.frontend_system_prompt | default(chatbot_frontend_system_prompt) }}"
+  temperature: "{{ item.temperature | default('0.0') }}"
+  maxTokens: "{{ item.max_tokens | default('4096') }}"
+  streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"
+  verifyTls: "{{ (item.verify_tls | default(false) | bool) | ternary('true', 'false') }}"
+
+instructions:
+  content: ""
+
+ingress:
+  enabled: {{ (item.ingress_host is defined and item.ingress_host | length > 0) | ternary('true', 'false') }}
+  className: "{{ item.ingress_class | default(chatbot_ingress_class) }}"
+  host: "{{ item.ingress_host | default('') }}"
+  tls:
+    enabled: {{ chatbot_ingress_tls_enabled | ternary('true', 'false') }}
+    secretName: "{{ chatbot_ingress_tls_secret_name }}"

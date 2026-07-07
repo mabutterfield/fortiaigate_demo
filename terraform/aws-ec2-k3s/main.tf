@@ -1,10 +1,62 @@
 locals {
-  created_iam_role_name               = var.iam_role_name != "" ? var.iam_role_name : "${var.name_prefix}-ec2-role"
-  effective_iam_instance_profile_name = var.iam_instance_profile_name != "" ? var.iam_instance_profile_name : "${var.name_prefix}-ec2-profile"
   supported_instance_availability_zones = sort(
     data.aws_ec2_instance_type_offerings.available.locations
   )
-  selected_availability_zone = var.availability_zone != "" ? var.availability_zone : try(local.supported_instance_availability_zones[0], "")
+  selected_availability_zone     = var.availability_zone != "" ? var.availability_zone : try(local.supported_instance_availability_zones[0], "")
+  k3s_subnet_id                  = var.k3s_subnet_mode == "public" ? aws_subnet.public.id : aws_subnet.k3s_private.id
+  prep_outputs                   = data.terraform_remote_state.aws_prep.outputs
+  k3s_eip_allocation_id          = try(local.prep_outputs.k3s_eip_allocation_id, null)
+  k3s_public_ip                  = var.k3s_subnet_mode == "public" ? try(local.prep_outputs.k3s_public_ip, "") : ""
+  k3s_inventory_host             = var.k3s_subnet_mode == "public" ? local.k3s_public_ip : aws_instance.this.private_ip
+  k3s_ssh_command_host           = local.k3s_inventory_host
+  iam_instance_profile_name      = local.prep_outputs.ec2_instance_profile_name
+  effective_allowed_ingress_cidr = local.prep_outputs.allowed_ingress_cidr
+  effective_allowed_ingress_cidrs = try(
+    local.prep_outputs.allowed_ingress_cidrs,
+    [local.prep_outputs.allowed_ingress_cidr]
+  )
+  appliance_ingress_cidrs = [var.fortigate_public_subnet_cidr, var.fortiweb_public_subnet_cidr]
+  demo_port_assignments = {
+    openwebui = {
+      http  = var.demo_http_base_port
+      https = var.demo_https_base_port
+    }
+    chatbot = {
+      http  = var.demo_http_base_port + 1
+      https = var.demo_https_base_port + 1
+    }
+    demo_home = {
+      http  = var.demo_http_base_port + 2
+      https = var.demo_https_base_port + 2
+    }
+    litellm = {
+      http  = var.demo_http_base_port + 3
+      https = var.demo_https_base_port + 3
+    }
+  }
+  generated_demo_ingress_tcp_ports = toset(flatten([
+    for assignment in values(local.demo_port_assignments) : [
+      assignment.http,
+      assignment.https
+    ]
+  ]))
+  generated_demo_ingress_tcp_port_list = [
+    local.demo_port_assignments.openwebui.http,
+    local.demo_port_assignments.chatbot.http,
+    local.demo_port_assignments.demo_home.http,
+    local.demo_port_assignments.litellm.http,
+    local.demo_port_assignments.openwebui.https,
+    local.demo_port_assignments.chatbot.https,
+    local.demo_port_assignments.demo_home.https,
+    local.demo_port_assignments.litellm.https,
+  ]
+  effective_additional_ingress_tcp_ports = setunion(
+    local.generated_demo_ingress_tcp_ports,
+    var.additional_ingress_tcp_ports
+  )
+  github_keys_user_data = length(var.ec2_pull_github_keys) > 0 ? templatefile("${path.module}/templates/user-data.sh.tftpl", {
+    github_usernames = var.ec2_pull_github_keys
+  }) : null
 
   tags = merge(
     {
@@ -44,51 +96,12 @@ data "aws_ami" "ubuntu_2404" {
   }
 }
 
-data "aws_iam_instance_profile" "fortiaigate" {
-  count = var.create_iam_instance_profile || var.iam_instance_profile_name == "" ? 0 : 1
-  name  = var.iam_instance_profile_name
-}
+data "terraform_remote_state" "aws_prep" {
+  backend = "local"
 
-resource "aws_iam_role" "ec2" {
-  count = var.create_iam_instance_profile ? 1 : 0
-
-  name = local.created_iam_role_name
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "Ec2AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      },
-    ]
-  })
-
-  tags = merge(local.tags, {
-    Name = local.created_iam_role_name
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_managed" {
-  for_each = var.create_iam_instance_profile ? toset(var.iam_role_managed_policy_arns) : toset([])
-
-  role       = aws_iam_role.ec2[0].name
-  policy_arn = each.value
-}
-
-resource "aws_iam_instance_profile" "ec2" {
-  count = var.create_iam_instance_profile ? 1 : 0
-
-  name = local.effective_iam_instance_profile_name
-  role = aws_iam_role.ec2[0].name
-
-  tags = merge(local.tags, {
-    Name = local.effective_iam_instance_profile_name
-  })
+  config = {
+    path = var.aws_prep_state_path
+  }
 }
 
 resource "aws_vpc" "this" {
@@ -113,7 +126,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.public_subnet_cidr
   availability_zone       = local.selected_availability_zone
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   lifecycle {
     precondition {
@@ -128,7 +141,40 @@ resource "aws_subnet" "public" {
   }
 
   tags = merge(local.tags, {
-    Name = "${var.name_prefix}-public"
+    Name = "${var.name_prefix}-k3s-public"
+  })
+}
+
+resource "aws_subnet" "k3s_private" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.k3s_private_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-k3s-private"
+  })
+}
+
+resource "aws_subnet" "fortigate_public" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortigate_public_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortigate-public"
+  })
+}
+
+resource "aws_subnet" "fortiweb_public" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortiweb_public_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortiweb-public"
   })
 }
 
@@ -150,6 +196,37 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+resource "aws_route_table_association" "fortigate_public" {
+  subnet_id      = aws_subnet.fortigate_public.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "fortiweb_public" {
+  subnet_id      = aws_subnet.fortiweb_public.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table" "k3s_private" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-k3s-private"
+  })
+}
+
+resource "aws_route" "k3s_private_default" {
+  count = var.k3s_private_default_route_network_interface_id != "" ? 1 : 0
+
+  route_table_id         = aws_route_table.k3s_private.id
+  destination_cidr_block = "0.0.0.0/0"
+  network_interface_id   = var.k3s_private_default_route_network_interface_id
+}
+
+resource "aws_route_table_association" "k3s_private" {
+  subnet_id      = aws_subnet.k3s_private.id
+  route_table_id = aws_route_table.k3s_private.id
+}
+
 resource "aws_security_group" "this" {
   name        = "${var.name_prefix}-sg"
   description = "FortiAIGate demo access"
@@ -160,7 +237,7 @@ resource "aws_security_group" "this" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ingress_cidr]
+    cidr_blocks = local.effective_allowed_ingress_cidrs
   }
 
   ingress {
@@ -168,7 +245,7 @@ resource "aws_security_group" "this" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ingress_cidr]
+    cidr_blocks = local.effective_allowed_ingress_cidrs
   }
 
   ingress {
@@ -176,7 +253,43 @@ resource "aws_security_group" "this" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ingress_cidr]
+    cidr_blocks = local.effective_allowed_ingress_cidrs
+  }
+
+  dynamic "ingress" {
+    for_each = local.effective_additional_ingress_tcp_ports
+
+    content {
+      description = contains(local.generated_demo_ingress_tcp_ports, ingress.value) ? "Generated demo TCP port ${ingress.value}" : "Additional demo TCP port ${ingress.value}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = local.effective_allowed_ingress_cidrs
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+
+    content {
+      description = "HTTP from appliance subnet ${ingress.value}"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+
+    content {
+      description = "HTTPS from appliance subnet ${ingress.value}"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
   }
 
   egress {
@@ -193,18 +306,23 @@ resource "aws_security_group" "this" {
 }
 
 resource "aws_instance" "this" {
-  ami                         = data.aws_ami.ubuntu_2404.id
-  instance_type               = var.instance_type
-  key_name                    = var.ssh_key_name
-  iam_instance_profile        = var.create_iam_instance_profile ? aws_iam_instance_profile.ec2[0].name : try(data.aws_iam_instance_profile.fortiaigate[0].name, "")
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.this.id]
-  associate_public_ip_address = true
+  ami                    = data.aws_ami.ubuntu_2404.id
+  instance_type          = var.instance_type
+  key_name               = var.ssh_key_name
+  iam_instance_profile   = local.iam_instance_profile_name
+  subnet_id              = local.k3s_subnet_id
+  vpc_security_group_ids = [aws_security_group.this.id]
+  user_data              = local.github_keys_user_data
 
   lifecycle {
     precondition {
-      condition     = var.create_iam_instance_profile || var.iam_instance_profile_name != ""
-      error_message = "Set iam_instance_profile_name to an existing profile, or set create_iam_instance_profile=true to create one."
+      condition     = var.k3s_subnet_mode == "private" || local.k3s_eip_allocation_id != null
+      error_message = "k3s_subnet_mode=public requires terraform/aws-prep to allocate a k3s EIP."
+    }
+
+    precondition {
+      condition     = local.iam_instance_profile_name != ""
+      error_message = "terraform/aws-prep must create and output ec2_instance_profile_name before running this module."
     }
   }
 
@@ -219,24 +337,38 @@ resource "aws_instance" "this" {
   })
 }
 
-resource "aws_eip" "this" {
-  domain   = "vpc"
-  instance = aws_instance.this.id
+resource "aws_eip_association" "k3s" {
+  count = var.k3s_subnet_mode == "public" ? 1 : 0
 
-  tags = merge(local.tags, {
-    Name = "${var.name_prefix}-eip"
-  })
+  allocation_id = local.k3s_eip_allocation_id
+  instance_id   = aws_instance.this.id
 }
 
 resource "local_file" "ansible_inventory" {
   filename = var.inventory_output_path
   content = templatefile("${path.module}/templates/aws.generated.ini.tftpl", {
-    public_ip              = aws_eip.this.public_ip
-    ssh_private_key_file   = var.ssh_private_key_file
-    aws_vpc_cidr           = var.vpc_cidr
-    aws_public_subnet_cidr = var.public_subnet_cidr
-    k3s_cluster_cidr       = var.k3s_cluster_cidr
-    k3s_service_cidr       = var.k3s_service_cidr
-    k3s_cluster_dns        = var.k3s_cluster_dns
+    ansible_host                     = local.k3s_inventory_host
+    public_ip                        = local.k3s_public_ip
+    private_ip                       = aws_instance.this.private_ip
+    ssh_private_key_file             = var.ssh_private_key_file
+    aws_vpc_cidr                     = var.vpc_cidr
+    aws_public_subnet_cidr           = var.public_subnet_cidr
+    aws_k3s_private_subnet_cidr      = var.k3s_private_subnet_cidr
+    aws_fortigate_public_subnet_cidr = var.fortigate_public_subnet_cidr
+    aws_fortiweb_public_subnet_cidr  = var.fortiweb_public_subnet_cidr
+    aws_k3s_subnet_mode              = var.k3s_subnet_mode
+    k3s_cluster_cidr                 = var.k3s_cluster_cidr
+    k3s_service_cidr                 = var.k3s_service_cidr
+    k3s_cluster_dns                  = var.k3s_cluster_dns
+  })
+}
+
+resource "local_file" "ansible_ports_vars" {
+  filename = var.ansible_ports_vars_output_path
+  content = templatefile("${path.module}/templates/ports.generated.yml.tftpl", {
+    demo_http_base_port     = var.demo_http_base_port
+    demo_https_base_port    = var.demo_https_base_port
+    demo_port_assignments   = local.demo_port_assignments
+    generated_ingress_ports = local.generated_demo_ingress_tcp_port_list
   })
 }

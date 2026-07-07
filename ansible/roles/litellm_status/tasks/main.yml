@@ -1,0 +1,145 @@
+---
+- name: Skip LiteLLM status when disabled
+  ansible.builtin.debug:
+    msg: "litellm_enabled=false; skipping LiteLLM status."
+  when: not litellm_enabled | bool
+
+- name: Check LiteLLM Helm release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ litellm_release_name }}"
+      - --namespace
+      - "{{ litellm_namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+  register: litellm_status_helm
+  when: litellm_enabled | bool
+
+- name: Check LiteLLM deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ litellm_release_name }}"
+      - -n
+      - "{{ litellm_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: litellm_status_deployment
+  when: litellm_enabled | bool
+
+- name: Check LiteLLM readiness endpoint
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ litellm_node_port }}{{ litellm_status_health_path }}"
+  changed_when: false
+  failed_when: false
+  register: litellm_status_health
+  when: litellm_enabled | bool
+
+- name: Check LiteLLM models endpoint
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - -H
+      - "Authorization: Bearer {{ litellm_master_key }}"
+      - "http://127.0.0.1:{{ litellm_node_port }}/v1/models"
+  changed_when: false
+  failed_when: false
+  no_log: true
+  register: litellm_status_models
+  when: litellm_enabled | bool
+
+- name: Check LiteLLM Admin UI endpoint
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ litellm_node_port }}{{ litellm_status_ui_path }}"
+  changed_when: false
+  failed_when: false
+  register: litellm_status_ui
+  when: litellm_enabled | bool
+
+- name: Set LiteLLM status facts
+  ansible.builtin.set_fact:
+    litellm_status_host: >-
+      {{
+        public_ip
+        if (public_ip is defined and public_ip | length > 0)
+        else (ansible_host | default(inventory_hostname))
+      }}
+    litellm_status_deployment_json: "{{ litellm_status_deployment.stdout | default('{}') | from_json if litellm_status_deployment.rc == 0 else {} }}"
+  when: litellm_enabled | bool
+
+- name: Set LiteLLM status summary facts
+  ansible.builtin.set_fact:
+    litellm_status_ready: >-
+      {{
+        litellm_status_helm.rc == 0
+        and litellm_status_deployment.rc == 0
+        and (litellm_status_deployment_json.status.availableReplicas | default(0) | int) >= 1
+        and (litellm_status_health.stdout | default('0') | int) >= 200
+        and (litellm_status_health.stdout | default('0') | int) < 500
+        and (litellm_status_models.stdout | default('0') | int) >= 200
+        and (litellm_status_models.stdout | default('0') | int) < 500
+        and (litellm_status_ui.stdout | default('0') | int) >= 200
+        and (litellm_status_ui.stdout | default('0') | int) < 500
+      }}
+    litellm_status_url: "http://{{ litellm_status_host }}:{{ litellm_node_port }}"
+    litellm_status_problems: >-
+      {{
+        []
+        + (['Helm release missing'] if litellm_status_helm.rc != 0 else [])
+        + (['Deployment missing'] if litellm_status_deployment.rc != 0 else [])
+        + (['Available replicas ' ~ (litellm_status_deployment_json.status.availableReplicas | default(0) | string) ~ '/1'] if litellm_status_deployment.rc == 0 and (litellm_status_deployment_json.status.availableReplicas | default(0) | int) < 1 else [])
+        + (['Health HTTP status ' ~ (litellm_status_health.stdout | default('000'))] if (litellm_status_health.stdout | default('0') | int) < 200 or (litellm_status_health.stdout | default('0') | int) >= 500 else [])
+        + (['Models HTTP status ' ~ (litellm_status_models.stdout | default('000'))] if (litellm_status_models.stdout | default('0') | int) < 200 or (litellm_status_models.stdout | default('0') | int) >= 500 else [])
+        + (['Admin UI HTTP status ' ~ (litellm_status_ui.stdout | default('000'))] if (litellm_status_ui.stdout | default('0') | int) < 200 or (litellm_status_ui.stdout | default('0') | int) >= 500 else [])
+      }}
+  when: litellm_enabled | bool
+
+- name: Show LiteLLM status summary
+  ansible.builtin.debug:
+    msg:
+      - "LiteLLM status: {{ 'READY' if litellm_status_ready else 'NOT READY' }}"
+      - "Helm release: {{ 'present' if litellm_status_helm.rc == 0 else 'missing' }}"
+      - "Health HTTP status: {{ litellm_status_health.stdout | default('unknown') }}"
+      - "Models HTTP status: {{ litellm_status_models.stdout | default('unknown') }}"
+      - "Admin UI HTTP status: {{ litellm_status_ui.stdout | default('unknown') }}"
+      - "LiteLLM API URL: {{ litellm_status_url }}/v1"
+      - "LiteLLM Admin URL: {{ litellm_status_url }}/ui/"
+      - "Problems: {{ litellm_status_problems | join(' | ') if litellm_status_problems | length > 0 else 'none' }}"
+  when: litellm_enabled | bool
+
+- name: Fail when LiteLLM is not ready
+  ansible.builtin.fail:
+    msg: "LiteLLM validation did not pass: {{ litellm_status_problems | join(' | ') }}"
+  when:
+    - litellm_enabled | bool
+    - litellm_status_fail_on_not_ready | bool
+    - not litellm_status_ready
