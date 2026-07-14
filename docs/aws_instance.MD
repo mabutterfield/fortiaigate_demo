@@ -31,15 +31,16 @@ Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do 
 ## FortiGate And FortiWeb Appliances
 
 FortiGate and FortiWeb do not need GPU instances for the Phase 4 appliance
-baseline. The default is `c6i.xlarge`; `c6i.large` is acceptable for lighter
-validation when cost matters more than headroom.
+baseline. FortiGate uses `c6i.xlarge` by default; `c6i.large` is acceptable for
+lighter validation when cost matters more than headroom. FortiWeb 8.0
+Marketplace images support the older `c5`/`m5`/`t3` families, not `c6i`.
 
 | Appliance | Instance | Approx. Cost | Use |
 |---|---|---:|---|
 | FortiGate | `c6i.large` | ~$0.08/hr | Acceptable lower-cost appliance test size |
 | FortiGate | `c6i.xlarge` | ~$0.17/hr | Default Phase 4 FortiGate size |
-| FortiWeb | `c6i.large` | ~$0.08/hr | Acceptable lower-cost appliance test size |
-| FortiWeb | `c6i.xlarge` | ~$0.17/hr | Default Phase 4 FortiWeb size |
+| FortiWeb | `c5.large` | ~$0.085/hr | Acceptable lower-cost appliance test size |
+| FortiWeb | `c5.xlarge` | ~$0.17/hr | Default Phase 4 FortiWeb size |
 
 ## Test Infrastructure
 

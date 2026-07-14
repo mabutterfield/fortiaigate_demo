@@ -11,9 +11,9 @@ The default deployment mode is `k3s_subnet_mode = "public"`:
   `allowed_ingress_cidr`
 - the instance does not request an auto-assigned ephemeral public IP
 
-Private k3s mode and FortiGate/FortiWeb appliance-fronted routing are planned
-expansion paths. The appliance public and internal subnets exist now so the VPC
-layout does not need to be redesigned later.
+FortiGate and FortiWeb are optional appliance deployments with public
+management EIPs and internal ENIs. Private k3s mode and appliance-fronted
+traffic paths remain planned expansion paths.
 
 ```mermaid
 flowchart TB
@@ -23,9 +23,11 @@ flowchart TB
 
     subgraph Prep["terraform/aws-prep"]
         K3SEIP["k3s Elastic IP<br/>allocated before EC2"]
-        FGEIP["FortiGate Elastic IP<br/>optional / future"]
-        FWEIP["FortiWeb Elastic IP<br/>optional / future"]
+        FGEIP["FortiGate Elastic IP<br/>optional appliance"]
+        FWEIP["FortiWeb Elastic IP<br/>optional appliance"]
         IAM["EC2 IAM role + instance profile<br/>ECR pull + optional Bedrock invoke"]
+        FWBIAM["FortiWeb IAM instance profile<br/>S3 cloud-init read"]
+        FWBS3["FortiWeb S3 bucket<br/>cloud-init config + license object"]
     end
 
     subgraph VPC["VPC 10.20.0.0/16"]
@@ -41,19 +43,19 @@ flowchart TB
         end
 
         subgraph FortiGatePublicSubnet["FortiGate public subnet<br/>10.20.10.0/24"]
-            FortiGatePub["FortiGate port1 / management<br/>future"]
+            FortiGatePub["FortiGate port1 / management"]
         end
 
         subgraph FortiGateInternalSubnet["FortiGate internal subnet<br/>10.20.20.0/24"]
-            FortiGateInt["FortiGate port2 / internal<br/>future"]
+            FortiGateInt["FortiGate port2 / internal"]
         end
 
         subgraph FortiWebPublicSubnet["FortiWeb public subnet<br/>10.20.11.0/24"]
-            FortiWebPub["FortiWeb public / management<br/>future"]
+            FortiWebPub["FortiWeb port1 / management"]
         end
 
         subgraph FortiWebInternalSubnet["FortiWeb internal subnet<br/>10.20.21.0/24"]
-            FortiWebInt["FortiWeb internal<br/>future"]
+            FortiWebInt["FortiWeb port2 / internal"]
         end
 
         SG["k3s security group<br/>trusted CIDRs only<br/>SSH, HTTP, HTTPS, demo ports"]
@@ -85,20 +87,24 @@ flowchart TB
     IAM -.->|"attached to EC2 instance"| K3SPubENI
     K3SPubENI -->|"ECR pulls / Bedrock invoke"| AWSAPI
 
-    FGEIP -.->|"future public entry"| FortiGatePub
-    FWEIP -.->|"future public entry"| FortiWebPub
-    FortiGatePub -.-> FortiGateInt
-    FortiWebPub -.-> FortiWebInt
+    FGEIP -->|"management EIP"| FortiGatePub
+    FWEIP -->|"management EIP"| FortiWebPub
+    FortiGatePub --- FortiGateInt
+    FortiWebPub --- FortiWebInt
+    FWBIAM -.->|"attached to FortiWeb EC2"| FortiWebPub
+    FWBS3 -.->|"cloud-init config/license read"| FortiWebPub
     FortiGateInt -.->|"future private ingress / NAT / inspection"| K3SPrivENI
     FortiWebInt -.->|"future HTTP/S publishing"| K3SPrivENI
     K3SPrivENI -.->|"private k3s mode"| SG
 
     classDef current fill:#e8f3ff,stroke:#2b6cb0,color:#111;
+    classDef appliance fill:#e8fff3,stroke:#2f855a,color:#111;
     classDef future fill:#fff7dc,stroke:#b7791f,color:#111,stroke-dasharray: 5 5;
     classDef external fill:#f4f4f5,stroke:#52525b,color:#111;
 
     class K3SEIP,IAM,K3SPubENI,SG,NodePorts,Ingress,Apps,Pods,Services current;
-    class FortiGatePub,FortiGateInt,FortiWebPub,FortiWebInt,K3SPrivENI,FGEIP,FWEIP future;
+    class FGEIP,FWEIP,FWBIAM,FWBS3,FortiGatePub,FortiGateInt,FortiWebPub,FortiWebInt appliance;
+    class K3SPrivENI future;
     class Operator,Internet,AWSAPI external;
 ```
 

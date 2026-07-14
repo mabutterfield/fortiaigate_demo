@@ -44,7 +44,30 @@ variable "ssh_key_name" {
 variable "fortiweb_instance_type" {
   type        = string
   description = "EC2 instance type for FortiWeb."
-  default     = "c6i.xlarge"
+  default     = "c5.xlarge"
+
+  validation {
+    condition = contains([
+      "t3.small",
+      "t3.medium",
+      "t3.large",
+      "t3.xlarge",
+      "t3.2xlarge",
+      "m5.large",
+      "m5.xlarge",
+      "m5.2xlarge",
+      "m4.large",
+      "m4.xlarge",
+      "m4.2xlarge",
+      "c5.large",
+      "c5.xlarge",
+      "c5.2xlarge",
+      "c4.large",
+      "c4.xlarge",
+      "c4.2xlarge",
+    ], var.fortiweb_instance_type)
+    error_message = "fortiweb_instance_type must be one of the FortiWeb Marketplace-supported t3, m5, m4, c5, or c4 sizes."
+  }
 }
 
 variable "fortiweb_architecture" {
@@ -55,8 +78,8 @@ variable "fortiweb_architecture" {
 
 variable "fortiweb_version" {
   type        = string
-  description = "Optional FortiWeb version filter. Empty selects the latest matching Marketplace image."
-  default     = ""
+  description = "FortiWeb major/minor version filter. Use 8.0 to select the latest 8.0.x Marketplace image."
+  default     = "8.0"
 }
 
 variable "fortiweb_ami_name_override" {
@@ -90,7 +113,7 @@ variable "fortiweb_license_mode" {
 variable "fortiweb_license_file" {
   type        = string
   description = "Local FortiWeb BYOL license file path. Keep this outside Git."
-  default     = "../../licenses/FWB.lic"
+  default     = "../../../licenses/FWBVMSTM00000000.lic"
 }
 
 variable "fortiweb_config_file" {
@@ -103,12 +126,33 @@ variable "fortiweb_admin_https_port" {
   type        = number
   description = "FortiWeb HTTPS management port."
   default     = 8443
+
+  validation {
+    condition     = var.fortiweb_admin_https_port >= 1 && var.fortiweb_admin_https_port <= 65535
+    error_message = "fortiweb_admin_https_port must be between 1 and 65535."
+  }
 }
 
 variable "fortiweb_admin_http_port" {
   type        = number
   description = "FortiWeb HTTP management port."
   default     = 8080
+
+  validation {
+    condition     = var.fortiweb_admin_http_port >= 1 && var.fortiweb_admin_http_port <= 65535
+    error_message = "fortiweb_admin_http_port must be between 1 and 65535."
+  }
+}
+
+variable "fortiweb_admin_console_timeout_seconds" {
+  type        = number
+  description = "FortiWeb GUI/CLI admin idle timeout in seconds."
+  default     = 3600
+
+  validation {
+    condition     = var.fortiweb_admin_console_timeout_seconds >= 60 && var.fortiweb_admin_console_timeout_seconds <= 28800
+    error_message = "fortiweb_admin_console_timeout_seconds must be between 60 and 28800."
+  }
 }
 
 variable "fortiweb_enable_ssh" {
@@ -123,11 +167,31 @@ variable "fortiweb_enable_api" {
   default     = true
 }
 
+variable "fortiweb_set_initial_password" {
+  type        = bool
+  description = "Include initial_passwd in FortiWeb user-data. Leave false to use the AWS Marketplace default admin password behavior: the EC2 instance ID."
+  default     = false
+}
+
+variable "fortiweb_enable_icmp" {
+  type        = bool
+  description = "Allow ICMP from trusted CIDRs to the FortiWeb management ENI for basic reachability testing."
+  default     = true
+}
+
 variable "fortiweb_admin_password" {
   type        = string
-  description = "Optional FortiWeb admin password. Leave empty until testing proves whether instance ID default works."
+  description = "Optional FortiWeb admin password. Leave empty to generate a compliant password."
   default     = ""
   sensitive   = true
+
+  validation {
+    condition = (
+      var.fortiweb_admin_password == ""
+      || can(regex("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[$@!%*#?&])[A-Za-z0-9$@!%*#?&]{8,16}$", var.fortiweb_admin_password))
+    )
+    error_message = "fortiweb_admin_password must be empty or 8-16 characters with lower, upper, number, and one of $@!%*#?&."
+  }
 }
 
 variable "tags" {

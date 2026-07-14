@@ -284,6 +284,55 @@ resource "aws_s3_bucket_versioning" "fortiweb_cloudinit" {
   }
 }
 
+resource "aws_s3_bucket_policy" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiweb_cloudinit[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.fortiweb_cloudinit[0].arn,
+          "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      },
+      {
+        Sid    = "AllowFortiWebCloudInitRoleList"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.fortiweb_cloudinit[0].arn
+        }
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.fortiweb_cloudinit[0].arn
+      },
+      {
+        Sid    = "AllowFortiWebCloudInitRoleReadObjects"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.fortiweb_cloudinit[0].arn
+        }
+        Action   = "s3:GetObject"
+        Resource = local.fortiweb_cloudinit_object_arns
+      },
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.fortiweb_cloudinit,
+  ]
+}
+
 resource "aws_iam_role" "fortiweb_cloudinit" {
   count = var.fortiweb_enabled ? 1 : 0
 
