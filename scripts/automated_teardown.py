@@ -15,6 +15,8 @@ TERRAFORM_MODULES = {
     "ecr": "terraform/aws-ecr",
     "ec2": "terraform/aws-ec2-k3s",
     "prep": "terraform/aws-prep",
+    "fortigate": "terraform/aws-fortigate",
+    "fortiweb": "terraform/aws-fortiweb",
 }
 
 
@@ -197,6 +199,21 @@ def parse_args() -> argparse.Namespace:
         help="Skip terraform/aws-ec2-k3s destroy.",
     )
     parser.add_argument(
+        "--skip-fortigate",
+        action="store_true",
+        help="Skip terraform/aws-fortigate destroy.",
+    )
+    parser.add_argument(
+        "--skip-fortiweb",
+        action="store_true",
+        help="Skip terraform/aws-fortiweb destroy.",
+    )
+    parser.add_argument(
+        "--skip-appliances",
+        action="store_true",
+        help="Skip both optional FortiGate and FortiWeb appliance destroys.",
+    )
+    parser.add_argument(
         "--skip-prep",
         action="store_true",
         help="Skip terraform/aws-prep destroy.",
@@ -219,8 +236,10 @@ def main() -> None:
     print("1. Back up local config, generated values, inventory, and Terraform state.")
     print("2. Remove ECR repository resources from Terraform state so repositories are not deleted.")
     print("3. Destroy ECR lifecycle policy and generated local output resources only.")
-    print("4. Destroy terraform/aws-ec2-k3s.")
-    print("5. Destroy terraform/aws-prep.")
+    print("4. Destroy terraform/aws-fortiweb if state exists.")
+    print("5. Destroy terraform/aws-fortigate if state exists.")
+    print("6. Destroy terraform/aws-ec2-k3s.")
+    print("7. Destroy terraform/aws-prep.")
 
     if not args.yes and not prompt_yes_no("Proceed with teardown?", False):
         raise SystemExit("Stopped before teardown.")
@@ -234,6 +253,20 @@ def main() -> None:
         terraform_init(TERRAFORM_MODULES["ecr"])
         remove_ecr_repository_state(TERRAFORM_MODULES["ecr"])
         destroy_ecr_lifecycle_and_outputs(TERRAFORM_MODULES["ecr"], args.auto_approve)
+
+    if args.skip_appliances or args.skip_fortiweb:
+        print_header("Terraform: FortiWeb Appliance")
+        print("Skipped by --skip-appliances or --skip-fortiweb.")
+    else:
+        terraform_init(TERRAFORM_MODULES["fortiweb"])
+        destroy_module("FortiWeb Appliance", TERRAFORM_MODULES["fortiweb"], args.auto_approve)
+
+    if args.skip_appliances or args.skip_fortigate:
+        print_header("Terraform: FortiGate Appliance")
+        print("Skipped by --skip-appliances or --skip-fortigate.")
+    else:
+        terraform_init(TERRAFORM_MODULES["fortigate"])
+        destroy_module("FortiGate Appliance", TERRAFORM_MODULES["fortigate"], args.auto_approve)
 
     if args.skip_ec2:
         print_header("Terraform: EC2 k3s Foundation")

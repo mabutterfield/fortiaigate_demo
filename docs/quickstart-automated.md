@@ -4,8 +4,9 @@ The automated quick start is the intended guided setup path for operators who do
 not want to run every Terraform and Ansible step manually.
 
 Status: the repo includes a guided setup script that prepares local
-configuration, runs Terraform through ECR, AWS prep, and EC2 k3s foundation,
-then runs the Ansible deployment flow when approved.
+configuration, runs Terraform through ECR, AWS prep, EC2 k3s foundation, and
+optional FortiGate/FortiWeb appliance modules when enabled, then runs the
+Ansible deployment flow when approved.
 
 Run from the repository root:
 
@@ -59,6 +60,21 @@ To stop after Terraform and EC2 status, without running Ansible:
 python3 scripts/automated_quickstart.py --skip-ansible
 ```
 
+To include the optional Phase 4 appliances:
+
+```bash
+python3 scripts/automated_quickstart.py --include-fortigate
+python3 scripts/automated_quickstart.py --include-fortiweb
+python3 scripts/automated_quickstart.py --include-appliances
+```
+
+The appliance flags create/sync the matching local ignored appliance tfvars
+file, reuse the same EC2 key pair selected in `terraform/common.tfvars`, enable
+the required prep EIPs, and for FortiWeb enable the prep-owned S3/IAM
+cloud-init resources. If a local appliance tfvars file already exists with
+`fortigate_enabled=true` or `fortiweb_enabled=true`, the quickstart also runs
+that appliance module without needing an include flag.
+
 Before copying or editing local config, the script creates a tar.gz backup of
 existing private/local Terraform and Ansible config files in `../backup`
 relative to the repository root. To choose another backup directory:
@@ -94,11 +110,12 @@ The current setup script:
 - back up existing private/local tfvars and Ansible group var YAML files,
   excluding generated `*.generated.yml` files
 - prompt for AWS profile, region, name prefix, trusted source CIDRs, and optional tags
+- prompt for the shared EC2 SSH key pair and save it in `terraform/common.tfvars`
 - check AWS caller identity and, when login is needed, prompt for
   `aws sso login` versus `aws login`; SSO-style profiles default to
   `aws sso login`
 - prompt whether to pass `--use-device-code` to the selected AWS login command
-- list EC2 key pairs in the selected region and prompt for the k3s SSH key
+- list EC2 key pairs in the selected region and prompt for the shared EC2 SSH key
 - list likely private keys in `~/.ssh` and allow a manual key path
 - check the FortiAIGate license source directory and selected license file
   before Terraform starts
@@ -109,7 +126,8 @@ The current setup script:
   local tfvars/YAML files without overwriting existing local values
 - collect required Terraform values using existing local files as prompt defaults
 - sync AWS/common Ansible values into `ansible/group_vars/env.yml`
-- run Terraform in the expected order: ECR, AWS prep, EC2 k3s foundation
+- run Terraform in the expected order: ECR, AWS prep, EC2 k3s foundation,
+  optional FortiGate, optional FortiWeb
 - inspect ECR Terraform state before apply and report whether configured
   repositories are tracked, partially missing, or absent from state
 - optionally import missing existing ECR repositories before applying the ECR module
@@ -287,8 +305,10 @@ The teardown order is:
 2. Remove `aws_ecr_repository.this[...]` resources from
    `terraform/aws-ecr` state so repositories are not deleted.
 3. Destroy ECR lifecycle policy resources and the generated local ECR vars file.
-4. Destroy `terraform/aws-ec2-k3s`.
-5. Destroy `terraform/aws-prep`.
+4. Destroy `terraform/aws-fortiweb` when state exists.
+5. Destroy `terraform/aws-fortigate` when state exists.
+6. Destroy `terraform/aws-ec2-k3s`.
+7. Destroy `terraform/aws-prep`.
 
 The backup includes local tfvars, generated Ansible vars, generated inventory,
 and Terraform state. Use `--backup-dir /path/to/backup` to choose another
@@ -298,6 +318,9 @@ Useful partial teardown flags:
 
 ```bash
 python3 scripts/automated_teardown.py --skip-ecr
+python3 scripts/automated_teardown.py --skip-appliances
+python3 scripts/automated_teardown.py --skip-fortiweb
+python3 scripts/automated_teardown.py --skip-fortigate
 python3 scripts/automated_teardown.py --skip-ec2
 python3 scripts/automated_teardown.py --skip-prep
 ```

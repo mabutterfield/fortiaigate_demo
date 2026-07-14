@@ -1,9 +1,8 @@
 # terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
-# allowed_ingress_cidr, and tags.
+# ssh_key_name, allowed_ingress_cidr, and tags.
 
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
 
-ssh_key_name         = "my-existing-keypair"
 ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
 
 # Optional GitHub usernames whose public SSH keys should be appended to

@@ -121,7 +121,7 @@ ansible/inventory/aws.generated.ini
 Minimum `terraform.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name`
+- `ssh_key_name` in `terraform/common.tfvars`
 - `ssh_private_key_file` when the AWS key pair does not use your default SSH key
 - `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`

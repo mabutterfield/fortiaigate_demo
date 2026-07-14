@@ -1,12 +1,10 @@
 # terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
-# allowed_ingress_cidr, and tags.
+# ssh_key_name, allowed_ingress_cidr, and tags.
 
 aws_prep_state_path    = "../aws-prep/terraform.tfstate"
 aws_ec2_k3s_state_path = "../aws-ec2-k3s/terraform.tfstate"
 
 fortiweb_enabled = true
-
-ssh_key_name = "my-existing-keypair"
 
 fortiweb_instance_type                 = "c5.xlarge"
 fortiweb_architecture                  = "x86_64"

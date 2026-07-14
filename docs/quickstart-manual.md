@@ -169,8 +169,9 @@ Terraform. Subsequent runs reuse this file.
 cp terraform/aws-ec2-k3s/terraform.tfvars.example terraform/aws-ec2-k3s/terraform.tfvars
 ```
 
-Set `ssh_key_name`, `ssh_private_key_file`, `instance_type`, and network CIDRs
-in `terraform/aws-ec2-k3s/terraform.tfvars`.
+Set `ssh_key_name` in `terraform/common.tfvars`. Set
+`ssh_private_key_file`, `instance_type`, and network CIDRs in
+`terraform/aws-ec2-k3s/terraform.tfvars`.
 
 Deploy the k3s host and AWS network foundation:
 
@@ -182,7 +183,7 @@ terraform -chdir=terraform/aws-ec2-k3s apply
 Minimum `terraform/aws-ec2-k3s/terraform.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name` and `ssh_private_key_file`
+- `ssh_private_key_file`; `ssh_key_name` is shared from `terraform/common.tfvars`
 - `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`

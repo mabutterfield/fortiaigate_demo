@@ -1,6 +1,7 @@
 aws_profile          = "AdministratorAccess-123456789012"
 aws_region           = "us-east-1"
 name_prefix          = "fortiaigate-demo"
+ssh_key_name         = "my-existing-keypair"
 
 # Trusted public CIDRs allowed to reach lab management and demo endpoints.
 # Each entry must be a valid CIDR block. Use /32 for a single public IP.
