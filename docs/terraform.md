@@ -92,6 +92,7 @@ terraform import 'aws_ecr_repository.this["logd"]' fortiaigate/logd
 terraform import 'aws_ecr_repository.this["license_manager"]' fortiaigate/license_manager
 terraform import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-models
 terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
+terraform import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-basic
 ```
 
 ## AWS Prep Module
@@ -149,6 +150,10 @@ terraform validate
 terraform apply
 ```
 
+See [VPC Layout](vpc-layout.md) for a diagram of the public k3s subnet, private
+k3s subnet, FortiGate/FortiWeb placeholder subnets, EIPs, and external AWS
+service paths.
+
 This module creates:
 
 - dedicated VPC
@@ -198,12 +203,28 @@ Keep AWS VPC, k3s pod, and k3s service networks non-overlapping. Change these va
 `terraform/aws-ec2-k3s` generates the standard demo port assignments, opens
 those ports from `allowed_ingress_cidr`, and writes
 `ansible/group_vars/ports.generated.yml` for Ansible. The default generated
-HTTP ports are Open WebUI `30080`, custom chatbot `30081`, demo home `30082`,
-and LiteLLM Admin/API `30083`. The optional HTTPS gateway uses matching
-offsets: `30443`, `30444`, `30445`, and `30446`.
+HTTP ports are reserved consistently: Open WebUI uses `30080` when enabled,
+custom chatbot `30081`, demo home `30082`, LiteLLM Admin/API `30083`, and MCP
+demo tools `30084`. The optional HTTPS gateway uses matching offsets: `30443`,
+`30444`, `30445`, `30446`, and `30447`.
 
 `additional_ingress_tcp_ports` is only for extra public TCP listeners beyond
 those generated demo ports.
+
+The EC2 module also queries AWS Price List data for the configured
+`instance_type` and `aws_region` and outputs an estimated Linux On-Demand
+shared-tenancy compute cost:
+
+```bash
+terraform output ec2_instance_hourly_cost_usd
+terraform output ec2_instance_monthly_cost_usd
+terraform output ec2_instance_pricing_location
+```
+
+The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,
+data transfer, Bedrock, marketplace, and licensing costs. If AWS adds a region
+that is not in the module's built-in pricing-location map, set
+`aws_pricing_location_override` in `terraform.tfvars`.
 
 ## Instance Sizing
 

@@ -9,6 +9,7 @@ demo_https_gateway_values_remote_path: "/home/{{ ansible_user }}/tmp/demo-https-
 demo_https_gateway_image_repository: nginx
 demo_https_gateway_image_tag: "1.27-alpine"
 demo_https_gateway_image_pull_policy: IfNotPresent
+demo_https_gateway_resolver: "{{ k3s_cluster_dns | default('10.43.0.10') }}"
 
 demo_https_gateway_self_signed: true
 demo_https_gateway_cert_local_path: ""
@@ -23,12 +24,9 @@ demo_https_gateway_openwebui_https_port: "{{ demo_openwebui_https_port | default
 demo_https_gateway_chatbot_https_port: "{{ demo_chatbot_https_port | default(30444) }}"
 demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(30445) }}"
 demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
+demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 
 demo_https_gateway_routes:
-  - name: openwebui
-    display_name: OpenWebUI
-    external_port: "{{ demo_https_gateway_openwebui_https_port }}"
-    upstream: "http://{{ openwebui_release_name | default('openwebui') }}.{{ openwebui_namespace | default('openwebui') }}.svc.cluster.local:80"
   - name: chatbot
     display_name: Chat Front-End
     external_port: "{{ demo_https_gateway_chatbot_https_port }}"
@@ -41,3 +39,8 @@ demo_https_gateway_routes:
     display_name: LiteLLM Admin/API
     external_port: "{{ demo_https_gateway_litellm_https_port }}"
     upstream: "http://{{ litellm_release_name | default('litellm') }}.{{ litellm_namespace | default('litellm') }}.svc.cluster.local:{{ litellm_service_port | default(4000) }}"
+  - name: mcp
+    display_name: MCP Demo Tools
+    external_port: "{{ demo_https_gateway_mcp_https_port }}"
+    health_path: /tools
+    upstream: "http://{{ mcp_release_name | default('mcp-demo') }}.{{ mcp_namespace | default('mcp') }}.svc.cluster.local:{{ mcp_service_port | default(8000) }}"

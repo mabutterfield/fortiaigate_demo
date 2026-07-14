@@ -1,0 +1,177 @@
+---
+- name: Skip MCP deployment when disabled
+  ansible.builtin.debug:
+    msg: "mcp_enabled=false; skipping MCP deployment."
+  when: not mcp_enabled | bool
+
+- name: Validate MCP deployment variables
+  ansible.builtin.assert:
+    that:
+      - mcp_namespace | length > 0
+      - mcp_release_name | length > 0
+      - mcp_service_type in ['ClusterIP', 'NodePort']
+      - mcp_service_port | int > 0
+      - mcp_container_port | int > 0
+      - mcp_service_type != 'NodePort' or (mcp_node_port | int >= 30000 and mcp_node_port | int <= 32767)
+    fail_msg: "MCP needs namespace, release name, service ports, and a valid service type. NodePort requires mcp_node_port between 30000 and 32767."
+  when: mcp_enabled | bool
+
+- name: Validate local MCP chart exists
+  ansible.builtin.stat:
+    path: "{{ mcp_chart_local_path }}/Chart.yaml"
+  delegate_to: localhost
+  become: false
+  register: mcp_chart_stat
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_chart_stat
+
+- name: Validate local MCP tool data exists
+  ansible.builtin.stat:
+    path: "{{ mcp_tools_data_local_path }}"
+  delegate_to: localhost
+  become: false
+  register: mcp_tools_data_stat
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_tools_data_stat
+
+- name: Fail when MCP chart or tool data is missing
+  ansible.builtin.assert:
+    that:
+      - mcp_chart_stat.stat.exists
+      - mcp_tools_data_stat.stat.exists
+    fail_msg: "MCP chart or tool data file is missing. Check mcp_chart_local_path and mcp_tools_data_local_path."
+  when: mcp_enabled | bool
+
+- name: Install Helm when missing
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! command -v helm >/dev/null 2>&1; then
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+  when: mcp_enabled | bool
+
+- name: Remove previous remote MCP chart staging directory
+  ansible.builtin.file:
+    path: "{{ mcp_chart_remote_root }}"
+    state: absent
+  when: mcp_enabled | bool
+
+- name: Create remote MCP chart staging directory
+  ansible.builtin.file:
+    path: "{{ mcp_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: mcp_enabled | bool
+
+- name: Copy MCP Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ mcp_chart_local_path }}/"
+    dest: "{{ mcp_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: mcp_enabled | bool
+
+- name: Copy MCP tool data to remote chart staging directory
+  ansible.builtin.copy:
+    src: "{{ mcp_tools_data_local_path }}"
+    dest: "{{ mcp_chart_remote_root }}/files/tools.json"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: mcp_enabled | bool
+
+- name: Render MCP Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ mcp_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  when: mcp_enabled | bool
+
+- name: Deploy MCP release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ mcp_release_name }}"
+      - "{{ mcp_chart_remote_root }}"
+      - --namespace
+      - "{{ mcp_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ mcp_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: mcp_helm_deploy
+  changed_when: "'deployed' in mcp_helm_deploy.stdout or 'upgraded' in mcp_helm_deploy.stdout"
+  when:
+    - mcp_enabled | bool
+    - not mcp_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_helm_deploy.stdout_lines
+
+- name: Deploy MCP release and wait
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ mcp_release_name }}"
+      - "{{ mcp_chart_remote_root }}"
+      - --namespace
+      - "{{ mcp_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ mcp_values_remote_path }}"
+      - --wait
+      - --timeout
+      - "{{ mcp_helm_timeout }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: mcp_helm_wait_deploy
+  changed_when: "'deployed' in mcp_helm_wait_deploy.stdout or 'upgraded' in mcp_helm_wait_deploy.stdout"
+  when:
+    - mcp_enabled | bool
+    - mcp_helm_wait | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_helm_wait_deploy.stdout_lines
+
+- name: Wait for MCP deployment to become available
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+      - "--timeout={{ mcp_helm_timeout }}"
+  changed_when: false
+  failed_when: false
+  register: mcp_rollout_status
+  when:
+    - mcp_enabled | bool
+    - mcp_wait_for_rollout | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_rollout_status.stdout_lines
+
+- name: Show MCP deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "MCP release: {{ mcp_release_name }}"
+      - "MCP internal endpoint: {{ mcp_internal_base_url }}"
+      - "MCP service type: {{ mcp_service_type }}"
+      - "Helm accepted the install or upgrade; run status_mcp.yml to check READY/NOT READY."
+  when: mcp_enabled | bool

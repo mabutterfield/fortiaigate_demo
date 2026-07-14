@@ -28,3 +28,6 @@ fortiaigate_image_builds:
 # Select by version first when set. Otherwise publish all builds with this state.
 publish_image_version: ""
 publish_image_state: active
+# Optional FortiAIGate target repo filter. Empty publishes all FAIG images.
+# CLI example: ansible-playbook playbooks/publish_images.yml -e publish_target_repos=api,webui
+publish_target_repos: []

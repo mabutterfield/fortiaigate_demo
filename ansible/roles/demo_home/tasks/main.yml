@@ -26,6 +26,9 @@
     demo_home_litellm_links:
       - label: "LiteLLM Admin UI HTTP"
         url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+    demo_home_mcp_links:
+      - label: "MCP Demo Tools HTTP"
+        url: "http://{{ demo_home_host }}:{{ mcp_node_port | default(demo_mcp_http_port | default(30084)) }}/tools"
     demo_home_openwebui_display_links: []
     demo_home_chatbot_display_links: []
   when: demo_home_enabled | bool
@@ -58,6 +61,19 @@
   # - ansible.builtin.debug:
   #     var: demo_home_litellm_links
 
+- name: Add optional HTTPS MCP links
+  ansible.builtin.set_fact:
+    demo_home_mcp_links: "{{ demo_home_mcp_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "MCP Demo Tools HTTPS"
+      url: "https://{{ demo_home_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
+  when:
+    - demo_home_enabled | bool
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_mcp_links
+
 - name: Build demo home OpenWebUI links
   ansible.builtin.set_fact:
     demo_home_openwebui_display_links: "{{ demo_home_openwebui_display_links | default([]) + demo_home_links_for_item }}"
@@ -82,7 +98,9 @@
         )
       }}
   loop: "{{ openwebui_instances | default([]) }}"
-  when: demo_home_enabled | bool
+  when:
+    - demo_home_enabled | bool
+    - openwebui_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_openwebui_display_links
 

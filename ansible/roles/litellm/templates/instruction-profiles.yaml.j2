@@ -6,7 +6,7 @@ model_profiles:
 {% endfor %}
 {% else %}
 {% for model in litellm_models %}
-  {{ model.name | to_json }}: {{ litellm_default_instruction_profile | to_json }}
+  {{ model.name | to_json }}: {{ model.instruction_profile | default(litellm_default_instruction_profile) | to_json }}
 {% endfor %}
 {% endif %}
 profiles:

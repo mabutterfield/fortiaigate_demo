@@ -15,7 +15,12 @@ repositories = [
   "chatbot-basic",
 ]
 
-image_tag_mutability          = "IMMUTABLE"
+image_tag_mutability = "IMMUTABLE"
+# Keep FortiAIGate release image tags immutable, but allow the demo chatbot
+# development image to be rebuilt and pushed with the same tag.
+image_tag_mutability_overrides = {
+  "chatbot-basic" = "MUTABLE"
+}
 scan_on_push                  = true
 lifecycle_retain_tagged_count = 10
 

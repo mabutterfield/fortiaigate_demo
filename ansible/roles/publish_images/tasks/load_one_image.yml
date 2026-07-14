@@ -79,6 +79,7 @@
         + [
           {
             'tag': item.1,
+            'target_repo': item.1.rsplit(':', 1)[0].split('/')[-1],
             'target_image': registry ~ '/' ~ repo_prefix ~ '/' ~ item.1.rsplit(':', 1)[0].split('/')[-1] ~ ':' ~ item.1.rsplit(':', 1)[1],
             'image_id': publish_archive_index_digest_by_tag[item.1] | default('sha256:' ~ (item.0.Config | basename | regex_replace('^sha256:', '') | regex_replace('[.]json$', '')))
           }
@@ -90,16 +91,33 @@
   # - ansible.builtin.debug:
   #     var: publish_archive_expected_images
 
+- name: Filter archive metadata by FortiAIGate target repositories {{ publish_image_archive }}
+  ansible.builtin.set_fact:
+    publish_archive_expected_images: "{{ publish_archive_expected_images | selectattr('target_repo', 'in', publish_target_repos_normalized) | list }}"
+  when: publish_target_repos_normalized | length > 0
+  # - ansible.builtin.debug:
+  #     var: publish_archive_expected_images
+
+- name: Skip archive with no selected target repositories {{ publish_image_archive }}
+  ansible.builtin.debug:
+    msg: "Archive does not contain selected target repositories; skipping docker load."
+  when:
+    - publish_target_repos_normalized | length > 0
+    - publish_archive_expected_images | length == 0
+
 - name: Validate expected local image metadata {{ publish_image_archive }}
   ansible.builtin.assert:
     that:
       - publish_archive_expected_images | length > 0
     fail_msg: "Docker archive {{ publish_image_archive }} must include at least one RepoTags entry."
+  when: publish_target_repos_normalized | length == 0
 
 - name: Record loaded image refs from archive metadata {{ publish_image_archive }}
   ansible.builtin.set_fact:
     publish_loaded_image_refs: "{{ (publish_loaded_image_refs | default([])) + (publish_archive_expected_images | map(attribute='tag') | list) }}"
-  when: publish_auto_image_map
+  when:
+    - publish_auto_image_map
+    - publish_archive_expected_images | length > 0
   # - ansible.builtin.debug:
   #     var: publish_loaded_image_refs
 
@@ -116,13 +134,14 @@
   changed_when: false
   failed_when: false
   register: publish_archive_local_inspect
+  when: publish_archive_expected_images | length > 0
   # - ansible.builtin.debug:
   #     var: publish_archive_local_inspect.results
 
 - name: Record missing local image tags for archive {{ publish_image_archive }}
   ansible.builtin.set_fact:
     publish_archive_source_images_requiring_load: "{{ publish_archive_source_images_requiring_load + [item.item] }}"
-  loop: "{{ publish_archive_local_inspect.results }}"
+  loop: "{{ publish_archive_local_inspect.results | default([]) }}"
   loop_control:
     label: "{{ item.item.tag }}"
   when: item.rc != 0
@@ -132,7 +151,7 @@
 - name: Record mismatched local image tags for archive {{ publish_image_archive }}
   ansible.builtin.set_fact:
     publish_archive_source_images_requiring_load: "{{ publish_archive_source_images_requiring_load + [item.item] }}"
-  loop: "{{ publish_archive_local_inspect.results }}"
+  loop: "{{ publish_archive_local_inspect.results | default([]) }}"
   loop_control:
     label: "{{ item.item.tag }}"
   when:
@@ -154,6 +173,7 @@
   changed_when: false
   failed_when: false
   register: publish_archive_target_inspect
+  when: publish_archive_source_images_requiring_load | length > 0
   # - ansible.builtin.debug:
   #     var: publish_archive_target_inspect.results
 
@@ -185,7 +205,9 @@
 - name: Skip docker load for archive {{ publish_image_archive }}
   ansible.builtin.debug:
     msg: "All archive image tags already exist locally with matching image IDs."
-  when: publish_archive_images_requiring_load | length == 0
+  when:
+    - publish_archive_expected_images | length > 0
+    - publish_archive_images_requiring_load | length == 0
 
 - name: Load FortiAIGate image archive {{ publish_image_archive }}
   ansible.builtin.command:
@@ -196,6 +218,8 @@
       - "{{ publish_image_archive }}"
   register: publish_docker_load_result
   changed_when: true
-  when: publish_archive_images_requiring_load | length > 0
+  when:
+    - publish_archive_expected_images | length > 0
+    - publish_archive_images_requiring_load | length > 0
   # - ansible.builtin.debug:
   #     var: publish_docker_load_result.stdout_lines

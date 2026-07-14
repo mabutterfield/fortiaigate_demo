@@ -55,6 +55,20 @@
   # - ansible.builtin.debug:
   #     var: demo_outputs_public_ip_raw.stdout_lines
 
+- name: Read SSH command from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_ec2_module_path }}"
+      - output
+      - -raw
+      - ssh_command
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_ssh_command_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_ssh_command_raw.stdout_lines
+
 - name: Read Bedrock secret access key from Terraform output when explicitly requested
   ansible.builtin.command:
     argv:
@@ -160,6 +174,15 @@
         if demo_outputs_show_secrets | bool
         else 'run: ' ~ demo_outputs_secret_command
       }}
+    demo_outputs_ssh_command: >-
+      {{
+        demo_outputs_ssh_command_raw.stdout | trim
+        if (
+          demo_outputs_ssh_command_raw.rc == 0
+          and demo_outputs_ssh_command_raw.stdout | default('') | trim | length > 0
+        )
+        else 'terraform -chdir=terraform/aws-ec2-k3s output ssh_command'
+      }}
   no_log: "{{ demo_outputs_show_secrets | bool }}"
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_model_display
@@ -182,7 +205,9 @@
   ansible.builtin.set_fact:
     demo_outputs_openwebui_urls: "{{ demo_outputs_openwebui_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
   loop: "{{ openwebui_instances | default([]) }}"
-  when: demo_outputs_access_host | length > 0
+  when:
+    - demo_outputs_access_host | length > 0
+    - openwebui_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_outputs_openwebui_urls
 
@@ -190,7 +215,15 @@
   ansible.builtin.set_fact:
     demo_outputs_fortiaigate_admin_url: "{{ demo_outputs_fortiaigate_admin_url | default('unavailable') }}"
     demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default(['unavailable']) }}"
-    demo_outputs_openwebui_urls: "{{ demo_outputs_openwebui_urls | default(['unavailable']) }}"
+    demo_outputs_openwebui_urls: >-
+      {{
+        demo_outputs_openwebui_urls
+        | default(
+            ['disabled (set openwebui_enabled=true to deploy)']
+            if not (openwebui_enabled | default(false) | bool)
+            else ['unavailable']
+          )
+      }}
     demo_outputs_litellm_admin_url: >-
       {{
         'http://' ~ demo_outputs_access_host ~ ':' ~ (litellm_node_port | default(demo_litellm_http_port | default(30083)) | string) ~ '/ui/'
@@ -203,6 +236,12 @@
         if demo_outputs_access_host | length > 0
         else 'unavailable'
       }}
+    demo_outputs_mcp_tools_url: >-
+      {{
+        'http://' ~ demo_outputs_access_host ~ ':' ~ (mcp_node_port | default(demo_mcp_http_port | default(30084)) | string) ~ '/tools'
+        if demo_outputs_access_host | length > 0
+        else 'unavailable'
+      }}
   # - ansible.builtin.debug:
   #     msg:
   #       - "{{ demo_outputs_demo_home_url }}"
@@ -211,13 +250,23 @@
 - name: Set optional HTTPS access URL facts
   ansible.builtin.set_fact:
     demo_outputs_https_urls:
-      - "OpenWebUI HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_openwebui_https_port }}"
       - "Chat Front-End HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_chatbot_https_port }}"
       - "Demo Home HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_demo_home_https_port }}"
       - "LiteLLM Admin HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
       - "LiteLLM API HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_litellm_https_port }}/v1"
+      - "MCP Tools HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_https_gateway_enabled | default(false) | bool
+    - demo_outputs_access_host | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_https_urls
+
+- name: Add optional Open WebUI HTTPS access URL fact
+  ansible.builtin.set_fact:
+    demo_outputs_https_urls: "{{ ['OpenWebUI HTTPS: https://' ~ demo_outputs_access_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)] + demo_outputs_https_urls }}"
+  when:
+    - demo_https_gateway_enabled | default(false) | bool
+    - openwebui_enabled | default(false) | bool
     - demo_outputs_access_host | length > 0
   # - ansible.builtin.debug:
   #     var: demo_outputs_https_urls
@@ -234,6 +283,8 @@
       - "LiteLLM proxy provider:"
       - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
       - "  API key: {{ demo_outputs_litellm_api_key }}"
+      - "  UI username: {{ demo_outputs_litellm_ui_username }}"
+      - "  UI password: {{ demo_outputs_litellm_ui_password }}"
       - "  Model name: {{ demo_outputs_litellm_model_name }}"
       - "Note: the LiteLLM endpoint above is the in-cluster service URL for FortiAIGate or other Kubernetes workloads."
   no_log: "{{ demo_outputs_show_secrets | bool }}"
@@ -254,9 +305,19 @@
         + demo_outputs_openwebui_urls
         + [
           'Demo Home: ' ~ demo_outputs_demo_home_url,
-          'LiteLLM Admin: ' ~ demo_outputs_litellm_admin_url
+          'LiteLLM Admin: ' ~ demo_outputs_litellm_admin_url,
+          'MCP Tools: ' ~ demo_outputs_mcp_tools_url,
+          'SSH access:',
+          '  ' ~ demo_outputs_ssh_command
         ]
       }}
+
+- name: Show SSH access instructions
+  ansible.builtin.debug:
+    msg:
+      - "SSH access"
+      - "{{ demo_outputs_ssh_command }}"
+      - "If SSH fails, verify allowed_ingress_cidr, the EC2 key pair, and ssh_private_key_file before running Ansible."
 
 - name: Show optional HTTPS access URLs
   ansible.builtin.debug:
@@ -277,6 +338,8 @@
       - "LiteLLM proxy provider:"
       - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
       - "  API key: {{ demo_outputs_litellm_api_key }}"
+      - "  UI username: {{ demo_outputs_litellm_ui_username }}"
+      - "  UI password: {{ demo_outputs_litellm_ui_password }}"
       - "  Model name: {{ demo_outputs_litellm_model_name }}"
       - "Note: demo_outputs_show_secrets=true prints sensitive values into terminal scrollback."
   when: demo_outputs_show_secrets | bool

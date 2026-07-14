@@ -15,6 +15,10 @@ ec2_pull_github_keys = []
 # Use g6.8xlarge for a stronger production-like L4 validation target.
 instance_type = "g4dn.4xlarge"
 
+# Optional AWS Price List location override. Leave empty unless a new AWS region
+# is not in the module's built-in region-to-location map.
+aws_pricing_location_override = ""
+
 # Leave empty to auto-select the first AZ that offers instance_type.
 # Set explicitly when AWS recommends a specific AZ, for example us-east-1a.
 availability_zone = ""
@@ -45,6 +49,7 @@ k3s_private_default_route_network_interface_id = ""
 # - Chatbot: 30081 HTTP, 30444 HTTPS
 # - Demo home: 30082 HTTP, 30445 HTTPS
 # - LiteLLM Admin/API: 30083 HTTP, 30446 HTTPS
+# - MCP demo tools: 30084 HTTP, 30447 HTTPS
 demo_http_base_port  = 30080
 demo_https_base_port = 30443
 

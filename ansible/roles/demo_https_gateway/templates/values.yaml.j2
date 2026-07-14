@@ -5,6 +5,8 @@ image:
   tag: "{{ demo_https_gateway_image_tag }}"
   pullPolicy: "{{ demo_https_gateway_image_pull_policy }}"
 
+resolver: "{{ demo_https_gateway_resolver }}"
+
 tls:
   cert: |
 {{ demo_https_gateway_cert_content | indent(4, true) }}

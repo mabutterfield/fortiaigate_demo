@@ -67,6 +67,13 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_image_map
 
+- name: Filter FortiAIGate image map by target repositories
+  ansible.builtin.set_fact:
+    fortiaigate_image_map: "{{ fortiaigate_image_map | selectattr('target_repo', 'in', publish_target_repos_normalized) | list }}"
+  when: publish_target_repos_normalized | length > 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_image_map
+
 - name: Validate image map entries
   ansible.builtin.assert:
     that:

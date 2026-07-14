@@ -2,8 +2,24 @@
 fortiaigate_test_api_key: ""
 fortiaigate_test_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-prep"
 fortiaigate_test_endpoint_path: /v1/chat/completions
+poll_all_endpoints: false
+fortiaigate_test_poll_all_endpoints: false
+fortiaigate_test_include_static_endpoints: true
+fortiaigate_test_include_header_endpoints: true
+fortiaigate_test_include_all_header_route_profiles: false
+fortiaigate_test_include_openwebui_endpoint: false
+fortiaigate_test_include_backend_endpoint: false
+fortiaigate_test_include_test_endpoint: true
+fortiaigate_test_include_ollama_endpoint: false
+faig_model_route_header_name: X-FAIG-Model-Route
+fortiaigate_test_openwebui_model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+fortiaigate_test_backend_model: "{{ litellm_faig_backend_downstream_model | default(litellm_passthrough_model_alias | default('pass-bedrock')) }}"
+fortiaigate_test_ollama_endpoint_path: "{{ validate_faig_ollama_endpoint_path | default('/v1/ollama/chat/completions') }}"
+fortiaigate_test_ollama_model: "{{ ollama_model | default('') }}"
 fortiaigate_test_host_override: ""
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
+fortiaigate_test_include_uri_in_prompt: true
+fortiaigate_test_default_model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
 fortiaigate_test_model: ""
 fortiaigate_test_script: "{{ playbook_dir }}/../../scripts/fortiaigate_chat_test.py"
 fortiaigate_test_timeout_seconds: 60

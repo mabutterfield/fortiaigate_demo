@@ -1,4 +1,44 @@
 locals {
+  aws_pricing_region_locations = {
+    af-south-1     = "Africa (Cape Town)"
+    ap-east-1      = "Asia Pacific (Hong Kong)"
+    ap-east-2      = "Asia Pacific (Taipei)"
+    ap-northeast-1 = "Asia Pacific (Tokyo)"
+    ap-northeast-2 = "Asia Pacific (Seoul)"
+    ap-northeast-3 = "Asia Pacific (Osaka)"
+    ap-south-1     = "Asia Pacific (Mumbai)"
+    ap-south-2     = "Asia Pacific (Hyderabad)"
+    ap-southeast-1 = "Asia Pacific (Singapore)"
+    ap-southeast-2 = "Asia Pacific (Sydney)"
+    ap-southeast-3 = "Asia Pacific (Jakarta)"
+    ap-southeast-4 = "Asia Pacific (Melbourne)"
+    ap-southeast-5 = "Asia Pacific (Malaysia)"
+    ap-southeast-7 = "Asia Pacific (Thailand)"
+    ca-central-1   = "Canada (Central)"
+    ca-west-1      = "Canada West (Calgary)"
+    eu-central-1   = "Europe (Frankfurt)"
+    eu-central-2   = "Europe (Zurich)"
+    eu-north-1     = "Europe (Stockholm)"
+    eu-south-1     = "Europe (Milan)"
+    eu-south-2     = "Europe (Spain)"
+    eu-west-1      = "Europe (Ireland)"
+    eu-west-2      = "Europe (London)"
+    eu-west-3      = "Europe (Paris)"
+    il-central-1   = "Israel (Tel Aviv)"
+    me-central-1   = "Middle East (UAE)"
+    me-south-1     = "Middle East (Bahrain)"
+    mx-central-1   = "Mexico (Central)"
+    sa-east-1      = "South America (Sao Paulo)"
+    us-east-1      = "US East (N. Virginia)"
+    us-east-2      = "US East (Ohio)"
+    us-west-1      = "US West (N. California)"
+    us-west-2      = "US West (Oregon)"
+  }
+  ec2_pricing_location = var.aws_pricing_location_override != "" ? var.aws_pricing_location_override : lookup(
+    local.aws_pricing_region_locations,
+    var.aws_region,
+    var.aws_region
+  )
   supported_instance_availability_zones = sort(
     data.aws_ec2_instance_type_offerings.available.locations
   )
@@ -33,6 +73,10 @@ locals {
       http  = var.demo_http_base_port + 3
       https = var.demo_https_base_port + 3
     }
+    mcp = {
+      http  = var.demo_http_base_port + 4
+      https = var.demo_https_base_port + 4
+    }
   }
   generated_demo_ingress_tcp_ports = toset(flatten([
     for assignment in values(local.demo_port_assignments) : [
@@ -45,10 +89,12 @@ locals {
     local.demo_port_assignments.chatbot.http,
     local.demo_port_assignments.demo_home.http,
     local.demo_port_assignments.litellm.http,
+    local.demo_port_assignments.mcp.http,
     local.demo_port_assignments.openwebui.https,
     local.demo_port_assignments.chatbot.https,
     local.demo_port_assignments.demo_home.https,
     local.demo_port_assignments.litellm.https,
+    local.demo_port_assignments.mcp.https,
   ]
   effective_additional_ingress_tcp_ports = setunion(
     local.generated_demo_ingress_tcp_ports,
@@ -57,6 +103,11 @@ locals {
   github_keys_user_data = length(var.ec2_pull_github_keys) > 0 ? templatefile("${path.module}/templates/user-data.sh.tftpl", {
     github_usernames = var.ec2_pull_github_keys
   }) : null
+  ec2_on_demand_price_dimensions = flatten([
+    for term in values(jsondecode(data.aws_pricing_product.k3s_instance.result).terms.OnDemand) : values(term.priceDimensions)
+  ])
+  ec2_instance_hourly_cost_usd  = tonumber(local.ec2_on_demand_price_dimensions[0].pricePerUnit.USD)
+  ec2_instance_monthly_cost_usd = local.ec2_instance_hourly_cost_usd * 30 * 24
 
   tags = merge(
     {
@@ -73,6 +124,41 @@ data "aws_ec2_instance_type_offerings" "available" {
   filter {
     name   = "instance-type"
     values = [var.instance_type]
+  }
+}
+
+data "aws_pricing_product" "k3s_instance" {
+  provider     = aws.pricing
+  service_code = "AmazonEC2"
+
+  filters {
+    field = "instanceType"
+    value = var.instance_type
+  }
+
+  filters {
+    field = "location"
+    value = local.ec2_pricing_location
+  }
+
+  filters {
+    field = "operatingSystem"
+    value = "Linux"
+  }
+
+  filters {
+    field = "preInstalledSw"
+    value = "NA"
+  }
+
+  filters {
+    field = "tenancy"
+    value = "Shared"
+  }
+
+  filters {
+    field = "capacitystatus"
+    value = "Used"
   }
 }
 

@@ -43,6 +43,21 @@ output "instance_type" {
   value       = var.instance_type
 }
 
+output "ec2_instance_hourly_cost_usd" {
+  description = "Estimated On-Demand Linux shared-tenancy EC2 compute cost per hour in USD for the configured instance type and region. Excludes EBS, EIP, data transfer, Bedrock, marketplace, and licensing costs."
+  value       = local.ec2_instance_hourly_cost_usd
+}
+
+output "ec2_instance_monthly_cost_usd" {
+  description = "Estimated 30-day On-Demand Linux shared-tenancy EC2 compute cost in USD for the configured instance type and region, calculated as hourly * 30 * 24. Excludes EBS, EIP, data transfer, Bedrock, marketplace, and licensing costs."
+  value       = local.ec2_instance_monthly_cost_usd
+}
+
+output "ec2_instance_pricing_location" {
+  description = "AWS Price List location string used for the EC2 instance cost estimate."
+  value       = local.ec2_pricing_location
+}
+
 output "selected_availability_zone" {
   description = "Availability Zone selected for the k3s and appliance subnets."
   value       = local.selected_availability_zone

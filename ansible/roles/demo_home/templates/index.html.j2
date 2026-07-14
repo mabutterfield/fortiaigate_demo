@@ -93,6 +93,18 @@
     </section>
 
     <section>
+      <h2>MCP Tools</h2>
+      <div class="grid">
+{% for link in demo_home_mcp_links %}
+        <a class="card" href="{{ link.url }}">
+          <span class="label">{{ link.label }}</span>
+          <span class="url">{{ link.url }}</span>
+        </a>
+{% endfor %}
+      </div>
+    </section>
+
+    <section>
       <h2>Demo Home</h2>
       <div class="grid">
 {% for link in demo_home_links %}
@@ -104,6 +116,7 @@
       </div>
     </section>
 
+{% if demo_home_openwebui_links | length > 0 %}
     <section>
       <h2>Open WebUI</h2>
       <div class="grid">
@@ -115,6 +128,7 @@
 {% endfor %}
       </div>
     </section>
+{% endif %}
 
     <section>
       <h2>Chatbots</h2>

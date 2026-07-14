@@ -16,6 +16,27 @@
   #       image_archive: "{{ image_archive }}"
   #       image_archive_dir: "{{ image_archive_dir }}"
 
+- name: Normalize FortiAIGate publish target repository filter
+  ansible.builtin.set_fact:
+    publish_target_repos_normalized: >-
+      {{
+        (
+          publish_target_repos.split(',')
+          if publish_target_repos is string
+          else publish_target_repos | default([])
+        )
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+  # - ansible.builtin.debug:
+  #     var: publish_target_repos_normalized
+
+- name: Show FortiAIGate publish target repository filter
+  ansible.builtin.debug:
+    msg: "Publishing only FortiAIGate target repositories: {{ publish_target_repos_normalized | join(', ') }}"
+  when: publish_target_repos_normalized | length > 0
+
 - name: Validate selected FortiAIGate image build inputs
   ansible.builtin.include_tasks: validate.yml
 

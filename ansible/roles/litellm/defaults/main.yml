@@ -36,18 +36,59 @@ litellm_bedrock_use_terraform_output: true
 litellm_bedrock_model_id: "{{ direct_model_bedrock_model | default('') }}"
 litellm_bedrock_fallback_model_id: "{{ direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0') }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region | default('') }}"
-litellm_model_alias: demo-profile
+litellm_passthrough_model_alias: pass-bedrock
+litellm_demo_a_model_alias: demo-a
+litellm_demo_b_model_alias: demo-b
+litellm_demo_a_faig_be_model_alias: demo-a-faig-be
+litellm_demo_b_faig_be_model_alias: demo-b-faig-be
+litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
+faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+litellm_faig_backend_base_path: /v1/passthrough
+litellm_faig_backend_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_backend_base_path }}"
+litellm_faig_backend_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
 litellm_instruction_debug: false
 litellm_models:
-  - name: "{{ litellm_model_alias }}"
+  - name: "{{ litellm_passthrough_model_alias }}"
     provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
     aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
+    instruction_profile: passthrough
+  - name: "{{ litellm_demo_a_model_alias }}"
+    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
+    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
+    instruction_profile: demo-a
+  - name: "{{ litellm_demo_b_model_alias }}"
+    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
+    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
+    instruction_profile: demo-b
+  - name: "{{ litellm_demo_a_faig_be_model_alias }}"
+    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
+    api_base: "{{ litellm_faig_backend_base_url }}"
+    api_key: "{{ litellm_faig_backend_api_key }}"
+    instruction_profile: demo-a
+  - name: "{{ litellm_demo_b_faig_be_model_alias }}"
+    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
+    api_base: "{{ litellm_faig_backend_base_url }}"
+    api_key: "{{ litellm_faig_backend_api_key }}"
+    instruction_profile: demo-b
 
 litellm_instruction_profile_source_path: "{{ chatbot_instruction_root | default(playbook_dir + '/../../chatbot/instructions') }}/default/instructions.txt"
-litellm_default_instruction_profile: default
+litellm_default_instruction_profile: passthrough
 litellm_instruction_profile_injection_position: prepend
 litellm_model_instruction_profiles: {}
-litellm_instruction_profiles: []
+litellm_instruction_profiles:
+  - name: passthrough
+    enabled: false
+    position: prepend
+    instruction: "No backend instruction injection for passthrough model aliases."
+  - name: demo-a
+    enabled: true
+    position: "{{ litellm_instruction_profile_injection_position }}"
+    source_path: "{{ litellm_instruction_profile_source_path }}"
+  - name: demo-b
+    enabled: true
+    position: "{{ litellm_instruction_profile_injection_position }}"
+    source_path: "{{ chatbot_instruction_root | default(playbook_dir + '/../../chatbot/instructions') }}/alternate/instructions.txt"
 
 litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:{{ litellm_service_port }}/v1"
-litellm_faig_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1"
+litellm_faig_base_path: /v1/passthrough
+litellm_faig_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_base_path }}"

@@ -2,7 +2,7 @@
 
 ## Scope
 
-The phase 1 AWS foundation creates a single-node FortiAIGate lab:
+The current AWS foundation creates a single-node FortiAIGate lab:
 
 - new AWS VPC
 - public and private k3s subnets
@@ -20,6 +20,9 @@ The phase 1 AWS foundation creates a single-node FortiAIGate lab:
 `terraform/aws-prep` creates the EC2 IAM role/profile and attaches scoped ECR
 pull access when `registry_backend = "ecr"`. The EC2 module consumes the prep
 state and attaches the prepared instance profile to the k3s host.
+
+See [VPC Layout](vpc-layout.md) for the visual network layout, including the
+current public k3s path and future private/appliance paths.
 
 ## Network CIDRs
 

@@ -19,6 +19,14 @@ Useful status entry points:
 - `ansible/playbooks/validate_k3s.yml`
 - `ansible/playbooks/status_fortiaigate.yml`
 - `ansible/playbooks/validate_faig.yml`
+- `ansible/playbooks/status_litellm.yml`
+- `ansible/playbooks/status_chatbots.yml`
+- `ansible/playbooks/status_mcp.yml`
+- `ansible/playbooks/test_mcp.yml`
+- `ansible/playbooks/status_demo_home.yml`
+
+Open WebUI is optional and disabled by default; use
+`ansible/playbooks/status_openwebui.yml` only when `openwebui_enabled=true`.
 
 See [AWS k3s Foundation](aws-k3s-foundation.md) and
 [Deployment Runbook](deployment-runbook.md) for the full workflow.

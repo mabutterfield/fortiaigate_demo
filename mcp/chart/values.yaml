@@ -1,0 +1,20 @@
+nameOverride: mcp-demo
+
+image:
+  repository: python
+  tag: "3.12-slim"
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8000
+  nodePort: 30084
+
+containerPort: 8000
+
+resources: {}
+
+probes:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 6

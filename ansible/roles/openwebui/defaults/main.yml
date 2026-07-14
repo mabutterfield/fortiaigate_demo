@@ -1,5 +1,5 @@
 ---
-openwebui_enabled: true
+openwebui_enabled: false
 openwebui_chart_remote_root: "/home/{{ ansible_user }}/tmp/openwebui-chart"
 openwebui_values_remote_dir: "/home/{{ ansible_user }}/tmp/openwebui-values"
 openwebui_helm_wait: false
@@ -40,7 +40,9 @@ openwebui_direct_openai_base_url: "{{ openwebui_direct_bedrock_base_url if openw
 openwebui_direct_openai_api_key: "{{ 'not-used' if openwebui_direct_provider == 'bedrock' else ((ollama_api_key | default('not-used')) if openwebui_direct_provider == 'ollama' else (litellm_master_key | default('sk-litellm-demo-change-me'))) }}"
 openwebui_faig_openai_base_url: "{{ openwebui_faig_default_base_url }}"
 openwebui_faig_openai_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
-openwebui_faig_default_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1"
+faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+openwebui_faig_default_base_path: /v1/passthrough
+openwebui_faig_default_base_url: "{{ faig_internal_base_url }}{{ openwebui_faig_default_base_path }}"
 openwebui_openai_base_urls: "{{ openwebui_direct_openai_base_url }};{{ openwebui_faig_openai_base_url }}"
 openwebui_openai_api_keys: "{{ openwebui_direct_openai_api_key }};{{ openwebui_faig_openai_api_key }}"
 openwebui_extra_env: []

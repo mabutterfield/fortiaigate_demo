@@ -157,7 +157,7 @@ terraform output ssh_command
 
 Run the `ssh_command` output. If SSH does not work, fix AWS networking, the key pair, or `ssh_private_key_file` before starting Ansible.
 
-The AWS and k3s networks must not overlap. The default phase 1 layout is:
+The AWS and k3s networks must not overlap. The current default layout is:
 
 ```yaml
 vpc_cidr: 10.20.0.0/16
@@ -194,6 +194,19 @@ To publish one version:
 
 ```bash
 ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
+```
+
+To publish only selected FortiAIGate target repositories:
+
+```bash
+ansible-playbook playbooks/publish_images.yml \
+  -e publish_target_repos=api,webui
+```
+
+To publish only the chatbot image without loading FortiAIGate release archives:
+
+```bash
+ansible-playbook playbooks/publish_chatbot_images.yml
 ```
 
 To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
@@ -331,7 +344,8 @@ ansible-playbook playbooks/deploy_litellm.yml
 
 LiteLLM is the shared OpenAI-compatible model proxy for the demo UIs. Direct
 traffic uses `UI -> LiteLLM -> Bedrock`. FortiAIGate-inspected traffic uses
-`UI -> FortiAIGate /v1 -> LiteLLM -> Bedrock` after FortiAIGate is manually
+an explicit FortiAIGate path such as `/v1/openwebui`, `/v1/demo-a`, or
+`/v1/intelligent` after FortiAIGate is manually
 configured to use LiteLLM as an upstream OpenAI-compatible provider.
 
 Check LiteLLM status separately:
@@ -350,7 +364,53 @@ The default LiteLLM Admin/API NodePort is `30083`; the Admin UI path is `/ui/`.
 Backend demo instructions are injected by LiteLLM through its custom pre-call
 hook so the frontend applications do not own the hidden demo prompt.
 
-## 11. Deploy Open WebUI
+The default deployment creates LiteLLM model aliases for direct and chained
+inspection paths:
+
+- `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
+- `demo-a`: default backend instructions from
+  `chatbot/instructions/default/instructions.txt`
+- `demo-b`: alternate backend instructions from
+  `chatbot/instructions/alternate/instructions.txt`
+- `demo-a-faig-be`: default backend instructions, then an
+  OpenAI-compatible call to the configured backend FortiAIGate URI
+- `demo-b-faig-be`: alternate backend instructions, then an
+  OpenAI-compatible call to the configured backend FortiAIGate URI
+
+To add another backend prompt, add an entry to `litellm_instruction_profiles`,
+add a matching `litellm_models` alias with `instruction_profile`, and rerun
+`deploy_litellm.yml`.
+
+The chatbot exposes three backend modes: `Direct LiteLLM`, `FAIG Static Route`,
+and `FAIG Intelligent Route`. Static routes use route-specific URI paths such as
+`/v1/demo-a`; intelligent routes use `/v1/intelligent`. The intelligent
+`passthrough` option sends no route header and maps to LiteLLM alias
+`pass-bedrock`, while `demo-a` and `demo-b` use the configurable
+`X-FAIG-Model-Route` header.
+
+The `demo-a-faig-be` and `demo-b-faig-be` aliases are the default scaffolds for:
+
+```text
+chatbot -> FortiAIGate static route -> LiteLLM demo profile -> FortiAIGate /v1/passthrough -> litellm-pass-bedrock -> pass-bedrock
+```
+
+FortiAIGate owns the static and intelligent URI/provider mappings. The
+post-injection re-entry path reuses `/v1/passthrough`; do not point that flow at
+a `*-faig-be` alias or the request can loop. LiteLLM treats
+`litellm_faig_backend_base_url` as an OpenAI-compatible base URL, so the default
+value ending in `/v1/passthrough` results in requests to
+`/v1/passthrough/chat/completions`.
+
+## 11. Optional: Deploy Open WebUI
+
+Open WebUI is available as a secondary chat UI, but it is disabled by default.
+The primary lab walkthrough uses the custom chatbot because it exposes the
+direct LiteLLM, FAIG static, FAIG intelligent, and MCP controls. To deploy
+Open WebUI, set:
+
+```yaml
+openwebui_enabled: true
+```
 
 ```bash
 ansible-playbook playbooks/deploy_openwebui.yml
@@ -371,12 +431,12 @@ Use this when a failing validation gate is preferred:
 ansible-playbook playbooks/validate_openwebui.yml
 ```
 
-This deploys one Open WebUI release in namespace `openwebui`, exposed on
-NodePort `30080`. It is configured with both direct LiteLLM and FortiAIGate
-provider URLs. The FortiAIGate URL defaults to the in-cluster nginx ingress
-service at `http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1`,
-which avoids public-IP hairpin behavior and avoids making Open WebUI trust the
-lab's self-signed public TLS certificate.
+When enabled, this deploys one Open WebUI release in namespace `openwebui`,
+exposed on NodePort `30080`. It is configured with both direct LiteLLM and
+FortiAIGate provider URLs. The FortiAIGate URL defaults to the in-cluster nginx
+ingress service path configured by `openwebui_faig_default_base_path`, which
+avoids public-IP hairpin behavior and avoids making Open WebUI trust the lab's
+self-signed public TLS certificate.
 
 Open WebUI should not be path-prefixed by default. Use NodePort for the no-DNS
 lab default, or set `ingress_host` values later when host-based routing is
@@ -384,10 +444,39 @@ available.
 
 For AWS public k3s mode, `terraform/aws-ec2-k3s` generates and opens the
 standard demo ports, then writes `ansible/group_vars/ports.generated.yml`.
-The default generated HTTP ports are OpenWebUI `30080`, chatbot `30081`,
-demo home `30082`, and LiteLLM Admin/API `30083`.
+The default generated HTTP ports are reserved consistently: Open WebUI uses
+`30080` when enabled, chatbot `30081`, demo home `30082`, LiteLLM Admin/API
+`30083`, and MCP demo tools `30084`.
+`show_demo_outputs.yml` prints the matching HTTP/HTTPS URLs, LiteLLM UI
+credentials, and the Terraform-generated SSH command for the k3s host.
 
-## 12. Monitor Status
+## 12. Optional MCP Demo Tools
+
+```bash
+ansible-playbook playbooks/deploy_mcp.yml
+```
+
+The MCP baseline deploys a small tool server in namespace `mcp`.
+It provides deterministic customer, ticket, policy, and echo tools for the
+later Python agent loop. It exposes a generated NodePort for direct testing,
+keeps an internal service endpoint for Kubernetes workloads, and does not
+require ECR image publishing.
+
+Check MCP status separately:
+
+```bash
+ansible-playbook playbooks/status_mcp.yml
+```
+
+Use this when a failing validation gate is preferred:
+
+```bash
+ansible-playbook playbooks/validate_mcp.yml
+```
+
+See [MCP Demo Tools](mcp.md) for data-file overrides and HTTP/HTTPS test URLs.
+
+## 13. Monitor Status
 
 ```bash
 ansible-playbook playbooks/status_fortiaigate.yml
@@ -415,7 +504,7 @@ kubectl get pvc -n fortiaigate
 kubectl get events -n fortiaigate --sort-by=.lastTimestamp
 ```
 
-## 12. Validate
+## 14. Validate
 
 ```bash
 ansible-playbook playbooks/validate_faig.yml
@@ -451,9 +540,11 @@ API key:  blank or a dummy value if required
 
 The Ansible validation variables keep the same endpoint/model so validation can exercise the provider after it exists. The forwarding check is disabled by default; set `validate_faig_ollama_forwarding: true` only after the FortiAIGate provider is configured.
 
-## Bedrock First Guard
+## Reference: Bedrock Direct Provider
 
-Run this after FortiAIGate status is `READY`. Use the login URL from `status_fortiaigate.yml`, sign in to FortiAIGate, and change the default password before creating the first guard/provider.
+The default GUI setup uses LiteLLM as the FortiAIGate provider. Use this
+reference only when testing a Bedrock-direct FortiAIGate guard/provider without
+LiteLLM in the middle.
 
 `terraform/aws-prep` creates temporary IAM user credentials for manual FortiAIGate GUI entry when `enable_bedrock_iam = true`.
 
@@ -539,7 +630,25 @@ cd ansible
 ansible-playbook playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook calls the repo-owned `scripts/fortiaigate_chat_test.py` script, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format.
+The playbook calls the repo-owned `scripts/fortiaigate_chat_test.py` script, sends a short test prompt to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, asks the routed model to identify itself and repeat the URI under test, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format. The default model is the LiteLLM pass-through alias `pass-bedrock`.
+
+By default the playbook checks one endpoint. To poll the default FAIG route
+matrix, including static route paths, one intelligent route path, and the
+default `/v1` fallback, run:
+
+```bash
+ansible-playbook playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_poll_all_endpoints=true
+```
+
+The shared extra var `-e poll_all_endpoints=true` is also supported by both the
+FortiAIGate and LiteLLM direct test playbooks.
+
+The default FAIG route matrix is seven endpoints: `passthrough`, `demo-a`,
+`demo-b`, `demo-a-faig-be`, `demo-b-faig-be`, `intelligent`, and `default`.
+`/v1/openwebui` and every intelligent-route profile can be included for
+troubleshooting with `fortiaigate_test_include_openwebui_endpoint` or
+`fortiaigate_test_include_all_header_route_profiles`.
 
 The same test can be run directly from the repo root:
 
@@ -592,10 +701,27 @@ Only use `--debug-show-secrets` when you need an exact local copy/paste command 
 Destroy AWS infrastructure only when the FortiAIGate license lifecycle is understood for the test:
 
 ```bash
-cd terraform/aws-ec2-k3s
+python3 scripts/automated_teardown.py
+```
+
+The teardown script backs up local config/state, removes ECR repositories from
+Terraform state so they are not deleted, destroys ECR lifecycle/local output
+resources, then destroys EC2 k3s and AWS prep.
+
+Manual equivalent:
+
+```bash
+cd terraform/aws-ecr
+terraform state rm 'aws_ecr_repository.this["api"]'
+# repeat for each repository that should be retained
+terraform destroy -target=aws_ecr_lifecycle_policy.this -target=local_file.ansible_ecr_vars
+
+cd ../aws-ec2-k3s
 terraform destroy
+
 cd ../aws-prep
 terraform destroy
 ```
 
-Private ECR repositories are managed separately in `terraform/aws-ecr` and should not be destroyed unless image retention is no longer required.
+Private ECR repositories are managed separately in `terraform/aws-ecr` and
+should not be destroyed unless image retention is no longer required.

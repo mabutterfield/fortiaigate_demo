@@ -1,0 +1,15 @@
+---
+mcp_enabled: true
+mcp_namespace: mcp
+mcp_release_name: mcp-demo
+mcp_service_type: NodePort
+mcp_service_port: 8000
+mcp_node_port: "{{ demo_mcp_http_port | default(30084) }}"
+mcp_container_port: 8000
+mcp_status_fail_on_not_ready: false
+mcp_status_run_tool_checks: true
+mcp_status_health_path: /health
+mcp_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_service_port }}"
+mcp_test_customer_id: CUST-1001
+mcp_test_ticket_id: TCK-2001
+mcp_test_policy_id: POL-3001

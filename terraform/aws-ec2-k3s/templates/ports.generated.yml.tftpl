@@ -11,11 +11,13 @@ demo_openwebui_http_port: ${demo_port_assignments.openwebui.http}
 demo_chatbot_http_port: ${demo_port_assignments.chatbot.http}
 demo_home_http_port: ${demo_port_assignments.demo_home.http}
 demo_litellm_http_port: ${demo_port_assignments.litellm.http}
+demo_mcp_http_port: ${demo_port_assignments.mcp.http}
 
 demo_openwebui_https_port: ${demo_port_assignments.openwebui.https}
 demo_chatbot_https_port: ${demo_port_assignments.chatbot.https}
 demo_home_https_port: ${demo_port_assignments.demo_home.https}
 demo_litellm_https_port: ${demo_port_assignments.litellm.https}
+demo_mcp_https_port: ${demo_port_assignments.mcp.https}
 
 demo_generated_ingress_tcp_ports:
 %{ for port in generated_ingress_ports ~}

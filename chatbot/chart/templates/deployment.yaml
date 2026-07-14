@@ -16,6 +16,8 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "chatbot-demo.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/chatbot-app: {{ .Values.chatbot.appChecksum | quote }}
     spec:
 {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
@@ -45,8 +47,20 @@ spec:
                 secretKeyRef:
                   name: {{ include "chatbot-demo.name" . }}
                   key: chatbot-faig-api-key
+            - name: CHATBOT_FAIG_STATIC_ROUTE
+              value: {{ .Values.chatbot.faigStaticRoute | quote }}
+            - name: CHATBOT_FAIG_STATIC_ROUTES_JSON
+              value: {{ .Values.chatbot.faigStaticRoutesJson | quote }}
+            - name: CHATBOT_FAIG_HEADER_ROUTE
+              value: {{ .Values.chatbot.faigHeaderRoute | quote }}
+            - name: CHATBOT_FAIG_HEADER_ROUTES_JSON
+              value: {{ .Values.chatbot.faigHeaderRoutesJson | quote }}
+            - name: CHATBOT_FAIG_MODEL_ROUTE_HEADER_NAME
+              value: {{ .Values.chatbot.faigModelRouteHeaderName | quote }}
             - name: CHATBOT_MODEL
               value: {{ .Values.chatbot.model | quote }}
+            - name: CHATBOT_MODEL_OPTIONS
+              value: {{ .Values.chatbot.modelOptions | quote }}
             - name: CHATBOT_PAGE_TITLE
               value: {{ .Values.chatbot.pageTitle | quote }}
             - name: CHATBOT_HEADER_TITLE
@@ -61,6 +75,20 @@ spec:
               value: {{ .Values.chatbot.streaming | quote }}
             - name: CHATBOT_VERIFY_TLS
               value: {{ .Values.chatbot.verifyTls | quote }}
+            - name: CHATBOT_MCP_ENABLED
+              value: {{ .Values.chatbot.mcpEnabled | quote }}
+            - name: CHATBOT_MCP_DIRECT_BASE_URL
+              value: {{ .Values.chatbot.mcpDirectBaseUrl | quote }}
+            - name: CHATBOT_MCP_FORTIWEB_BASE_URL
+              value: {{ .Values.chatbot.mcpFortiwebBaseUrl | quote }}
+            - name: CHATBOT_MCP_DEFAULT_PATH
+              value: {{ .Values.chatbot.mcpDefaultPath | quote }}
+            - name: CHATBOT_MCP_TIMEOUT_SECONDS
+              value: {{ .Values.chatbot.mcpTimeoutSeconds | quote }}
+            - name: CHATBOT_MCP_VERIFY_TLS
+              value: {{ .Values.chatbot.mcpVerifyTls | quote }}
+            - name: CHATBOT_MCP_MAX_TOOL_ROUNDS
+              value: {{ .Values.chatbot.mcpMaxToolRounds | quote }}
           readinessProbe:
             httpGet:
               path: /

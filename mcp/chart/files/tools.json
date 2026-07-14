@@ -1,0 +1,65 @@
+{
+  "customers": {
+    "CUST-1001": {
+      "customer_id": "CUST-1001",
+      "name": "Aperture Research",
+      "tier": "enterprise",
+      "region": "us-east",
+      "account_owner": "Demo Team",
+      "status": "active"
+    },
+    "CUST-1002": {
+      "customer_id": "CUST-1002",
+      "name": "Northwind Labs",
+      "tier": "standard",
+      "region": "us-west",
+      "account_owner": "Demo Team",
+      "status": "active"
+    },
+    "CUST-1003": {
+      "customer_id": "CUST-1003",
+      "name": "Contoso Health",
+      "tier": "enterprise",
+      "region": "us-east",
+      "account_owner": "Demo Team",
+      "status": "active"
+    }
+  },
+  "tickets": {
+    "TCK-2001": {
+      "ticket_id": "TCK-2001",
+      "customer_id": "CUST-1001",
+      "severity": "high",
+      "status": "open",
+      "summary": "User reports unexpected LLM response after prompt injection test."
+    },
+    "TCK-2002": {
+      "ticket_id": "TCK-2002",
+      "customer_id": "CUST-1002",
+      "severity": "medium",
+      "status": "waiting",
+      "summary": "Need policy review for demo data redaction behavior."
+    },
+    "TCK-2003": {
+      "ticket_id": "TCK-2003",
+      "customer_id": "CUST-1003",
+      "severity": "medium",
+      "status": "open",
+      "summary": "Validate agent tool call behavior before FortiWeb inspection is enabled."
+    }
+  },
+  "policies": {
+    "POL-3001": {
+      "policy_id": "POL-3001",
+      "title": "Demo PII Handling Policy",
+      "version": "2026.07",
+      "summary": "Demo systems must use synthetic data and should preserve redaction markers in model responses."
+    },
+    "POL-3002": {
+      "policy_id": "POL-3002",
+      "title": "Tool Access Policy",
+      "version": "2026.07",
+      "summary": "Agent tools should return least-privilege records and deterministic demo responses."
+    }
+  }
+}

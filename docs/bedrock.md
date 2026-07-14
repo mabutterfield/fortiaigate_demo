@@ -9,7 +9,15 @@ FortiAIGate currently asks for standard AWS SigV4 fields in the GUI:
 - Region Name
 - Bedrock model ID
 
-`terraform/aws-prep` creates a dedicated IAM user and access key. It does not attach Bedrock permissions to the EC2 instance profile, and it does not write Ansible vars.
+`terraform/aws-prep` can create two Bedrock access paths:
+
+- temporary IAM user credentials for FortiAIGate GUI provider setup when
+  `enable_bedrock_iam = true`
+- scoped Bedrock invoke permissions on the k3s EC2 instance role when
+  `enable_ec2_bedrock_iam = true`, which is the default path used by in-cluster
+  LiteLLM/direct clients
+
+It does not write Bedrock secrets into Ansible vars.
 
 Model access must already be enabled in the AWS account and region.
 
@@ -29,6 +37,7 @@ Set these values in ignored `terraform.tfvars`. Use the exact Bedrock model ID, 
 
 ```hcl
 enable_bedrock_iam = true
+enable_ec2_bedrock_iam = true
 
 bedrock_credential_valid_days = 7
 bedrock_credential_generation = "20260610"
@@ -57,6 +66,8 @@ Terraform creates:
 - inline IAM policy allowing selected Bedrock model invocation in `bedrock_allowed_regions`
 - explicit deny after `now + credential_valid_days`
 - explicit deny when requests do not originate from the prep-owned k3s EIP, `allowed_ingress_cidr` CIDR or CIDRs, or `bedrock_allowed_source_cidrs`
+- optional EC2 instance-role policy allowing selected Bedrock model invocation
+  for in-cluster LiteLLM/direct clients
 
 Allowed invoke actions:
 
@@ -106,7 +117,10 @@ python3 scripts/bedrock_direct_test.py \
 
 The script reads `terraform/aws-prep` permitted model IDs and prompts for one when run interactively. Set `BEDROCK_MODEL` to skip the prompt. It generates AWS SigV4 headers at runtime. If the access key or secret key is not exported and the script is run interactively, it prompts for the missing value.
 
-After FortiAIGate status is `READY`, log in with the URL from `status_fortiaigate.yml`, change the default password, and create the first Bedrock guard/provider with the values above.
+After FortiAIGate status is `READY`, log in with the URL from
+`status_fortiaigate.yml`, change the default password, and create the
+Bedrock-direct guard/provider with the values above when testing FortiAIGate
+without LiteLLM in the middle.
 
 Then run the first external chat test:
 
@@ -115,7 +129,18 @@ cd ansible
 ansible-playbook playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook reads the first permitted model ID from `terraform/aws-prep` when available, calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response.
+The playbook calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself and repeat the URI under test to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response. The default model is the LiteLLM pass-through alias `pass-bedrock`, which matches the recommended FortiAIGate `/v1/*` fallback provider.
+
+To test every configured FortiAIGate demo route instead of only the default
+test route:
+
+```bash
+ansible-playbook playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_poll_all_endpoints=true
+```
+
+The shared extra var `-e poll_all_endpoints=true` is accepted by both the
+FortiAIGate and LiteLLM direct test playbooks.
 
 ## Refresh Expiration
 

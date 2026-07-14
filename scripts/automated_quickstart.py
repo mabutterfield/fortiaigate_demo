@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Guided Terraform bootstrap for the FortiAIGate demo.
-
-This script intentionally stops after Terraform ECR, AWS prep, and EC2 k3s
-foundation. Image publishing, k3s bootstrap, and application deployment remain
-explicit follow-on steps.
-"""
+"""Guided Terraform and Ansible quick start for the FortiAIGate demo."""
 
 from __future__ import annotations
 
@@ -42,8 +37,9 @@ TERRAFORM_MODULES = [
 ]
 APPLICATION_PLAYBOOKS = [
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
-    ("Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml"),
+    ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
     ("custom chatbot UI", "deploy_chatbots.yml", "status_chatbots.yml"),
+    ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("demo home page", "deploy_demo_home.yml", "status_demo_home.yml"),
 ]
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -86,6 +82,22 @@ def run_command(
 
 def command_output(argv: list[str], *, check: bool = True) -> str:
     result = run_command(argv, capture=True, check=check)
+    if result.returncode != 0:
+        return ""
+    return (result.stdout or "").strip()
+
+
+def quiet_command_output(argv: list[str], *, check: bool = False) -> str:
+    result = subprocess.run(
+        argv,
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if check and result.returncode != 0:
+        raise SystemExit(result.returncode)
     if result.returncode != 0:
         return ""
     return (result.stdout or "").strip()
@@ -196,6 +208,11 @@ def copy_missing_examples() -> None:
         print(f"created: {dest_rel} from {source_rel}")
 
 
+def sync_missing_example_defaults() -> None:
+    print_header("Syncing Missing Local Defaults")
+    run_command([sys.executable, "scripts/sync_all_vars.py"])
+
+
 def list_aws_profiles() -> list[str]:
     output = command_output(["aws", "configure", "list-profiles"], check=False)
     profiles = [line.strip() for line in output.splitlines() if line.strip()]
@@ -223,17 +240,56 @@ def choose_aws_profile(default_profile: str = "") -> str:
         print("Enter an AWS profile.")
 
 
+def aws_profile_uses_sso(profile: str) -> bool:
+    sso_keys = ["sso_session", "sso_start_url", "sso_account_id", "sso_role_name"]
+    return any(quiet_command_output(["aws", "configure", "get", key, "--profile", profile]) for key in sso_keys)
+
+
+def choose_aws_login_method(profile: str) -> str:
+    detected_sso = aws_profile_uses_sso(profile)
+    default_method = "sso" if detected_sso else "login"
+    print(
+        "Profile appears to use AWS SSO/IAM Identity Center."
+        if detected_sso
+        else "Profile does not expose SSO settings through aws configure."
+    )
+    print("Login options:")
+    print("1. aws sso login")
+    print("2. aws login")
+    print("3. skip")
+
+    while True:
+        value = prompt_text("AWS login command", default_method).strip().lower()
+        if value in {"1", "sso", "aws sso login"}:
+            return "sso"
+        if value in {"2", "login", "aws login"}:
+            return "login"
+        if value in {"3", "skip", "none", "no"}:
+            return "skip"
+        print("Choose aws sso login, aws login, or skip.")
+
+
 def ensure_aws_login(profile: str) -> None:
     print_header("Checking AWS Login")
     result = run_command(["aws", "sts", "get-caller-identity", "--profile", profile], check=False)
     if result.returncode == 0:
         return
     print("AWS caller identity check failed.")
-    if prompt_yes_no(f"Run aws sso login for profile {profile} now?", True):
-        run_command(["aws", "sso", "login", "--profile", profile])
-        run_command(["aws", "sts", "get-caller-identity", "--profile", profile])
-    else:
+    method = choose_aws_login_method(profile)
+    if method == "skip":
         raise SystemExit("AWS login is required before Terraform can run.")
+
+    if method == "sso":
+        argv = ["aws", "sso", "login", "--profile", profile]
+        if prompt_yes_no("Use device-code flow for aws sso login?", False):
+            argv.append("--use-device-code")
+    else:
+        argv = ["aws", "login", "--profile", profile]
+        if prompt_yes_no("Pass --use-device-code to aws login?", False):
+            argv.append("--use-device-code")
+
+    run_command(argv)
+    run_command(["aws", "sts", "get-caller-identity", "--profile", profile])
 
 
 def read_file(path: Path) -> str:
@@ -322,16 +378,43 @@ def render_tags_prompt_default(tags: dict[str, str]) -> str:
     return ", ".join(f"{key}={value}" for key, value in sorted(tags.items()))
 
 
+def normalize_cidr_value(value: str, label: str) -> str:
+    if "/" not in value:
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError as error:
+            raise ValueError(f"{label} must contain valid CIDR blocks. Invalid value: {value}. Error: {error}") from error
+
+        host_prefix = 32 if address.version == 4 else 128
+        suggested = f"{address}/{host_prefix}"
+        if prompt_yes_no(f"{value} is a single IP address. Use {suggested}?", True):
+            return suggested
+        raise ValueError(f"{label} must use CIDR notation with a prefix length. Example: 203.0.113.10/32")
+
+    try:
+        return str(ipaddress.ip_network(value, strict=False))
+    except ValueError as error:
+        raise ValueError(f"{label} must contain valid CIDR blocks. Invalid value: {value}. Error: {error}") from error
+
+
 def validate_cidr_list(values: list[str], label: str) -> list[str]:
     validated: list[str] = []
     for value in values:
-        if "/" not in value:
-            raise SystemExit(f"{label} must use CIDR notation with a prefix length. Invalid value: {value}. Example: 203.0.113.10/32")
-        try:
-            validated.append(str(ipaddress.ip_network(value, strict=False)))
-        except ValueError as error:
-            raise SystemExit(f"{label} must contain valid CIDR blocks. Invalid value: {value}. Error: {error}")
+        validated.append(normalize_cidr_value(value, label))
     return validated
+
+
+def prompt_cidr_list(prompt: str, default: str, label: str) -> list[str]:
+    while True:
+        cidr_text = prompt_text(prompt, default)
+        cidrs = [entry.strip() for entry in cidr_text.split(",") if entry.strip()]
+        if not cidrs:
+            print("At least one trusted source CIDR is required.")
+            continue
+        try:
+            return validate_cidr_list(cidrs, label)
+        except ValueError as error:
+            print(error)
 
 
 def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
@@ -341,12 +424,220 @@ def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
     return match.group(1).strip().strip('"').strip("'")
 
 
+def get_yaml_bool(content: str, key: str, default: bool = False) -> bool:
+    value = get_yaml_scalar(content, key, str(default).lower()).lower()
+    return value in {"true", "yes", "on", "1"}
+
+
 def set_yaml_scalar(content: str, key: str, value: str) -> str:
     replacement = f"{key}: {value}"
     pattern = rf"(?m)^\s*{re.escape(key)}:\s*.*$"
     if re.search(pattern, content):
         return re.sub(pattern, replacement, content, count=1)
     return content.rstrip() + f"\n{replacement}\n"
+
+
+def yaml_block_span(content: str, key: str) -> tuple[int, int] | None:
+    lines = content.splitlines(keepends=True)
+    offset = 0
+    start = None
+    start_index = None
+    for index, line in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}:\s*", line):
+            start = offset
+            start_index = index
+            break
+        offset += len(line)
+    if start is None:
+        return None
+
+    end = start + len(lines[start_index])
+    for next_line in lines[start_index + 1 :]:
+        if next_line.strip() and not next_line.startswith((" ", "\t", "#")):
+            break
+        end += len(next_line)
+    return start, end
+
+
+def get_yaml_list_strings(content: str, key: str) -> list[str]:
+    span = yaml_block_span(content, key)
+    if span is None:
+        return []
+    block = content[span[0] : span[1]]
+    values: list[str] = []
+    for line in block.splitlines()[1:]:
+        match = re.match(r"\s*-\s*(.*?)\s*$", line)
+        if match:
+            value = match.group(1).strip().strip('"').strip("'")
+            if value:
+                values.append(value)
+    return values
+
+
+def get_yaml_map_strings(content: str, key: str) -> dict[str, str]:
+    span = yaml_block_span(content, key)
+    if span is None:
+        return {}
+    block = content[span[0] : span[1]]
+    first_line = block.splitlines()[0] if block.splitlines() else ""
+    if re.search(r":\s*\{\s*\}\s*$", first_line):
+        return {}
+
+    values: dict[str, str] = {}
+    for line in block.splitlines()[1:]:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        match = re.match(r'\s*([^:#][^:]*):\s*"?([^"#]+?)"?\s*(?:#.*)?$', line)
+        if match:
+            values[match.group(1).strip().strip('"').strip("'")] = match.group(2).strip().strip('"').strip("'")
+    return values
+
+
+def set_yaml_list_strings(content: str, key: str, values: list[str]) -> str:
+    rendered = "\n".join(f"  - {value}" for value in values)
+    replacement = f"{key}:\n{rendered}\n"
+    span = yaml_block_span(content, key)
+    if span is None:
+        return content.rstrip() + f"\n{replacement}"
+    return content[: span[0]] + replacement + content[span[1] :]
+
+
+def resolve_ansible_path(value: str) -> Path:
+    workspace_root = os.environ.get("FAIG_WORKSPACE_ROOT") or str(REPO_ROOT.parent)
+    resolved = value.strip().strip('"').strip("'")
+    resolved = resolved.replace("{{ faig_workspace_root }}", workspace_root)
+    resolved = resolved.replace("{{faig_workspace_root}}", workspace_root)
+    path = Path(resolved).expanduser()
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    return path
+
+
+def render_license_source_dir_for_yaml(path: Path) -> str:
+    default_license_dir = (REPO_ROOT.parent / "licenses").resolve()
+    try:
+        if path.expanduser().resolve() == default_license_dir:
+            return '"{{ faig_workspace_root }}/licenses"'
+    except FileNotFoundError:
+        pass
+    return str(path.expanduser())
+
+
+def list_license_candidates(source_dir: Path) -> list[Path]:
+    if not source_dir.exists() or not source_dir.is_dir():
+        return []
+    preferred_suffixes = {".lic", ".license"}
+    preferred = sorted(path for path in source_dir.iterdir() if path.is_file() and path.suffix.lower() in preferred_suffixes)
+    if preferred:
+        return preferred
+    return sorted(path for path in source_dir.iterdir() if path.is_file())
+
+
+def choose_license_file(source_dir: Path, default_license: str = "") -> str:
+    candidates = list_license_candidates(source_dir)
+    if candidates:
+        print(f"Available license files in {source_dir}:")
+        for index, path in enumerate(candidates, start=1):
+            marker = " (current)" if path.name == default_license else ""
+            print(f"{index}. {path.name}{marker}")
+        print("m. Enter a file name manually")
+    else:
+        print(f"No license files were found in {source_dir}.")
+
+    while True:
+        selected = prompt_text("FortiAIGate license file name, number, or m", default_license or (candidates[0].name if candidates else ""))
+        if selected.lower() == "m":
+            manual = prompt_text("FortiAIGate license file name")
+            if manual:
+                return Path(manual).name
+        if selected.isdigit() and candidates:
+            index = int(selected)
+            if 1 <= index <= len(candidates):
+                return candidates[index - 1].name
+        if selected:
+            return Path(selected).name
+        print("Enter a license file name.")
+
+
+def configure_license_preflight(*, noninteractive: bool = False) -> None:
+    print_header("FortiAIGate License Preflight")
+    path = REPO_ROOT / "ansible/group_vars/all.yml"
+    content = read_file(path)
+
+    raw_source_dir = get_yaml_scalar(content, "license_source_dir", "{{ faig_workspace_root }}/licenses")
+    source_dir = resolve_ansible_path(raw_source_dir)
+    license_files = get_yaml_list_strings(content, "fortiaigate_license_files")
+    explicit_license_map = get_yaml_map_strings(content, "fortiaigate_licenses")
+    required_files = sorted(set(explicit_license_map.values())) if explicit_license_map else license_files[:1]
+
+    def missing_files() -> list[str]:
+        return [name for name in required_files if not (source_dir / name).is_file()]
+
+    missing = missing_files()
+    if required_files and not missing:
+        print(f"License source directory: {source_dir}")
+        for license_file in required_files:
+            print(f"found: {license_file}")
+        return
+
+    if noninteractive:
+        if not required_files:
+            raise SystemExit(
+                "FortiAIGate license preflight failed: no fortiaigate_license_files or fortiaigate_licenses are configured."
+            )
+        raise SystemExit(
+            "FortiAIGate license preflight failed. Missing files under "
+            f"{source_dir}: {', '.join(missing)}"
+        )
+
+    print("FortiAIGate licenses are expected before deployment.")
+    print("The Ansible role later copies the selected file from the license source directory into the temporary Helm chart copy.")
+    selected_source_dir = prompt_text("License source directory", str(source_dir))
+    source_dir = Path(selected_source_dir).expanduser()
+    if not source_dir.is_absolute():
+        source_dir = (REPO_ROOT / source_dir).resolve()
+
+    default_license = license_files[0] if license_files else ""
+    selected_license = choose_license_file(source_dir, default_license)
+    selected_path = source_dir / selected_license
+    if not selected_path.is_file():
+        raise SystemExit(f"Selected FortiAIGate license file does not exist: {selected_path}")
+
+    content = set_yaml_scalar(content, "license_source_dir", render_license_source_dir_for_yaml(source_dir))
+    content = set_yaml_list_strings(content, "fortiaigate_license_files", [selected_license])
+    write_file(path, content)
+    print(f"updated: {path.relative_to(REPO_ROOT)}")
+    print(f"selected license: {selected_path}")
+
+
+def configure_litellm_credentials(*, noninteractive: bool = False) -> None:
+    print_header("LiteLLM Credentials")
+    path = REPO_ROOT / "ansible/group_vars/all.yml"
+    content = read_file(path)
+
+    if noninteractive:
+        print("Skipping LiteLLM credential prompts because --yolo was set.")
+        print("Using LiteLLM credential values already configured in ansible/group_vars/all.yml.")
+        return
+
+    print("Press Enter to keep the current value, or type a new value.")
+    fields = [
+        ("litellm_master_key", "LiteLLM API/master key"),
+        ("litellm_ui_username", "LiteLLM admin username"),
+        ("litellm_ui_password", "LiteLLM admin password"),
+    ]
+    updated_content = content
+    for key, label in fields:
+        current_value = get_yaml_scalar(updated_content, key)
+        new_value = prompt_text(label, current_value)
+        if new_value:
+            updated_content = set_yaml_scalar(updated_content, key, new_value)
+
+    if updated_content != content:
+        write_file(path, updated_content)
+        print(f"updated: {path.relative_to(REPO_ROOT)}")
+    else:
+        print("LiteLLM credentials unchanged.")
 
 
 def configure_common_tfvars(profile: str) -> tuple[str, str, str, list[str]]:
@@ -364,11 +655,7 @@ def configure_common_tfvars(profile: str) -> tuple[str, str, str, list[str]]:
     region = prompt_text("AWS region", default_region)
     name_prefix = prompt_text("Deployment name prefix", current_prefix)
     cidr_default = ", ".join(current_cidrs) if current_cidrs else ""
-    cidr_text = prompt_text("Trusted source CIDR list, comma-separated", cidr_default)
-    cidrs = [entry.strip() for entry in cidr_text.split(",") if entry.strip()]
-    if not cidrs:
-        raise SystemExit("At least one trusted source CIDR is required.")
-    cidrs = validate_cidr_list(cidrs, "Trusted source CIDR list")
+    cidrs = prompt_cidr_list("Trusted source CIDR list, comma-separated", cidr_default, "Trusted source CIDR list")
     tags_text = prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(current_tags))
     tags = parse_tags_text(tags_text)
 
@@ -513,6 +800,56 @@ def parse_ecr_tfvars() -> tuple[str, list[str]]:
     return repo_prefix, repositories
 
 
+def get_ecr_state_repository_names() -> set[str]:
+    result = run_command(
+        ["terraform", "-chdir=terraform/aws-ecr", "state", "list"],
+        check=False,
+        capture=True,
+    )
+    if result.returncode != 0:
+        return set()
+
+    names: set[str] = set()
+    for line in (result.stdout or "").splitlines():
+        match = re.search(r'aws_ecr_repository\.this\["([^"]+)"\]', line)
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def show_ecr_state_status(repositories: list[str]) -> tuple[list[str], list[str]]:
+    print_header("ECR Terraform State")
+    configured = set(repositories)
+    tracked = get_ecr_state_repository_names()
+    tracked_configured = sorted(configured.intersection(tracked))
+    missing = sorted(configured.difference(tracked))
+    extra = sorted(tracked.difference(configured))
+
+    if not tracked_configured and missing:
+        print("No configured ECR repositories are currently tracked in Terraform state.")
+        print("Recommended action: import existing repositories before apply if these repos already exist.")
+        print("If this is a brand-new registry, continuing with apply will create them.")
+    elif missing:
+        print("Terraform state tracks some, but not all, configured ECR repositories.")
+        print("Safe action: import the missing repositories if they already exist, then apply.")
+        print("If the missing repositories are intentionally new, apply can create only those missing repos.")
+    else:
+        print("Terraform state tracks all configured ECR repositories.")
+        print("Safe for apply: Terraform should update policy/settings instead of trying to recreate repositories.")
+
+    print("Configured repositories:")
+    for repository in sorted(configured):
+        state = "tracked" if repository in tracked else "missing from state"
+        print(f"- {repository}: {state}")
+
+    if extra:
+        print("State also tracks repositories not currently configured:")
+        for repository in extra:
+            print(f"- {repository}")
+
+    return tracked_configured, missing
+
+
 def prompt_manual_review() -> None:
     print_header("Manual Review Before Terraform")
     print("Review these files before continuing:")
@@ -547,10 +884,19 @@ def terraform_apply(module_path: str, auto_approve: bool) -> None:
     run_command(argv)
 
 
-def import_existing_ecr_repos() -> None:
+def import_existing_ecr_repos(
+    repositories_to_import: list[str] | None = None,
+    *,
+    prompt_on_failure: bool = True,
+) -> None:
     print_header("Importing Existing ECR Repositories")
     repo_prefix, repositories = parse_ecr_tfvars()
-    for repository in repositories:
+    target_repositories = repositories_to_import if repositories_to_import is not None else repositories
+    if not target_repositories:
+        print("No ECR repositories need import based on current Terraform state.")
+        return
+
+    for repository in target_repositories:
         address = f'aws_ecr_repository.this["{repository}"]'
         import_id = f"{repo_prefix}/{repository}"
         result = run_command(
@@ -560,15 +906,22 @@ def import_existing_ecr_repos() -> None:
         if result.returncode == 0:
             continue
         print(f"Import failed for {import_id}. It may already be imported or may not exist.")
+        if not prompt_on_failure:
+            print("Continuing because noninteractive import mode is enabled.")
+            continue
         if not prompt_yes_no("Continue importing/applying the remaining repositories?", True):
             raise SystemExit(result.returncode)
 
 
-def run_terraform(ecr_mode: str, auto_approve: bool) -> None:
+def run_terraform(ecr_mode: str, auto_approve: bool, *, noninteractive_import: bool = False) -> None:
     print_header("Terraform: ECR")
     terraform_init_validate("terraform/aws-ecr")
+    _tracked_repositories, missing_repositories = show_ecr_state_status(parse_ecr_tfvars()[1])
     if ecr_mode == "existing":
-        import_existing_ecr_repos()
+        import_existing_ecr_repos(missing_repositories, prompt_on_failure=not noninteractive_import)
+    elif missing_repositories:
+        if prompt_yes_no("Import missing ECR repositories before apply?", False):
+            import_existing_ecr_repos(missing_repositories)
     terraform_apply("terraform/aws-ecr", auto_approve)
 
     for label, module_path in TERRAFORM_MODULES[1:]:
@@ -616,10 +969,38 @@ def show_ec2_instance_status(profile: str, region: str, instance_id: str) -> boo
     return ready
 
 
-def prompt_ec2_status(profile: str, region: str) -> None:
+def wait_for_ec2_status_ready(profile: str, region: str, instance_id: str, delay_seconds: int, max_attempts: int) -> None:
+    attempts = max(1, max_attempts)
+    delay = max(1, delay_seconds)
+
+    for attempt in range(1, attempts + 1):
+        print(f"Checking EC2 readiness, attempt {attempt}/{attempts}.")
+        if show_ec2_instance_status(profile, region, instance_id):
+            print("EC2 instance status is READY.")
+            return
+
+        if attempt == attempts:
+            raise SystemExit("Stopped because EC2 instance status did not become READY.")
+
+        print(f"EC2 instance is not ready yet. Waiting {delay} seconds before checking again.")
+        time.sleep(delay)
+
+
+def prompt_ec2_status(
+    profile: str,
+    region: str,
+    *,
+    wait_until_ready: bool = False,
+    delay_seconds: int = 30,
+    max_attempts: int = 20,
+) -> None:
     instance_id = get_ec2_instance_id()
     if not instance_id:
         print("Could not read EC2 instance_id from terraform/aws-ec2-k3s outputs.")
+        return
+
+    if wait_until_ready:
+        wait_for_ec2_status_ready(profile, region, instance_id, delay_seconds, max_attempts)
         return
 
     while True:
@@ -668,20 +1049,48 @@ def run_ansible_playbook(
     return result
 
 
-def run_image_publishing() -> None:
+def run_image_publishing(args: argparse.Namespace) -> None:
     print_header("Ansible: ECR Image Publishing")
-    if not prompt_yes_no(
-        "Run ECR image publishing now? This can take a while and requires local Docker image archives",
-        True,
-    ):
+    if args.yolo:
+        print("Skipping image publishing because --yolo was set.")
+        print("Deployments assume required images already exist in the registry.")
+        return
+
+    print("Choose which images to publish now:")
+    print("1. none (default)")
+    print("2. chatbot only")
+    print("3. FortiAIGate only")
+    print("4. all")
+    while True:
+        selection = prompt_text("Image publishing selection", "none").strip().lower()
+        if selection in {"", "1", "n", "none", "no", "skip"}:
+            selection = "none"
+            break
+        if selection in {"2", "chatbot", "chat", "bot"}:
+            selection = "chatbot"
+            break
+        if selection in {"3", "fortiaigate", "faig", "fortiai"}:
+            selection = "fortiaigate"
+            break
+        if selection in {"4", "all", "both"}:
+            selection = "all"
+            break
+        print("Choose none, chatbot, fortiaigate, or all.")
+
+    if selection == "none":
         print("Skipping image publishing. Deployments assume required images already exist in the registry.")
         return
 
-    run_ansible_playbook("publish_images.yml")
-    run_ansible_playbook("publish_chatbot_images.yml")
+    if selection in {"fortiaigate", "all"}:
+        run_ansible_playbook("publish_images.yml")
+    if selection in {"chatbot", "all"}:
+        run_ansible_playbook("publish_chatbot_images.yml")
 
 
-def wait_for_fortiaigate_ready(delay_seconds: int, max_attempts: int) -> None:
+def wait_for_fortiaigate_ready(
+    delay_seconds: int,
+    max_attempts: int,
+) -> None:
     print_header("Ansible: FortiAIGate Status")
     attempts = max(1, max_attempts)
     delay = max(1, delay_seconds)
@@ -709,6 +1118,11 @@ def wait_for_fortiaigate_ready(delay_seconds: int, max_attempts: int) -> None:
         time.sleep(delay)
 
 
+def run_fortiaigate_status_once(label: str = "Ansible: FortiAIGate Status") -> None:
+    print_header(label)
+    run_ansible_playbook("status_fortiaigate.yml", check=False)
+
+
 def deploy_with_status(label: str, deploy_playbook: str, status_playbook: str) -> None:
     print_header(f"Ansible: Deploy {label}")
     run_ansible_playbook(deploy_playbook)
@@ -716,12 +1130,28 @@ def deploy_with_status(label: str, deploy_playbook: str, status_playbook: str) -
     run_ansible_playbook(status_playbook, check=False)
 
 
-def run_application_deployments() -> None:
-    for label, deploy_playbook, status_playbook in APPLICATION_PLAYBOOKS:
+def optional_playbook_enabled(enabled_key: str) -> bool:
+    path = REPO_ROOT / "ansible/group_vars/all.yml"
+    if not path.exists():
+        return False
+    return get_yaml_bool(read_file(path), enabled_key, False)
+
+
+def run_application_deployments(args: argparse.Namespace) -> None:
+    for playbook_entry in APPLICATION_PLAYBOOKS:
+        label, deploy_playbook, status_playbook, *optional_enabled_key = playbook_entry
+        if optional_enabled_key and not optional_playbook_enabled(optional_enabled_key[0]):
+            print_header(f"Ansible: Skip {label}")
+            print(f"{optional_enabled_key[0]}=false; skipping {deploy_playbook}.")
+            continue
         deploy_with_status(label, deploy_playbook, status_playbook)
 
     print_header("Ansible: Optional HTTPS Gateway")
-    if prompt_yes_no(
+    if args.yolo:
+        print("Running optional HTTPS gateway playbook because --yolo was set.")
+        print("The playbook should no-op when demo_https_gateway_enabled is false.")
+        run_ansible_playbook("deploy_demo_https_gateway.yml", check=False)
+    elif prompt_yes_no(
         "Run optional HTTPS gateway playbook now? Requires demo_https_gateway_enabled and Terraform-opened HTTPS ports",
         False,
     ):
@@ -733,23 +1163,41 @@ def run_application_deployments() -> None:
 
 def run_ansible_flow(args: argparse.Namespace) -> None:
     print_header("Ansible Deployment")
-    if not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
+    if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
         raise SystemExit("Stopped before Ansible execution.")
 
-    run_image_publishing()
+    faig_status_mode = args.faig_status_mode or "once"
+
+    run_image_publishing(args)
 
     print_header("Ansible: Bootstrap k3s")
     run_ansible_playbook("bootstrap_gpu_k3s.yml")
 
     print_header("Ansible: Deploy FortiAIGate")
     run_ansible_playbook("deploy_fortiaigate.yml")
-    wait_for_fortiaigate_ready(args.faig_status_delay, args.faig_status_retries)
+    if faig_status_mode == "wait":
+        wait_for_fortiaigate_ready(
+            args.faig_status_delay,
+            args.faig_status_retries,
+        )
+    else:
+        run_fortiaigate_status_once("Ansible: FortiAIGate Status After Deploy")
 
-    run_application_deployments()
+    run_application_deployments(args)
+    if faig_status_mode == "once":
+        run_fortiaigate_status_once("Ansible: Final FortiAIGate Status")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Guided Terraform bootstrap for the FortiAIGate demo.")
+    parser.add_argument(
+        "--yolo",
+        action="store_true",
+        help=(
+            "Subsequent-run mode: use preconfigured vars, auto-approve Terraform, "
+            "import missing ECR repository state, skip image publishing, and run Ansible without setup prompts."
+        ),
+    )
     parser.add_argument(
         "--auto-approve",
         action="store_true",
@@ -776,6 +1224,18 @@ def parse_args() -> argparse.Namespace:
         help="Stop after Terraform and EC2 status instead of running Ansible deployment.",
     )
     parser.add_argument(
+        "--ec2-status-delay",
+        type=int,
+        default=30,
+        help="Seconds to wait between EC2 status checks before Ansible starts. Default: 30.",
+    )
+    parser.add_argument(
+        "--ec2-status-retries",
+        type=int,
+        default=20,
+        help="Maximum EC2 status checks before stopping. Default: 20.",
+    )
+    parser.add_argument(
         "--faig-status-delay",
         type=int,
         default=60,
@@ -787,6 +1247,15 @@ def parse_args() -> argparse.Namespace:
         default=30,
         help="Maximum FortiAIGate status checks before prompting to continue or stop. Default: 30.",
     )
+    parser.add_argument(
+        "--faig-status-mode",
+        choices=["wait", "once"],
+        default=None,
+        help=(
+            "FortiAIGate post-deploy status behavior. wait polls until READY; once checks once, "
+            "continues with other charts, then checks again at the end. Default: once."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -794,11 +1263,19 @@ def main() -> None:
     args = parse_args()
     os.chdir(REPO_ROOT)
     check_repo_root()
+    terraform_auto_approve = args.auto_approve or args.yolo
 
     print("FortiAIGate automated quick start")
     print(f"Repo root: {REPO_ROOT}")
     print("This script can run Terraform, publish images, bootstrap k3s, and deploy the demo.")
     print("Existing local tfvars/YAML values are used as prompt defaults when present.")
+    if args.yolo:
+        print("\nYOLO mode is enabled.")
+        print("- Terraform apply uses -auto-approve.")
+        print("- ECR repositories missing from state are imported before apply when possible.")
+        print("- Image publishing is skipped.")
+        print("- FortiAIGate status is checked once after deploy, then again after app deployment.")
+        print("- Terraform/Ansible execution prompts are skipped where safe.")
 
     check_requirements()
     if args.skip_backup:
@@ -807,26 +1284,56 @@ def main() -> None:
     else:
         backup_private_config(Path(args.backup_dir).expanduser())
     copy_missing_examples()
+    sync_missing_example_defaults()
 
     current_common = read_file(REPO_ROOT / "terraform/common.tfvars")
     default_profile = get_tf_string(current_common, "aws_profile")
-    profile = choose_aws_profile(default_profile)
+    if args.yolo and default_profile:
+        profile = default_profile
+        print_header("AWS Profile")
+        print(f"Using aws_profile from terraform/common.tfvars: {profile}")
+    else:
+        profile = choose_aws_profile(default_profile)
     ensure_aws_login(profile)
-    profile, region, _name_prefix, _cidrs = configure_common_tfvars(profile)
-    configure_ansible_env(profile, region)
-    configure_ec2_tfvars(profile, region)
 
-    prompt_manual_review()
+    if args.yolo:
+        region = get_tf_string(current_common, "aws_region")
+        if not region:
+            region = quiet_command_output(["aws", "configure", "get", "region", "--profile", profile]) or "us-east-1"
+        print_header("Shared Terraform Config")
+        print("Using existing local Terraform and Ansible variable files because --yolo was set.")
+        print(f"AWS region: {region}")
+    else:
+        profile, region, _name_prefix, _cidrs = configure_common_tfvars(profile)
+
+    configure_ansible_env(profile, region)
+    if not args.yolo:
+        configure_ec2_tfvars(profile, region)
+
+    configure_license_preflight(noninteractive=args.yolo)
+    configure_litellm_credentials(noninteractive=args.yolo)
+
+    if not args.yolo:
+        prompt_manual_review()
     if args.skip_terraform:
         print_header("Terraform")
         print("Skipped by --skip-terraform.")
     else:
-        if not prompt_yes_no("Ready to start Terraform execution?", False):
+        if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", False):
             raise SystemExit("Stopped before Terraform execution.")
 
-        ecr_mode = choose_ecr_mode()
-        run_terraform(ecr_mode, args.auto_approve)
-    prompt_ec2_status(profile, region)
+        ecr_mode = "existing" if args.yolo else choose_ecr_mode()
+        if args.yolo:
+            print_header("ECR Mode")
+            print("YOLO mode: importing missing existing ECR repositories, then applying.")
+        run_terraform(ecr_mode, terraform_auto_approve, noninteractive_import=args.yolo)
+    prompt_ec2_status(
+        profile,
+        region,
+        wait_until_ready=True,
+        delay_seconds=args.ec2_status_delay,
+        max_attempts=args.ec2_status_retries,
+    )
 
     print_header("Terraform Phase Complete")
     print("Generated files should now include:")

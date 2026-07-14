@@ -51,127 +51,284 @@
         fortiaigate_test_model
         if fortiaigate_test_model | length > 0
         else (
-          fortiaigate_test_bedrock_models[0]
-          if fortiaigate_test_bedrock_models | length > 0
-          else fortiaigate_test_fallback_model
+          fortiaigate_test_default_model
+          if fortiaigate_test_default_model | length > 0
+          else (
+            fortiaigate_test_bedrock_models[0]
+            if fortiaigate_test_bedrock_models | length > 0
+            else fortiaigate_test_fallback_model
+          )
         )
       }}
   # - ansible.builtin.debug:
   #     var: fortiaigate_test_effective_model
 
-- name: Set FortiAIGate test URL and payload
+- name: Set FortiAIGate endpoint poll mode
   ansible.builtin.set_fact:
-    fortiaigate_test_url: "https://{{ fortiaigate_test_host }}:443{{ fortiaigate_test_endpoint_path }}"
-    fortiaigate_test_payload:
-      model: "{{ fortiaigate_test_effective_model }}"
-      messages:
-        - role: user
-          content: "{{ fortiaigate_test_message }}"
+    fortiaigate_test_poll_all_enabled: "{{ (poll_all_endpoints | default(false) | bool) or (fortiaigate_test_poll_all_endpoints | bool) }}"
   # - ansible.builtin.debug:
-  #     var: fortiaigate_test_payload
+  #     var: fortiaigate_test_poll_all_enabled
 
-- name: Show FortiAIGate chat test target
-  ansible.builtin.debug:
-    msg:
-      - "FortiAIGate chat test URL: {{ fortiaigate_test_url }}"
-      - "Model: {{ fortiaigate_test_effective_model }}"
-      - "Prompt: {{ fortiaigate_test_message }}"
-      - "Authorization header: {{ 'enabled' if fortiaigate_test_api_key | length > 0 else 'disabled' }}"
-
-- name: Send FortiAIGate chat completion test
-  # Change note: curl execution moved to a repo-owned Python script so the JSON
-  # payload is sent through subprocess argv instead of shell quoting.
-  ansible.builtin.command:
-    argv:
-      - python3
-      - "{{ fortiaigate_test_script }}"
-      - --url
-      - "{{ fortiaigate_test_url }}"
-      - --model
-      - "{{ fortiaigate_test_effective_model }}"
-      - --prompt
-      - "{{ fortiaigate_test_message }}"
-      - --timeout
-      - "{{ fortiaigate_test_timeout_seconds | string }}"
-      - --ansible-raw
-  delegate_to: localhost
-  become: false
-  changed_when: false
-  failed_when: false
-  register: fortiaigate_test_response_raw
-  environment:
-    FORTIAIGATE_TEST_API_KEY: "{{ fortiaigate_test_api_key }}"
-  # - ansible.builtin.debug:
-  #     var: fortiaigate_test_response_raw.stdout_lines
-
-- name: Set FortiAIGate test response facts
+- name: Reset FortiAIGate endpoint test cases
   ansible.builtin.set_fact:
-    fortiaigate_test_http_status: "{{ fortiaigate_test_response_raw.stdout | regex_findall('__HTTP_STATUS__:(\\d+)$') | first | default('000') }}"
-    fortiaigate_test_response_body: "{{ fortiaigate_test_response_raw.stdout | regex_replace('\\n__HTTP_STATUS__:\\d+$', '') }}"
-    fortiaigate_test_curl_rc: "{{ fortiaigate_test_response_raw.rc | default(0) }}"
-    fortiaigate_test_curl_stderr: "{{ fortiaigate_test_response_raw.stderr | default('') }}"
+    fortiaigate_test_endpoint_cases: []
   # - ansible.builtin.debug:
-  #     var: fortiaigate_test_http_status
+  #     var: fortiaigate_test_endpoint_cases
 
-- name: Build friendly FortiAIGate test response summary
-  ansible.builtin.shell: |
-    python3 - <<'PY'
-    import json
-    import os
-
-    body = os.environ.get("FORTIAIGATE_TEST_RESPONSE_BODY", "")
-    if not body.strip():
-        print("<empty response body>")
-        raise SystemExit(0)
-
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError:
-        print(body[:4000])
-        raise SystemExit(0)
-
-    content = None
-    choices = data.get("choices") if isinstance(data, dict) else None
-    if choices:
-        first = choices[0]
-        message = first.get("message") if isinstance(first, dict) else None
-        if isinstance(message, dict):
-            content = message.get("content")
-        if not content and isinstance(first, dict):
-            content = first.get("text")
-
-    if content:
-        print(content)
-    else:
-        print(json.dumps(data, indent=2)[:4000])
-    PY
-  args:
-    executable: /bin/bash
-  delegate_to: localhost
-  become: false
-  changed_when: false
-  register: fortiaigate_test_response_summary
-  environment:
-    FORTIAIGATE_TEST_RESPONSE_BODY: "{{ fortiaigate_test_response_body }}"
+- name: Add single FortiAIGate endpoint test case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases:
+      - name: default
+        endpoint_path: "{{ fortiaigate_test_endpoint_path }}"
+        model: "{{ fortiaigate_test_effective_model }}"
+        headers: []
+  when: not fortiaigate_test_poll_all_enabled | bool
   # - ansible.builtin.debug:
-  #     var: fortiaigate_test_response_summary.stdout_lines
+  #     var: fortiaigate_test_endpoint_cases
 
-- name: Show FortiAIGate chat test result
+- name: Add FortiAIGate static route test cases
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'static:' ~ item.name,
+            'endpoint_path': (item.base_path | regex_replace('/$', '')) ~ '/chat/completions',
+            'model': item.model,
+            'headers': []
+          }
+        ]
+      }}
+  loop: "{{ chatbot_faig_static_routes | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_static_endpoints | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add selected FortiAIGate intelligent route test case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'intelligent',
+            'display_name': 'intelligent',
+            'endpoint_path': (item.base_path | regex_replace('/$', '')) ~ '/chat/completions',
+            'model': item.model,
+            'headers': (
+              [faig_model_route_header_name ~ ': ' ~ ((item.header_value if item.header_value is defined else item.model) | string)]
+              if (
+                faig_model_route_header_name | default('') | length > 0
+                and ((item.header_value if item.header_value is defined else item.model) | string | length > 0)
+              )
+              else []
+            )
+          }
+        ]
+      }}
+  loop: "{{ chatbot_faig_header_routes | default([]) | selectattr('name', 'equalto', chatbot_faig_header_route | default('passthrough')) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_header_endpoints | bool
+    - not fortiaigate_test_include_all_header_route_profiles | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add all FortiAIGate intelligent route profile test cases
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'header:' ~ item.name,
+            'display_name': 'intelligent:' ~ item.name,
+            'endpoint_path': (item.base_path | regex_replace('/$', '')) ~ '/chat/completions',
+            'model': item.model,
+            'headers': (
+              [faig_model_route_header_name ~ ': ' ~ ((item.header_value if item.header_value is defined else item.model) | string)]
+              if (
+                faig_model_route_header_name | default('') | length > 0
+                and ((item.header_value if item.header_value is defined else item.model) | string | length > 0)
+              )
+              else []
+            )
+          }
+        ]
+      }}
+  loop: "{{ chatbot_faig_header_routes | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_header_endpoints | bool
+    - fortiaigate_test_include_all_header_route_profiles | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add Open WebUI FortiAIGate endpoint test case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'openwebui',
+            'endpoint_path': (litellm_faig_base_path | default('/v1/passthrough') | regex_replace('/$', '')) ~ '/chat/completions',
+            'model': fortiaigate_test_openwebui_model,
+            'headers': []
+          }
+        ]
+      }}
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_openwebui_endpoint | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add re-entry FortiAIGate endpoint test case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'reentry',
+            'endpoint_path': (litellm_faig_backend_base_path | default('/v1/passthrough') | regex_replace('/$', '')) ~ '/chat/completions',
+            'model': fortiaigate_test_backend_model,
+            'headers': []
+          }
+        ]
+      }}
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_backend_endpoint | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add default FortiAIGate test endpoint case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'default',
+            'endpoint_path': fortiaigate_test_endpoint_path,
+            'model': fortiaigate_test_effective_model,
+            'headers': []
+          }
+        ]
+      }}
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_test_endpoint | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Add optional Ollama FortiAIGate endpoint case
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_cases: >-
+      {{
+        fortiaigate_test_endpoint_cases
+        + [
+          {
+            'name': 'ollama',
+            'endpoint_path': fortiaigate_test_ollama_endpoint_path,
+            'model': fortiaigate_test_ollama_model,
+            'headers': []
+          }
+        ]
+      }}
+  when:
+    - fortiaigate_test_poll_all_enabled | bool
+    - fortiaigate_test_include_ollama_endpoint | bool
+    - fortiaigate_test_ollama_model | length > 0
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_cases
+
+- name: Reset FortiAIGate endpoint test results
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_results: []
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_results
+
+- name: Run FortiAIGate endpoint test cases
+  ansible.builtin.include_tasks: run_one.yml
+  loop: "{{ fortiaigate_test_endpoint_cases }}"
+  loop_control:
+    loop_var: fortiaigate_test_case
+    label: "{{ fortiaigate_test_case.name }}"
+
+- name: Reset concise FortiAIGate endpoint test summary lines
+  ansible.builtin.set_fact:
+    fortiaigate_test_summary_lines: []
+    fortiaigate_test_failed_summary_lines: []
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_summary_lines
+
+- name: Build concise FortiAIGate endpoint test summary lines
+  ansible.builtin.set_fact:
+    fortiaigate_test_summary_lines: >-
+      {{
+        (fortiaigate_test_summary_lines | default([]))
+        + [
+          'endpoint: '
+          ~ result.display_name
+          ~ ' | status: '
+          ~ ('working' if fortiaigate_test_result_ok | bool else 'failed (HTTP ' ~ result.http_status ~ ')')
+        ]
+      }}
+    fortiaigate_test_failed_summary_lines: >-
+      {{
+        fortiaigate_test_failed_summary_lines
+        + (
+          [
+            'endpoint: '
+            ~ result.display_name
+            ~ ' | HTTP '
+            ~ result.http_status
+            ~ ' | URI: '
+            ~ result.uri
+          ]
+          if not fortiaigate_test_result_ok | bool
+          else []
+        )
+      }}
+  loop: "{{ fortiaigate_test_endpoint_results }}"
+  loop_control:
+    loop_var: result
+    label: "{{ result.display_name }}"
+  vars:
+    fortiaigate_test_result_ok: "{{ (result.http_status | int) >= 200 and (result.http_status | int) < 300 }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_summary_lines
+
+- name: Show FortiAIGate endpoint test summary
   ansible.builtin.debug:
-    msg:
-      - "FortiAIGate test URL: {{ fortiaigate_test_url }}"
-      - "Model: {{ fortiaigate_test_effective_model }}"
-      - "HTTP status: {{ fortiaigate_test_http_status }}"
-      - "curl exit code: {{ fortiaigate_test_curl_rc }}"
-      - "curl stderr: {{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}"
-      - "Response:"
-      - "{{ fortiaigate_test_response_summary.stdout }}"
-
-- name: Fail when FortiAIGate chat test did not return HTTP 2xx
-  ansible.builtin.fail:
     msg: >-
-      FortiAIGate chat test failed with HTTP {{ fortiaigate_test_http_status }}.
-      curl exit code={{ fortiaigate_test_curl_rc }}.
-      stderr={{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}.
-      body={{ fortiaigate_test_response_body if fortiaigate_test_response_body | length > 0 else '<empty>' }}
-  when: fortiaigate_test_http_status | int < 200 or fortiaigate_test_http_status | int >= 300
+      {{
+        [
+          'FortiAIGate endpoint test summary: '
+          ~ ('PASS' if fortiaigate_test_failed_summary_lines | length == 0 else 'FAIL'),
+          'Endpoints tested: ' ~ (fortiaigate_test_endpoint_results | length)
+        ]
+        + fortiaigate_test_summary_lines
+        + (
+          ['Failed endpoints:'] + fortiaigate_test_failed_summary_lines
+          if fortiaigate_test_failed_summary_lines | length > 0
+          else []
+        )
+      }}
+
+- name: Fail when one or more FortiAIGate endpoint tests failed
+  ansible.builtin.fail:
+    msg: "{{ ['FortiAIGate endpoint tests failed after completing all cases.'] + fortiaigate_test_failed_summary_lines }}"
+  when: fortiaigate_test_failed_summary_lines | length > 0

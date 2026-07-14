@@ -3,7 +3,7 @@ nameOverride: chatbot
 image:
   repository: fortiaigate/chatbot-basic
   tag: local
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   pullSecrets: []
 
 service:
@@ -14,11 +14,18 @@ service:
 containerPort: 8501
 
 chatbot:
+  appChecksum: ""
   directBaseUrl: ""
   directApiKey: not-used
   faigBaseUrl: ""
   faigApiKey: not-used
+  faigStaticRoute: demo-a
+  faigStaticRoutesJson: ""
+  faigHeaderRoute: demo-a
+  faigHeaderRoutesJson: ""
+  faigModelRouteHeaderName: X-FAIG-Model-Route
   model: auto
+  modelOptions: ""
   pageTitle: AI Chatbot
   headerTitle: AI Chatbot
   frontendSystemPrompt: ""
@@ -26,6 +33,13 @@ chatbot:
   maxTokens: "4096"
   streaming: "false"
   verifyTls: "false"
+  mcpEnabled: "false"
+  mcpDirectBaseUrl: "http://mcp-demo.mcp.svc.cluster.local:8000"
+  mcpFortiwebBaseUrl: ""
+  mcpDefaultPath: direct
+  mcpTimeoutSeconds: "10"
+  mcpVerifyTls: "false"
+  mcpMaxToolRounds: "3"
 
 instructions:
   content: "You are a helpful AI assistant."

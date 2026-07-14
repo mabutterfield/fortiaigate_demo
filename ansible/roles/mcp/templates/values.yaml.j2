@@ -1,0 +1,24 @@
+nameOverride: "{{ mcp_release_name }}"
+
+image:
+  repository: "{{ mcp_image_repository }}"
+  tag: "{{ mcp_image_tag }}"
+  pullPolicy: "{{ mcp_image_pull_policy }}"
+
+service:
+  type: "{{ mcp_service_type }}"
+  port: {{ mcp_service_port }}
+{% if mcp_service_type == 'NodePort' and (mcp_node_port | string | length > 0) %}
+  nodePort: {{ mcp_node_port }}
+{% else %}
+  nodePort: null
+{% endif %}
+
+containerPort: {{ mcp_container_port }}
+
+resources: {}
+
+probes:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 6

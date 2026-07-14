@@ -1,0 +1,14 @@
+---
+mcp_test_target_mode: public_http
+mcp_test_aws_ec2_module_path: "{{ playbook_dir }}/../../terraform/aws-ec2-k3s"
+mcp_test_host_override: ""
+mcp_test_use_https: false
+mcp_test_scheme: "{{ 'https' if mcp_test_use_https | bool else 'http' }}"
+mcp_test_port: "{{ demo_mcp_https_port | default(30447) if mcp_test_use_https | bool else mcp_node_port | default(demo_mcp_http_port | default(30084)) }}"
+mcp_test_validate_certs: false
+mcp_test_base_url_override: ""
+mcp_test_endpoint_path: /mcp
+mcp_test_tool: customer_lookup
+mcp_test_arguments:
+  customer_id: "{{ mcp_test_customer_id | default('CUST-1001') }}"
+mcp_test_timeout_seconds: 30

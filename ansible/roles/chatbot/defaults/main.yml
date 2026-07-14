@@ -8,7 +8,7 @@ chatbot_helm_timeout: 5m
 
 chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else 'fortiaigate/chatbot-basic') }}"
 chatbot_image_tag: local
-chatbot_image_pull_policy: IfNotPresent
+chatbot_image_pull_policy: Always
 chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
 chatbot_image_pull_secrets:
   - name: "{{ ecr_pull_secret_name | default('ecr-secret') }}"
@@ -27,10 +27,65 @@ chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 
 chatbot_direct_base_url: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
 chatbot_direct_api_key: "{{ litellm_master_key | default('sk-litellm-demo-change-me') }}"
-chatbot_faig_base_url: "{{ litellm_faig_base_url | default('http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/v1') }}"
+faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
-chatbot_model: "{{ litellm_model_alias | default('demo-profile') }}"
+faig_model_route_header_name: X-FAIG-Model-Route
+chatbot_faig_static_route: demo-a
+chatbot_faig_static_routes:
+  - name: passthrough
+    label: Passthrough
+    base_path: /v1/passthrough
+    model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+  - name: demo-a
+    label: Demo A
+    base_path: /v1/demo-a
+    model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+  - name: demo-b
+    label: Demo B
+    base_path: /v1/demo-b
+    model: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
+  - name: demo-a-faig-be
+    label: Demo A -> FAIG Re-entry
+    base_path: /v1/demo-a-faig-be
+    model: "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
+  - name: demo-b-faig-be
+    label: Demo B -> FAIG Re-entry
+    base_path: /v1/demo-b-faig-be
+    model: "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
+chatbot_faig_header_route: passthrough
+chatbot_faig_header_routes:
+  - name: passthrough
+    label: Passthrough
+    base_path: /v1/intelligent
+    model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+    header_value: ""
+  - name: demo-a
+    label: Demo A
+    base_path: /v1/intelligent
+    model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+    header_value: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+  - name: demo-b
+    label: Demo B
+    base_path: /v1/intelligent
+    model: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
+    header_value: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
+chatbot_model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+chatbot_model_options:
+  - "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+  - "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+  - "{{ litellm_demo_b_model_alias | default('demo-b') }}"
+  - "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
+  - "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
 chatbot_frontend_system_prompt: ""
+chatbot_frontend_system_prompt_source_path: ""
+chatbot_mcp_enabled: false
+chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8000') }}"
+chatbot_mcp_fortiweb_base_url: ""
+chatbot_mcp_default_path: direct
+chatbot_mcp_timeout_seconds: 10
+chatbot_mcp_verify_tls: false
+chatbot_mcp_max_tool_rounds: 3
 
 chatbot_instances:
   - name: chatbot
@@ -42,9 +97,18 @@ chatbot_instances:
     direct_api_key: "{{ chatbot_direct_api_key }}"
     faig_base_url: "{{ chatbot_faig_base_url }}"
     faig_api_key: "{{ chatbot_faig_api_key }}"
+    faig_static_route: "{{ chatbot_faig_static_route }}"
+    faig_header_route: "{{ chatbot_faig_header_route }}"
+    faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
+    model_options: "{{ chatbot_model_options }}"
     frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
+    mcp_enabled: "{{ chatbot_mcp_enabled }}"
+    mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
+    mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
+    mcp_default_path: "{{ chatbot_mcp_default_path }}"
+    mcp_max_tool_rounds: "{{ chatbot_mcp_max_tool_rounds }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct or FortiAIGate
+    provider_label: Direct, FAIG Static, or FAIG Intelligent
     ingress_host: ""

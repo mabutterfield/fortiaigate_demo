@@ -8,6 +8,9 @@ AWS infrastructure is split across three user-facing Terraform folders:
 
 Shared values live in `terraform/common.tfvars`.
 
+See [VPC Layout](vpc-layout.md) for the current public-k3s network diagram and
+the private/appliance placeholder layout.
+
 ## Trusted Source CIDRs
 
 `allowed_ingress_cidr` in `terraform/common.tfvars` accepts either one CIDR
@@ -27,5 +30,6 @@ NodePorts.
 ## More Detail
 
 - [Terraform Reference](terraform.md)
+- [VPC Layout](vpc-layout.md)
 - [AWS k3s Foundation](aws-k3s-foundation.md)
 - [AWS Instance Sizing](aws_instance.MD)

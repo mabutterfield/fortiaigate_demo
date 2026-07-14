@@ -13,6 +13,13 @@ Run from the repository root:
 python3 scripts/automated_quickstart.py
 ```
 
+For repeat lab cycles, use the paired teardown script when you want to remove
+the EC2/k3s host and AWS prep resources while keeping ECR repositories:
+
+```bash
+python3 scripts/automated_teardown.py
+```
+
 By default, Terraform still asks for apply approval in each module. To approve
 Terraform applies automatically after the script's final confirmation prompt:
 
@@ -26,6 +33,25 @@ outputs:
 ```bash
 python3 scripts/automated_quickstart.py --skip-terraform
 ```
+
+For repeat runs where local variables are already configured and ECR images
+already exist, use YOLO mode:
+
+```bash
+python3 scripts/automated_quickstart.py --yolo
+```
+
+YOLO mode is intended for subsequent lab cycles, not first-time setup. It:
+
+- uses existing local `tfvars` and Ansible YAML values
+- runs Terraform with `-auto-approve`
+- treats ECR as an existing registry path and imports missing repository state
+  when possible
+- skips image publishing
+- checks FortiAIGate status once after deploy, deploys the remaining app charts,
+  then checks FortiAIGate status again at the end
+- runs the remaining Ansible bootstrap/deployment flow without the normal
+  confirmation prompts
 
 To stop after Terraform and EC2 status, without running Ansible:
 
@@ -60,7 +86,7 @@ Use the full backup before destructive Terraform work, state imports, or larger
 refactors. The automated quick start's built-in backup is intentionally lighter
 and excludes generated `*.generated.yml` files.
 
-## Planned Script Behavior
+## Current Script Behavior
 
 The current setup script:
 
@@ -68,23 +94,38 @@ The current setup script:
 - back up existing private/local tfvars and Ansible group var YAML files,
   excluding generated `*.generated.yml` files
 - prompt for AWS profile, region, name prefix, trusted source CIDRs, and optional tags
+- check AWS caller identity and, when login is needed, prompt for
+  `aws sso login` versus `aws login`; SSO-style profiles default to
+  `aws sso login`
+- prompt whether to pass `--use-device-code` to the selected AWS login command
 - list EC2 key pairs in the selected region and prompt for the k3s SSH key
 - list likely private keys in `~/.ssh` and allow a manual key path
+- check the FortiAIGate license source directory and selected license file
+  before Terraform starts
+- offer to keep or change the current LiteLLM API key, admin username, and
+  admin password in `ansible/group_vars/all.yml`
 - copy missing `*.example` variable files to local ignored files
+- append missing top-level defaults from updated example files into existing
+  local tfvars/YAML files without overwriting existing local values
 - collect required Terraform values using existing local files as prompt defaults
 - sync AWS/common Ansible values into `ansible/group_vars/env.yml`
 - run Terraform in the expected order: ECR, AWS prep, EC2 k3s foundation
-- optionally import existing ECR repositories before applying the ECR module
+- inspect ECR Terraform state before apply and report whether configured
+  repositories are tracked, partially missing, or absent from state
+- optionally import missing existing ECR repositories before applying the ECR module
 - print a compact EC2 READY/NOT READY status and let the operator continue,
   recheck, or quit
-- prompt before running ECR image publishing
+- prompt before running ECR image publishing; the default is `none` so operators
+  can skip publishing when images already exist in ECR
+- support `--yolo` for repeat runs where variables and images are already in
+  place
 - run Ansible in this order:
-  - publish FortiAIGate and chatbot images when approved
+  - publish selected image set when approved: `none`, `chatbot`, `fortiaigate`, or `all`
   - bootstrap k3s
   - deploy FortiAIGate
-  - rerun `status_fortiaigate.yml` every 60 seconds until READY, or until the
-    configured retry limit is reached
-  - deploy LiteLLM, Open WebUI, chatbot UI, and demo home
+  - check `status_fortiaigate.yml` once after deploy
+  - deploy LiteLLM, chatbot UI, MCP demo tools, demo home, and optional Open WebUI when enabled
+  - check `status_fortiaigate.yml` again at the end
   - optionally deploy the HTTPS gateway
   - print consolidated demo outputs
 
@@ -98,6 +139,8 @@ The script should collect or confirm:
 - optional Terraform tags as comma-separated `key=value` pairs
 - EC2 SSH key pair from `aws ec2 describe-key-pairs`
 - local SSH private key path from `~/.ssh` or a manually entered path
+- FortiAIGate license file under `FAIG/licenses` by default
+- LiteLLM API key and Admin UI credentials; press Enter to keep current values
 - instance type, reviewed in `terraform/aws-ec2-k3s/terraform.tfvars`
 - Bedrock IAM enablement and model allow list, reviewed in
   `terraform/aws-prep/terraform.tfvars`
@@ -115,16 +158,38 @@ prompts for.
 
 Trusted source values must use CIDR notation, such as `203.0.113.10/32` for a
 single public IP or `203.0.113.0/24` for a network. The script validates this
-before Terraform runs.
+before Terraform runs. If you enter a single bare IP address, the script offers
+to convert it to a host CIDR such as `/32` for IPv4 or `/128` for IPv6.
 
-Later Ansible phases should collect:
+FortiAIGate licenses are expected under `FAIG/licenses` by default, controlled
+by `license_source_dir` in `ansible/group_vars/all.yml`. When
+`fortiaigate_licenses` is empty, the deployment maps the first
+`fortiaigate_license_files` entry to the discovered k3s node. The automated
+quickstart checks that selected file before Terraform starts and prompts for a
+license file when it is not configured or not found. In `--yolo` mode, the same
+check is non-interactive and fails fast if the configured file is missing.
+
+The script pauses for manual review before Terraform and Ansible so these
+values can be checked in local vars:
 
 - FortiAIGate version and image archive location
 - license file location
 - LiteLLM admin/master key placeholders
-- whether to publish images during this run
+- whether to publish images during this run; default is `none`
+- whether to publish only the chatbot image, which does not load FortiAIGate
+  release archives locally
 - whether to start Ansible deployment after Terraform
+- whether to deploy optional Open WebUI by setting `openwebui_enabled=true`
 - whether to deploy the optional HTTPS gateway
+
+Before applying `terraform/aws-ecr`, the script compares the configured ECR
+repository list with Terraform state:
+
+- If all configured repositories are tracked, apply is safe for normal updates.
+- If some are missing from state, import missing repositories that already exist;
+  apply can create only the intentionally new repositories.
+- If none are tracked, import is recommended when reusing an existing registry;
+  apply is appropriate only for a brand-new registry.
 
 ## Expected Output
 
@@ -152,26 +217,102 @@ aws ec2 describe-instance-status \
 ```
 
 The script prints region, instance ID, READY/NOT READY, instance state, system
-status, and instance status. It then prompts to continue, recheck once more, or
-quit. Enter `r` to re-run the same compact EC2 status query.
+status, and instance status.
 
-During Ansible deployment, the script prints the output of each playbook. After
-FortiAIGate deploy, it repeats `status_fortiaigate.yml` until the status output
-contains `FortiAIGate status: READY`. The default wait behavior is:
+The script polls until EC2 reports READY, then starts Ansible. The default EC2
+wait behavior is:
 
 ```bash
-python3 scripts/automated_quickstart.py --faig-status-delay 60 --faig-status-retries 30
+python3 scripts/automated_quickstart.py --ec2-status-delay 30 --ec2-status-retries 20
+```
+
+During Ansible deployment, the script prints the output of each playbook. After
+FortiAIGate deploy, the default behavior is single-check mode. This checks
+FortiAIGate status once after Helm deploy, continues deploying LiteLLM,
+chatbot, MCP, demo home, and optional Open WebUI when enabled while
+FortiAIGate images continue pulling, then checks FortiAIGate status again at
+the end:
+
+```bash
+python3 scripts/automated_quickstart.py --faig-status-mode once
+```
+
+Use wait mode when a run should block until FortiAIGate is READY before
+deploying the remaining demo apps:
+
+```bash
+python3 scripts/automated_quickstart.py --faig-status-mode wait --faig-status-delay 60 --faig-status-retries 30
 ```
 
 The final `show_demo_outputs.yml` playbook should print:
 
 - k3s public IP or private access note
 - FortiAIGate login URL
+- `LiteLLM proxy provider` values: `API endpoint/private`, `API key`, UI
+  username, UI password, and model name
 - LiteLLM Admin UI URL
-- OpenWebUI URL
+- Open WebUI URL only when `openwebui_enabled=true`
 - custom chatbot URL
+- MCP tools URL
 - demo home URL
+- SSH command for the k3s host
 - commands for status and validation playbooks
+
+## Automated Teardown
+
+The automated teardown script is intended for frequent provision/deprovision
+cycles where image repositories should be retained.
+
+Run from the repository root:
+
+```bash
+python3 scripts/automated_teardown.py
+```
+
+For repeat use where you do not want Terraform to prompt for each destroy:
+
+```bash
+python3 scripts/automated_teardown.py --auto-approve
+```
+
+To skip the script-level confirmation prompt as well:
+
+```bash
+python3 scripts/automated_teardown.py --auto-approve --yes
+```
+
+The teardown order is:
+
+1. Create a full backup with `scripts/backup_config.py`.
+2. Remove `aws_ecr_repository.this[...]` resources from
+   `terraform/aws-ecr` state so repositories are not deleted.
+3. Destroy ECR lifecycle policy resources and the generated local ECR vars file.
+4. Destroy `terraform/aws-ec2-k3s`.
+5. Destroy `terraform/aws-prep`.
+
+The backup includes local tfvars, generated Ansible vars, generated inventory,
+and Terraform state. Use `--backup-dir /path/to/backup` to choose another
+destination, or `--skip-backup` only when you already have a current backup.
+
+Useful partial teardown flags:
+
+```bash
+python3 scripts/automated_teardown.py --skip-ecr
+python3 scripts/automated_teardown.py --skip-ec2
+python3 scripts/automated_teardown.py --skip-prep
+```
+
+ECR repositories are intentionally preserved by state removal, not by Terraform
+destroy. On the next quickstart run, choose the existing/import ECR path when
+you want Terraform to manage lifecycle policies and regenerate
+`ansible/group_vars/ecr.generated.yml` again.
+
+## Next Steps
+
+After automated deployment completes, use
+[FortiAIGate Initial Config](FortiAIGate-initial-config.MD) to complete the
+FortiAIGate GUI setup, create the required AI guards and flows, and run the
+route validation tests.
 
 ## Troubleshooting
 

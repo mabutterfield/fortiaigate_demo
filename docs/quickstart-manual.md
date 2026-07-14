@@ -9,7 +9,8 @@ This is the step-by-step manual deployment path for the FortiAIGate demo. Run th
 - Terraform, Ansible, Docker, Python 3, and SSH available on your workstation
 - Docker must be usable by the current workstation user without `sudo`
 - SSH key pair already present in AWS
-- Existing EC2 IAM instance profile, or allow `terraform/aws-ec2-k3s` to create one
+- Allow `terraform/aws-prep` to create the k3s EC2 IAM role/profile, or set the
+  prep variables to known existing names before applying
 - FortiAIGate release image archives outside this repo
 - FortiAIGate Helm chart extracted outside this repo
 - FortiAIGate license files outside this repo
@@ -151,22 +152,13 @@ terraform -chdir=terraform/aws-prep apply
 
 This module creates the k3s EC2 IAM role/profile, scoped ECR pull permissions,
 trusted source CIDR outputs, preallocated EIPs, and optional Bedrock IAM
-credentials for the first FortiAIGate guard/provider.
+credentials for alternate Bedrock-direct testing.
 When `registry_backend = "ecr"`, it reads repository ARNs from the ECR
 Terraform state configured by `aws_ecr_state_path`.
 
-Save the Bedrock provider values for later FortiAIGate GUI setup:
-
-```bash
-terraform -chdir=terraform/aws-prep output bedrock_access_key_id
-terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
-terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
-terraform -chdir=terraform/aws-prep output bedrock_model_ids
-```
-
-Store these values somewhere safe for the initial FortiAIGate guard/provider
-configuration. The secret access key is sensitive and is only shown because the
-GUI setup currently requires it.
+The default FortiAIGate GUI setup uses LiteLLM, not Bedrock direct. Bedrock
+direct provider values are documented as an alternate/reference path in
+`docs/FortiAIGate-initial-config.MD`.
 
 ### Terraform 4 - EC2 k3s Foundation
 
@@ -237,6 +229,14 @@ cp ansible/group_vars/images.example.yml ansible/group_vars/images.yml
 cp ansible/group_vars/all.example.yml ansible/group_vars/all.yml
 ```
 
+When pulling repo updates, sync any newly added example defaults into existing
+local files before reviewing values. Existing local values are preserved; new
+defaults are appended at the bottom for review.
+
+```bash
+python3 scripts/sync_all_vars.py
+```
+
 Set local values in `ansible/group_vars/env.yml`, especially:
 
 - `aws_profile`
@@ -277,6 +277,14 @@ Publish FortiAIGate release images:
 ansible-playbook ansible/playbooks/publish_images.yml
 ```
 
+Publish only selected FortiAIGate target repositories when troubleshooting or
+refreshing a subset:
+
+```bash
+ansible-playbook ansible/playbooks/publish_images.yml \
+  -e publish_target_repos=api,webui
+```
+
 Image publishing currently reads release archive metadata, loads only missing
 or changed source images into the local Docker image store, tags the local
 images, and pushes them to ECR. Keep at least 2x-3x the total release image
@@ -291,9 +299,15 @@ ansible-playbook ansible/playbooks/publish_chatbot_images.yml
 
 The chatbot image publisher is separate from the FortiAIGate release-image
 publisher. It builds `fortiaigate_demo/chatbot/app` and pushes the generic app
-image used by the consolidated chatbot UI. Because ECR repositories are
-immutable by default, bump `chatbot_image_tag` in `ansible/group_vars/all.yml`
-before republishing changed chatbot code.
+image used by the consolidated chatbot UI. The default ECR configuration keeps
+FortiAIGate release repositories immutable, but makes `chatbot-basic` mutable
+for development. With `chatbot_publish_overwrite_existing_tag: true`, rerunning
+the publisher can rebuild and push the same `chatbot_image_tag`. The chatbot
+deployment uses `chatbot_image_pull_policy: Always` so redeploying the chart
+pulls the updated same-tag image.
+
+The chatbot MCP agent loop and LiteLLM model/profile selector require the
+`v0.5.0` chatbot image or newer.
 
 ### Ansible 2 - Bootstrap k3s
 
@@ -340,8 +354,8 @@ ansible-playbook ansible/playbooks/deploy_litellm.yml
 
 LiteLLM is the shared OpenAI-compatible model proxy for the demo UIs. The
 direct path is `UI -> LiteLLM -> Bedrock`. The FortiAIGate path is
-`UI -> FortiAIGate /v1 -> LiteLLM -> Bedrock` after FortiAIGate is manually
-configured to use LiteLLM as its upstream provider.
+`UI -> FortiAIGate explicit /v1/<flow-name> path -> LiteLLM -> Bedrock` after
+FortiAIGate is manually configured to use LiteLLM as its upstream provider.
 
 Check readiness separately:
 
@@ -362,6 +376,22 @@ system-prompt injection:
 ansible-playbook ansible/playbooks/test_litellm_direct.yml
 ```
 
+By default this checks the core pre-GUI profiles from
+`litellm_direct_test_models`: `pass-bedrock`, `demo-a`, and `demo-b`. Adjust
+that list in Ansible vars when you want a different default set.
+
+To test every configured LiteLLM model/profile alias from
+`litellm_direct_test_models` or the LiteLLM `/models` response when the list is
+empty:
+
+```bash
+ansible-playbook ansible/playbooks/test_litellm_direct.yml \
+  -e litellm_direct_test_poll_all_endpoints=true
+```
+
+The shorter shared extra var `-e poll_all_endpoints=true` works for both the
+LiteLLM and FortiAIGate test playbooks.
+
 The default LiteLLM Admin/API URL is:
 
 - `http://<k3s-public-ip>:30083/ui/`
@@ -369,9 +399,32 @@ The default LiteLLM Admin/API URL is:
 Backend demo instructions are mounted into LiteLLM and injected by the custom
 pre-call hook, not by Open WebUI or the custom chatbot frontend.
 
-### Ansible 5 - Deploy Open WebUI
+The default LiteLLM deployment exposes model aliases backed by the same Bedrock
+model, plus an optional chained FAIG inspection alias:
 
-Deploy the consolidated Open WebUI front end:
+- `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
+- `demo-a`: uses `chatbot/instructions/default/instructions.txt`
+- `demo-b`: uses `chatbot/instructions/alternate/instructions.txt`
+- `demo-a-faig-be`: uses default instructions, then calls the
+  configured backend FortiAIGate URI as an OpenAI-compatible upstream
+- `demo-b-faig-be`: uses alternate instructions, then calls the
+  configured backend FortiAIGate URI as an OpenAI-compatible upstream
+
+Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
+in `ansible/group_vars/all.yml`, then rerun `deploy_litellm.yml`.
+
+### Optional - Deploy Open WebUI
+
+Open WebUI is available as a secondary chat UI, but it is disabled by default.
+The primary lab walkthrough uses the custom chatbot because it exposes the
+direct LiteLLM, FAIG static, FAIG intelligent, and MCP controls. To deploy
+Open WebUI, set this in `ansible/group_vars/all.yml`:
+
+```yaml
+openwebui_enabled: true
+```
+
+Then deploy the consolidated Open WebUI front end:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_openwebui.yml
@@ -414,10 +467,45 @@ The default chatbot URL is:
 
 - `http://<k3s-public-ip>:30081`
 
-The chatbot has a runtime selector for `Direct LiteLLM` versus `FortiAIGate`.
-Both paths use the same LiteLLM model/profile alias. Backend demo instructions
-are injected by LiteLLM so FortiAIGate can inspect the user-visible request
-before those backend-only demo instructions are added.
+The chatbot has three backend modes:
+
+- `Direct LiteLLM`: shows a LiteLLM profile selector populated from
+  `chatbot_model_options`, which defaults to `pass-bedrock`, `demo-a`,
+  `demo-b`, `demo-a-faig-be`, and `demo-b-faig-be`.
+- `FAIG Static Route`: sends to route-specific FortiAIGate URI paths from
+  `chatbot_faig_static_routes`.
+- `FAIG Intelligent Route`: sends to `/v1/intelligent`. The `passthrough`
+  option sends no model-route header and maps to LiteLLM alias `pass-bedrock`;
+  `demo-a` and `demo-b` send the configurable `faig_model_route_header_name`
+  header, default `X-FAIG-Model-Route`.
+
+Backend demo instructions are normally injected by LiteLLM so FortiAIGate can
+inspect the user-visible request before those backend-only demo instructions
+are added.
+
+The `demo-a-faig-be` and `demo-b-faig-be` aliases are scaffolds for this
+chained inspection path:
+
+```text
+chatbot
+  -> FortiAIGate static URI
+  -> LiteLLM model demo-a-faig-be or demo-b-faig-be
+  -> FortiAIGate /v1/passthrough
+  -> litellm-pass-bedrock
+  -> LiteLLM pass-bedrock
+```
+
+The static and intelligent FortiAIGate URI/provider mappings still need to be
+configured in FortiAIGate. The post-injection re-entry path reuses
+`/v1/passthrough`; do not configure that flow to route back to a `*-faig-be`
+model, or the chain can loop. LiteLLM treats the re-entry URI as an
+OpenAI-compatible base URL, so `/v1/passthrough` receives
+`/v1/passthrough/chat/completions`.
+
+When a frontend-layer prompt is intentionally needed, set either
+`chatbot_frontend_system_prompt` or
+`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/all.yml`.
+The sample file is `chatbot/instructions/frontend/instructions.txt`.
 
 Check readiness separately:
 
@@ -431,10 +519,36 @@ Use the validation playbook when you want a failing gate:
 ansible-playbook ansible/playbooks/validate_chatbots.yml
 ```
 
+### Optional - Deploy MCP Demo Tools
+
+Deploy the optional MCP demo tool server:
+
+```bash
+ansible-playbook ansible/playbooks/deploy_mcp.yml
+```
+
+The MCP baseline runs in namespace `mcp`. It provides deterministic customer,
+ticket, policy, and echo tools for the later Python agent loop. It exposes HTTP
+on the generated default NodePort `30084`; if the optional HTTPS gateway is
+enabled, it also exposes HTTPS on `30447`. It does not require ECR image
+publishing.
+
+Check readiness separately:
+
+```bash
+ansible-playbook ansible/playbooks/status_mcp.yml
+```
+
+Use the validation playbook when you want a failing gate:
+
+```bash
+ansible-playbook ansible/playbooks/validate_mcp.yml
+```
+
 ### Ansible 7 - Deploy Demo Home Page
 
 Deploy a small home page with links to FortiAIGate, LiteLLM Admin UI, Open
-WebUI, and chatbot test pages:
+WebUI, chatbot test pages, and MCP tools:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_demo_home.yml
@@ -459,13 +573,14 @@ ansible-playbook ansible/playbooks/validate_demo_home.yml
 When using the default public NodePort flow, `terraform/aws-ec2-k3s` generates
 and opens the standard demo ports, then writes
 `ansible/group_vars/ports.generated.yml`. The default generated HTTP ports are
-OpenWebUI `30080`, chatbot `30081`, demo home `30082`, and LiteLLM Admin/API
-`30083`.
+reserved consistently: Open WebUI uses `30080` when enabled, chatbot `30081`,
+demo home `30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`.
 
 ### Optional - Deploy HTTPS Gateway
 
 HTTP remains the primary demo access path. To add optional HTTPS listeners for
-OpenWebUI, the chatbot front end, demo home, and LiteLLM Admin/API, set
+the chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and
+Open WebUI when enabled, set
 `demo_https_gateway_enabled: true` in `ansible/group_vars/all.yml`, apply
 `terraform/aws-ec2-k3s` so the generated HTTPS ports are open, then run:
 
@@ -480,8 +595,9 @@ to use your own certificate pair. Browser warnings are expected for self-signed
 certificates.
 
 The default generated HTTPS ports use the same index as the HTTP services:
-OpenWebUI `30443` proxies `30080`, chatbot `30444` proxies `30081`, demo home
-`30445` proxies `30082`, and LiteLLM Admin/API `30446` proxies `30083`.
+Open WebUI `30443` proxies `30080` when enabled, chatbot `30444` proxies
+`30081`, demo home `30445` proxies `30082`, LiteLLM Admin/API `30446` proxies
+`30083`, and MCP demo tools `30447` proxies `30084`.
 
 ### Validation And First Provider Setup
 
@@ -512,6 +628,10 @@ To print the Bedrock and LiteLLM values needed by the FortiAIGate GUI:
 ansible-playbook ansible/playbooks/show_demo_outputs.yml
 ```
 
+The output includes LiteLLM API details, LiteLLM UI credentials, application
+URLs, optional HTTPS URLs, and the Terraform-generated SSH command for the k3s
+host.
+
 The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/terraform.tfvars` before creating the host if they conflict with your environment.
 
 ## Operating Notes
@@ -534,11 +654,11 @@ After bootstrap, the SSH user has passwordless sudo, `/home/<user>/.kube/config`
 
 FortiAIGate licenses bind to instance identity and may require time to reset after repeated destroy/redeploy cycles. Keep licenses outside this repo; the default `license_source_dir` is `{{ faig_workspace_root }}/licenses`, which resolves to `FAIG/licenses`. Use `fortiaigate_license_files` for single-node labs unless an explicit node-to-license map is required.
 
-## Bedrock First Guard
+## Reference: Bedrock Direct Provider
 
-Use this section when Bedrock is the first LLM provider for the FortiAIGate
-guard. After `status_fortiaigate.yml` reports `READY`, use the printed HTTPS
-login URL to sign in to FortiAIGate and change the default password.
+The default GUI setup uses LiteLLM as the FortiAIGate provider. Use this section
+only when testing a Bedrock-direct FortiAIGate guard/provider without LiteLLM in
+the middle.
 
 Temporary Bedrock credentials are created by `terraform/aws-prep` when
 `enable_bedrock_iam = true`. Retrieve the GUI values from the repo root:
@@ -550,7 +670,7 @@ terraform -chdir=terraform/aws-prep output bedrock_model_ids
 terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
 ```
 
-In FortiAIGate, create the first Bedrock-backed guard/provider with:
+In FortiAIGate, create the Bedrock-direct guard/provider with:
 
 - Access Key ID from `terraform output bedrock_access_key_id`
 - Secret Access Key from `terraform output -raw bedrock_secret_access_key`
@@ -573,4 +693,32 @@ After the guard is configured, generate and run the first external chat test:
 ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook uses `scripts/fortiaigate_chat_test.py` to send a short test prompt through `https://<fortiaigate-public-ip>:443/v1/chat/completions`, asks the routed model to identify itself, and summarizes the HTTP status and response.
+The playbook uses `scripts/fortiaigate_chat_test.py` to send a short test prompt through `https://<fortiaigate-public-ip>:443/v1/chat/completions`, asks the routed model to identify itself and repeat the URI under test, and summarizes the HTTP status and response.
+
+By default this checks only `fortiaigate_test_endpoint_path`, which defaults to
+`/v1/chat/completions`, and sends the LiteLLM model alias `pass-bedrock`. To
+test the default FAIG route matrix built from `chatbot_faig_static_routes`, the
+selected intelligent route, and the default `/v1` fallback:
+
+```bash
+ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_poll_all_endpoints=true
+```
+
+The shorter shared extra var `-e poll_all_endpoints=true` can be used instead
+when running either FortiAIGate or LiteLLM endpoint tests.
+
+The default FAIG route matrix is seven endpoints: `passthrough`, `demo-a`,
+`demo-b`, `demo-a-faig-be`, `demo-b-faig-be`, `intelligent`, and `default`.
+`/v1/openwebui` and every intelligent-route profile are optional diagnostic
+cases controlled by `fortiaigate_test_include_openwebui_endpoint` and
+`fortiaigate_test_include_all_header_route_profiles`.
+
+Ollama route testing is skipped by default. Include it only when the Ollama
+provider is deployed and configured in FortiAIGate:
+
+```bash
+ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_poll_all_endpoints=true \
+  -e fortiaigate_test_include_ollama_endpoint=true
+```

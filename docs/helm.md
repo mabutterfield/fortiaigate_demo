@@ -7,9 +7,11 @@ renders values, and applies post-render patches before submitting the release.
 The demo application layer also uses Helm charts:
 
 - LiteLLM proxy and Admin UI
-- OpenWebUI
 - custom chatbot
+- MCP demo tools
 - demo home page
+- optional Open WebUI when `openwebui_enabled=true`
+- optional HTTPS gateway for public TLS listener ports
 
 FortiAIGate Helm behavior intentionally does not wait for every pod to become
 Ready by default. Use status and validation playbooks after Helm accepts the

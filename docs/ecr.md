@@ -54,6 +54,17 @@ Use `terraform state rm`, not `terraform destroy`, when repositories were
 imported and should remain in AWS but no longer be managed by this local
 Terraform state.
 
+For the normal repeat provision/deprovision workflow, prefer the automated
+teardown script:
+
+```bash
+python3 scripts/automated_teardown.py
+```
+
+It backs up local config and state, removes ECR repository resources from state,
+destroys only ECR lifecycle/local output resources, and then destroys EC2 k3s
+and AWS prep.
+
 Back up local config and state first:
 
 ```bash
@@ -141,6 +152,19 @@ Publish a specific version, regardless of state:
 ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
 ```
 
+Publish only selected FortiAIGate target repositories:
+
+```bash
+ansible-playbook playbooks/publish_images.yml \
+  -e publish_target_repos=api,webui
+```
+
+Publish only the demo chatbot image:
+
+```bash
+ansible-playbook playbooks/publish_chatbot_images.yml
+```
+
 For local registry publishing:
 
 ```bash
@@ -157,6 +181,13 @@ ECR repositories are immutable by default. For each mapped image:
 - If the target tag exists, Ansible pulls it and compares Docker image IDs with the locally loaded source image.
 - If the content is identical, Ansible skips the push.
 - If the content differs, Ansible fails and requires a new tag.
+
+The `chatbot-basic` repository is the exception in the default Terraform
+configuration. It is mutable so the development chatbot image can be rebuilt
+and pushed with the same `chatbot_image_tag`. The chatbot publisher controls
+that behavior with `chatbot_publish_overwrite_existing_tag`. The chatbot
+deployment uses `chatbot_image_pull_policy: Always` so a redeploy pulls the
+updated same-tag image instead of using a cached node image.
 
 ## Image Tags
 
@@ -246,7 +277,7 @@ consumer account or EC2 role to pull. Optional source-IP conditions can be used
 as hardening, but cross-account IAM and ECR repository policy are the primary
 access controls.
 
-See `Phase2Plan.MD` in the parent FAIG workspace for the shared ECR expansion
+See `phase3plan.MD` in the parent FAIG workspace for the shared ECR expansion
 plan.
 
 A related future direction is to treat ECR primarily as a data-source/input

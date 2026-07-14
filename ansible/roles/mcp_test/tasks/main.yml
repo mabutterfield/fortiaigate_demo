@@ -1,0 +1,131 @@
+---
+- name: Read k3s public IP from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ mcp_test_aws_ec2_module_path }}"
+      - output
+      - -raw
+      - public_ip
+  changed_when: false
+  failed_when: false
+  register: mcp_test_public_ip_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - mcp_test_target_mode == 'public_http'
+    - mcp_test_host_override | length == 0
+    - mcp_test_base_url_override | length == 0
+  # - ansible.builtin.debug:
+  #     var: mcp_test_public_ip_raw.stdout_lines
+
+- name: Validate MCP test target mode
+  ansible.builtin.assert:
+    that:
+      - mcp_test_target_mode in ['public_http', 'remote_localhost']
+    fail_msg: "mcp_test_target_mode must be public_http or remote_localhost."
+
+- name: Set MCP test host fact
+  ansible.builtin.set_fact:
+    mcp_test_host: >-
+      {{
+        mcp_test_host_override
+        if mcp_test_host_override | length > 0
+        else (
+          '127.0.0.1'
+          if mcp_test_target_mode == 'remote_localhost'
+          else (
+            mcp_test_public_ip_raw.stdout | default('') | trim
+            if mcp_test_public_ip_raw is defined and mcp_test_public_ip_raw.rc == 0
+            else ''
+          )
+        )
+      }}
+  # - ansible.builtin.debug:
+  #     var: mcp_test_host
+
+- name: Set MCP test base URL fact
+  ansible.builtin.set_fact:
+    mcp_test_base_url: >-
+      {{
+        mcp_test_base_url_override
+        if mcp_test_base_url_override | length > 0
+        else mcp_test_scheme ~ '://' ~ mcp_test_host ~ ':' ~ (mcp_test_port | string)
+      }}
+  # - ansible.builtin.debug:
+  #     var: mcp_test_base_url
+
+- name: Validate MCP test settings
+  ansible.builtin.assert:
+    that:
+      - mcp_test_base_url | length > 0
+      - mcp_test_base_url_override | length > 0 or mcp_test_host | length > 0
+      - mcp_test_endpoint_path | length > 0
+      - mcp_test_tool | length > 0
+      - mcp_test_arguments is mapping
+    fail_msg: "MCP test requires base URL, endpoint path, tool name, and argument map."
+
+- name: Set MCP test request facts
+  ansible.builtin.set_fact:
+    mcp_test_url: "{{ mcp_test_base_url }}{{ mcp_test_endpoint_path }}"
+    mcp_test_payload:
+      tool: "{{ mcp_test_tool }}"
+      arguments: "{{ mcp_test_arguments }}"
+    mcp_test_argument_lines: >-
+      {{
+        mcp_test_arguments
+        | dict2items
+        | map(attribute='key')
+        | zip(mcp_test_arguments | dict2items | map(attribute='value'))
+        | map('join', ': ')
+        | list
+      }}
+  # - ansible.builtin.debug:
+  #     var: mcp_test_payload
+
+- name: Show MCP test target
+  ansible.builtin.debug:
+    msg: "{{ ['MCP test URL: ' ~ mcp_test_url, 'Tool: ' ~ mcp_test_tool, 'Arguments:'] + mcp_test_argument_lines }}"
+
+- name: Send MCP tool call
+  ansible.builtin.uri:
+    url: "{{ mcp_test_url }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body_format: json
+    body: "{{ mcp_test_payload }}"
+    return_content: true
+    status_code: 200
+    timeout: "{{ mcp_test_timeout_seconds }}"
+    validate_certs: "{{ mcp_test_validate_certs | bool }}"
+  register: mcp_test_response
+  delegate_to: "{{ 'localhost' if mcp_test_target_mode == 'public_http' else inventory_hostname }}"
+  become: false
+  # - ansible.builtin.debug:
+  #     var: mcp_test_response.json
+
+- name: Set MCP test response facts
+  ansible.builtin.set_fact:
+    mcp_test_ok: "{{ mcp_test_response.json.ok | default(false) | bool }}"
+    mcp_test_result: "{{ mcp_test_response.json.result | default({}) }}"
+    mcp_test_result_lines: >-
+      {{
+        mcp_test_response.json.result | default({})
+        | dict2items
+        | map(attribute='key')
+        | zip(mcp_test_response.json.result | default({}) | dict2items | map(attribute='value'))
+        | map('join', ': ')
+        | list
+      }}
+  # - ansible.builtin.debug:
+  #     var: mcp_test_result
+
+- name: Show MCP test result
+  ansible.builtin.debug:
+    msg: "{{ ['MCP test: ' ~ ('PASS' if mcp_test_ok else 'FAIL'), 'Target mode: ' ~ mcp_test_target_mode, 'URL: ' ~ mcp_test_url, 'Tool: ' ~ mcp_test_tool, 'Result:'] + mcp_test_result_lines }}"
+
+- name: Fail when MCP tool call did not return ok=true
+  ansible.builtin.fail:
+    msg: "MCP test failed. Response: {{ mcp_test_response.content | default(mcp_test_response.json | to_json) }}"
+  when: not mcp_test_ok

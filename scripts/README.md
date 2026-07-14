@@ -15,7 +15,19 @@ Current scripts:
   k3s foundation, then runs the Ansible deployment flow when approved. It backs
   up existing local tfvars and hand-edited Ansible group var YAML files to
   `../backup` by default, excluding generated `*.generated.yml` files; use
-  `--backup-dir` to choose another location.
+  `--backup-dir` to choose another location. It also runs `sync_all_vars.py`
+  after copying missing examples so existing local files pick up new defaults
+  without overwriting local values. Use `--yolo` for repeat runs where local
+  variables are already configured and images already exist in ECR.
+- `automated_teardown.py`: guided teardown for repeat lab cycles. It creates a
+  full backup, removes ECR repository resources from Terraform state so
+  repositories are not deleted, destroys ECR lifecycle/local output resources,
+  then destroys EC2 k3s and AWS prep in dependency order.
+- `sync_all_vars.py`: appends missing top-level defaults from known
+  `*.example` config files into their local ignored files without overwriting
+  existing local values. It covers Terraform `*.tfvars` plus Ansible
+  `env.yml`, `all.yml`, and `images.yml`. Use `--check` for CI/preflight,
+  `--dry-run` to preview the diff, or `--list` to show managed pairs.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
 - `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
 

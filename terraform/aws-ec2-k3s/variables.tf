@@ -21,6 +21,12 @@ variable "instance_type" {
   default     = "g4dn.4xlarge"
 }
 
+variable "aws_pricing_location_override" {
+  type        = string
+  description = "Optional AWS Price List location string override, for example US East (N. Virginia). Leave empty to derive it from aws_region."
+  default     = ""
+}
+
 variable "availability_zone" {
   type        = string
   description = "Optional Availability Zone for the k3s and appliance subnets. Leave empty to auto-select the first AZ that offers instance_type."
@@ -155,12 +161,12 @@ variable "additional_ingress_tcp_ports" {
 
 variable "demo_http_base_port" {
   type        = number
-  description = "Base NodePort for generated HTTP demo services. Slots are openwebui, chatbot, demo_home, and litellm."
+  description = "Base NodePort for generated HTTP demo services. Slots are openwebui, chatbot, demo_home, litellm, and mcp."
   default     = 30080
 
   validation {
-    condition     = var.demo_http_base_port >= 30000 && var.demo_http_base_port + 3 <= 32767
-    error_message = "demo_http_base_port must allow four Kubernetes NodePorts between 30000 and 32767."
+    condition     = var.demo_http_base_port >= 30000 && var.demo_http_base_port + 4 <= 32767
+    error_message = "demo_http_base_port must allow five Kubernetes NodePorts between 30000 and 32767."
   }
 }
 
@@ -170,8 +176,8 @@ variable "demo_https_base_port" {
   default     = 30443
 
   validation {
-    condition     = var.demo_https_base_port >= 1 && var.demo_https_base_port + 3 <= 65535
-    error_message = "demo_https_base_port must allow four valid TCP ports between 1 and 65535."
+    condition     = var.demo_https_base_port >= 1 && var.demo_https_base_port + 4 <= 65535
+    error_message = "demo_https_base_port must allow five valid TCP ports between 1 and 65535."
   }
 }
 

@@ -4,6 +4,22 @@
     msg: "demo_https_gateway_enabled=false; skipping optional demo HTTPS gateway."
   when: not demo_https_gateway_enabled | bool
 
+- name: Add optional Open WebUI HTTPS gateway route when enabled
+  ansible.builtin.set_fact:
+    demo_https_gateway_routes: "{{ [demo_https_gateway_openwebui_route] + demo_https_gateway_routes }}"
+  vars:
+    demo_https_gateway_openwebui_route:
+      name: openwebui
+      display_name: OpenWebUI
+      external_port: "{{ demo_https_gateway_openwebui_https_port }}"
+      upstream: "http://{{ openwebui_release_name | default('openwebui') }}.{{ openwebui_namespace | default('openwebui') }}.svc.cluster.local:80"
+  when:
+    - demo_https_gateway_enabled | bool
+    - openwebui_enabled | default(false) | bool
+    - "'openwebui' not in (demo_https_gateway_routes | map(attribute='name') | list)"
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_routes
+
 - name: Validate demo HTTPS gateway settings
   ansible.builtin.assert:
     that:
@@ -202,6 +218,42 @@
   # - ansible.builtin.debug:
   #     var: demo_https_gateway_helm_deploy.stdout_lines
 
+- name: Check demo HTTPS gateway route responses
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -k
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "https://127.0.0.1:{{ item.external_port }}{{ item.health_path | default('/') }}"
+  loop: "{{ demo_https_gateway_routes }}"
+  changed_when: false
+  failed_when: false
+  register: demo_https_gateway_route_checks
+  when: demo_https_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_route_checks.results
+
+- name: Build demo HTTPS gateway route status lines
+  ansible.builtin.set_fact:
+    demo_https_gateway_route_status_lines: "{{ demo_https_gateway_route_status_lines | default([]) + [demo_https_gateway_route_line] }}"
+  vars:
+    demo_https_gateway_route: "{{ item.item }}"
+    demo_https_gateway_route_code: "{{ item.stdout | default('000') }}"
+    demo_https_gateway_route_line: >-
+      {{
+        (demo_https_gateway_route.display_name | default(demo_https_gateway_route.name))
+        ~ ': https://127.0.0.1:' ~ (demo_https_gateway_route.external_port | string)
+        ~ ' -> HTTP ' ~ (demo_https_gateway_route_code | string)
+      }}
+  loop: "{{ demo_https_gateway_route_checks.results | default([]) }}"
+  when: demo_https_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_route_status_lines
+
 - name: Show demo HTTPS gateway deployment summary
   ansible.builtin.debug:
     msg: >-
@@ -212,6 +264,8 @@
           | map(attribute='display_name')
           | list
         )
+        + ['Route checks:']
+        + (demo_https_gateway_route_status_lines | default([]))
         + ['Run show_demo_outputs.yml to print HTTPS URLs.']
       }}
   when: demo_https_gateway_enabled | bool

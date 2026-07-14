@@ -1,0 +1,19 @@
+---
+mcp_enabled: true
+mcp_namespace: mcp
+mcp_release_name: mcp-demo
+mcp_chart_local_path: "{{ playbook_dir }}/../../mcp/chart"
+mcp_chart_remote_root: "/home/{{ ansible_user }}/tmp/mcp-chart"
+mcp_values_remote_path: "/home/{{ ansible_user }}/tmp/mcp-values.yaml"
+mcp_tools_data_local_path: "{{ mcp_chart_local_path }}/files/tools.json"
+mcp_service_type: NodePort
+mcp_service_port: 8000
+mcp_node_port: "{{ demo_mcp_http_port | default(30084) }}"
+mcp_container_port: 8000
+mcp_image_repository: python
+mcp_image_tag: "3.12-slim"
+mcp_image_pull_policy: IfNotPresent
+mcp_helm_wait: false
+mcp_helm_timeout: 180s
+mcp_wait_for_rollout: true
+mcp_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_service_port }}"

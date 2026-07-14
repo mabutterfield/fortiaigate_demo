@@ -10,7 +10,14 @@ FortiAIGate sizing guidance is approximately:
 
 AWS publishes vCPU counts, not physical core counts. For typical Intel-based EC2 instances, 2 vCPUs roughly map to 1 physical core, so the 24-core recommendation is roughly 48 vCPUs.
 
-Pricing below is an approximate us-east-1 estimate from lab notes. AWS pricing and instance availability change; verify the current price and availability before long-running tests.
+Pricing below is an approximate us-east-1 estimate from lab notes. AWS pricing and instance availability change; verify the current price and availability before long-running tests. The `terraform/aws-ec2-k3s` module now also outputs a current AWS Price List estimate for the configured `instance_type` and `aws_region`:
+
+```bash
+terraform output ec2_instance_hourly_cost_usd
+terraform output ec2_instance_monthly_cost_usd
+```
+
+Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do not include EBS, EIP idle charges, data transfer, Bedrock, marketplace, or licensing costs.
 
 ## Current Defaults
 
@@ -29,7 +36,7 @@ These are useful for automation, Kubernetes, and budget lab testing. The T4-base
 |---|---:|---:|---|---:|---:|---:|---|
 | `g4dn.xlarge` | 4 | 16 GB | 1 x T4 | 16 GB | 125 GB | ~$0.53/hr | Smoke test automation only |
 | `g4dn.2xlarge` | 8 | 32 GB | 1 x T4 | 16 GB | 225 GB | ~$0.75/hr | Minimum viable lab with reduced chart values |
-| `g4dn.4xlarge` | 16 | 64 GB | 1 x T4 | 16 GB | 225 GB | Verify | Current Terraform default lab size |
+| `g4dn.4xlarge` | 16 | 64 GB | 1 x T4 | 16 GB | 225 GB | ~1.20/hr | Current Terraform default lab size |
 | `g4dn.8xlarge` | 32 | 128 GB | 1 x T4 | 16 GB | 900 GB | ~$2.18/hr | Strong budget T4 lab box |
 
 ## Supported Validation Infrastructure

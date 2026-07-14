@@ -56,10 +56,26 @@
   ansible.builtin.debug:
     msg:
       - "Chatbot image already exists in ECR: {{ chatbot_publish_target_image }}"
-      - "ECR tags are immutable by default; bump chatbot_image_tag to publish changed chatbot code."
+      - "chatbot_publish_overwrite_existing_tag=false; bump chatbot_image_tag to publish changed chatbot code."
   when:
     - chatbot_publish_enabled | bool
     - chatbot_publish_ecr_describe_image.rc == 0
+    - not (chatbot_publish_overwrite_existing_tag | bool)
+
+- name: Set chatbot publish decision
+  ansible.builtin.set_fact:
+    chatbot_publish_should_push: "{{ (chatbot_publish_ecr_describe_image.rc != 0) or (chatbot_publish_overwrite_existing_tag | bool) }}"
+  when: chatbot_publish_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_publish_should_push
+
+- name: Publish over existing chatbot image tag {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
+  ansible.builtin.debug:
+    msg: "chatbot_publish_overwrite_existing_tag=true; rebuilding and pushing existing mutable ECR tag."
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_ecr_describe_image.rc == 0
+    - chatbot_publish_overwrite_existing_tag | bool
 
 - name: Log in Docker to ECR for chatbot image publish
   ansible.builtin.shell: |
@@ -71,7 +87,7 @@
   changed_when: false
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool
 
 - name: Build chatbot image {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
   ansible.builtin.command:
@@ -85,7 +101,7 @@
   changed_when: true
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool
     - chatbot_publish_platform | length == 0
   # - ansible.builtin.debug:
   #     var: chatbot_publish_build.stdout_lines
@@ -106,7 +122,7 @@
   changed_when: true
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool
     - chatbot_publish_platform | length > 0
   # - ansible.builtin.debug:
   #     var: chatbot_publish_build_platform.stdout_lines
@@ -123,7 +139,7 @@
   register: chatbot_publish_image_platform
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool
   # - ansible.builtin.debug:
   #     var: chatbot_publish_image_platform.stdout_lines
 
@@ -137,7 +153,7 @@
   changed_when: true
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool
   # - ansible.builtin.debug:
   #     var: chatbot_publish_push.stdout_lines
 
@@ -149,4 +165,4 @@
       - "Deploy with: ansible-playbook playbooks/deploy_chatbots.yml"
   when:
     - chatbot_publish_enabled | bool
-    - chatbot_publish_ecr_describe_image.rc != 0
+    - chatbot_publish_should_push | bool

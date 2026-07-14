@@ -18,8 +18,13 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - NVIDIA driver, container runtime, RuntimeClass, and device plugin are automated
 - Private ECR repository creation and image publishing are implemented
 - FortiAIGate Helm deployment uses external release charts and post-render patches
-- LiteLLM, OpenWebUI, custom chatbot, and demo home deployment roles are implemented for the agent demo path
+- LiteLLM, custom chatbot, and demo home deployment roles are implemented for the agent demo path
+- Open WebUI is available as an optional secondary chat UI when enabled
+- Optional MCP demo tools and chatbot tool-loop support are implemented
+- Automated quickstart and teardown scripts support repeat lab rebuilds
 - FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
+
+See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
 
 ## High-Level Architecture
 
@@ -27,7 +32,8 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 Operator workstation
   -> Terraform: ECR, AWS prep IAM/EIPs, EC2 k3s foundation
   -> Ansible: publish images, bootstrap k3s, deploy FortiAIGate and demo apps
-  -> k3s host: nginx ingress, FortiAIGate, LiteLLM, OpenWebUI, chatbot, demo home
+  -> k3s host: nginx ingress, FortiAIGate, LiteLLM, chatbot, demo home
+  -> optional k3s apps: Open WebUI, MCP demo tools, HTTPS gateway
   -> Optional providers: Amazon Bedrock, Ollama, future FortiWeb/FortiGate front ends
 ```
 
@@ -42,12 +48,12 @@ Operator workstation
 ## Roadmap
 
 - Add a first-class local Ubuntu GPU host workflow
-- Extend the automated bootstrap/setup script beyond Terraform into image publishing, k3s bootstrap, and application deployment
 - Expand Terraform support for FortiGate and FortiWeb front ends
-- Add MCP server and agent tool-loop demos
 - Move Terraform state to a remote backend when the workflow leaves local lab mode
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add cleanup and recovery runbooks for failed Helm releases and license resets
+- Add optional Bedrock-direct and Ollama provider paths
+- Add a single smoke-test wrapper for final validation
 
 ## Repository Layout
 

@@ -110,7 +110,7 @@
 
 - name: Validate FortiAIGate Ollama forwarding after manual provider setup
   ansible.builtin.shell: |
-    curl -k -f -sS https://127.0.0.1/v1/chat/completions \
+    curl -k -f -sS https://127.0.0.1{{ validate_faig_ollama_endpoint_path }} \
       -H "Content-Type: application/json" \
       -d '{"model":"{{ ollama_model }}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
   args:

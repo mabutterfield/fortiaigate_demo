@@ -1,0 +1,240 @@
+---
+- name: Skip MCP status when disabled
+  ansible.builtin.debug:
+    msg: "mcp_enabled=false; skipping MCP status."
+  when: not mcp_enabled | bool
+
+- name: Check MCP Helm release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - status
+      - "{{ mcp_release_name }}"
+      - --namespace
+      - "{{ mcp_namespace }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+  register: mcp_status_helm
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_helm.stdout_lines
+
+- name: Check MCP deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: mcp_status_deployment
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_deployment.stdout_lines
+
+- name: Check MCP pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ mcp_namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ mcp_release_name }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: mcp_status_pods
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_pods.stdout_lines
+
+- name: Check MCP health endpoint from inside deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+      - --
+      - python
+      - -c
+      - "import sys, urllib.request; r=urllib.request.urlopen('http://127.0.0.1:{{ mcp_container_port }}{{ mcp_status_health_path }}', timeout=5); print(r.status); sys.exit(0 if r.status == 200 else 1)"
+  changed_when: false
+  failed_when: false
+  register: mcp_status_health
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_health.stdout_lines
+
+- name: Check MCP NodePort health endpoint
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - "http://127.0.0.1:{{ mcp_node_port }}{{ mcp_status_health_path }}"
+  changed_when: false
+  failed_when: false
+  register: mcp_status_nodeport_health
+  when:
+    - mcp_enabled | bool
+    - mcp_service_type == 'NodePort'
+  # - ansible.builtin.debug:
+  #     var: mcp_status_nodeport_health.stdout_lines
+
+- name: Check MCP demo tools from inside deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+      - --
+      - python
+      - -c
+      - |
+        import json
+        import sys
+        import urllib.request
+
+        tests = [
+            {"tool": "customer_lookup", "arguments": {"customer_id": "{{ mcp_test_customer_id }}"}},
+            {"tool": "ticket_lookup", "arguments": {"ticket_id": "{{ mcp_test_ticket_id }}"}},
+            {"tool": "policy_lookup", "arguments": {"policy_id": "{{ mcp_test_policy_id }}"}},
+            {"tool": "echo", "arguments": {"message": "mcp validation"}}
+        ]
+        problems = []
+        results = []
+        for test in tests:
+            request = urllib.request.Request(
+                "http://127.0.0.1:{{ mcp_container_port }}/mcp",
+                data=json.dumps(test).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            try:
+                response = urllib.request.urlopen(request, timeout=5)
+                payload = json.load(response)
+            except Exception as exc:
+                payload = {"ok": False, "error": str(exc)}
+            if not payload.get("ok"):
+                problems.append(f"{test['tool']}: {payload.get('error', payload)}")
+            results.append({"tool": test["tool"], "ok": payload.get("ok", False)})
+        print(json.dumps({"ok": len(problems) == 0, "results": results, "problems": problems}, sort_keys=True))
+        sys.exit(0 if len(problems) == 0 else 1)
+  changed_when: false
+  failed_when: false
+  register: mcp_status_tools
+  when:
+    - mcp_enabled | bool
+    - mcp_status_run_tool_checks | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_tools.stdout_lines
+
+- name: Set MCP status facts
+  ansible.builtin.set_fact:
+    mcp_status_deployment_json: "{{ mcp_status_deployment.stdout | default('{}') | from_json if mcp_status_deployment.rc == 0 else {} }}"
+    mcp_status_pods_json: "{{ mcp_status_pods.stdout | default('{\"items\": []}') | from_json if mcp_status_pods.rc == 0 else {'items': []} }}"
+    mcp_status_tools_json: "{{ mcp_status_tools.stdout | default('{\"ok\": false, \"problems\": []}') | from_json if (mcp_status_tools is defined and mcp_status_tools.stdout | default('') | length > 0) else {'ok': false, 'problems': []} }}"
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_tools_json
+
+- name: Set MCP status summary facts
+  ansible.builtin.set_fact:
+    mcp_status_desired_replicas: "{{ mcp_status_deployment_json.spec.replicas | default(1) | int }}"
+    mcp_status_available_replicas: "{{ mcp_status_deployment_json.status.availableReplicas | default(0) | int }}"
+    mcp_status_ready_pods: >-
+      {{
+        mcp_status_pods_json['items']
+        | selectattr('status.phase', 'equalto', 'Running')
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses.0.ready', 'equalto', true)
+        | list
+        | length
+      }}
+    mcp_status_pod_count: "{{ mcp_status_pods_json['items'] | length }}"
+    mcp_status_health_code: "{{ mcp_status_health.stdout | default('000') }}"
+    mcp_status_nodeport_health_code: "{{ mcp_status_nodeport_health.stdout | default('disabled') if mcp_service_type == 'NodePort' else 'disabled' }}"
+    mcp_status_nodeport_url: >-
+      {{
+        'http://' ~ (
+          public_ip
+          if (public_ip is defined and public_ip | length > 0)
+          else (ansible_host | default(inventory_hostname))
+        ) ~ ':' ~ (mcp_node_port | string)
+        if mcp_service_type == 'NodePort' and (mcp_node_port | string | length > 0)
+        else ''
+      }}
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_health_code
+
+- name: Set MCP readiness facts
+  ansible.builtin.set_fact:
+    mcp_status_ready: >-
+      {{
+        mcp_status_helm.rc == 0
+        and mcp_status_deployment.rc == 0
+        and (mcp_status_available_replicas | int) == (mcp_status_desired_replicas | int)
+        and (mcp_status_health_code | int) == 200
+        and (mcp_service_type != 'NodePort' or (mcp_status_nodeport_health_code | int) == 200)
+        and (not mcp_status_run_tool_checks | bool or mcp_status_tools.rc == 0)
+      }}
+    mcp_status_problems: >-
+      {{
+        []
+        + (['Helm release missing'] if mcp_status_helm.rc != 0 else [])
+        + (['Deployment missing'] if mcp_status_deployment.rc != 0 else [])
+        + (['Available replicas ' ~ (mcp_status_available_replicas | string) ~ '/' ~ (mcp_status_desired_replicas | string)] if mcp_status_deployment.rc == 0 and (mcp_status_available_replicas | int) != (mcp_status_desired_replicas | int) else [])
+        + (['Health HTTP status ' ~ (mcp_status_health_code | string)] if (mcp_status_health_code | int) != 200 else [])
+        + (['NodePort health HTTP status ' ~ (mcp_status_nodeport_health_code | string)] if mcp_service_type == 'NodePort' and (mcp_status_nodeport_health_code | int) != 200 else [])
+        + (['Tool checks failed: ' ~ (mcp_status_tools_json.problems | default([]) | join(', '))] if mcp_status_run_tool_checks | bool and (mcp_status_tools.rc | default(1)) != 0 else [])
+      }}
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_ready
+
+- name: Show MCP status summary
+  ansible.builtin.debug:
+    msg:
+      - "MCP status: {{ 'READY' if mcp_status_ready else 'NOT READY' }}"
+      - "Helm release: {{ 'present' if mcp_status_helm.rc == 0 else 'missing' }}"
+      - "Pods ready: {{ mcp_status_ready_pods }}/{{ mcp_status_pod_count }}"
+      - "Internal health HTTP status: {{ mcp_status_health_code }}"
+      - "NodePort health HTTP status: {{ mcp_status_nodeport_health_code }}"
+      - "Internal endpoint: {{ mcp_internal_base_url }}"
+      - "NodePort URL: {{ mcp_status_nodeport_url if mcp_status_nodeport_url | length > 0 else 'disabled' }}"
+      - "Tools: customer_lookup, ticket_lookup, policy_lookup, customer_search, ticket_search, policy_search, customer_ticket_summary, echo"
+      - "Problems: {{ mcp_status_problems | join(' | ') if mcp_status_problems | length > 0 else 'none' }}"
+  when: mcp_enabled | bool
+
+- name: Fail when MCP is not ready
+  ansible.builtin.fail:
+    msg: "MCP validation did not pass: {{ mcp_status_problems | join(' | ') }}"
+  when:
+    - mcp_enabled | bool
+    - mcp_status_fail_on_not_ready | bool
+    - not mcp_status_ready

@@ -103,20 +103,9 @@
   # - ansible.builtin.debug:
   #     var: litellm_effective_bedrock_model_id
 
-- name: Read default LiteLLM instruction profile
+- name: Set configured LiteLLM instruction profile specs
   ansible.builtin.set_fact:
-    litellm_default_instruction_content: "{{ lookup('ansible.builtin.file', litellm_instruction_profile_source_path) }}"
-  delegate_to: localhost
-  become: false
-  when:
-    - litellm_enabled | bool
-    - litellm_instruction_profiles | length == 0
-  # - ansible.builtin.debug:
-  #     var: litellm_default_instruction_content
-
-- name: Set effective LiteLLM instruction profiles
-  ansible.builtin.set_fact:
-    litellm_effective_instruction_profiles: >-
+    litellm_configured_instruction_profiles: >-
       {{
         litellm_instruction_profiles
         if litellm_instruction_profiles | length > 0
@@ -125,11 +114,58 @@
             'name': litellm_default_instruction_profile,
             'enabled': true,
             'position': litellm_instruction_profile_injection_position,
-            'instruction': litellm_default_instruction_content
+            'source_path': litellm_instruction_profile_source_path
           }
         ]
       }}
   when: litellm_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_configured_instruction_profiles
+
+- name: Validate configured LiteLLM instruction profile specs
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | length > 0
+      - item.position | default('prepend') in ['prepend', 'append']
+      - not (item.enabled | default(true) | bool) or (item.instruction is defined and item.instruction | length > 0) or (item.source_path is defined and item.source_path | length > 0)
+    fail_msg: "Each enabled LiteLLM instruction profile needs name, position prepend/append, and either instruction or source_path."
+  loop: "{{ litellm_configured_instruction_profiles }}"
+  when: litellm_enabled | bool
+
+- name: Reset effective LiteLLM instruction profiles
+  ansible.builtin.set_fact:
+    litellm_effective_instruction_profiles: []
+  when: litellm_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_effective_instruction_profiles
+
+- name: Build effective LiteLLM instruction profiles
+  ansible.builtin.set_fact:
+    litellm_effective_instruction_profiles: >-
+      {{
+        litellm_effective_instruction_profiles
+        + [
+          item
+          | combine({
+              'enabled': item.enabled | default(true),
+              'position': item.position | default('prepend'),
+              'instruction': (
+                ''
+                if not (item.enabled | default(true) | bool)
+                else (
+                  item.instruction
+                  if (item.instruction is defined and item.instruction | length > 0)
+                  else lookup('ansible.builtin.file', item.source_path)
+                )
+              )
+            })
+        ]
+      }}
+  loop: "{{ litellm_configured_instruction_profiles }}"
+  when: litellm_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_effective_instruction_profiles
 
 - name: Render LiteLLM config content facts
   ansible.builtin.set_fact:

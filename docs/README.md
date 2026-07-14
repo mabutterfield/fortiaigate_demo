@@ -15,10 +15,12 @@ Start with one quick start, then use the topic docs for details and recovery.
 
 | Topic | Document |
 |---|---|
+| Current working baseline | [Current Baseline](current-baseline.md) |
 | Architecture overview | [Architecture](architecture.md) |
 | AWS infrastructure and instance sizing | [AWS](aws.md) |
 | ECR repositories and image publishing | [ECR](ecr.md) |
 | Kubernetes and k3s operations | [Kubernetes](kubernetes.md) |
+| MCP demo tools | [MCP](mcp.md) |
 | Helm chart deployment and post-rendering | [Helm](helm.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
@@ -42,9 +44,13 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `deploy_fortiaigate.yml`: submits the FortiAIGate Helm release.
 - `status_fortiaigate.yml`: gives a simple FortiAIGate `READY`, `NOT READY`, or `ERROR` answer plus the login URL.
 - `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready.
-- `deploy_litellm.yml`, `deploy_openwebui.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the demo application layer.
+- `deploy_litellm.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the default demo application layer.
+- `deploy_openwebui.yml`: optionally deploys Open WebUI when `openwebui_enabled=true`.
+- `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the optional MCP demo tool server.
 - `deploy_demo_https_gateway.yml`: optionally adds self-signed HTTPS listeners for HTTP-only demo services.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
-- `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks.
+- `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
+- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion smoke test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
+- `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

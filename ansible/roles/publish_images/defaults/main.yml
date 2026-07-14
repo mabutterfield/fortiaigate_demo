@@ -9,6 +9,11 @@ fortiaigate_image_builds: []
 publish_image_version: ""
 publish_image_state: active
 publish_auto_image_map: true
+# Optional filter for FortiAIGate image publishing. Empty means publish all.
+# Accepts a YAML list or a comma-separated string for CLI use, for example:
+# -e publish_target_repos=api,webui
+publish_target_repos: []
+publish_target_repos_normalized: []
 
 registry_type: ecr
 aws_profile: ""

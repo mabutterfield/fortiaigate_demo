@@ -1,0 +1,174 @@
+---
+- name: Set FortiAIGate test case facts
+  ansible.builtin.set_fact:
+    fortiaigate_test_case_url: "https://{{ fortiaigate_test_host }}:443{{ fortiaigate_test_case.endpoint_path }}"
+    fortiaigate_test_case_model: "{{ fortiaigate_test_case.model | default(fortiaigate_test_effective_model) }}"
+    fortiaigate_test_case_headers: "{{ fortiaigate_test_case.headers | default([]) }}"
+    fortiaigate_test_case_route_uri: "{{ fortiaigate_test_case.endpoint_path | regex_replace('/chat/completions$', '') }}"
+    fortiaigate_test_case_header_args: []
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_case
+
+- name: Set FortiAIGate test case prompt
+  ansible.builtin.set_fact:
+    fortiaigate_test_case_prompt: >-
+      {{
+        (
+          "Hello, I'm testing the "
+          ~ fortiaigate_test_case_route_uri
+          ~ " URI. Please respond back with the same URI and include the name of the model answering. "
+          ~ fortiaigate_test_message
+        )
+        if fortiaigate_test_include_uri_in_prompt | bool
+        else fortiaigate_test_message
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_case_prompt
+
+- name: Build FortiAIGate test case header arguments
+  ansible.builtin.set_fact:
+    fortiaigate_test_case_header_args: "{{ fortiaigate_test_case_header_args + ['--header', item] }}"
+  loop: "{{ fortiaigate_test_case_headers }}"
+  loop_control:
+    label: "{{ item }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_case_header_args
+
+- name: Show FortiAIGate chat test target
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate test case: {{ fortiaigate_test_case.name }}"
+      - "FortiAIGate chat test URL: {{ fortiaigate_test_case_url }}"
+      - "Model: {{ fortiaigate_test_case_model }}"
+      - "Prompt: {{ fortiaigate_test_case_prompt }}"
+      - "Authorization header: {{ 'enabled' if fortiaigate_test_api_key | length > 0 else 'disabled' }}"
+      - "Route headers: {{ fortiaigate_test_case_headers | join(', ') if fortiaigate_test_case_headers | length > 0 else 'none' }}"
+
+- name: Send FortiAIGate chat completion test
+  # Change note: curl execution moved to a repo-owned Python script so the JSON
+  # payload is sent through subprocess argv instead of shell quoting.
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'python3',
+          fortiaigate_test_script,
+          '--url',
+          fortiaigate_test_case_url,
+          '--model',
+          fortiaigate_test_case_model,
+          '--prompt',
+          fortiaigate_test_case_prompt,
+          '--timeout',
+          fortiaigate_test_timeout_seconds | string
+        ]
+        + fortiaigate_test_case_header_args
+        + ['--ansible-raw']
+      }}
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_test_response_raw
+  environment:
+    FORTIAIGATE_TEST_API_KEY: "{{ fortiaigate_test_api_key }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_response_raw.stdout_lines
+
+- name: Set FortiAIGate test response facts
+  ansible.builtin.set_fact:
+    fortiaigate_test_http_status: "{{ fortiaigate_test_response_raw.stdout | regex_findall('__HTTP_STATUS__:(\\d+)$') | first | default('000') }}"
+    fortiaigate_test_response_body: "{{ fortiaigate_test_response_raw.stdout | regex_replace('\\n__HTTP_STATUS__:\\d+$', '') }}"
+    fortiaigate_test_curl_rc: "{{ fortiaigate_test_response_raw.rc | default(0) }}"
+    fortiaigate_test_curl_stderr: "{{ fortiaigate_test_response_raw.stderr | default('') }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_http_status
+
+- name: Build friendly FortiAIGate test response summary
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    import json
+    import os
+
+    body = os.environ.get("FORTIAIGATE_TEST_RESPONSE_BODY", "")
+    if not body.strip():
+        print("<empty response body>")
+        raise SystemExit(0)
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        print(body[:4000])
+        raise SystemExit(0)
+
+    content = None
+    choices = data.get("choices") if isinstance(data, dict) else None
+    if choices:
+        first = choices[0]
+        message = first.get("message") if isinstance(first, dict) else None
+        if isinstance(message, dict):
+            content = message.get("content")
+        if not content and isinstance(first, dict):
+            content = first.get("text")
+
+    if content:
+        print(content)
+    else:
+        print(json.dumps(data, indent=2)[:4000])
+    PY
+  args:
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fortiaigate_test_response_summary
+  environment:
+    FORTIAIGATE_TEST_RESPONSE_BODY: "{{ fortiaigate_test_response_body }}"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_response_summary.stdout_lines
+
+- name: Show FortiAIGate chat test result
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate test case: {{ fortiaigate_test_case.name }}"
+      - "FortiAIGate test URL: {{ fortiaigate_test_case_url }}"
+      - "Model: {{ fortiaigate_test_case_model }}"
+      - "HTTP status: {{ fortiaigate_test_http_status }}"
+      - "curl exit code: {{ fortiaigate_test_curl_rc }}"
+      - "curl stderr: {{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}"
+      - "Response:"
+      - "{{ fortiaigate_test_response_summary.stdout }}"
+
+- name: Append FortiAIGate endpoint test result
+  ansible.builtin.set_fact:
+    fortiaigate_test_endpoint_results: >-
+      {{
+        fortiaigate_test_endpoint_results
+        + [
+          {
+            'name': fortiaigate_test_case.name,
+            'display_name': fortiaigate_test_case.display_name | default(fortiaigate_test_case.name | regex_replace('^(static|header):', '')),
+            'uri': fortiaigate_test_case_route_uri,
+            'url': fortiaigate_test_case_url,
+            'model': fortiaigate_test_case_model,
+            'headers': fortiaigate_test_case_headers,
+            'question': fortiaigate_test_case_prompt,
+            'answer': fortiaigate_test_response_summary.stdout,
+            'http_status': fortiaigate_test_http_status
+          }
+        ]
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_test_endpoint_results
+
+# Change note: do not fail inside an individual endpoint test. The parent role
+# collects every endpoint result, prints a complete summary, and fails once at
+# the end when one or more endpoints returned non-2xx.
+# - name: Fail when FortiAIGate chat test did not return HTTP 2xx
+#   ansible.builtin.fail:
+#     msg: >-
+#       FortiAIGate test case {{ fortiaigate_test_case.name }} failed with HTTP
+#       {{ fortiaigate_test_http_status }}. curl exit code={{ fortiaigate_test_curl_rc }}.
+#       stderr={{ fortiaigate_test_curl_stderr if fortiaigate_test_curl_stderr | length > 0 else 'none' }}.
+#       body={{ fortiaigate_test_response_body if fortiaigate_test_response_body | length > 0 else '<empty>' }}
+#   when: fortiaigate_test_http_status | int < 200 or fortiaigate_test_http_status | int >= 300

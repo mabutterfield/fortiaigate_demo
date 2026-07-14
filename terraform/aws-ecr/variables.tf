@@ -52,6 +52,17 @@ variable "image_tag_mutability" {
   }
 }
 
+variable "image_tag_mutability_overrides" {
+  type        = map(string)
+  description = "Optional per-repository image tag mutability overrides. Keys match entries in repositories."
+  default     = {}
+
+  validation {
+    condition     = alltrue([for mutability in values(var.image_tag_mutability_overrides) : contains(["MUTABLE", "IMMUTABLE"], mutability)])
+    error_message = "image_tag_mutability_overrides values must be MUTABLE or IMMUTABLE."
+  }
+}
+
 variable "scan_on_push" {
   type        = bool
   description = "Enable basic ECR scan-on-push."

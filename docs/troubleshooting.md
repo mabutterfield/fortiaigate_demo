@@ -34,10 +34,11 @@ FortiAIGate 8.0.1 serves the web UI under `/ui/`.
 
 FortiAIGate image publishing loads missing source images into local Docker,
 tags them, and pushes to ECR. Keep enough Docker disk available and avoid
-reusing immutable ECR tags for changed images.
+reusing immutable ECR tags for changed FortiAIGate release images.
 
-The chatbot image publisher is separate. Bump `chatbot_image_tag` before
-republishing changed chatbot code.
+The chatbot image publisher is separate. By default, the `chatbot-basic` ECR
+repository is mutable and `chatbot_publish_overwrite_existing_tag: true`, so
+rerunning the chatbot publisher can republish the same `chatbot_image_tag`.
 
 ## More Detail
 
