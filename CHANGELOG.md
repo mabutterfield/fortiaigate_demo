@@ -5,7 +5,7 @@ a "what's new" guide rather than a raw commit log.
 
 ## v0.4 - Phase 4 Appliance Baseline
 
-Release date: pending
+Release date: 2026-07-14
 
 Adds the optional FortiGate and FortiWeb appliance baseline without moving the
 default public k3s/FortiAIGate path to a private or appliance-fronted topology.
@@ -55,6 +55,9 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
   FortiGate/FortiWeb modules, before the k3s readiness wait and Ansible.
 - Automated teardown now destroys FortiWeb and FortiGate before destroying the
   k3s foundation and AWS prep resources.
+- ECR teardown now removes repositories from state and then runs a full ECR
+  module destroy for remaining lifecycle/local-output resources, avoiding
+  routine Terraform `-target` warnings.
 
 ### Shared Terraform Defaults
 

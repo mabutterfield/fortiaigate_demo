@@ -93,10 +93,8 @@ def terraform_state_rm(module_path: str, address: str) -> None:
         print(f"Warning: failed to remove {address} from state. It may already be absent.")
 
 
-def terraform_destroy(module_path: str, *, auto_approve: bool, targets: list[str] | None = None) -> None:
+def terraform_destroy(module_path: str, *, auto_approve: bool) -> None:
     argv = ["terraform", "-chdir=" + module_path, "destroy"]
-    for target in targets or []:
-        argv.append(f"-target={target}")
     if auto_approve:
         argv.append("-auto-approve")
     run_command(argv)
@@ -147,17 +145,13 @@ def destroy_ecr_lifecycle_and_outputs(module_path: str, auto_approve: bool) -> N
     has_lifecycle = any(address.startswith("aws_ecr_lifecycle_policy.this") for address in state_addresses)
     has_local_file = "local_file.ansible_ecr_vars" in state_addresses
 
-    targets: list[str] = []
-    if has_lifecycle:
-        targets.append("aws_ecr_lifecycle_policy.this")
-    if has_local_file:
-        targets.append("local_file.ansible_ecr_vars")
-
-    if not targets:
+    if not has_lifecycle and not has_local_file:
         print("No ECR lifecycle policy or generated local output resources are tracked in state.")
         return
 
-    terraform_destroy(module_path, auto_approve=auto_approve, targets=targets)
+    print("Running full ECR module destroy after repository state removal.")
+    print("This preserves ECR repositories because they were removed from state first.")
+    terraform_destroy(module_path, auto_approve=auto_approve)
 
 
 def destroy_module(label: str, module_path: str, auto_approve: bool) -> None:

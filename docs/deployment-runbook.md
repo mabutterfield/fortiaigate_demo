@@ -714,7 +714,7 @@ Manual equivalent:
 cd terraform/aws-ecr
 terraform state rm 'aws_ecr_repository.this["api"]'
 # repeat for each repository that should be retained
-terraform destroy -target=aws_ecr_lifecycle_policy.this -target=local_file.ansible_ecr_vars
+terraform destroy
 
 cd ../aws-ec2-k3s
 terraform destroy

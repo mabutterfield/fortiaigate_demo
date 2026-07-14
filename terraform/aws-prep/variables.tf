@@ -13,6 +13,11 @@ variable "name_prefix" {
   description = "Name prefix for shared AWS prep resources."
 }
 
+variable "ssh_key_name" {
+  type        = string
+  description = "Shared EC2 key pair name from terraform/common.tfvars. Accepted for common config consistency; not used by AWS prep."
+}
+
 variable "allowed_ingress_cidr" {
   type        = any
   description = "Trusted public CIDR or list of CIDRs allowed to reach lab management and demo endpoints."

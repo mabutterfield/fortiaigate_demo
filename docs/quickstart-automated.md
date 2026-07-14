@@ -306,7 +306,9 @@ The teardown order is:
 1. Create a full backup with `scripts/backup_config.py`.
 2. Remove `aws_ecr_repository.this[...]` resources from
    `terraform/aws-ecr` state so repositories are not deleted.
-3. Destroy ECR lifecycle policy resources and the generated local ECR vars file.
+3. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
+   and the generated local ECR vars file while preserving repositories already
+   removed from state.
 4. Destroy `terraform/aws-fortiweb` when state exists.
 5. Destroy `terraform/aws-fortigate` when state exists.
 6. Destroy `terraform/aws-ec2-k3s`.

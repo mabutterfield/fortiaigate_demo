@@ -62,8 +62,10 @@ python3 scripts/automated_teardown.py
 ```
 
 It backs up local config and state, removes ECR repository resources from state,
-destroys only ECR lifecycle/local output resources, and then destroys EC2 k3s
-and AWS prep.
+then runs a full `terraform/aws-ecr` destroy. Because repositories were removed
+from state first, Terraform preserves the ECR repositories while deleting
+tracked lifecycle policy resources and the generated local ECR vars file.
+The script then destroys appliances, EC2 k3s, and AWS prep in dependency order.
 
 Back up local config and state first:
 
