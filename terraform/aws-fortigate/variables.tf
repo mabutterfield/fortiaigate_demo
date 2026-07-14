@@ -90,13 +90,36 @@ variable "fortigate_license_mode" {
 variable "fortigate_license_file" {
   type        = string
   description = "Local FortiGate BYOL license file path. Keep this outside Git."
-  default     = "../../licenses/FGT.lic"
+  default     = "../../../licenses/FGVMSLTM00000000.lic"
+}
+
+variable "fortigate_root_volume_size_gb" {
+  type        = number
+  description = "FortiGate root EBS volume size in GiB."
+  default     = 2
+}
+
+variable "fortigate_log_volume_size_gb" {
+  type        = number
+  description = "FortiGate secondary log/data EBS volume size in GiB."
+  default     = 30
 }
 
 variable "fortigate_admin_port" {
   type        = number
   description = "FortiGate HTTPS management port."
-  default     = 8443
+  default     = 443
+}
+
+variable "fortigate_admin_timeout_minutes" {
+  type        = number
+  description = "FortiGate GUI/CLI admin idle timeout in minutes."
+  default     = 60
+
+  validation {
+    condition     = var.fortigate_admin_timeout_minutes >= 1 && var.fortigate_admin_timeout_minutes <= 480
+    error_message = "fortigate_admin_timeout_minutes must be between 1 and 480."
+  }
 }
 
 variable "fortigate_enable_ssh" {
@@ -108,6 +131,12 @@ variable "fortigate_enable_ssh" {
 variable "fortigate_enable_api" {
   type        = bool
   description = "Create a FortiGate API admin in the bootstrap config."
+  default     = true
+}
+
+variable "fortigate_enable_icmp" {
+  type        = bool
+  description = "Allow ICMP from trusted CIDRs to the FortiGate management ENI for basic reachability testing."
   default     = true
 }
 

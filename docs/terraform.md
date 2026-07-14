@@ -259,6 +259,11 @@ user-facing roots. They read local state from `terraform/aws-prep` and
 `terraform/aws-ec2-k3s`; they do not own the VPC or make appliances required
 for normal k3s demo rebuilds.
 
+FortiGate is implemented in `terraform/aws-fortigate` and uses a prep-owned
+EIP, two ENIs, FortiGate cloud-init, and an optional local BYOL license file.
+The initial FortiGate password is the EC2 instance ID. The generated API key
+and rendered user-data are stored in local Terraform state.
+
 ## Instance Sizing
 
 The Terraform default instance type is `g4dn.4xlarge`.

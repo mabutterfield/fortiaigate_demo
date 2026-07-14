@@ -3,20 +3,58 @@
 FortiGate is an optional Phase 4 appliance. The deployment lives in
 `terraform/aws-fortigate` so it does not affect the default public k3s demo.
 
-Phase 1 status:
+Phase 4 deployment status:
 
 - `terraform/aws-prep` can allocate the FortiGate EIP.
 - `terraform/aws-ec2-k3s` creates FortiGate public and internal subnets.
-- `terraform/aws-fortigate` is scaffolded, but EC2/ENI/cloud-init resources are
-  intentionally deferred to the FortiGate deployment phase.
+- `terraform/aws-fortigate` deploys a FortiGate EC2 instance with two ENIs.
 
-Planned FortiGate shape:
+FortiGate shape:
 
 - public/management ENI in `subnet_ids.fortigate_public`
 - internal ENI in `subnet_ids.fortigate_internal`
 - prep-owned FortiGate EIP association
 - BYOL license file support from ignored local files
 - generated API key marked sensitive in Terraform outputs
+
+Apply order:
+
+```bash
+cd terraform/aws-prep
+terraform apply
+
+cd ../aws-ec2-k3s
+terraform apply
+
+cd ../aws-fortigate
+terraform apply
+```
+
+Make sure `terraform/aws-prep/terraform.tfvars` enables the FortiGate EIP:
+
+```hcl
+allocate_eips = {
+  k3s       = true
+  fortigate = true
+  fortiweb  = true
+}
+```
+
+After apply, use:
+
+```bash
+terraform output fortigate_admin_url
+terraform output fortigate_instance_id
+terraform output -raw fortigate_api_key
+```
+
+The default username is `admin`. The initial admin password is the FortiGate
+EC2 instance ID.
+
+The default HTTPS admin port is `443`. Set `fortigate_admin_port = 8443` in
+ignored `terraform.tfvars` when you want the alternate management port.
+The default admin idle timeout is 60 minutes through
+`fortigate_admin_timeout_minutes`.
 
 Do not commit license files, rendered user-data, real `terraform.tfvars`, or
 Terraform state.

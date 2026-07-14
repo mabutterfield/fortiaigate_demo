@@ -74,6 +74,11 @@ output "fortigate_public_ip" {
   value       = try(aws_eip.public["fortigate"].public_ip, null)
 }
 
+output "fortigate_eip_public_ip" {
+  description = "Preallocated EIP public IP for FortiGate. Kept explicit for appliance modules and operator checks."
+  value       = try(aws_eip.public["fortigate"].public_ip, null)
+}
+
 output "fortiweb_eip_allocation_id" {
   description = "Preallocated EIP allocation ID for FortiWeb."
   value       = try(aws_eip.public["fortiweb"].id, null)
@@ -81,6 +86,11 @@ output "fortiweb_eip_allocation_id" {
 
 output "fortiweb_public_ip" {
   description = "Preallocated public IP for FortiWeb."
+  value       = try(aws_eip.public["fortiweb"].public_ip, null)
+}
+
+output "fortiweb_eip_public_ip" {
+  description = "Preallocated EIP public IP for FortiWeb. Kept explicit for appliance modules and operator checks."
   value       = try(aws_eip.public["fortiweb"].public_ip, null)
 }
 

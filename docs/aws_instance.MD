@@ -28,6 +28,19 @@ Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do 
 | Production-like supported validation | `g6.8xlarge` | L4 GPU with stronger CPU/RAM headroom |
 | Multi-GPU validation | `g6.12xlarge` | Four L4 GPUs, meets/exceeds the dual-GPU recommendation |
 
+## FortiGate And FortiWeb Appliances
+
+FortiGate and FortiWeb do not need GPU instances for the Phase 4 appliance
+baseline. The default is `c6i.xlarge`; `c6i.large` is acceptable for lighter
+validation when cost matters more than headroom.
+
+| Appliance | Instance | Approx. Cost | Use |
+|---|---|---:|---|
+| FortiGate | `c6i.large` | ~$0.08/hr | Acceptable lower-cost appliance test size |
+| FortiGate | `c6i.xlarge` | ~$0.17/hr | Default Phase 4 FortiGate size |
+| FortiWeb | `c6i.large` | ~$0.08/hr | Acceptable lower-cost appliance test size |
+| FortiWeb | `c6i.xlarge` | ~$0.17/hr | Default Phase 4 FortiWeb size |
+
 ## Test Infrastructure
 
 These are useful for automation, Kubernetes, and budget lab testing. The T4-based `g4dn` family is not treated here as officially supported FortiAIGate infrastructure.
