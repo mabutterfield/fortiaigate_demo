@@ -3,6 +3,76 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
+## v0.4 - Phase 4 Appliance Baseline
+
+Release date: pending
+
+Adds the optional FortiGate and FortiWeb appliance baseline without moving the
+default public k3s/FortiAIGate path to a private or appliance-fronted topology.
+
+### FortiGate And FortiWeb
+
+- Added `terraform/aws-fortigate` for optional FortiGate EC2 deployment.
+- Added `terraform/aws-fortiweb` for optional FortiWeb EC2 deployment.
+- Added two-ENI appliance layouts:
+  - public/management ENI
+  - internal ENI
+- Added prep-owned FortiGate and FortiWeb EIP support.
+- Added FortiGate cloud-init bootstrap for management, SSH, admin timeout, and
+  API admin token generation.
+- Added FortiWeb S3-backed cloud-init bootstrap with generated config and BYOL
+  license object upload.
+- Set FortiWeb default version filter to `8.0` and default instance type to
+  `c5.xlarge` after validating the FortiWeb Marketplace image constraints.
+- Confirmed both FortiGate and FortiWeb initial admin password behavior uses
+  the EC2 instance ID when an explicit initial password is not set.
+
+### AWS Prep And Network Layout
+
+- Extended `terraform/aws-prep` with optional appliance EIPs.
+- Added FortiWeb cloud-init S3 bucket, bucket public-access blocking,
+  encryption, versioning, TLS-only bucket policy, and FortiWeb instance-profile
+  read access.
+- Added FortiGate and FortiWeb public IP outputs.
+- Added dedicated FortiGate and FortiWeb internal subnets and route tables in
+  `terraform/aws-ec2-k3s`.
+- Split the VPC Mermaid diagram into a compact VPC topology diagram and a
+  separate AWS prep/module dependency diagram.
+
+### Automated Upgrade And Repeat Runs
+
+- Added `scripts/upgrade_v0_3_to_v0_4.py` for local ignored config migration
+  when upgrading an existing `v0.3` lab.
+- Automated quickstart now runs the v0.3-to-v0.4 upgrade step before normal
+  example/default syncing.
+- The upgrade script:
+  - moves legacy module-local `ssh_key_name` into `terraform/common.tfvars`
+  - comments out old module-local `ssh_key_name` assignments
+  - creates missing FortiGate/FortiWeb local tfvars from examples
+  - enables appliance prep defaults when local values still reflect the v0.3
+    no-appliance baseline
+- Automated quickstart now completes all Terraform, including enabled
+  FortiGate/FortiWeb modules, before the k3s readiness wait and Ansible.
+- Automated teardown now destroys FortiWeb and FortiGate before destroying the
+  k3s foundation and AWS prep resources.
+
+### Shared Terraform Defaults
+
+- Moved `ssh_key_name` into `terraform/common.tfvars` so k3s, FortiGate, and
+  FortiWeb use the same AWS EC2 key pair.
+- FortiGate and FortiWeb example tfvars are enabled by default for the Phase 4
+  project baseline.
+- Local private-key path remains in `terraform/aws-ec2-k3s/terraform.tfvars`
+  because it is used for generated Ansible inventory.
+
+### Deferred
+
+- FortiGate private k3s routing/NAT/inspection path.
+- FortiWeb-protected MCP or application publishing path.
+- Full private `k3s_subnet_mode = "private"` validation.
+- Fortinet policy automation and chatbot/MCP-driven Fortinet configuration.
+- FortiFlex licensing.
+
 ## v0.3 - Phase 3 Demo Milestone
 
 Release date: 2026-07-14

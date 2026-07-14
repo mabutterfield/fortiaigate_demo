@@ -238,6 +238,17 @@ defaults are appended at the bottom for review.
 python3 scripts/sync_all_vars.py
 ```
 
+When upgrading an existing `v0.3` lab to `v0.4`, run the versioned local config
+migration before reviewing values:
+
+```bash
+python3 scripts/upgrade_v0_3_to_v0_4.py
+```
+
+The upgrade script consolidates legacy module-local `ssh_key_name` assignments
+into `terraform/common.tfvars`, creates missing FortiGate/FortiWeb local
+tfvars, and enables the Phase 4 appliance prep defaults.
+
 Set local values in `ansible/group_vars/env.yml`, especially:
 
 - `aws_profile`

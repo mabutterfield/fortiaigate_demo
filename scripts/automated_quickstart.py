@@ -218,6 +218,7 @@ def copy_missing_examples(local_file_pairs: list[tuple[str, str]]) -> None:
 
 def sync_missing_example_defaults(local_file_pairs: list[tuple[str, str]]) -> None:
     print_header("Syncing Missing Local Defaults")
+    run_command([sys.executable, "scripts/upgrade_v0_3_to_v0_4.py"])
     for source_rel, dest_rel in local_file_pairs:
         run_command(
             [
@@ -888,11 +889,8 @@ def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
 
 
 def local_file_pairs_for_run(args: argparse.Namespace) -> list[tuple[str, str]]:
-    requested = set(requested_appliance_keys(args))
     pairs = list(BASE_LOCAL_FILE_PAIRS)
-    for appliance_key, pair in APPLIANCE_LOCAL_FILE_PAIRS.items():
-        if appliance_key in requested or (REPO_ROOT / pair[1]).exists():
-            pairs.append(pair)
+    pairs.extend(APPLIANCE_LOCAL_FILE_PAIRS.values())
     return pairs
 
 

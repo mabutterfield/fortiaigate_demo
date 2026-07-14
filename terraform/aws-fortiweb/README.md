@@ -16,6 +16,8 @@ It creates:
 FortiWeb cloud-init reads its config and license from the S3 bucket created by
 `terraform/aws-prep` when `fortiweb_enabled = true` there. The EC2 instance
 uses the prep-owned FortiWeb instance profile so it can read those objects.
+Set `fortiweb_enabled = true` in this module's ignored `terraform.tfvars` when
+you want to deploy the appliance.
 
 For BYOL testing, set `fortiweb_license_file` in ignored `terraform.tfvars` to
 a real FortiWeb license under the parent workspace `licenses/` directory. The

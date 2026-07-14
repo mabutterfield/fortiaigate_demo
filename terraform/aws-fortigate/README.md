@@ -17,7 +17,8 @@ Run order:
 
 1. Apply `terraform/aws-prep` with `allocate_eips.fortigate = true`.
 2. Apply `terraform/aws-ec2-k3s` so the FortiGate public/internal subnets exist.
-3. Apply this module.
+3. Set `fortigate_enabled = true` in this module's ignored `terraform.tfvars`.
+4. Apply this module.
 
 ```bash
 cd terraform/aws-fortigate

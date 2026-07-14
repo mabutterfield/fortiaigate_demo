@@ -34,7 +34,8 @@ Operator workstation
   -> Ansible: publish images, bootstrap k3s, deploy FortiAIGate and demo apps
   -> k3s host: nginx ingress, FortiAIGate, LiteLLM, chatbot, demo home
   -> optional k3s apps: Open WebUI, MCP demo tools, HTTPS gateway
-  -> Optional providers: Amazon Bedrock, Ollama, future FortiWeb/FortiGate front ends
+  -> Optional providers: Amazon Bedrock, Ollama
+  -> Optional appliance baselines: FortiGate, FortiWeb
 ```
 
 ## Choose Your Path
@@ -48,7 +49,7 @@ Operator workstation
 ## Roadmap
 
 - Add a first-class local Ubuntu GPU host workflow
-- Expand Terraform support for FortiGate and FortiWeb front ends
+- Add FortiGate/FortiWeb traffic-path automation after the appliance baseline
 - Move Terraform state to a remote backend when the workflow leaves local lab mode
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add cleanup and recovery runbooks for failed Helm releases and license resets

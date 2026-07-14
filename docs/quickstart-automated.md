@@ -60,7 +60,12 @@ To stop after Terraform and EC2 status, without running Ansible:
 python3 scripts/automated_quickstart.py --skip-ansible
 ```
 
-To include the optional Phase 4 appliances:
+Phase 4 appliance tfvars are prepared by default. The committed examples set
+`fortigate_enabled=true` and `fortiweb_enabled=true`, so automated quickstart
+runs those Terraform modules unless local ignored tfvars set them to false.
+
+Use these flags to force-enable appliances when local tfvars previously set
+one or both to false:
 
 ```bash
 python3 scripts/automated_quickstart.py --include-fortigate
@@ -68,12 +73,9 @@ python3 scripts/automated_quickstart.py --include-fortiweb
 python3 scripts/automated_quickstart.py --include-appliances
 ```
 
-The appliance flags create/sync the matching local ignored appliance tfvars
-file, reuse the same EC2 key pair selected in `terraform/common.tfvars`, enable
-the required prep EIPs, and for FortiWeb enable the prep-owned S3/IAM
-cloud-init resources. If a local appliance tfvars file already exists with
-`fortigate_enabled=true` or `fortiweb_enabled=true`, the quickstart also runs
-that appliance module without needing an include flag.
+When an appliance is enabled, quickstart reuses the shared EC2 key pair from
+`terraform/common.tfvars`, enables the required prep EIPs, and for FortiWeb
+enables the prep-owned S3/IAM cloud-init resources.
 
 Before copying or editing local config, the script creates a tar.gz backup of
 existing private/local Terraform and Ansible config files in `../backup`

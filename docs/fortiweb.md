@@ -47,6 +47,10 @@ parent workspace `licenses/` directory. The committed placeholder path is
 path, not by embedding the license text in Terraform configuration. Set
 `fortiweb_license_mode = "none"` for an unlicensed boot test.
 
+The committed example sets `fortiweb_enabled = true`. Set it to false in
+ignored local tfvars only when you want to keep the module prepared but skip
+creating FortiWeb resources.
+
 The AWS account must be subscribed to the selected FortiWeb Marketplace AMI
 before EC2 launch. If Terraform returns `OptInRequired`, accept the Marketplace
 terms for the SKU in the error message and rerun `terraform apply`.

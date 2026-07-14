@@ -6,8 +6,8 @@ Terraform is split into user-facing steps that keep AWS setup in Terraform befor
 - `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
 - `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
-- `terraform/aws-fortigate`: optional FortiGate appliance deployment, scaffolded for Phase 4
-- `terraform/aws-fortiweb`: optional FortiWeb appliance deployment, scaffolded for Phase 4
+- `terraform/aws-fortigate`: optional FortiGate appliance deployment
+- `terraform/aws-fortiweb`: optional FortiWeb appliance deployment with S3-backed cloud-init
 
 All modules use local Terraform state for now. Remote state is a future enhancement.
 
@@ -32,6 +32,7 @@ Edit `common.tfvars`:
 aws_profile          = "AdministratorAccess-123456789012"
 aws_region           = "us-east-1"
 name_prefix          = "fortiaigate-demo"
+ssh_key_name         = "my-existing-keypair"
 allowed_ingress_cidr = [
   "203.0.113.10/32",
 ]

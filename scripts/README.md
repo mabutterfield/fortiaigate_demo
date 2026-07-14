@@ -12,13 +12,15 @@ Current scripts:
   without creating an archive.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   ignored local config files and runs Terraform through ECR, AWS prep, and EC2
-  k3s foundation, then runs the Ansible deployment flow when approved. It backs
-  up existing local tfvars and hand-edited Ansible group var YAML files to
-  `../backup` by default, excluding generated `*.generated.yml` files; use
-  `--backup-dir` to choose another location. It also runs `sync_all_vars.py`
-  after copying missing examples so existing local files pick up new defaults
-  without overwriting local values. Use `--yolo` for repeat runs where local
-  variables are already configured and images already exist in ECR.
+  k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the Ansible
+  deployment flow when approved. It backs up existing local tfvars and
+  hand-edited Ansible group var YAML files to `../backup` by default, excluding
+  generated `*.generated.yml` files; use `--backup-dir` to choose another
+  location. It also runs `upgrade_v0_3_to_v0_4.py` and `sync_all_vars.py` after
+  copying missing examples so existing local files pick up versioned migrations
+  and new defaults without overwriting unrelated local values. Use `--yolo` for
+  repeat runs where local variables are already configured and images already
+  exist in ECR.
 - `automated_teardown.py`: guided teardown for repeat lab cycles. It creates a
   full backup, removes ECR repository resources from Terraform state so
   repositories are not deleted, destroys ECR lifecycle/local output resources,
@@ -28,6 +30,9 @@ Current scripts:
   existing local values. It covers Terraform `*.tfvars` plus Ansible
   `env.yml`, `all.yml`, and `images.yml`. Use `--check` for CI/preflight,
   `--dry-run` to preview the diff, or `--list` to show managed pairs.
+- `upgrade_v0_3_to_v0_4.py`: one-time local config migration for existing
+  `v0.3` labs. It consolidates `ssh_key_name` into `terraform/common.tfvars`,
+  creates missing appliance tfvars, and enables Phase 4 appliance prep defaults.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
 - `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
 

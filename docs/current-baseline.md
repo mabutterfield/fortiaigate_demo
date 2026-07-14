@@ -12,6 +12,7 @@ Operator workstation
       -> ECR repositories
       -> AWS prep IAM, EIPs, Bedrock credentials
       -> VPC, subnets, security group, EC2 k3s host
+      -> optional FortiGate/FortiWeb appliance EC2 instances
   -> Ansible
       -> optional image publishing
       -> k3s bootstrap
@@ -58,8 +59,8 @@ when testing the inspected LiteLLM path.
 | MCP demo tools | optional baseline | `mcp` | `http://<k3s-ip>:30084/tools` |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` |
 | HTTPS gateway | optional | `demo-https-gateway` | generated HTTPS ports |
-| FortiGate appliance | scaffolded for Phase 4 | n/a | not deployed by default |
-| FortiWeb appliance | scaffolded for Phase 4 | n/a | not deployed by default |
+| FortiGate appliance | optional Phase 4 Terraform deployment | n/a | FortiGate EIP when enabled |
+| FortiWeb appliance | optional Phase 4 Terraform deployment | n/a | FortiWeb EIP when enabled |
 
 ## Default Port Map
 
@@ -85,18 +86,20 @@ Automated quick start and manual deployment use this order:
 2. Terraform ECR
 3. Terraform AWS prep
 4. Terraform EC2 k3s foundation
-5. Optional image publishing
-6. k3s bootstrap
-7. FortiAIGate deploy
-8. FortiAIGate status check
-9. LiteLLM deploy
-10. optional Open WebUI deploy, skipped unless `openwebui_enabled=true`
-11. custom chatbot UI deploy
-12. optional MCP demo tools deploy
-13. demo home deploy
-14. optional HTTPS gateway deploy
-15. final FortiAIGate status check
-16. consolidated output display
+5. Optional FortiGate Terraform deployment
+6. Optional FortiWeb Terraform deployment
+7. Optional image publishing
+8. k3s bootstrap
+9. FortiAIGate deploy
+10. FortiAIGate status check
+11. LiteLLM deploy
+12. optional Open WebUI deploy, skipped unless `openwebui_enabled=true`
+13. custom chatbot UI deploy
+14. optional MCP demo tools deploy
+15. demo home deploy
+16. optional HTTPS gateway deploy
+17. final FortiAIGate status check
+18. consolidated output display
 
 Automated quick start checks FortiAIGate once after Helm deploy, continues with
 the remaining app deployments, then checks FortiAIGate status again at the end.
@@ -127,7 +130,6 @@ Smoke-test playbooks:
 The following are intentionally not part of the current baseline:
 
 - FortiWeb-protected MCP path
-- FortiGate/FortiWeb appliance EC2 deployment
 - private k3s mode validation
 - shared/cross-account ECR support
 - host-based/path-based routing implementation

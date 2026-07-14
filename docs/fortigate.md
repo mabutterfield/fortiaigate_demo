@@ -40,6 +40,10 @@ allocate_eips = {
 }
 ```
 
+The committed example sets `fortigate_enabled = true`. Set it to false in
+ignored local tfvars only when you want to keep the module prepared but skip
+creating FortiGate resources.
+
 After apply, use:
 
 ```bash
