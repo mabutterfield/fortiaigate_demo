@@ -55,7 +55,12 @@ locals {
     local.prep_outputs.allowed_ingress_cidrs,
     [local.prep_outputs.allowed_ingress_cidr]
   )
-  appliance_ingress_cidrs = [var.fortigate_public_subnet_cidr, var.fortiweb_public_subnet_cidr]
+  appliance_ingress_cidrs = [
+    var.fortigate_public_subnet_cidr,
+    var.fortiweb_public_subnet_cidr,
+    var.fortigate_internal_subnet_cidr,
+    var.fortiweb_internal_subnet_cidr,
+  ]
   demo_port_assignments = {
     openwebui = {
       http  = var.demo_http_base_port
@@ -253,6 +258,17 @@ resource "aws_subnet" "fortigate_public" {
   })
 }
 
+resource "aws_subnet" "fortigate_internal" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortigate_internal_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortigate-internal"
+  })
+}
+
 resource "aws_subnet" "fortiweb_public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.fortiweb_public_subnet_cidr
@@ -261,6 +277,17 @@ resource "aws_subnet" "fortiweb_public" {
 
   tags = merge(local.tags, {
     Name = "${var.name_prefix}-fortiweb-public"
+  })
+}
+
+resource "aws_subnet" "fortiweb_internal" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortiweb_internal_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortiweb-internal"
   })
 }
 
@@ -300,6 +327,22 @@ resource "aws_route_table" "k3s_private" {
   })
 }
 
+resource "aws_route_table" "fortigate_internal" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortigate-internal"
+  })
+}
+
+resource "aws_route_table" "fortiweb_internal" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortiweb-internal"
+  })
+}
+
 resource "aws_route" "k3s_private_default" {
   count = var.k3s_private_default_route_network_interface_id != "" ? 1 : 0
 
@@ -311,6 +354,16 @@ resource "aws_route" "k3s_private_default" {
 resource "aws_route_table_association" "k3s_private" {
   subnet_id      = aws_subnet.k3s_private.id
   route_table_id = aws_route_table.k3s_private.id
+}
+
+resource "aws_route_table_association" "fortigate_internal" {
+  subnet_id      = aws_subnet.fortigate_internal.id
+  route_table_id = aws_route_table.fortigate_internal.id
+}
+
+resource "aws_route_table_association" "fortiweb_internal" {
+  subnet_id      = aws_subnet.fortiweb_internal.id
+  route_table_id = aws_route_table.fortiweb_internal.id
 }
 
 resource "aws_security_group" "this" {
@@ -433,19 +486,21 @@ resource "aws_eip_association" "k3s" {
 resource "local_file" "ansible_inventory" {
   filename = var.inventory_output_path
   content = templatefile("${path.module}/templates/aws.generated.ini.tftpl", {
-    ansible_host                     = local.k3s_inventory_host
-    public_ip                        = local.k3s_public_ip
-    private_ip                       = aws_instance.this.private_ip
-    ssh_private_key_file             = var.ssh_private_key_file
-    aws_vpc_cidr                     = var.vpc_cidr
-    aws_public_subnet_cidr           = var.public_subnet_cidr
-    aws_k3s_private_subnet_cidr      = var.k3s_private_subnet_cidr
-    aws_fortigate_public_subnet_cidr = var.fortigate_public_subnet_cidr
-    aws_fortiweb_public_subnet_cidr  = var.fortiweb_public_subnet_cidr
-    aws_k3s_subnet_mode              = var.k3s_subnet_mode
-    k3s_cluster_cidr                 = var.k3s_cluster_cidr
-    k3s_service_cidr                 = var.k3s_service_cidr
-    k3s_cluster_dns                  = var.k3s_cluster_dns
+    ansible_host                       = local.k3s_inventory_host
+    public_ip                          = local.k3s_public_ip
+    private_ip                         = aws_instance.this.private_ip
+    ssh_private_key_file               = var.ssh_private_key_file
+    aws_vpc_cidr                       = var.vpc_cidr
+    aws_public_subnet_cidr             = var.public_subnet_cidr
+    aws_k3s_private_subnet_cidr        = var.k3s_private_subnet_cidr
+    aws_fortigate_public_subnet_cidr   = var.fortigate_public_subnet_cidr
+    aws_fortigate_internal_subnet_cidr = var.fortigate_internal_subnet_cidr
+    aws_fortiweb_public_subnet_cidr    = var.fortiweb_public_subnet_cidr
+    aws_fortiweb_internal_subnet_cidr  = var.fortiweb_internal_subnet_cidr
+    aws_k3s_subnet_mode                = var.k3s_subnet_mode
+    k3s_cluster_cidr                   = var.k3s_cluster_cidr
+    k3s_service_cidr                   = var.k3s_service_cidr
+    k3s_cluster_dns                    = var.k3s_cluster_dns
   })
 }
 

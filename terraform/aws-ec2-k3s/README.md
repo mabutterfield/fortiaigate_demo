@@ -35,7 +35,13 @@ The default network mode remains direct public k3s access:
 k3s_subnet_mode = "public"
 ```
 
-This creates the k3s public subnet, a k3s private subnet, FortiGate and FortiWeb public placeholder subnets, and places the k3s instance in the public subnet with the EIP preallocated by `terraform/aws-prep`. The k3s instance does not request an auto-assigned ephemeral public IP. Set `k3s_subnet_mode = "private"` only after a private management or appliance-fronted access path exists. Private mode places k3s in the private subnet without a public IP.
+This creates the k3s public subnet, a k3s private subnet, FortiGate and
+FortiWeb public management subnets, FortiGate and FortiWeb internal subnets,
+and places the k3s instance in the public subnet with the EIP preallocated by
+`terraform/aws-prep`. The k3s instance does not request an auto-assigned
+ephemeral public IP. Set `k3s_subnet_mode = "private"` only after a private
+management or appliance-fronted access path exists. Private mode places k3s in
+the private subnet without a public IP.
 
 For future appliance-fronted private mode, set `k3s_private_default_route_network_interface_id` to the FortiGate traffic interface that should receive the private subnet default route.
 

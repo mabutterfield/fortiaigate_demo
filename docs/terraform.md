@@ -6,6 +6,8 @@ Terraform is split into user-facing steps that keep AWS setup in Terraform befor
 - `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
 - `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
+- `terraform/aws-fortigate`: optional FortiGate appliance deployment, scaffolded for Phase 4
+- `terraform/aws-fortiweb`: optional FortiWeb appliance deployment, scaffolded for Phase 4
 
 All modules use local Terraform state for now. Remote state is a future enhancement.
 
@@ -113,6 +115,7 @@ This module creates:
 - scoped Bedrock invoke policy attachment when `enable_ec2_bedrock_iam = true`
 - preallocated EIPs for selected entry points
 - trusted source CIDR outputs
+- optional FortiWeb S3 cloud-init bucket and IAM instance profile when `fortiweb_enabled = true`
 - optional Bedrock IAM user, access key, and policy
 
 The EC2 module reads this module's local state by default through:
@@ -139,6 +142,26 @@ terraform output bedrock_model_ids
 
 The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
 
+For Phase 4 appliance deployment, enable prep-owned appliance EIPs:
+
+```hcl
+allocate_eips = {
+  k3s       = true
+  fortigate = true
+  fortiweb  = true
+}
+```
+
+FortiWeb cloud-init also needs an S3 bucket and EC2 instance profile. Enable
+those only when deploying FortiWeb:
+
+```hcl
+fortiweb_enabled = true
+```
+
+The bucket stores the FortiWeb command/config object and BYOL license object.
+Those objects and Terraform state are sensitive.
+
 ## AWS EC2 k3s Module
 
 ```bash
@@ -159,7 +182,8 @@ This module creates:
 - dedicated VPC
 - k3s public subnet without automatic public-IP assignment
 - k3s private subnet
-- FortiGate and FortiWeb public placeholder subnets without automatic public-IP assignment
+- FortiGate and FortiWeb public management subnets without automatic public-IP assignment
+- FortiGate and FortiWeb internal subnets with local-only route tables
 - internet gateway and public route table
 - security group for SSH, HTTP, and HTTPS from the trusted CIDR in `aws-prep`
 - Ubuntu 24.04 GPU EC2 instance
@@ -191,7 +215,9 @@ aws_vpc_cidr=10.20.0.0/16
 aws_public_subnet_cidr=10.20.1.0/24
 aws_k3s_private_subnet_cidr=10.20.2.0/24
 aws_fortigate_public_subnet_cidr=10.20.10.0/24
+aws_fortigate_internal_subnet_cidr=10.20.20.0/24
 aws_fortiweb_public_subnet_cidr=10.20.11.0/24
+aws_fortiweb_internal_subnet_cidr=10.20.21.0/24
 aws_k3s_subnet_mode=public
 k3s_cluster_cidr=10.60.0.0/16
 k3s_service_cidr=10.70.0.0/16
@@ -225,6 +251,13 @@ The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,
 data transfer, Bedrock, marketplace, and licensing costs. If AWS adds a region
 that is not in the module's built-in pricing-location map, set
 `aws_pricing_location_override` in `terraform.tfvars`.
+
+## Optional Appliance Modules
+
+`terraform/aws-fortigate` and `terraform/aws-fortiweb` are independent
+user-facing roots. They read local state from `terraform/aws-prep` and
+`terraform/aws-ec2-k3s`; they do not own the VPC or make appliances required
+for normal k3s demo rebuilds.
 
 ## Instance Sizing
 

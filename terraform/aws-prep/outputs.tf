@@ -64,28 +64,54 @@ output "k3s_public_ip" {
   value       = try(aws_eip.public["k3s"].public_ip, null)
 }
 
-# This allocation ID is excess until a FortiGate Terraform module consumes it.
-# It is easy to add back when appliance automation needs the allocation ID.
-# output "fortigate_eip_allocation_id" {
-#   description = "Preallocated EIP allocation ID for FortiGate."
-#   value       = try(aws_eip.public["fortigate"].id, null)
-# }
+output "fortigate_eip_allocation_id" {
+  description = "Preallocated EIP allocation ID for FortiGate."
+  value       = try(aws_eip.public["fortigate"].id, null)
+}
 
 output "fortigate_public_ip" {
   description = "Preallocated public IP for FortiGate."
   value       = try(aws_eip.public["fortigate"].public_ip, null)
 }
 
-# This allocation ID is excess until a FortiWeb Terraform module consumes it.
-# It is easy to add back when appliance automation needs the allocation ID.
-# output "fortiweb_eip_allocation_id" {
-#   description = "Preallocated EIP allocation ID for FortiWeb."
-#   value       = try(aws_eip.public["fortiweb"].id, null)
-# }
+output "fortiweb_eip_allocation_id" {
+  description = "Preallocated EIP allocation ID for FortiWeb."
+  value       = try(aws_eip.public["fortiweb"].id, null)
+}
 
 output "fortiweb_public_ip" {
   description = "Preallocated public IP for FortiWeb."
   value       = try(aws_eip.public["fortiweb"].public_ip, null)
+}
+
+output "fortiweb_cloudinit_bucket_name" {
+  description = "S3 bucket for FortiWeb cloud-init config and license objects."
+  value       = var.fortiweb_enabled ? aws_s3_bucket.fortiweb_cloudinit[0].bucket : null
+}
+
+output "fortiweb_cloudinit_bucket_arn" {
+  description = "S3 bucket ARN for FortiWeb cloud-init config and license objects."
+  value       = var.fortiweb_enabled ? aws_s3_bucket.fortiweb_cloudinit[0].arn : null
+}
+
+output "fortiweb_cloudinit_config_key" {
+  description = "Default S3 object key for the FortiWeb command/config file."
+  value       = var.fortiweb_enabled ? var.fortiweb_cloudinit_config_key : null
+}
+
+output "fortiweb_cloudinit_license_key" {
+  description = "Default S3 object key for the FortiWeb BYOL license file."
+  value       = var.fortiweb_enabled ? var.fortiweb_cloudinit_license_key : null
+}
+
+output "fortiweb_cloudinit_instance_profile_name" {
+  description = "IAM instance profile FortiWeb should use to read S3 cloud-init objects."
+  value       = var.fortiweb_enabled ? aws_iam_instance_profile.fortiweb_cloudinit[0].name : null
+}
+
+output "fortiweb_cloudinit_role_arn" {
+  description = "IAM role ARN FortiWeb uses to read S3 cloud-init objects."
+  value       = var.fortiweb_enabled ? aws_iam_role.fortiweb_cloudinit[0].arn : null
 }
 
 output "bedrock_iam_user_name" {

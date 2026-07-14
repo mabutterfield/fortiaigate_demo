@@ -18,6 +18,8 @@ DEFAULT_PAIRS = [
     ("terraform/aws-ecr/terraform.tfvars.example", "terraform/aws-ecr/terraform.tfvars"),
     ("terraform/aws-prep/terraform.tfvars.example", "terraform/aws-prep/terraform.tfvars"),
     ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
+    ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
+    ("terraform/aws-fortiweb/terraform.tfvars.example", "terraform/aws-fortiweb/terraform.tfvars"),
     ("ansible/group_vars/env.example.yml", "ansible/group_vars/env.yml"),
     ("ansible/group_vars/all.example.yml", "ansible/group_vars/all.yml"),
     ("ansible/group_vars/images.example.yml", "ansible/group_vars/images.yml"),

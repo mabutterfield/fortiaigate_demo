@@ -6,6 +6,7 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 - scoped ECR pull permissions from the ECR Terraform state when `registry_backend = "ecr"`
 - trusted source CIDR outputs
 - preallocated public EIPs for selected entry points
+- optional FortiWeb S3 cloud-init bucket and IAM instance profile
 - optional temporary Bedrock IAM credentials for FortiAIGate provider setup
 
 Run it after the registry module and before the EC2 k3s foundation module:
@@ -19,6 +20,30 @@ terraform apply
 This module reads `terraform/aws-ecr` local state by default when
 `registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
 state by default.
+
+Enable Phase 4 appliance prep only when deploying FortiGate/FortiWeb:
+
+```hcl
+allocate_eips = {
+  k3s       = true
+  fortigate = true
+  fortiweb  = true
+}
+
+fortiweb_enabled = true
+```
+
+When `fortiweb_enabled = true`, this module creates a private encrypted S3
+bucket and an EC2 instance profile FortiWeb can use to read its cloud-init
+command file and license file. The default object keys are:
+
+```text
+fortiweb/cloud-init/config.txt
+fortiweb/cloud-init/FWB.lic
+```
+
+License objects are sensitive. Do not commit license files, rendered user-data,
+or Terraform state.
 
 Retrieve Bedrock GUI values when `enable_bedrock_iam = true`:
 

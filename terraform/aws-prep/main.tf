@@ -40,6 +40,20 @@ locals {
   }
 
   k3s_public_ip_cidr = try("${aws_eip.public["k3s"].public_ip}/32", "")
+  fortiweb_bucket_prefix_raw = trim(
+    replace(lower(var.name_prefix), "/[^a-z0-9-]/", "-"),
+    "-"
+  )
+  fortiweb_bucket_prefix = local.fortiweb_bucket_prefix_raw != "" ? substr(
+    local.fortiweb_bucket_prefix_raw,
+    0,
+    min(length(local.fortiweb_bucket_prefix_raw), 28)
+  ) : "fortiaigate"
+  fortiweb_cloudinit_bucket_name = var.fortiweb_cloudinit_bucket_name != "" ? var.fortiweb_cloudinit_bucket_name : "${local.fortiweb_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}-fwb"
+  fortiweb_cloudinit_object_arns = var.fortiweb_enabled ? [
+    "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_config_key}",
+    "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_license_key}",
+  ] : []
 
   bedrock_effective_allowed_source_cidrs = var.bedrock_no_ip_restriction ? [] : distinct(compact(concat(
     local.allowed_ingress_cidrs,
@@ -221,6 +235,131 @@ resource "aws_eip" "public" {
 
   tags = merge(local.tags, {
     Name = "${var.name_prefix}-${each.key}-eip"
+  })
+}
+
+resource "aws_s3_bucket" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  bucket        = local.fortiweb_cloudinit_bucket_name
+  force_destroy = var.fortiweb_cloudinit_bucket_force_destroy
+
+  tags = merge(local.tags, {
+    Name      = local.fortiweb_cloudinit_bucket_name
+    Component = "FortiWeb"
+    Purpose   = "FortiWeb cloud-init config and license objects"
+  })
+}
+
+resource "aws_s3_bucket_public_access_block" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiweb_cloudinit[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiweb_cloudinit[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiweb_cloudinit[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_iam_role" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  name = "${var.name_prefix}-fortiweb-cloudinit-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Ec2AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = merge(local.tags, {
+    Name      = "${var.name_prefix}-fortiweb-cloudinit-role"
+    Component = "FortiWeb"
+    Purpose   = "Allow FortiWeb EC2 cloud-init to read S3 config and license objects"
+  })
+}
+
+resource "aws_iam_policy" "fortiweb_cloudinit_s3_read" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  name        = "${var.name_prefix}-fortiweb-cloudinit-s3-read"
+  description = "Allow FortiWeb EC2 cloud-init to read the configured S3 bucket objects."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ListFortiWebCloudInitBucket"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+        ]
+        Resource = aws_s3_bucket.fortiweb_cloudinit[0].arn
+      },
+      {
+        Sid    = "ReadFortiWebCloudInitObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+        ]
+        Resource = local.fortiweb_cloudinit_object_arns
+      },
+    ]
+  })
+
+  tags = merge(local.tags, {
+    Name      = "${var.name_prefix}-fortiweb-cloudinit-s3-read"
+    Component = "FortiWeb"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "fortiweb_cloudinit_s3_read" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  role       = aws_iam_role.fortiweb_cloudinit[0].name
+  policy_arn = aws_iam_policy.fortiweb_cloudinit_s3_read[0].arn
+}
+
+resource "aws_iam_instance_profile" "fortiweb_cloudinit" {
+  count = var.fortiweb_enabled ? 1 : 0
+
+  name = "${var.name_prefix}-fortiweb-cloudinit-profile"
+  role = aws_iam_role.fortiweb_cloudinit[0].name
+
+  tags = merge(local.tags, {
+    Name      = "${var.name_prefix}-fortiweb-cloudinit-profile"
+    Component = "FortiWeb"
   })
 }
 

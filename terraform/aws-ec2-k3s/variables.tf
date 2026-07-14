@@ -123,6 +123,17 @@ variable "fortigate_public_subnet_cidr" {
   }
 }
 
+variable "fortigate_internal_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiGate internal subnet."
+  default     = "10.20.20.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortigate_internal_subnet_cidr, 0))
+    error_message = "fortigate_internal_subnet_cidr must be a valid CIDR block."
+  }
+}
+
 variable "fortiweb_public_subnet_cidr" {
   type        = string
   description = "CIDR for the FortiWeb public/front-end subnet placeholder."
@@ -131,6 +142,17 @@ variable "fortiweb_public_subnet_cidr" {
   validation {
     condition     = can(cidrhost(var.fortiweb_public_subnet_cidr, 0))
     error_message = "fortiweb_public_subnet_cidr must be a valid CIDR block."
+  }
+}
+
+variable "fortiweb_internal_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiWeb internal subnet."
+  default     = "10.20.21.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortiweb_internal_subnet_cidr, 0))
+    error_message = "fortiweb_internal_subnet_cidr must be a valid CIDR block."
   }
 }
 

@@ -23,6 +23,8 @@ Start with one quick start, then use the topic docs for details and recovery.
 | MCP demo tools | [MCP](mcp.md) |
 | Helm chart deployment and post-rendering | [Helm](helm.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
+| Optional FortiGate appliance | [FortiGate](fortigate.md) |
+| Optional FortiWeb appliance | [FortiWeb](fortiweb.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
 | Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
 

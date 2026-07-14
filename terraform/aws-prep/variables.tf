@@ -84,6 +84,41 @@ variable "allocate_eips" {
   }
 }
 
+variable "fortiweb_enabled" {
+  type        = bool
+  description = "Create shared FortiWeb prep resources, including the cloud-init S3 bucket and EC2 instance profile."
+  default     = false
+}
+
+variable "fortiweb_cloudinit_bucket_name" {
+  type        = string
+  description = "Optional S3 bucket name for FortiWeb cloud-init config and license objects. Leave empty to derive a name from name_prefix, account ID, and region."
+  default     = ""
+
+  validation {
+    condition     = var.fortiweb_cloudinit_bucket_name == "" || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.fortiweb_cloudinit_bucket_name))
+    error_message = "fortiweb_cloudinit_bucket_name must be empty or a valid S3 bucket name."
+  }
+}
+
+variable "fortiweb_cloudinit_bucket_force_destroy" {
+  type        = bool
+  description = "Allow Terraform destroy to delete the FortiWeb cloud-init bucket even when it contains objects. Leave false unless this is a disposable lab bucket."
+  default     = false
+}
+
+variable "fortiweb_cloudinit_config_key" {
+  type        = string
+  description = "Default S3 object key where the FortiWeb command/config file will be stored."
+  default     = "fortiweb/cloud-init/config.txt"
+}
+
+variable "fortiweb_cloudinit_license_key" {
+  type        = string
+  description = "Default S3 object key where the FortiWeb BYOL license file will be stored."
+  default     = "fortiweb/cloud-init/FWB.lic"
+}
+
 variable "enable_bedrock_iam" {
   type        = bool
   description = "Create temporary IAM user credentials for FortiAIGate Bedrock provider setup."

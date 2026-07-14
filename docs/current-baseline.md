@@ -58,7 +58,8 @@ when testing the inspected LiteLLM path.
 | MCP demo tools | optional baseline | `mcp` | `http://<k3s-ip>:30084/tools` |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` |
 | HTTPS gateway | optional | `demo-https-gateway` | generated HTTPS ports |
-| FortiWeb/FortiGate appliances | deferred | n/a | not implemented |
+| FortiGate appliance | scaffolded for Phase 4 | n/a | not deployed by default |
+| FortiWeb appliance | scaffolded for Phase 4 | n/a | not deployed by default |
 
 ## Default Port Map
 
@@ -126,7 +127,7 @@ Smoke-test playbooks:
 The following are intentionally not part of the current baseline:
 
 - FortiWeb-protected MCP path
-- FortiGate/FortiWeb appliance Terraform deployment
+- FortiGate/FortiWeb appliance EC2 deployment
 - private k3s mode validation
 - shared/cross-account ECR support
 - host-based/path-based routing implementation

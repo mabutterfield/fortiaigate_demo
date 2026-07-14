@@ -12,8 +12,8 @@ The default deployment mode is `k3s_subnet_mode = "public"`:
 - the instance does not request an auto-assigned ephemeral public IP
 
 Private k3s mode and FortiGate/FortiWeb appliance-fronted routing are planned
-expansion paths. The placeholder subnets exist now so the VPC layout does not
-need to be redesigned later.
+expansion paths. The appliance public and internal subnets exist now so the VPC
+layout does not need to be redesigned later.
 
 ```mermaid
 flowchart TB
@@ -40,12 +40,20 @@ flowchart TB
             K3SPrivENI["k3s EC2 ENI<br/>private mode / future"]
         end
 
-        subgraph FortiGateSubnet["FortiGate public subnet<br/>10.20.10.0/24"]
-            FortiGate["FortiGate appliance<br/>future"]
+        subgraph FortiGatePublicSubnet["FortiGate public subnet<br/>10.20.10.0/24"]
+            FortiGatePub["FortiGate port1 / management<br/>future"]
         end
 
-        subgraph FortiWebSubnet["FortiWeb public subnet<br/>10.20.11.0/24"]
-            FortiWeb["FortiWeb appliance<br/>future"]
+        subgraph FortiGateInternalSubnet["FortiGate internal subnet<br/>10.20.20.0/24"]
+            FortiGateInt["FortiGate port2 / internal<br/>future"]
+        end
+
+        subgraph FortiWebPublicSubnet["FortiWeb public subnet<br/>10.20.11.0/24"]
+            FortiWebPub["FortiWeb public / management<br/>future"]
+        end
+
+        subgraph FortiWebInternalSubnet["FortiWeb internal subnet<br/>10.20.21.0/24"]
+            FortiWebInt["FortiWeb internal<br/>future"]
         end
 
         SG["k3s security group<br/>trusted CIDRs only<br/>SSH, HTTP, HTTPS, demo ports"]
@@ -63,8 +71,8 @@ flowchart TB
     Internet --> IGW
     IGW --- PublicRT
     PublicRT --- K3SPublic
-    PublicRT --- FortiGateSubnet
-    PublicRT --- FortiWebSubnet
+    PublicRT --- FortiGatePublicSubnet
+    PublicRT --- FortiWebPublicSubnet
 
     K3SEIP --> K3SPubENI
     K3SPubENI --- SG
@@ -77,10 +85,12 @@ flowchart TB
     IAM -.->|"attached to EC2 instance"| K3SPubENI
     K3SPubENI -->|"ECR pulls / Bedrock invoke"| AWSAPI
 
-    FGEIP -.->|"future public entry"| FortiGate
-    FWEIP -.->|"future public entry"| FortiWeb
-    FortiGate -.->|"future private ingress / NAT / inspection"| K3SPrivENI
-    FortiWeb -.->|"future HTTP/S publishing"| K3SPrivENI
+    FGEIP -.->|"future public entry"| FortiGatePub
+    FWEIP -.->|"future public entry"| FortiWebPub
+    FortiGatePub -.-> FortiGateInt
+    FortiWebPub -.-> FortiWebInt
+    FortiGateInt -.->|"future private ingress / NAT / inspection"| K3SPrivENI
+    FortiWebInt -.->|"future HTTP/S publishing"| K3SPrivENI
     K3SPrivENI -.->|"private k3s mode"| SG
 
     classDef current fill:#e8f3ff,stroke:#2b6cb0,color:#111;
@@ -88,7 +98,7 @@ flowchart TB
     classDef external fill:#f4f4f5,stroke:#52525b,color:#111;
 
     class K3SEIP,IAM,K3SPubENI,SG,NodePorts,Ingress,Apps,Pods,Services current;
-    class FortiGate,FortiWeb,K3SPrivENI,FGEIP,FWEIP future;
+    class FortiGatePub,FortiGateInt,FortiWebPub,FortiWebInt,K3SPrivENI,FGEIP,FWEIP future;
     class Operator,Internet,AWSAPI external;
 ```
 
@@ -112,6 +122,8 @@ are in place.
 | k3s private subnet | `10.20.2.0/24` |
 | FortiGate public subnet | `10.20.10.0/24` |
 | FortiWeb public subnet | `10.20.11.0/24` |
+| FortiGate internal subnet | `10.20.20.0/24` |
+| FortiWeb internal subnet | `10.20.21.0/24` |
 | k3s pod CIDR | `10.60.0.0/16` |
 | k3s service CIDR | `10.70.0.0/16` |
 | k3s DNS | `10.70.0.10` |

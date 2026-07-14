@@ -11,6 +11,19 @@ allocate_eips = {
   fortiweb  = false
 }
 
+# Set these when deploying the optional Phase 4 appliances.
+# allocate_eips = {
+#   k3s       = true
+#   fortigate = true
+#   fortiweb  = true
+# }
+
+fortiweb_enabled                        = false
+fortiweb_cloudinit_bucket_name          = ""
+fortiweb_cloudinit_bucket_force_destroy = false
+fortiweb_cloudinit_config_key           = "fortiweb/cloud-init/config.txt"
+fortiweb_cloudinit_license_key          = "fortiweb/cloud-init/FWB.lic"
+
 enable_bedrock_iam            = true
 enable_ec2_bedrock_iam        = true
 bedrock_credential_valid_days = 7
