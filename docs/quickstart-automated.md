@@ -54,6 +54,18 @@ YOLO mode is intended for subsequent lab cycles, not first-time setup. It:
 - runs the remaining Ansible bootstrap/deployment flow without the normal
   confirmation prompts
 
+To reconfigure local ignored Terraform and Ansible variables without running
+Terraform or Ansible, use the standalone local reconfiguration tool:
+
+```bash
+python3 scripts/reconfigure_local_vars.py
+```
+
+The tool backs up local tfvars/YAML files, copies missing local files from
+examples, syncs missing defaults, walks through the important quickstart
+variables, and then prompts for every remaining top-level difference between
+local files and their committed examples.
+
 To stop after Terraform and EC2 status, without running Ansible:
 
 ```bash
@@ -291,6 +303,8 @@ The final `show_demo_outputs.yml` playbook should print:
 - custom chatbot URL
 - MCP tools URL
 - demo home URL
+- FortiGate and FortiWeb admin URLs plus EC2 instance IDs when appliance
+  modules are enabled and applied
 - SSH command for the k3s host
 - commands for status and validation playbooks
 

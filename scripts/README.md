@@ -28,6 +28,11 @@ Current scripts:
   resources from Terraform state so repositories are not deleted, runs ECR
   destroy for the remaining tracked lifecycle/local output resources, then
   destroys appliances, EC2 k3s, and AWS prep in dependency order.
+- `reconfigure_local_vars.py`: standalone guided local configuration review.
+  It backs up ignored local tfvars/YAML files, creates missing local files from
+  examples, syncs missing defaults, walks through the important quickstart
+  variables, then reviews every remaining top-level local-vs-example difference
+  as a keep/reset/edit prompt. It does not run Terraform or Ansible.
 - `sync_all_vars.py`: appends missing top-level defaults from known
   `*.example` config files into their local ignored files without overwriting
   existing local values. It covers Terraform `*.tfvars` plus Ansible

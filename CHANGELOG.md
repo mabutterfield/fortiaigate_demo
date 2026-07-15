@@ -67,6 +67,11 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
 - Security group rule generation now deduplicates overlapping management,
   generated demo, additional, and appliance ingress permissions before AWS
   security group updates.
+- `show_demo_outputs.yml` now includes FortiGate and FortiWeb admin URLs plus
+  EC2 instance IDs when the appliance Terraform modules have outputs.
+- Added `scripts/reconfigure_local_vars.py` as a standalone local
+  reconfiguration wizard for important quickstart variables plus any remaining
+  local-vs-example top-level differences.
 
 ### Shared Terraform Defaults
 
