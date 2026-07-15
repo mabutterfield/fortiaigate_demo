@@ -51,16 +51,19 @@ locals {
   k3s_ssh_command_host           = local.k3s_inventory_host
   iam_instance_profile_name      = local.prep_outputs.ec2_instance_profile_name
   effective_allowed_ingress_cidr = local.prep_outputs.allowed_ingress_cidr
-  effective_allowed_ingress_cidrs = try(
-    local.prep_outputs.allowed_ingress_cidrs,
-    [local.prep_outputs.allowed_ingress_cidr]
-  )
-  appliance_ingress_cidrs = [
+  effective_allowed_ingress_cidrs = distinct([
+    for cidr in try(
+      local.prep_outputs.allowed_ingress_cidrs,
+      [local.prep_outputs.allowed_ingress_cidr]
+    ) : trimspace(cidr)
+    if trimspace(cidr) != ""
+  ])
+  appliance_ingress_cidrs = distinct([
     var.fortigate_public_subnet_cidr,
     var.fortiweb_public_subnet_cidr,
     var.fortigate_internal_subnet_cidr,
     var.fortiweb_internal_subnet_cidr,
-  ]
+  ])
   demo_port_assignments = {
     openwebui = {
       http  = var.demo_http_base_port
@@ -101,9 +104,17 @@ locals {
     local.demo_port_assignments.litellm.https,
     local.demo_port_assignments.mcp.https,
   ]
-  effective_additional_ingress_tcp_ports = setunion(
-    local.generated_demo_ingress_tcp_ports,
-    var.additional_ingress_tcp_ports
+  k3s_static_ingress_tcp_ports = toset([22, 80, 443])
+  effective_additional_ingress_tcp_ports = setsubtract(
+    setunion(
+      local.generated_demo_ingress_tcp_ports,
+      var.additional_ingress_tcp_ports
+    ),
+    local.k3s_static_ingress_tcp_ports
+  )
+  effective_appliance_ingress_cidrs = setsubtract(
+    toset(local.appliance_ingress_cidrs),
+    toset(local.effective_allowed_ingress_cidrs)
   )
   github_keys_user_data = length(var.ec2_pull_github_keys) > 0 ? templatefile("${path.module}/templates/user-data.sh.tftpl", {
     github_usernames = var.ec2_pull_github_keys
@@ -408,7 +419,7 @@ resource "aws_security_group" "this" {
   }
 
   dynamic "ingress" {
-    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.effective_appliance_ingress_cidrs : toset([])
 
     content {
       description = "HTTP from appliance subnet ${ingress.value}"
@@ -420,7 +431,7 @@ resource "aws_security_group" "this" {
   }
 
   dynamic "ingress" {
-    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.effective_appliance_ingress_cidrs : toset([])
 
     content {
       description = "HTTPS from appliance subnet ${ingress.value}"

@@ -77,6 +77,13 @@ When an appliance is enabled, quickstart reuses the shared EC2 key pair from
 `terraform/common.tfvars`, enables the required prep EIPs, and for FortiWeb
 enables the prep-owned S3/IAM cloud-init resources.
 
+If an enabled FortiGate or FortiWeb module uses BYOL file mode, quickstart
+checks the configured local license path before Terraform starts. When the path
+is missing, or still points at the committed all-zero placeholder license name,
+interactive runs prompt for a real license file under `FAIG/licenses`. In
+`--yolo` mode, the same check is non-interactive and fails fast so Terraform
+does not fail later on a missing local file.
+
 Before copying or editing local config, the script creates a tar.gz backup of
 existing private/local Terraform and Ansible config files in `../backup`
 relative to the repository root. To choose another backup directory:
@@ -121,6 +128,8 @@ The current setup script:
 - list likely private keys in `~/.ssh` and allow a manual key path
 - check the FortiAIGate license source directory and selected license file
   before Terraform starts
+- check enabled FortiGate/FortiWeb BYOL license files before Terraform starts
+  and prompt when a placeholder or missing file is configured
 - offer to keep or change the current LiteLLM API key, admin username, and
   admin password in `ansible/group_vars/all.yml`
 - copy missing `*.example` variable files to local ignored files
@@ -188,6 +197,13 @@ by `license_source_dir` in `ansible/group_vars/all.yml`. When
 quickstart checks that selected file before Terraform starts and prompts for a
 license file when it is not configured or not found. In `--yolo` mode, the same
 check is non-interactive and fails fast if the configured file is missing.
+
+FortiGate and FortiWeb BYOL license files are also expected under `FAIG/licenses`
+by default. Their committed example paths use all-zero placeholder license file
+names. When `fortigate_license_mode = "byol_file"` or
+`fortiweb_license_mode = "byol_file"`, quickstart stats the selected file before
+Terraform starts. Use `fortigate_license_mode = "none"` or
+`fortiweb_license_mode = "none"` only for an intentional unlicensed boot test.
 
 The script pauses for manual review before Terraform and Ansible so these
 values can be checked in local vars:
@@ -282,6 +298,11 @@ The final `show_demo_outputs.yml` playbook should print:
 
 The automated teardown script is intended for frequent provision/deprovision
 cycles where image repositories should be retained.
+
+Before it starts backup or Terraform work, teardown checks AWS caller identity
+with the `aws_profile` from `terraform/common.tfvars`. If the session is not
+valid, it prompts for `aws sso login` or `aws login`, then checks caller
+identity again before continuing.
 
 Run from the repository root:
 

@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+REQUIRED_COMMANDS = ["terraform", "aws"]
 
 TERRAFORM_MODULES = {
     "ecr": "terraform/aws-ecr",
@@ -62,11 +65,108 @@ def prompt_yes_no(prompt: str, default: bool = False) -> bool:
         print("Answer yes or no.")
 
 
+def prompt_text(prompt: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    value = input(f"{prompt}{suffix}: ").strip()
+    return value if value else default
+
+
 def check_repo_root() -> None:
     required = ["terraform", "ansible", "scripts", "ansible.cfg"]
     missing = [path for path in required if not (REPO_ROOT / path).exists()]
     if missing:
         raise SystemExit(f"Repository root check failed. Missing: {', '.join(missing)}")
+
+
+def check_required_commands() -> None:
+    missing = [command for command in REQUIRED_COMMANDS if shutil.which(command) is None]
+    if missing:
+        raise SystemExit(f"Missing required command(s): {', '.join(missing)}")
+
+
+def get_tf_string(content: str, key: str, default: str = "") -> str:
+    match = re.search(rf'(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*"([^"]*)"', content)
+    return match.group(1) if match else default
+
+
+def quiet_command_output(argv: list[str], *, check: bool = False) -> str:
+    result = subprocess.run(
+        argv,
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if check and result.returncode != 0:
+        raise SystemExit(result.returncode)
+    if result.returncode != 0:
+        return ""
+    return (result.stdout or "").strip()
+
+
+def aws_profile_uses_sso(profile: str) -> bool:
+    sso_keys = ["sso_session", "sso_start_url", "sso_account_id", "sso_role_name"]
+    return any(quiet_command_output(["aws", "configure", "get", key, "--profile", profile]) for key in sso_keys)
+
+
+def choose_aws_login_method(profile: str) -> str:
+    detected_sso = aws_profile_uses_sso(profile)
+    default_method = "sso" if detected_sso else "login"
+    print(
+        "Profile appears to use AWS SSO/IAM Identity Center."
+        if detected_sso
+        else "Profile does not expose SSO settings through aws configure."
+    )
+    print("Login options:")
+    print("1. aws sso login")
+    print("2. aws login")
+    print("3. stop")
+
+    while True:
+        value = prompt_text("AWS login command", default_method).strip().lower()
+        if value in {"1", "sso", "aws sso login"}:
+            return "sso"
+        if value in {"2", "login", "aws login"}:
+            return "login"
+        if value in {"3", "stop", "none", "no"}:
+            return "stop"
+        print("Choose aws sso login, aws login, or stop.")
+
+
+def aws_profile_from_common_tfvars() -> str:
+    path = REPO_ROOT / "terraform/common.tfvars"
+    if not path.exists():
+        raise SystemExit("Cannot check AWS login because terraform/common.tfvars does not exist.")
+    profile = get_tf_string(path.read_text(encoding="utf-8"), "aws_profile")
+    if not profile:
+        raise SystemExit("Cannot check AWS login because aws_profile is missing from terraform/common.tfvars.")
+    return profile
+
+
+def ensure_aws_login() -> None:
+    print_header("Checking AWS Login")
+    profile = aws_profile_from_common_tfvars()
+    result = run_command(["aws", "sts", "get-caller-identity", "--profile", profile], check=False)
+    if result.returncode == 0:
+        return
+
+    print(f"AWS caller identity check failed for profile {profile}.")
+    method = choose_aws_login_method(profile)
+    if method == "stop":
+        raise SystemExit("AWS login is required before Terraform teardown can run.")
+
+    if method == "sso":
+        argv = ["aws", "sso", "login", "--profile", profile]
+        if prompt_yes_no("Use device-code flow for aws sso login?", False):
+            argv.append("--use-device-code")
+    else:
+        argv = ["aws", "login", "--profile", profile]
+        if prompt_yes_no("Pass --use-device-code to aws login?", False):
+            argv.append("--use-device-code")
+
+    run_command(argv)
+    run_command(["aws", "sts", "get-caller-identity", "--profile", profile])
 
 
 def terraform_init(module_path: str) -> None:
@@ -223,6 +323,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     check_repo_root()
+    check_required_commands()
 
     print("FortiAIGate automated teardown")
     print(f"Repo root: {REPO_ROOT}")
@@ -238,6 +339,7 @@ def main() -> None:
     if not args.yes and not prompt_yes_no("Proceed with teardown?", False):
         raise SystemExit("Stopped before teardown.")
 
+    ensure_aws_login()
     run_backup(Path(args.backup_dir), args.skip_backup)
 
     if args.skip_ecr:

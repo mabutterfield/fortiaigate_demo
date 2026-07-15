@@ -53,11 +53,20 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
     no-appliance baseline
 - Automated quickstart now completes all Terraform, including enabled
   FortiGate/FortiWeb modules, before the k3s readiness wait and Ansible.
+- Automated quickstart now checks enabled FortiGate/FortiWeb BYOL license file
+  paths before Terraform starts, prompts when committed placeholder names are
+  still configured, and fails fast in `--yolo` when files are missing.
+- Automated teardown now checks AWS caller identity before backup or Terraform
+  work and prompts for `aws sso login` or `aws login` when the session is not
+  valid.
 - Automated teardown now destroys FortiWeb and FortiGate before destroying the
   k3s foundation and AWS prep resources.
 - ECR teardown now removes repositories from state and then runs a full ECR
   module destroy for remaining lifecycle/local-output resources, avoiding
   routine Terraform `-target` warnings.
+- Security group rule generation now deduplicates overlapping management,
+  generated demo, additional, and appliance ingress permissions before AWS
+  security group updates.
 
 ### Shared Terraform Defaults
 

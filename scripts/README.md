@@ -18,14 +18,16 @@ Current scripts:
   generated `*.generated.yml` files; use `--backup-dir` to choose another
   location. It also runs `upgrade_v0_3_to_v0_4.py` and `sync_all_vars.py` after
   copying missing examples so existing local files pick up versioned migrations
-  and new defaults without overwriting unrelated local values. Use `--yolo` for
-  repeat runs where local variables are already configured and images already
-  exist in ECR.
+  and new defaults without overwriting unrelated local values. It checks
+  FortiAIGate and enabled FortiGate/FortiWeb BYOL license files before
+  Terraform starts, prompting for real appliance license files when local tfvars
+  still use committed placeholder names. Use `--yolo` for repeat runs where
+  local variables are already configured and images already exist in ECR.
 - `automated_teardown.py`: guided teardown for repeat lab cycles. It creates a
-  full backup, removes ECR repository resources from Terraform state so
-  repositories are not deleted, runs ECR destroy for the remaining tracked
-  lifecycle/local output resources, then destroys appliances, EC2 k3s, and AWS
-  prep in dependency order.
+  full backup after confirming AWS caller identity, removes ECR repository
+  resources from Terraform state so repositories are not deleted, runs ECR
+  destroy for the remaining tracked lifecycle/local output resources, then
+  destroys appliances, EC2 k3s, and AWS prep in dependency order.
 - `sync_all_vars.py`: appends missing top-level defaults from known
   `*.example` config files into their local ignored files without overwriting
   existing local values. It covers Terraform `*.tfvars` plus Ansible

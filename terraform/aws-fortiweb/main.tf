@@ -25,10 +25,13 @@ locals {
     ) : trimspace(cidr)
     if trimspace(cidr) != ""
   ])
-  effective_allowed_ingress_cidrs = try(
-    local.prep_outputs.allowed_ingress_cidrs,
-    local.allowed_ingress_cidrs
-  )
+  effective_allowed_ingress_cidrs = distinct([
+    for cidr in try(
+      local.prep_outputs.allowed_ingress_cidrs,
+      local.allowed_ingress_cidrs
+    ) : trimspace(cidr)
+    if trimspace(cidr) != ""
+  ])
   fortiweb_eip_allocation_id = try(local.prep_outputs.fortiweb_eip_allocation_id, null)
   fortiweb_eip_public_ip = try(coalesce(
     try(local.prep_outputs.fortiweb_eip_public_ip, null),
@@ -57,6 +60,19 @@ locals {
   })
   fortiweb_admin_password = var.fortiweb_set_initial_password ? (var.fortiweb_admin_password != "" ? var.fortiweb_admin_password : random_password.fortiweb_admin[0].result) : ""
   fortiweb_license_key    = var.fortiweb_license_mode == "byol_file" ? local.fortiweb_cloudinit_license_key : ""
+  fortiweb_management_tcp_ports = {
+    for port in distinct(concat(
+      [var.fortiweb_admin_https_port, var.fortiweb_admin_http_port],
+      var.fortiweb_enable_ssh ? [22] : []
+      )) : tostring(port) => {
+      port = port
+      description = port == var.fortiweb_admin_https_port && port == var.fortiweb_admin_http_port ? "HTTPS/HTTP management" : (
+        port == var.fortiweb_admin_https_port ? "HTTPS management" : (
+          port == var.fortiweb_admin_http_port ? "HTTP management" : "SSH"
+        )
+      )
+    }
+  }
   fortiweb_user_data = templatefile("${path.module}/templates/fortiweb-user-data.json.tftpl", {
     bucket                 = coalesce(local.fortiweb_cloudinit_bucket_name, "")
     region                 = var.aws_region
@@ -172,29 +188,13 @@ resource "aws_security_group" "fortiweb_mgmt" {
   description = "FortiWeb management access"
   vpc_id      = local.vpc_id
 
-  ingress {
-    description = "HTTPS management"
-    from_port   = var.fortiweb_admin_https_port
-    to_port     = var.fortiweb_admin_https_port
-    protocol    = "tcp"
-    cidr_blocks = local.effective_allowed_ingress_cidrs
-  }
-
-  ingress {
-    description = "HTTP management"
-    from_port   = var.fortiweb_admin_http_port
-    to_port     = var.fortiweb_admin_http_port
-    protocol    = "tcp"
-    cidr_blocks = local.effective_allowed_ingress_cidrs
-  }
-
   dynamic "ingress" {
-    for_each = var.fortiweb_enable_ssh ? [1] : []
+    for_each = local.fortiweb_management_tcp_ports
 
     content {
-      description = "SSH"
-      from_port   = 22
-      to_port     = 22
+      description = ingress.value.description
+      from_port   = ingress.value.port
+      to_port     = ingress.value.port
       protocol    = "tcp"
       cidr_blocks = local.effective_allowed_ingress_cidrs
     }

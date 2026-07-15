@@ -25,10 +25,13 @@ locals {
     ) : trimspace(cidr)
     if trimspace(cidr) != ""
   ])
-  effective_allowed_ingress_cidrs = try(
-    local.prep_outputs.allowed_ingress_cidrs,
-    local.allowed_ingress_cidrs
-  )
+  effective_allowed_ingress_cidrs = distinct([
+    for cidr in try(
+      local.prep_outputs.allowed_ingress_cidrs,
+      local.allowed_ingress_cidrs
+    ) : trimspace(cidr)
+    if trimspace(cidr) != ""
+  ])
   fortigate_eip_allocation_id = try(local.prep_outputs.fortigate_eip_allocation_id, null)
   fortigate_eip_public_ip = coalesce(
     try(local.prep_outputs.fortigate_eip_public_ip, null),
@@ -47,6 +50,17 @@ locals {
   ]
   fortigate_public_allowaccess   = var.fortigate_enable_ssh ? "ping https ssh fgfm" : "ping https fgfm"
   fortigate_internal_allowaccess = var.fortigate_enable_ssh ? "ping https ssh fgfm" : "ping https fgfm"
+  fortigate_management_tcp_ports = {
+    for port in distinct(concat(
+      [var.fortigate_admin_port, 443],
+      var.fortigate_enable_ssh ? [22] : []
+      )) : tostring(port) => {
+      port = port
+      description = port == var.fortigate_admin_port ? "HTTPS management" : (
+        port == 443 ? "Default HTTPS during bootstrap" : "SSH"
+      )
+    }
+  }
 
   tags = merge(
     {
@@ -130,29 +144,13 @@ resource "aws_security_group" "fortigate_mgmt" {
   description = "FortiGate management access"
   vpc_id      = local.vpc_id
 
-  ingress {
-    description = "HTTPS management"
-    from_port   = var.fortigate_admin_port
-    to_port     = var.fortigate_admin_port
-    protocol    = "tcp"
-    cidr_blocks = local.effective_allowed_ingress_cidrs
-  }
-
-  ingress {
-    description = "Default HTTPS during bootstrap"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = local.effective_allowed_ingress_cidrs
-  }
-
   dynamic "ingress" {
-    for_each = var.fortigate_enable_ssh ? [1] : []
+    for_each = local.fortigate_management_tcp_ports
 
     content {
-      description = "SSH"
-      from_port   = 22
-      to_port     = 22
+      description = ingress.value.description
+      from_port   = ingress.value.port
+      to_port     = ingress.value.port
       protocol    = "tcp"
       cidr_blocks = local.effective_allowed_ingress_cidrs
     }
