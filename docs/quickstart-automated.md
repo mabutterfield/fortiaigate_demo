@@ -211,11 +211,13 @@ license file when it is not configured or not found. In `--yolo` mode, the same
 check is non-interactive and fails fast if the configured file is missing.
 
 FortiGate and FortiWeb BYOL license files are also expected under `FAIG/licenses`
-by default. Their committed example paths use all-zero placeholder license file
-names. When `fortigate_license_mode = "byol_file"` or
+by default. Their committed examples split the license setting into
+`*_license_source_dir` and `*_license_file_name`, with all-zero placeholder
+license file names. When `fortigate_license_mode = "byol_file"` or
 `fortiweb_license_mode = "byol_file"`, quickstart stats the selected file before
 Terraform starts. Use `fortigate_license_mode = "none"` or
 `fortiweb_license_mode = "none"` only for an intentional unlicensed boot test.
+The legacy `*_license_file` full-path setting remains available as an override.
 
 The script pauses for manual review before Terraform and Ansible so these
 values can be checked in local vars:

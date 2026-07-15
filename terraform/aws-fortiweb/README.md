@@ -19,12 +19,12 @@ uses the prep-owned FortiWeb instance profile so it can read those objects.
 Set `fortiweb_enabled = true` in this module's ignored `terraform.tfvars` when
 you want to deploy the appliance.
 
-For BYOL testing, set `fortiweb_license_file` in ignored `terraform.tfvars` to
-a real FortiWeb license under the parent workspace `licenses/` directory. The
-committed placeholder path is `../../../licenses/FWBVMSTM00000000.lic`. The license
-object is uploaded to S3 by path; Terraform state should not contain the
-license file content. Terraform state will contain the generated FortiWeb admin
-password.
+For BYOL testing, set `fortiweb_license_source_dir` and
+`fortiweb_license_file_name` in ignored `terraform.tfvars` to a real FortiWeb
+license under the parent workspace `licenses/` directory. The committed
+placeholder file name is `FWBVMSTM00000000.lic`. The license object is uploaded
+to S3 by path; Terraform state should not contain the license file content.
+`fortiweb_license_file` remains available as a full-path compatibility override.
 
 The AWS account must be subscribed to the selected FortiWeb Marketplace AMI
 before EC2 launch. If apply fails with `OptInRequired`, accept the Marketplace

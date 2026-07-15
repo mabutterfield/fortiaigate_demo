@@ -72,6 +72,11 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
 - Added `scripts/reconfigure_local_vars.py` as a standalone local
   reconfiguration wizard for important quickstart variables plus any remaining
   local-vs-example top-level differences.
+- Changed the current ingress routing default to `port_based`, matching the
+  generated NodePort demo URLs. `path_based` remains a future ingress option.
+- Split FortiGate and FortiWeb BYOL license settings into source directory and
+  file-name variables, while keeping the old full-path variable as a
+  compatibility override.
 
 ### Shared Terraform Defaults
 
@@ -88,6 +93,8 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
 - FortiWeb-protected MCP or application publishing path.
 - Full private `k3s_subnet_mode = "private"` validation.
 - Fortinet policy automation and chatbot/MCP-driven Fortinet configuration.
+- Move fast-changing chatbot image tags into a generated or versioned runtime
+  vars file so local copied personal vars do not pin old demo image tags.
 - FortiFlex licensing.
 
 ## v0.3 - Phase 3 Demo Milestone

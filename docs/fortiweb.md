@@ -40,12 +40,13 @@ Default command-file behavior:
 - Set `fortiweb_set_initial_password = true` to pass an explicit generated or
   operator-provided initial admin password.
 
-For BYOL testing, set `fortiweb_license_file` in ignored
-`terraform/aws-fortiweb/terraform.tfvars` to a real FortiWeb license under the
-parent workspace `licenses/` directory. The committed placeholder path is
-`../../../licenses/FWBVMSTM00000000.lic`. Terraform uploads the license by source
-path, not by embedding the license text in Terraform configuration. Set
-`fortiweb_license_mode = "none"` for an unlicensed boot test.
+For BYOL testing, set `fortiweb_license_source_dir` and
+`fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/terraform.tfvars`
+to a real FortiWeb license under the parent workspace `licenses/` directory.
+The committed placeholder file name is `FWBVMSTM00000000.lic`. Terraform uploads
+the license by source path, not by embedding the license text in Terraform
+configuration. Set `fortiweb_license_mode = "none"` for an unlicensed boot test.
+`fortiweb_license_file` remains available as a full-path compatibility override.
 
 The committed example sets `fortiweb_enabled = true`. Set it to false in
 ignored local tfvars only when you want to keep the module prepared but skip

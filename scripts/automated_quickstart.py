@@ -49,6 +49,8 @@ APPLIANCE_LICENSES = {
         "module_path": "terraform/aws-fortigate",
         "mode_key": "fortigate_license_mode",
         "file_key": "fortigate_license_file",
+        "source_dir_key": "fortigate_license_source_dir",
+        "file_name_key": "fortigate_license_file_name",
         "default_file": "FGVMSLTM00000000.lic",
     },
     "fortiweb": {
@@ -56,6 +58,8 @@ APPLIANCE_LICENSES = {
         "module_path": "terraform/aws-fortiweb",
         "mode_key": "fortiweb_license_mode",
         "file_key": "fortiweb_license_file",
+        "source_dir_key": "fortiweb_license_source_dir",
+        "file_name_key": "fortiweb_license_file_name",
         "default_file": "FWBVMSTM00000000.lic",
     },
 }
@@ -646,23 +650,32 @@ def resolve_tf_path(value: str, module_path: str) -> Path:
     return path
 
 
-def render_appliance_license_path_for_tfvars(selected_path: Path, module_path: str) -> str:
+def resolve_appliance_license_parts(content: str, config: dict[str, str]) -> tuple[Path, str, str]:
+    module_path = config["module_path"]
+    legacy_value = get_tf_string(content, config["file_key"])
+    if legacy_value:
+        legacy_path = resolve_tf_path(legacy_value, module_path)
+        return legacy_path, legacy_value, legacy_path.name
+
+    source_dir_value = get_tf_string(content, config["source_dir_key"], "../../../licenses")
+    file_name = get_tf_string(content, config["file_name_key"], config["default_file"])
+    source_dir = resolve_tf_path(source_dir_value, module_path)
+    return source_dir / file_name, f"{source_dir_value.rstrip('/')}/{file_name}", file_name
+
+
+def render_appliance_license_dir_for_tfvars(selected_path: Path, module_path: str) -> str:
     license_dir = (REPO_ROOT.parent / "licenses").resolve()
     resolved = selected_path.expanduser().resolve()
     try:
         if resolved.parent == license_dir:
-            return f"../../../licenses/{resolved.name}"
+            return "../../../licenses"
     except FileNotFoundError:
         pass
 
     try:
-        return os.path.relpath(resolved, REPO_ROOT / module_path)
+        return os.path.relpath(resolved.parent, REPO_ROOT / module_path)
     except ValueError:
-        return str(resolved)
-
-
-def is_default_appliance_license_path(value: str, default_file: str) -> bool:
-    return Path(value.strip().strip('"').strip("'")).name == default_file
+        return str(resolved.parent)
 
 
 def choose_appliance_license_file(label: str, source_dir: Path, default_license: str = "") -> Path:
@@ -720,12 +733,11 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
             print(f"{label}: {config['mode_key']}={license_mode}; no local BYOL license file stat needed.")
             continue
 
-        license_value = get_tf_string(content, config["file_key"])
-        if not license_value:
-            raise SystemExit(f"{label} license preflight failed: {config['file_key']} is empty.")
+        license_path, license_value, license_name = resolve_appliance_license_parts(content, config)
+        if not license_name:
+            raise SystemExit(f"{label} license preflight failed: {config['file_name_key']} is empty.")
 
-        license_path = resolve_tf_path(license_value, module_path)
-        using_default = is_default_appliance_license_path(license_value, config["default_file"])
+        using_default = license_name == config["default_file"]
         if license_path.is_file() and not using_default:
             print(f"{label}: found license file {license_path}")
             continue
@@ -734,16 +746,18 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
             reason = "uses the committed placeholder path" if using_default else "does not exist"
             raise SystemExit(
                 f"{label} license preflight failed: {license_value} {reason}. "
-                f"Set {config['file_key']} or use {config['mode_key']}=\"none\"."
+                f"Set {config['source_dir_key']} and {config['file_name_key']}, or use {config['mode_key']}=\"none\"."
             )
 
         reason = "is still the committed placeholder" if using_default else "does not exist"
-        print(f"{label}: {config['file_key']} {reason}: {license_value}")
-        selected_path = choose_appliance_license_file(label, default_license_dir)
-        updated_value = render_appliance_license_path_for_tfvars(selected_path, module_path)
-        content = set_tf_string(content, config["file_key"], updated_value)
+        print(f"{label}: license {reason}: {license_value}")
+        selected_path = choose_appliance_license_file(label, default_license_dir, license_name if not using_default else "")
+        content = set_tf_string(content, config["file_key"], "")
+        content = set_tf_string(content, config["source_dir_key"], render_appliance_license_dir_for_tfvars(selected_path, module_path))
+        content = set_tf_string(content, config["file_name_key"], selected_path.name)
         write_file(tfvars_path, content)
         print(f"updated: {tfvars_path.relative_to(REPO_ROOT)}")
+        print(f"{label}: license directory {selected_path.parent}")
         print(f"{label}: selected license file {selected_path}")
 
 

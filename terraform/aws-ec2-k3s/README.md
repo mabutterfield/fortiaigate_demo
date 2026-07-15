@@ -48,14 +48,14 @@ For future appliance-fronted private mode, set `k3s_private_default_route_networ
 Phase 2 routing placeholders are defined but do not create DNS records yet:
 
 ```hcl
-ingress_routing_strategy = "path_based"
+ingress_routing_strategy = "port_based"
 ingress_base_domain      = ""
 route53_zone_id          = ""
 create_route53_records   = false
 magic_dns_zone           = "sslip.io"
 ```
 
-`path_based` is the no-domain default. `port_based` can be used when applications cannot tolerate a URI prefix. `host_based` is reserved for future Route53, enterprise DNS, hosts-file, or magic-DNS backed demos.
+`port_based` matches the current generated NodePort demo. `path_based` is reserved for a future single-host ingress path layout. `host_based` is reserved for future Route53, enterprise DNS, hosts-file, or magic-DNS backed demos.
 
 `terraform/aws-prep` creates the EC2 IAM role/profile, scoped ECR pull permissions, trusted source CIDR, and public EIP. This module reads those values from `aws_prep_state_path`.
 

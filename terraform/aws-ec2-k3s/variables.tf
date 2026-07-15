@@ -261,8 +261,8 @@ variable "tags" {
 
 variable "ingress_routing_strategy" {
   type        = string
-  description = "Application ingress routing strategy placeholder. path_based is the no-domain default; port_based supports root-path apps; host_based is for future DNS-backed demos."
-  default     = "path_based"
+  description = "Application ingress routing strategy placeholder. port_based matches the current NodePort demo; path_based and host_based are future ingress/DNS options."
+  default     = "port_based"
 
   validation {
     condition     = contains(["path_based", "port_based", "host_based"], var.ingress_routing_strategy)

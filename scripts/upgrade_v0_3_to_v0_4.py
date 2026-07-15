@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMON_TFVARS = REPO_ROOT / "terraform/common.tfvars"
 COMMON_EXAMPLE = REPO_ROOT / "terraform/common.tfvars.example"
 AWS_PREP_TFVARS = REPO_ROOT / "terraform/aws-prep/terraform.tfvars"
+AWS_EC2_K3S_TFVARS = REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars"
 
 APPLIANCE_PAIRS = [
     (
@@ -199,6 +200,18 @@ def enable_prep_appliance_defaults(writes: list[PendingWrite]) -> None:
     queue_write(writes, AWS_PREP_TFVARS, content, updated, "enable appliance prep defaults")
 
 
+def migrate_ingress_routing_strategy(writes: list[PendingWrite]) -> None:
+    if not AWS_EC2_K3S_TFVARS.exists():
+        return
+
+    content = read_text(AWS_EC2_K3S_TFVARS)
+    if get_hcl_string(content, "ingress_routing_strategy") != "path_based":
+        return
+
+    updated = set_hcl_string(content, "ingress_routing_strategy", "port_based")
+    queue_write(writes, AWS_EC2_K3S_TFVARS, content, updated, "set ingress_routing_strategy=port_based")
+
+
 def render_diff(write: PendingWrite) -> str:
     diff = difflib.unified_diff(
         write.before.splitlines(keepends=True),
@@ -236,6 +249,7 @@ def main() -> None:
     writes: list[PendingWrite] = []
 
     migrate_ssh_key_name(writes)
+    migrate_ingress_routing_strategy(writes)
     if not args.skip_appliances:
         create_appliance_tfvars(writes)
         enable_appliance_tfvars(writes)

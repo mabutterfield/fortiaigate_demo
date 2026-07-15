@@ -89,8 +89,20 @@ variable "fortigate_license_mode" {
 
 variable "fortigate_license_file" {
   type        = string
-  description = "Local FortiGate BYOL license file path. Keep this outside Git."
-  default     = "../../../licenses/FGVMSLTM00000000.lic"
+  description = "Optional full local FortiGate BYOL license file path. When empty, fortigate_license_source_dir/fortigate_license_file_name are joined. Keep license files outside Git."
+  default     = ""
+}
+
+variable "fortigate_license_source_dir" {
+  type        = string
+  description = "Directory containing the FortiGate BYOL license file. Keep this outside Git."
+  default     = "../../../licenses"
+}
+
+variable "fortigate_license_file_name" {
+  type        = string
+  description = "FortiGate BYOL license file name under fortigate_license_source_dir."
+  default     = "FGVMSLTM00000000.lic"
 }
 
 variable "fortigate_root_volume_size_gb" {

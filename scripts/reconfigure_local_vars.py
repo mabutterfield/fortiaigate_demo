@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import getpass
 import ipaddress
+import os
 import re
 import shutil
 import subprocess
@@ -111,7 +112,7 @@ IMPORTANT_ITEMS = [
     ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "demo_http_base_port", "Demo HTTP NodePort base", "number", "EC2 k3s"),
     ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "demo_https_base_port", "Demo HTTPS NodePort base", "number", "EC2 k3s"),
     ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "additional_ingress_tcp_ports", "Additional public TCP ports", "list_number", "EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ingress_routing_strategy", "Ingress routing strategy", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ingress_routing_strategy", "Ingress routing strategy (current demo is port_based)", section="EC2 k3s"),
     ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ingress_base_domain", "Ingress base domain", section="EC2 k3s"),
     ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "magic_dns_zone", "Magic DNS zone", section="EC2 k3s"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enabled", "Deploy FortiGate", "bool", "FortiGate"),
@@ -119,7 +120,8 @@ IMPORTANT_ITEMS = [
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_version", "FortiGate version filter", section="FortiGate"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_type", "FortiGate Marketplace license type", section="FortiGate"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_mode", "FortiGate license mode", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_file", "FortiGate license file", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_source_dir", "FortiGate license source directory", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_file_name", "FortiGate license file", section="FortiGate"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_admin_port", "FortiGate admin HTTPS port", "number", "FortiGate"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enable_ssh", "Enable FortiGate SSH", "bool", "FortiGate"),
     ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enable_api", "Enable FortiGate API admin", "bool", "FortiGate"),
@@ -128,7 +130,8 @@ IMPORTANT_ITEMS = [
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_version", "FortiWeb version filter", section="FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_type", "FortiWeb Marketplace license type", section="FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_mode", "FortiWeb license mode", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_file", "FortiWeb license file", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_source_dir", "FortiWeb license source directory", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_file_name", "FortiWeb license file", section="FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_config_file", "FortiWeb custom config file", section="FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_https_port", "FortiWeb HTTPS admin port", "number", "FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_http_port", "FortiWeb HTTP admin port", "number", "FortiWeb"),
@@ -179,13 +182,23 @@ def run_command(argv: list[str], *, check: bool = False) -> subprocess.Completed
 
 def prompt_text(prompt: str, default: str = "") -> str:
     suffix = f" [{default}]" if default else ""
-    value = input(f"{prompt}{suffix}: ").strip()
+    try:
+        value = input(f"{prompt}{suffix}: ").strip()
+    except EOFError:
+        print("")
+        return default
     return value if value else default
 
 
 def prompt_secret(prompt: str, current_set: bool) -> str | None:
     suffix = " [keep current]" if current_set else ""
-    value = getpass.getpass(f"{prompt}{suffix}: ")
+    try:
+        value = getpass.getpass(f"{prompt}{suffix}: ")
+    except EOFError:
+        if current_set:
+            print("")
+            return None
+        return ""
     if not value and current_set:
         return None
     return value
@@ -194,7 +207,11 @@ def prompt_secret(prompt: str, current_set: bool) -> str | None:
 def prompt_yes_no(prompt: str, default: bool = True) -> bool:
     suffix = " [Y/n]" if default else " [y/N]"
     while True:
-        value = input(f"{prompt}{suffix}: ").strip().lower()
+        try:
+            value = input(f"{prompt}{suffix}: ").strip().lower()
+        except EOFError:
+            print("")
+            return default
         if not value:
             return default
         if value in {"y", "yes"}:
@@ -655,6 +672,86 @@ def choose_private_key(default: str, key_name: str) -> str:
     return selected
 
 
+def resolve_module_path(value: str, module_path: Path) -> Path:
+    path = Path(value.strip().strip('"').strip("'")).expanduser()
+    if not path.is_absolute():
+        path = module_path / path
+    return path
+
+
+def render_license_source_dir(path: Path, module_path: Path) -> str:
+    license_dir = (REPO_ROOT.parent / "licenses").resolve()
+    resolved = path.expanduser().resolve()
+    try:
+        if resolved == license_dir:
+            return "../../../licenses"
+    except FileNotFoundError:
+        pass
+    try:
+        return str(resolved.relative_to(module_path))
+    except ValueError:
+        return os.path.relpath(resolved, module_path)
+
+
+def list_license_candidates(source_dir: Path) -> list[Path]:
+    if not source_dir.exists() or not source_dir.is_dir():
+        return []
+    preferred = sorted(path for path in source_dir.iterdir() if path.is_file() and path.suffix.lower() in {".lic", ".license"})
+    if preferred:
+        return preferred
+    return sorted(path for path in source_dir.iterdir() if path.is_file())
+
+
+def choose_license_file_name(label: str, source_dir: Path, default_file: str) -> str:
+    candidates = list_license_candidates(source_dir)
+    if candidates:
+        print(f"Available {label} license files in {source_dir}:")
+        for index, path in enumerate(candidates, start=1):
+            marker = " (current)" if path.name == default_file else ""
+            print(f"{index}. {path.name}{marker}")
+        print("m. Enter a file name manually")
+    else:
+        print(f"No license files were found in {source_dir}.")
+
+    while True:
+        selected = prompt_text(f"{label} license file name, number, or m", default_file or (candidates[0].name if candidates else ""))
+        if selected.lower() == "m":
+            manual = prompt_text(f"{label} license file name")
+            if manual:
+                return Path(manual).name
+        if selected.isdigit() and candidates:
+            index = int(selected)
+            if 1 <= index <= len(candidates):
+                return candidates[index - 1].name
+        if selected:
+            return Path(selected).name
+        print("Enter a license file name.")
+
+
+def appliance_prefix_from_key(key: str) -> str:
+    return key.removesuffix("_license_source_dir").removesuffix("_license_file_name")
+
+
+def module_path_for_config(path: str) -> Path:
+    return REPO_ROOT / Path(path).parent
+
+
+def legacy_license_path_from_content(content: str, prefix: str, module_path: Path) -> Path | None:
+    legacy = get_hcl_string(content, f"{prefix}_license_file")
+    if not legacy:
+        return None
+    return resolve_module_path(legacy, module_path)
+
+
+def should_skip_item(item: ConfigItem) -> bool:
+    if item.key == "fortiweb_admin_password":
+        path = REPO_ROOT / item.path
+        if path.exists() and not get_hcl_bool(read_text(path), "fortiweb_set_initial_password", False):
+            print("Skipping FortiWeb initial admin password because fortiweb_set_initial_password=false.")
+            return True
+    return False
+
+
 def current_value(content: str, key: str, kind: str, file_format: str) -> object:
     if file_format == "hcl":
         if kind == "bool":
@@ -700,6 +797,30 @@ def apply_value(content: str, key: str, kind: str, file_format: str, value: obje
 def prompt_for_item(item: ConfigItem, content: str, *, default_from_common: str = "") -> object | None:
     file_format = detect_format(REPO_ROOT / item.path)
     current = current_value(content, item.key, item.kind, file_format)
+    module_path = module_path_for_config(item.path)
+    if item.key.endswith("_license_source_dir"):
+        prefix = appliance_prefix_from_key(item.key)
+        legacy_path = legacy_license_path_from_content(content, prefix, module_path)
+        default_dir = render_license_source_dir(legacy_path.parent, module_path) if legacy_path else str(current)
+        selected = prompt_text(item.label, default_dir)
+        source_dir = resolve_module_path(selected, module_path)
+        candidates = list_license_candidates(source_dir)
+        print(f"{item.label}: {source_dir}")
+        if candidates:
+            print("License files found:")
+            for path in candidates:
+                print(f"- {path.name}")
+        else:
+            print("No license files found in this directory.")
+        return selected
+    if item.key.endswith("_license_file_name"):
+        prefix = appliance_prefix_from_key(item.key)
+        source_dir_value = get_hcl_string(content, f"{prefix}_license_source_dir", "../../../licenses")
+        legacy_path = legacy_license_path_from_content(content, prefix, module_path)
+        source_dir = legacy_path.parent if legacy_path else resolve_module_path(source_dir_value, module_path)
+        default_file = legacy_path.name if legacy_path else str(current)
+        label = "FortiGate" if prefix == "fortigate" else "FortiWeb"
+        return choose_license_file_name(label, source_dir, default_file)
     if item.key == "aws_profile":
         return choose_aws_profile(str(current))
     if item.key == "ssh_key_name":
@@ -747,6 +868,9 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
         if not path.exists():
             print(f"skip missing file: {item.path}")
             continue
+        if should_skip_item(item):
+            handled.add((item.path, item.key))
+            continue
         if item.section != current_section:
             current_section = item.section
             print_header(current_section or rel(path))
@@ -763,6 +887,9 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
             handled.add((item.path, item.key))
             continue
         updated = apply_value(content, item.key, item.kind, file_format, value)
+        if item.key.endswith("_license_file_name"):
+            prefix = appliance_prefix_from_key(item.key)
+            updated = set_hcl_string(updated, f"{prefix}_license_file", "")
         if updated != content:
             write_text(path, updated, dry_run=dry_run)
         handled.add((item.path, item.key))

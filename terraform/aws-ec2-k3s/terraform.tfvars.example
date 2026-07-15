@@ -57,9 +57,10 @@ demo_https_base_port = 30443
 # Use this only for extra public TCP listeners beyond the generated demo ports.
 additional_ingress_tcp_ports = []
 
-# Phase 2 application routing placeholders. path_based is the no-domain default
-# for a distributable demo. host_based is for future DNS-backed environments.
-ingress_routing_strategy = "path_based"
+# Phase 2 application routing placeholders. The current public demo is
+# port_based through generated NodePorts. path_based and host_based are future
+# ingress/DNS-backed options.
+ingress_routing_strategy = "port_based"
 ingress_base_domain      = ""
 route53_zone_id          = ""
 create_route53_records   = false

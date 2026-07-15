@@ -38,6 +38,12 @@ ignored `terraform.tfvars` when you want the alternate management port.
 The default admin idle timeout is 60 minutes. Override it with
 `fortigate_admin_timeout_minutes` when needed.
 
+For BYOL testing, set `fortigate_license_source_dir` and
+`fortigate_license_file_name` in ignored `terraform.tfvars` to a real FortiGate
+license under the parent workspace `licenses/` directory. The committed
+placeholder file name is `FGVMSLTM00000000.lic`. `fortigate_license_file`
+remains available as a full-path compatibility override.
+
 Useful outputs:
 
 ```bash

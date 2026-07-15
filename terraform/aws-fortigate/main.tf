@@ -43,6 +43,7 @@ locals {
   fortigate_internal_subnet_id = local.k3s_outputs.subnet_ids.fortigate_internal
   fortigate_name               = "${var.name_prefix}-fortigate"
   fortigate_license_pay_type   = var.fortigate_license_type == "byol" ? "AWS" : "AWSONDEMAND"
+  fortigate_license_path       = var.fortigate_license_file != "" ? var.fortigate_license_file : "${var.fortigate_license_source_dir}/${var.fortigate_license_file_name}"
   fortigate_ami_name_values = var.fortigate_ami_name_override != "" ? [
     var.fortigate_ami_name_override
     ] : [
@@ -127,7 +128,7 @@ data "cloudinit_config" "fortigate" {
   }
 
   dynamic "part" {
-    for_each = var.fortigate_license_mode == "byol_file" ? [var.fortigate_license_file] : []
+    for_each = var.fortigate_license_mode == "byol_file" ? [local.fortigate_license_path] : []
 
     content {
       filename     = "license"

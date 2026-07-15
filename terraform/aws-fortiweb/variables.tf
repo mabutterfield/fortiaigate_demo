@@ -112,8 +112,20 @@ variable "fortiweb_license_mode" {
 
 variable "fortiweb_license_file" {
   type        = string
-  description = "Local FortiWeb BYOL license file path. Keep this outside Git."
-  default     = "../../../licenses/FWBVMSTM00000000.lic"
+  description = "Optional full local FortiWeb BYOL license file path. When empty, fortiweb_license_source_dir/fortiweb_license_file_name are joined. Keep license files outside Git."
+  default     = ""
+}
+
+variable "fortiweb_license_source_dir" {
+  type        = string
+  description = "Directory containing the FortiWeb BYOL license file. Keep this outside Git."
+  default     = "../../../licenses"
+}
+
+variable "fortiweb_license_file_name" {
+  type        = string
+  description = "FortiWeb BYOL license file name under fortiweb_license_source_dir."
+  default     = "FWBVMSTM00000000.lic"
 }
 
 variable "fortiweb_config_file" {

@@ -48,6 +48,7 @@ locals {
   fortiweb_internal_subnet_id    = local.k3s_outputs.subnet_ids.fortiweb_internal
   fortiweb_name                  = "${var.name_prefix}-fortiweb"
   fortiweb_license_pay_type      = var.fortiweb_license_type == "byol" ? "_BYOL" : "_OnDemand"
+  fortiweb_license_path          = var.fortiweb_license_file != "" ? var.fortiweb_license_file : "${var.fortiweb_license_source_dir}/${var.fortiweb_license_file_name}"
   fortiweb_ami_name_values = var.fortiweb_ami_name_override != "" ? [
     var.fortiweb_ami_name_override
     ] : [
@@ -172,8 +173,8 @@ resource "aws_s3_object" "license" {
 
   bucket       = local.fortiweb_cloudinit_bucket_name
   key          = local.fortiweb_cloudinit_license_key
-  source       = var.fortiweb_license_file
-  etag         = filemd5(var.fortiweb_license_file)
+  source       = local.fortiweb_license_path
+  etag         = filemd5(local.fortiweb_license_path)
   content_type = "text/plain"
 
   tags = merge(local.tags, {
