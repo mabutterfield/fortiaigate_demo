@@ -36,6 +36,8 @@ def collect_files() -> list[Path]:
                 path
                 for path in ansible_group_vars.glob(pattern)
                 if (path.is_file() or path.is_symlink()) and not path.name.endswith((".example.yml", ".example.yaml"))
+                and not path.name.endswith((".yml.example", ".yaml.example"))
+                and path.name != "system.yml"
             )
 
     ansible_inventory = REPO_ROOT / "ansible/inventory"

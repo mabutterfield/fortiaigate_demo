@@ -524,3 +524,20 @@ resource "local_file" "ansible_ports_vars" {
     generated_ingress_ports = local.generated_demo_ingress_tcp_port_list
   })
 }
+
+resource "local_file" "ansible_terraform_vars" {
+  filename = var.ansible_terraform_vars_output_path
+  content = templatefile("${path.module}/templates/terraform.generated.yml.tftpl", {
+    aws_profile           = var.aws_profile
+    aws_region            = var.aws_region
+    name_prefix           = var.name_prefix
+    ssh_key_name          = var.ssh_key_name
+    ssh_private_key_file  = var.ssh_private_key_file
+    allowed_ingress_cidr  = local.effective_allowed_ingress_cidr
+    allowed_ingress_cidrs = local.effective_allowed_ingress_cidrs
+    instance_id           = aws_instance.this.id
+    public_ip             = local.k3s_public_ip
+    private_ip            = aws_instance.this.private_ip
+    ansible_host          = local.k3s_inventory_host
+  })
+}

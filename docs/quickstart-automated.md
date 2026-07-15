@@ -143,12 +143,13 @@ The current setup script:
 - check enabled FortiGate/FortiWeb BYOL license files before Terraform starts
   and prompt when a placeholder or missing file is configured
 - offer to keep or change the current LiteLLM API key, admin username, and
-  admin password in `ansible/group_vars/all.yml`
+  admin password in `ansible/group_vars/user.yml`
 - copy missing `*.example` variable files to local ignored files
 - append missing top-level defaults from updated example files into existing
   local tfvars/YAML files without overwriting existing local values
 - collect required Terraform values using existing local files as prompt defaults
-- sync AWS/common Ansible values into `ansible/group_vars/env.yml`
+- generate Terraform-owned Ansible values into
+  `ansible/group_vars/terraform.generated.yml`
 - run Terraform in the expected order: ECR, AWS prep, EC2 k3s foundation,
   optional FortiGate, optional FortiWeb
 - inspect ECR Terraform state before apply and report whether configured
@@ -186,11 +187,11 @@ The script should collect or confirm:
 - Bedrock IAM enablement and model allow list, reviewed in
   `terraform/aws-prep/terraform.tfvars`
 
-For AWS deployments, shared Ansible values such as `aws_profile` and
-`aws_region` are synced into `ansible/group_vars/env.yml`. `all.yml` remains
-focused on FortiAIGate and demo application settings. Its example file includes
-commented AWS/common overrides for special local runs where bypassing `env.yml`
-is useful.
+For AWS deployments, Terraform writes shared Ansible values such as
+`aws_profile`, `aws_region`, SSH key details, CIDRs, and k3s host facts into
+`ansible/group_vars/terraform.generated.yml`. Tracked
+`ansible/group_vars/system.yml` owns repo defaults. Local operator overrides
+belong in ignored `ansible/group_vars/user.yml`.
 
 Existing `terraform/*.tfvars`, module `terraform.tfvars`, and local
 `ansible/group_vars/*.yml` values are read and offered as defaults. The script
@@ -203,7 +204,7 @@ before Terraform runs. If you enter a single bare IP address, the script offers
 to convert it to a host CIDR such as `/32` for IPv4 or `/128` for IPv6.
 
 FortiAIGate licenses are expected under `FAIG/licenses` by default, controlled
-by `license_source_dir` in `ansible/group_vars/all.yml`. When
+by `license_source_dir` in `ansible/group_vars/user.yml`. When
 `fortiaigate_licenses` is empty, the deployment maps the first
 `fortiaigate_license_files` entry to the discovered k3s node. The automated
 quickstart checks that selected file before Terraform starts and prompts for a
@@ -248,11 +249,13 @@ that should now exist:
 
 - `ansible/group_vars/ecr.generated.yml`
 - `ansible/group_vars/ports.generated.yml`
+- `ansible/group_vars/terraform.generated.yml`
 - `ansible/inventory/aws.generated.ini`
 
 At the beginning of the run, it also prints the backup archive path when any
 private/local config files existed. Generated Ansible files such as
-`ecr.generated.yml` and `ports.generated.yml` are intentionally excluded.
+`ecr.generated.yml`, `ports.generated.yml`, and `terraform.generated.yml` are
+intentionally excluded.
 
 After Terraform finishes, it runs a compact EC2 status check:
 

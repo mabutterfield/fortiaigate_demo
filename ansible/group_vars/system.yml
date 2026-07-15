@@ -1,25 +1,17 @@
 ---
-# Legacy compatibility example.
+# Repo-owned FortiAIGate demo defaults.
 #
-# New deployments should use tracked ansible/group_vars/system.yml for repo
-# defaults and copy ansible/group_vars/user.yml.example to ignored user.yml for
-# operator-owned settings. This file remains temporarily for v0.4 upgrade
-# migrations and older local workflows.
+# This file is tracked and should move forward with the repo. Do not copy it to
+# a local ignored file. Put operator-specific values in
+# ansible/group_vars/user.yml instead.
 #
-# Copy this file to group_vars/all.yml and fill in FortiAIGate-specific values.
-#
-# Expected local edits:
-# - fortiaigate_version and matching image tags
-# - fortiaigate_license_files under FAIG/licenses, or license_source_dir
-# - fortiaigate_ingress_host when using DNS instead of the EC2 public IP
-#
-# AWS/common environment values normally live in ansible/group_vars/env.yml.
-# The automated quick start syncs aws_profile and aws_region there from
-# terraform/common.tfvars. Uncomment only when intentionally overriding env.yml
-# for a special local run.
-# aws_profile: AdministratorAccess-123456789012
-# aws_region: us-east-1
-# registry_type: ecr
+# Terraform-generated values such as aws_profile, aws_region, SSH key details,
+# ECR registry settings, and demo ports are loaded from generated group_vars
+# files when available.
+ansible_user: ubuntu
+faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
+registry_type: ecr
+local_registry: localhost:5000
 ecr_pull_secret_name: ecr-secret
 
 fortiaigate_namespace: fortiaigate
@@ -60,7 +52,8 @@ fortiaigate_image_pull_secrets:
   - name: "{{ ecr_pull_secret_name }}"
 
 # Image publishing defaults for ansible/playbooks/publish_images.yml.
-# Prefer ansible/group_vars/images.yml for multiple builds.
+# Put local image archive path overrides in ansible/group_vars/user.yml or pass
+# them with -e. Keep repo-owned version/tag defaults here.
 image_tag: "{{ fortiaigate_image_tag }}"
 image_archive: ""
 image_archive_dir: "{{ faig_workspace_root }}/images/{{ fortiaigate_version }}"

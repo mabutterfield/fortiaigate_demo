@@ -54,6 +54,9 @@ k3s_private_default_route_network_interface_id = ""
 demo_http_base_port  = 30080
 demo_https_base_port = 30443
 
+ansible_ports_vars_output_path     = "../../ansible/group_vars/ports.generated.yml"
+ansible_terraform_vars_output_path = "../../ansible/group_vars/terraform.generated.yml"
+
 # Use this only for extra public TCP listeners beyond the generated demo ports.
 additional_ingress_tcp_ports = []
 

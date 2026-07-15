@@ -5,7 +5,7 @@
       - fortiaigate_chart_path is defined
       - fortiaigate_chart_path | length > 0
       - fortiaigate_chart_path is directory
-    fail_msg: "Set fortiaigate_chart_path in ansible/group_vars/all.yml to a readable extracted chart directory, for example FAIG_helm/{{ fortiaigate_version | default('<version>') }}/fortiaigate."
+    fail_msg: "Set fortiaigate_chart_path in tracked ansible/group_vars/system.yml or override it in ansible/group_vars/user.yml. Example path: FAIG_helm/{{ fortiaigate_version | default('<version>') }}/fortiaigate."
 
 - name: Validate FortiAIGate deployment variables
   ansible.builtin.assert:
@@ -24,7 +24,7 @@
       - fortiaigate_licenses is mapping
       - fortiaigate_license_files is sequence
       - fortiaigate_licenses | length > 0 or fortiaigate_license_files | length > 0
-    fail_msg: "Set aws_profile, aws_region, ecr_registry, fortiaigate_image_repository, fortiaigate_image_tag, fortiaigate_ecr_token_source as instance_role or controller_profile, and either fortiaigate_licenses or fortiaigate_license_files in ansible/group_vars/all.yml."
+    fail_msg: "Set repo defaults such as fortiaigate_chart_path in ansible/group_vars/system.yml, and user values such as licenses in ansible/group_vars/user.yml. Terraform-generated group vars should provide aws_profile/aws_region/ECR settings for AWS deployments."
 
 - name: Validate FortiAIGate TLS certificate files
   ansible.builtin.assert:

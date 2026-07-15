@@ -29,7 +29,7 @@ Expected parent workspace layout:
 
 The sample variables and documentation assume this parent `FAIG/` layout. You
 can use different paths, but then set the corresponding variables in
-`ansible/group_vars/all.yml`.
+`ansible/group_vars/user.yml`.
 
 ```text
 FAIG/
@@ -59,9 +59,7 @@ Local files you normally create or edit are intentionally not tracked:
 - `terraform/aws-ecr/terraform.tfvars`
 - `terraform/aws-prep/terraform.tfvars`
 - `terraform/aws-ec2-k3s/terraform.tfvars`
-- `ansible/group_vars/env.yml`
-- `ansible/group_vars/images.yml`
-- `ansible/group_vars/all.yml`
+- `ansible/group_vars/user.yml`
 
 Never commit real `terraform.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
 
@@ -221,13 +219,13 @@ Run the `ssh_command` output before starting Ansible. If SSH does not work, Ansi
 
 ### Ansible 1 - Shared Config And Image Publishing
 
-Create the Ansible variable files once. Edit the copied files before running
-Ansible. Subsequent runs reuse these files.
+Create the Ansible user variable file once. Repo-owned defaults are tracked in
+`ansible/group_vars/system.yml`; do not copy that file. Edit only
+`ansible/group_vars/user.yml` for local licenses, credentials, model overrides,
+and optional local paths.
 
 ```bash
-cp ansible/group_vars/env.example.yml ansible/group_vars/env.yml
-cp ansible/group_vars/images.example.yml ansible/group_vars/images.yml
-cp ansible/group_vars/all.example.yml ansible/group_vars/all.yml
+cp ansible/group_vars/user.yml.example ansible/group_vars/user.yml
 ```
 
 When pulling repo updates, sync any newly added example defaults into existing
@@ -249,19 +247,20 @@ The upgrade script consolidates legacy module-local `ssh_key_name` assignments
 into `terraform/common.tfvars`, creates missing FortiGate/FortiWeb local
 tfvars, and enables the Phase 4 appliance prep defaults.
 
-Set local values in `ansible/group_vars/env.yml`, especially:
+Set local path overrides only when needed:
 
-- `aws_profile`
-- `aws_region`
-- `faig_workspace_root` when your `FAIG` workspace is not the parent of this repo
-- `registry_type`
+- `faig_workspace_root` in `ansible/group_vars/user.yml` only when your `FAIG`
+  workspace is not the parent of this repo
 
-Set local values in `ansible/group_vars/all.yml`, especially:
+Set local values in `ansible/group_vars/user.yml`, especially:
 
-- `fortiaigate_version`
 - license file list under the default `FAIG/licenses`, or a custom `license_source_dir`
 - `litellm_master_key`, `litellm_ui_username`, and `litellm_ui_password` placeholders before exposing LiteLLM
 - Ollama endpoint/model if used for validation
+
+For AWS deployments, Terraform writes `aws_profile`, `aws_region`, SSH key
+details, CIDRs, and k3s host facts into
+`ansible/group_vars/terraform.generated.yml`.
 
 By default, `faig_workspace_root` resolves to the parent `FAIG` directory from the Ansible playbook location. You can override it per shell:
 
@@ -423,14 +422,14 @@ model, plus an optional chained FAIG inspection alias:
   configured backend FortiAIGate URI as an OpenAI-compatible upstream
 
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
-in `ansible/group_vars/all.yml`, then rerun `deploy_litellm.yml`.
+in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.
 
 ### Optional - Deploy Open WebUI
 
 Open WebUI is available as a secondary chat UI, but it is disabled by default.
 The primary lab walkthrough uses the custom chatbot because it exposes the
 direct LiteLLM, FAIG static, FAIG intelligent, and MCP controls. To deploy
-Open WebUI, set this in `ansible/group_vars/all.yml`:
+Open WebUI, set this in `ansible/group_vars/user.yml`:
 
 ```yaml
 openwebui_enabled: true
@@ -516,7 +515,7 @@ OpenAI-compatible base URL, so `/v1/passthrough` receives
 
 When a frontend-layer prompt is intentionally needed, set either
 `chatbot_frontend_system_prompt` or
-`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/all.yml`.
+`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/user.yml`.
 The sample file is `chatbot/instructions/frontend/instructions.txt`.
 
 Check readiness separately:
@@ -593,7 +592,7 @@ demo home `30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`.
 HTTP remains the primary demo access path. To add optional HTTPS listeners for
 the chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and
 Open WebUI when enabled, set
-`demo_https_gateway_enabled: true` in `ansible/group_vars/all.yml`, apply
+`demo_https_gateway_enabled: true` in `ansible/group_vars/user.yml`, apply
 `terraform/aws-ec2-k3s` so the generated HTTPS ports are open, then run:
 
 ```bash

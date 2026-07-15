@@ -72,13 +72,16 @@ __pycache__/
 *.retry
 ansible/group_vars/all.yml
 ansible/group_vars/env.yml
+ansible/group_vars/user.yml
 ansible/host_vars/*.yml
 !ansible/group_vars/*.example.yml
+!ansible/group_vars/*.yml.example
 !ansible/host_vars/*.example.yml
 ansible/inventory/aws.generated.ini
 ansible/group_vars/ecr.generated.yml
 ansible/group_vars/bedrock.generated.yml
 ansible/group_vars/ports.generated.yml
+ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
 # Kubernetes and deployment generated files

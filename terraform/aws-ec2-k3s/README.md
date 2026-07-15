@@ -61,8 +61,9 @@ magic_dns_zone           = "sslip.io"
 
 This module generates the standard demo port assignments, opens those ports in
 the EC2 security group, and writes `../../ansible/group_vars/ports.generated.yml`
-for Ansible. The default HTTP ports are `30080` through `30084`; the optional
-HTTPS gateway uses matching offsets starting at `30443`.
+and `../../ansible/group_vars/terraform.generated.yml` for Ansible. The default
+HTTP ports are `30080` through `30084`; the optional HTTPS gateway uses matching
+offsets starting at `30443`.
 
 The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger production-like L4 validation target.
 

@@ -1,0 +1,55 @@
+---
+# Copy this file to ansible/group_vars/user.yml and personalize only values
+# specific to your workstation, AWS account, licenses, credentials, or local
+# preferences.
+#
+# Repo-owned defaults live in tracked ansible/group_vars/system.yml. Avoid
+# copying system defaults here unless you intentionally want to pin an override.
+
+# AWS profile/region normally come from Terraform-generated group vars after
+# terraform/aws-ec2-k3s applies. Set these only for local-only Ansible runs or
+# when bypassing Terraform.
+# aws_profile: AdministratorAccess-123456789012
+# aws_region: us-east-1
+
+# Override only when the repo is not under the default parent FAIG directory.
+# faig_workspace_root: /path/to/FAIG
+
+# FortiAIGate licenses are local/private and must not be committed.
+license_source_dir: "{{ faig_workspace_root }}/licenses"
+fortiaigate_license_files:
+  - License1.lic
+
+# Optional explicit node-to-license map. Replace the key with the Kubernetes
+# node name only when the default single-node mapping is not enough.
+fortiaigate_licenses: {}
+# fortiaigate_licenses:
+#   ip-10-42-1-10.ec2.internal: License1.lic
+
+# Demo credentials. Change these for any shared or long-lived environment.
+litellm_master_key: sk-litellm-demo-change-me
+litellm_ui_username: admin
+litellm_ui_password: litellm-demo-change-me
+
+# Direct provider overrides. The default demo path uses Bedrock through
+# Terraform-created credentials.
+direct_model_provider: bedrock
+direct_model_bedrock_model: ""
+direct_model_bedrock_region: ""
+ollama_base_url: http://10.11.41.201:11434/v1
+ollama_model: llama3.2:1b
+
+# Optional secondary UI.
+openwebui_enabled: false
+
+# Optional local TLS material for the FortiAIGate chart.
+# fortiaigate_ssl_cert_path: /path/to/private/tls.crt
+# fortiaigate_ssl_key_path: /path/to/private/tls.key
+
+# Optional UI-layer system prompt. Leave empty for the default architecture
+# where backend demo instructions are injected by LiteLLM instead.
+chatbot_frontend_system_prompt_source_path: ""
+
+# Optional HTTPS gateway local certificate paths.
+demo_https_gateway_cert_local_path: ""
+demo_https_gateway_key_local_path: ""

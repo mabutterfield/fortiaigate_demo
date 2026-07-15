@@ -209,6 +209,12 @@ variable "ansible_ports_vars_output_path" {
   default     = "../../ansible/group_vars/ports.generated.yml"
 }
 
+variable "ansible_terraform_vars_output_path" {
+  type        = string
+  description = "Path for generated Ansible Terraform/user bridge variables, relative to this Terraform module."
+  default     = "../../ansible/group_vars/terraform.generated.yml"
+}
+
 variable "k3s_cluster_cidr" {
   type        = string
   description = "k3s pod network CIDR passed to the Ansible bootstrap inventory."

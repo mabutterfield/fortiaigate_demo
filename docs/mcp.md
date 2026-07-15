@@ -98,7 +98,8 @@ ansible-playbook playbooks/test_mcp.yml \
 
 ## Configuration
 
-Defaults live in `ansible/group_vars/all.yml`:
+Repo defaults live in tracked `ansible/group_vars/system.yml`; local overrides
+belong in ignored `ansible/group_vars/user.yml`:
 
 ```yaml
 mcp_enabled: true

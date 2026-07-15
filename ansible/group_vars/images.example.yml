@@ -1,4 +1,10 @@
 ---
+# Legacy compatibility example.
+#
+# New deployments use tracked ansible/group_vars/system.yml for repo-owned
+# image defaults. Put local image archive overrides in ansible/group_vars/user.yml
+# or pass them with -e.
+#
 # Copy this file to images.yml and update paths/tags for locally available image archives.
 #
 # version is the FortiAIGate release version.

@@ -31,8 +31,11 @@ Terraform also writes non-secret Ansible registry vars to:
 ansible/group_vars/ecr.generated.yml
 ```
 
-The publish, deploy, status, and validation playbooks load `env.yml`,
-`ecr.generated.yml`, `images.yml`, and then `all.yml`.
+The publish, deploy, status, and validation playbooks load tracked
+`system.yml`, generated `terraform.generated.yml`, `ecr.generated.yml`, and
+`ports.generated.yml`, then ignored `user.yml` overrides. Legacy `env.yml`,
+`images.yml`, and `all.yml` are loaded first when present for upgrade
+compatibility.
 
 If repositories already exist from manual testing, import them before applying:
 
@@ -136,10 +139,12 @@ ansible-playbook playbooks/publish_images.yml \
   -e registry_type=ecr
 ```
 
-The playbook loads `ansible/group_vars/images.yml` when present. Copy the example catalog and set paths for local release directories:
+Tracked `ansible/group_vars/system.yml` contains the default active image
+settings. For custom local release directories, put only the override values in
+`ansible/group_vars/user.yml` or pass them with `-e`.
 
 ```bash
-cp group_vars/images.example.yml group_vars/images.yml
+ansible-playbook playbooks/publish_images.yml -e image_archive_dir=/path/to/images/8.0.1
 ```
 
 Publish all builds marked `state: active`:

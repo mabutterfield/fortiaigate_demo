@@ -117,7 +117,7 @@ Ansible copies the extracted chart to the remote host under `fortiaigate_chart_r
 
 The remote staged chart is intentionally left behind for review.
 
-TLS defaults to the chart-bundled `files/certificate/dflt.crt` and `files/certificate/dflt.key`. Override `fortiaigate_ssl_cert_path` and `fortiaigate_ssl_key_path` in `ansible/group_vars/all.yml` to stage private certificate material from outside the repo.
+TLS defaults to the chart-bundled `files/certificate/dflt.crt` and `files/certificate/dflt.key`. Override `fortiaigate_ssl_cert_path` and `fortiaigate_ssl_key_path` in `ansible/group_vars/user.yml` to stage private certificate material from outside the repo.
 
 ## Helm Wait Behavior
 
@@ -146,7 +146,8 @@ validate_faig_ollama_forwarding: true
 ## Required Local Inputs
 
 - `terraform/aws-ec2-k3s/terraform.tfvars`
-- `ansible/group_vars/all.yml`
+- `ansible/group_vars/system.yml`
+- `ansible/group_vars/user.yml`
 - license files in `FAIG/licenses` by default, or another `license_source_dir`
 - FortiAIGate chart under `FAIG_helm/<version>/fortiaigate`
 - AWS SSO session before Terraform and ECR operations

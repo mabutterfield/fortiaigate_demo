@@ -26,9 +26,7 @@ CONFIG_PAIRS = [
     ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
     ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
     ("terraform/aws-fortiweb/terraform.tfvars.example", "terraform/aws-fortiweb/terraform.tfvars"),
-    ("ansible/group_vars/env.example.yml", "ansible/group_vars/env.yml"),
-    ("ansible/group_vars/all.example.yml", "ansible/group_vars/all.yml"),
-    ("ansible/group_vars/images.example.yml", "ansible/group_vars/images.yml"),
+    ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
 ]
 
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -137,24 +135,16 @@ IMPORTANT_ITEMS = [
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_http_port", "FortiWeb HTTP admin port", "number", "FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_set_initial_password", "Set FortiWeb initial password in user-data", "bool", "FortiWeb"),
     ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_password", "FortiWeb initial admin password", section="FortiWeb", sensitive=True),
-    ConfigItem("ansible/group_vars/all.yml", "fortiaigate_version", "FortiAIGate version", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "fortiaigate_image_tag", "FortiAIGate image tag", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "fortiaigate_triton_model_image_tag", "FortiAIGate Triton model image tag", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "fortiaigate_triton_image_tag", "FortiAIGate Triton image tag", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "image_archive_dir", "FortiAIGate image archive directory", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "license_source_dir", "FortiAIGate license source directory", section="FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "fortiaigate_license_files", "FortiAIGate license files", "list", "FortiAIGate"),
-    ConfigItem("ansible/group_vars/all.yml", "direct_model_provider", "Direct model provider", section="Model paths"),
-    ConfigItem("ansible/group_vars/all.yml", "direct_model_bedrock_model", "Direct Bedrock model override", section="Model paths"),
-    ConfigItem("ansible/group_vars/all.yml", "direct_model_bedrock_region", "Direct Bedrock region override", section="Model paths"),
-    ConfigItem("ansible/group_vars/all.yml", "litellm_master_key", "LiteLLM API/master key", section="LiteLLM", sensitive=True),
-    ConfigItem("ansible/group_vars/all.yml", "litellm_ui_username", "LiteLLM admin username", section="LiteLLM"),
-    ConfigItem("ansible/group_vars/all.yml", "litellm_ui_password", "LiteLLM admin password", section="LiteLLM", sensitive=True),
-    ConfigItem("ansible/group_vars/all.yml", "openwebui_enabled", "Deploy Open WebUI", "bool", "Applications"),
-    ConfigItem("ansible/group_vars/all.yml", "chatbot_image_tag", "Chatbot image tag", section="Applications"),
-    ConfigItem("ansible/group_vars/images.yml", "publish_auto_image_map", "Auto-map loaded image tags", "bool", "Image publishing"),
-    ConfigItem("ansible/group_vars/images.yml", "publish_image_version", "Publish image version selector", section="Image publishing"),
-    ConfigItem("ansible/group_vars/images.yml", "publish_image_state", "Publish image state selector", section="Image publishing"),
+    ConfigItem("ansible/group_vars/user.yml", "license_source_dir", "FortiAIGate license source directory", section="FortiAIGate"),
+    ConfigItem("ansible/group_vars/user.yml", "fortiaigate_license_files", "FortiAIGate license files", "list", "FortiAIGate"),
+    ConfigItem("ansible/group_vars/user.yml", "direct_model_provider", "Direct model provider", section="Model paths"),
+    ConfigItem("ansible/group_vars/user.yml", "direct_model_bedrock_model", "Direct Bedrock model override", section="Model paths"),
+    ConfigItem("ansible/group_vars/user.yml", "direct_model_bedrock_region", "Direct Bedrock region override", section="Model paths"),
+    ConfigItem("ansible/group_vars/user.yml", "litellm_master_key", "LiteLLM API/master key", section="LiteLLM", sensitive=True),
+    ConfigItem("ansible/group_vars/user.yml", "litellm_ui_username", "LiteLLM admin username", section="LiteLLM"),
+    ConfigItem("ansible/group_vars/user.yml", "litellm_ui_password", "LiteLLM admin password", section="LiteLLM", sensitive=True),
+    ConfigItem("ansible/group_vars/user.yml", "openwebui_enabled", "Deploy Open WebUI", "bool", "Applications"),
+    ConfigItem("ansible/group_vars/user.yml", "chatbot_frontend_system_prompt_source_path", "Chatbot UI prompt file", section="Applications"),
 ]
 
 
@@ -279,7 +269,9 @@ def collect_private_config_files() -> list[Path]:
         path
         for path in ansible_group_vars.glob("*.yml")
         if path.is_file()
+        and path.name != "system.yml"
         and not path.name.endswith(".example.yml")
+        and not path.name.endswith(".yml.example")
         and not path.name.endswith(".generated.yml")
     )
     return sorted(set(files))
@@ -894,25 +886,8 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
             write_text(path, updated, dry_run=dry_run)
         handled.add((item.path, item.key))
 
-    sync_ansible_env_with_common(dry_run=dry_run)
     sync_appliance_prep_from_enabled(dry_run=dry_run)
     return handled
-
-
-def sync_ansible_env_with_common(*, dry_run: bool) -> None:
-    common_path = REPO_ROOT / "terraform/common.tfvars"
-    env_path = REPO_ROOT / "ansible/group_vars/env.yml"
-    if not common_path.exists() or not env_path.exists():
-        return
-    common = read_text(common_path)
-    env = read_text(env_path)
-    profile = get_hcl_string(common, "aws_profile")
-    region = get_hcl_string(common, "aws_region")
-    updated = set_yaml_scalar(env, "aws_profile", profile)
-    updated = set_yaml_scalar(updated, "aws_region", region)
-    if updated != env:
-        print_header("Ansible Environment Sync")
-        write_text(env_path, updated, dry_run=dry_run)
 
 
 def sync_appliance_prep_from_enabled(*, dry_run: bool) -> None:

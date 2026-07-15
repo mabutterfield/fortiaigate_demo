@@ -24,9 +24,7 @@ BASE_LOCAL_FILE_PAIRS = [
     ("terraform/aws-ecr/terraform.tfvars.example", "terraform/aws-ecr/terraform.tfvars"),
     ("terraform/aws-prep/terraform.tfvars.example", "terraform/aws-prep/terraform.tfvars"),
     ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
-    ("ansible/group_vars/env.example.yml", "ansible/group_vars/env.yml"),
-    ("ansible/group_vars/all.example.yml", "ansible/group_vars/all.yml"),
-    ("ansible/group_vars/images.example.yml", "ansible/group_vars/images.yml"),
+    ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
 ]
 APPLIANCE_LOCAL_FILE_PAIRS = {
     "fortigate": ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
@@ -77,6 +75,16 @@ SKIP_SSH_PRIVATE_KEY_NAMES = {
     "known_hosts",
     "known_hosts.old",
 }
+ANSIBLE_VAR_LOAD_ORDER = [
+    "ansible/group_vars/env.yml",
+    "ansible/group_vars/images.yml",
+    "ansible/group_vars/all.yml",
+    "ansible/group_vars/system.yml",
+    "ansible/group_vars/terraform.generated.yml",
+    "ansible/group_vars/ecr.generated.yml",
+    "ansible/group_vars/ports.generated.yml",
+    "ansible/group_vars/user.yml",
+]
 
 
 def print_header(message: str) -> None:
@@ -195,7 +203,9 @@ def collect_private_config_files() -> list[Path]:
             path
             for path in ansible_group_vars.glob("*.yml")
             if (path.is_file() or path.is_symlink())
+            and path.name != "system.yml"
             and not path.name.endswith(".example.yml")
+            and not path.name.endswith(".yml.example")
             and not path.name.endswith(".generated.yml")
         )
 
@@ -513,6 +523,15 @@ def get_yaml_bool(content: str, key: str, default: bool = False) -> bool:
     return value in {"true", "yes", "on", "1"}
 
 
+def get_layered_yaml_bool(key: str, default: bool = False) -> bool:
+    value = default
+    for rel_path in ANSIBLE_VAR_LOAD_ORDER:
+        path = REPO_ROOT / rel_path
+        if path.exists():
+            value = get_yaml_bool(read_file(path), key, value)
+    return value
+
+
 def set_yaml_scalar(content: str, key: str, value: str) -> str:
     replacement = f"{key}: {value}"
     pattern = rf"(?m)^\s*{re.escape(key)}:\s*.*$"
@@ -763,7 +782,7 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
 
 def configure_license_preflight(*, noninteractive: bool = False) -> None:
     print_header("FortiAIGate License Preflight")
-    path = REPO_ROOT / "ansible/group_vars/all.yml"
+    path = REPO_ROOT / "ansible/group_vars/user.yml"
     content = read_file(path)
 
     raw_source_dir = get_yaml_scalar(content, "license_source_dir", "{{ faig_workspace_root }}/licenses")
@@ -814,12 +833,12 @@ def configure_license_preflight(*, noninteractive: bool = False) -> None:
 
 def configure_litellm_credentials(*, noninteractive: bool = False) -> None:
     print_header("LiteLLM Credentials")
-    path = REPO_ROOT / "ansible/group_vars/all.yml"
+    path = REPO_ROOT / "ansible/group_vars/user.yml"
     content = read_file(path)
 
     if noninteractive:
         print("Skipping LiteLLM credential prompts because --yolo was set.")
-        print("Using LiteLLM credential values already configured in ansible/group_vars/all.yml.")
+        print("Using LiteLLM credential values already configured in ansible/group_vars/user.yml.")
         return
 
     print("Press Enter to keep the current value, or type a new value.")
@@ -877,12 +896,11 @@ def configure_common_tfvars(profile: str) -> tuple[str, str, str, list[str], str
 
 
 def configure_ansible_env(profile: str, region: str) -> None:
-    path = REPO_ROOT / "ansible/group_vars/env.yml"
-    content = read_file(path)
-    content = set_yaml_scalar(content, "aws_profile", profile)
-    content = set_yaml_scalar(content, "aws_region", region)
-    write_file(path, content)
-    print(f"updated: {path.relative_to(REPO_ROOT)}")
+    print_header("Ansible Terraform Bridge")
+    print(
+        "Terraform will write aws_profile, aws_region, SSH key details, CIDRs, "
+        "and k3s host facts to ansible/group_vars/terraform.generated.yml."
+    )
 
 
 def list_ec2_key_pairs(profile: str, region: str) -> list[str]:
@@ -1144,9 +1162,8 @@ def prompt_manual_review(appliance_keys: list[str]) -> None:
         "terraform/aws-ecr/terraform.tfvars",
         "terraform/aws-prep/terraform.tfvars",
         "terraform/aws-ec2-k3s/terraform.tfvars",
-        "ansible/group_vars/env.yml",
-        "ansible/group_vars/all.yml",
-        "ansible/group_vars/images.yml",
+        "ansible/group_vars/system.yml",
+        "ansible/group_vars/user.yml",
     ]
     if "fortigate" in appliance_keys:
         review_files.append("terraform/aws-fortigate/terraform.tfvars")
@@ -1158,7 +1175,7 @@ def prompt_manual_review(appliance_keys: list[str]) -> None:
     print("- terraform/common.tfvars: ssh_key_name")
     print("- terraform/aws-ec2-k3s/terraform.tfvars: ssh_private_key_file")
     print("- terraform/aws-ec2-k3s/terraform.tfvars: instance_type")
-    print("\nAnsible files are prepared now. The next phase can publish images and deploy the demo.")
+    print("\nAnsible system defaults are tracked; local overrides belong in ansible/group_vars/user.yml.")
     input("Press Enter after reviewing/editing those files.")
 
 
@@ -1433,10 +1450,7 @@ def deploy_with_status(label: str, deploy_playbook: str, status_playbook: str) -
 
 
 def optional_playbook_enabled(enabled_key: str) -> bool:
-    path = REPO_ROOT / "ansible/group_vars/all.yml"
-    if not path.exists():
-        return False
-    return get_yaml_bool(read_file(path), enabled_key, False)
+    return get_layered_yaml_bool(enabled_key, False)
 
 
 def run_application_deployments(args: argparse.Namespace) -> None:
@@ -1670,6 +1684,7 @@ def main() -> None:
 
     print_header("Terraform Phase Complete")
     print("Generated files should now include:")
+    print("- ansible/group_vars/terraform.generated.yml")
     print("- ansible/group_vars/ecr.generated.yml")
     print("- ansible/group_vars/ports.generated.yml")
     print("- ansible/inventory/aws.generated.ini")

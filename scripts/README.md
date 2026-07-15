@@ -36,11 +36,13 @@ Current scripts:
 - `sync_all_vars.py`: appends missing top-level defaults from known
   `*.example` config files into their local ignored files without overwriting
   existing local values. It covers Terraform `*.tfvars` plus Ansible
-  `env.yml`, `all.yml`, and `images.yml`. Use `--check` for CI/preflight,
+  `user.yml`. Use `--check` for CI/preflight,
   `--dry-run` to preview the diff, or `--list` to show managed pairs.
 - `upgrade_v0_3_to_v0_4.py`: one-time local config migration for existing
   `v0.3` labs. It consolidates `ssh_key_name` into `terraform/common.tfvars`,
-  creates missing appliance tfvars, and enables Phase 4 appliance prep defaults.
+  creates missing appliance tfvars, enables Phase 4 appliance prep defaults,
+  and migrates legacy Ansible `env.yml`/`all.yml` user-owned values into
+  `ansible/group_vars/user.yml`.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
 - `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
 

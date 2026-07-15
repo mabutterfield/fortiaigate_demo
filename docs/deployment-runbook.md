@@ -12,9 +12,8 @@ Required local inputs are intentionally ignored by Git:
 - `terraform/aws-ecr/terraform.tfvars`
 - `terraform/aws-prep/terraform.tfvars`
 - `terraform/aws-ec2-k3s/terraform.tfvars`
-- `ansible/group_vars/env.yml`
-- `ansible/group_vars/all.yml`
-- `ansible/group_vars/images.yml`
+- `ansible/group_vars/system.yml`
+- `ansible/group_vars/user.yml`
 - FortiAIGate license files
 - FortiAIGate release image archives
 - FortiAIGate Helm chart archives and extracted chart directories
@@ -178,9 +177,7 @@ The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browse
 
 ```bash
 cd ../../ansible
-cp group_vars/env.example.yml group_vars/env.yml
-cp group_vars/images.example.yml group_vars/images.yml
-cp group_vars/all.example.yml group_vars/all.yml
+cp group_vars/user.yml.example group_vars/user.yml
 ansible-playbook playbooks/publish_images.yml
 ```
 
@@ -209,7 +206,8 @@ To publish only the chatbot image without loading FortiAIGate release archives:
 ansible-playbook playbooks/publish_chatbot_images.yml
 ```
 
-To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
+To publish from a custom local image directory, set the override in
+`group_vars/user.yml` or pass `image_archive_dir` with `-e`.
 
 For FortiAIGate 8.0.0:
 
@@ -272,10 +270,10 @@ fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 Ansible copies the selected files into the temporary remote chart copy before Helm renders.
 
-Minimum `group_vars/env.yml` and `group_vars/all.yml` values to review:
+Minimum `group_vars/user.yml` values to review:
 
 - `fortiaigate_version` and the matching image tags
-- `faig_workspace_root` in `env.yml` only when the repo is not under the default parent `FAIG` directory
+- `faig_workspace_root` only when the repo is not under the default parent `FAIG` directory
 - `license_source_dir` only when licenses are not under `FAIG/licenses`
 - `fortiaigate_license_files`
 - `fortiaigate_ingress_host` when using DNS instead of the EC2 public IP

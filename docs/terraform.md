@@ -229,11 +229,14 @@ Keep AWS VPC, k3s pod, and k3s service networks non-overlapping. Change these va
 
 `terraform/aws-ec2-k3s` generates the standard demo port assignments, opens
 those ports from `allowed_ingress_cidr`, and writes
-`ansible/group_vars/ports.generated.yml` for Ansible. The default generated
-HTTP ports are reserved consistently: Open WebUI uses `30080` when enabled,
-custom chatbot `30081`, demo home `30082`, LiteLLM Admin/API `30083`, and MCP
-demo tools `30084`. The optional HTTPS gateway uses matching offsets: `30443`,
-`30444`, `30445`, `30446`, and `30447`.
+`ansible/group_vars/ports.generated.yml` plus
+`ansible/group_vars/terraform.generated.yml` for Ansible. The Terraform bridge
+file carries AWS profile, region, SSH key details, trusted CIDRs, and k3s host
+facts into Ansible. The default generated HTTP ports are reserved consistently:
+Open WebUI uses `30080` when enabled, custom chatbot `30081`, demo home
+`30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`. The optional
+HTTPS gateway uses matching offsets: `30443`, `30444`, `30445`, `30446`, and
+`30447`.
 
 `additional_ingress_tcp_ports` is only for extra public TCP listeners beyond
 those generated demo ports.

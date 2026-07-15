@@ -66,7 +66,7 @@ By default this tests:
 - `demo-b`
 
 Override the default list with `litellm_direct_test_models` in
-`ansible/group_vars/all.yml` or by passing an extra var.
+`ansible/group_vars/user.yml` or by passing an extra var.
 
 Collect GUI values with:
 

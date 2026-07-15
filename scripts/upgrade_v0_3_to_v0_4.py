@@ -17,6 +17,10 @@ COMMON_TFVARS = REPO_ROOT / "terraform/common.tfvars"
 COMMON_EXAMPLE = REPO_ROOT / "terraform/common.tfvars.example"
 AWS_PREP_TFVARS = REPO_ROOT / "terraform/aws-prep/terraform.tfvars"
 AWS_EC2_K3S_TFVARS = REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars"
+ANSIBLE_USER_EXAMPLE = REPO_ROOT / "ansible/group_vars/user.yml.example"
+ANSIBLE_USER_YML = REPO_ROOT / "ansible/group_vars/user.yml"
+ANSIBLE_ENV_YML = REPO_ROOT / "ansible/group_vars/env.yml"
+ANSIBLE_ALL_YML = REPO_ROOT / "ansible/group_vars/all.yml"
 
 APPLIANCE_PAIRS = [
     (
@@ -35,6 +39,30 @@ SSH_KEY_NAME_LEGACY_TARGETS = [
     REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars",
     REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars",
     REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars",
+]
+
+ANSIBLE_ENV_USER_KEYS = [
+    "faig_workspace_root",
+]
+
+ANSIBLE_ALL_USER_KEYS = [
+    "license_source_dir",
+    "fortiaigate_license_files",
+    "fortiaigate_licenses",
+    "litellm_master_key",
+    "litellm_ui_username",
+    "litellm_ui_password",
+    "direct_model_provider",
+    "direct_model_bedrock_model",
+    "direct_model_bedrock_region",
+    "ollama_base_url",
+    "ollama_model",
+    "openwebui_enabled",
+    "fortiaigate_ssl_cert_path",
+    "fortiaigate_ssl_key_path",
+    "chatbot_frontend_system_prompt_source_path",
+    "demo_https_gateway_cert_local_path",
+    "demo_https_gateway_key_local_path",
 ]
 
 
@@ -103,6 +131,31 @@ def set_hcl_object_bool(content: str, object_key: str, item_key: str, value: boo
             updated_body += "\n"
         updated_body += f"  {item_key} = {value_text}\n"
     return content[: match.start()] + prefix + updated_body + suffix + content[match.end() :]
+
+
+def yaml_top_level_blocks(content: str) -> dict[str, str]:
+    lines = content.splitlines(keepends=True)
+    indexes: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
+        if match:
+            indexes.append((index, match.group(1)))
+
+    blocks: dict[str, str] = {}
+    for position, (start, key) in enumerate(indexes):
+        end = indexes[position + 1][0] if position + 1 < len(indexes) else len(lines)
+        blocks[key] = "".join(lines[start:end])
+    return blocks
+
+
+def replace_or_append_yaml_block(content: str, key: str, block: str) -> str:
+    blocks = yaml_top_level_blocks(content)
+    if key not in blocks:
+        separator = "\n" if content and not content.endswith("\n") else ""
+        return content.rstrip() + separator + "\n" + block.rstrip() + "\n"
+
+    old = blocks[key]
+    return content.replace(old, block if block.endswith("\n") else block + "\n", 1)
 
 
 def comment_legacy_ssh_key_name(content: str) -> str:
@@ -212,6 +265,31 @@ def migrate_ingress_routing_strategy(writes: list[PendingWrite]) -> None:
     queue_write(writes, AWS_EC2_K3S_TFVARS, content, updated, "set ingress_routing_strategy=port_based")
 
 
+def migrate_ansible_user_yml(writes: list[PendingWrite]) -> None:
+    if ANSIBLE_USER_YML.exists():
+        before = read_text(ANSIBLE_USER_YML)
+        user_content = read_text(ANSIBLE_USER_YML)
+    else:
+        if not ANSIBLE_USER_EXAMPLE.exists():
+            raise SystemExit(f"Cannot create {relative_path(ANSIBLE_USER_YML)}; missing {relative_path(ANSIBLE_USER_EXAMPLE)}.")
+        before = ""
+        user_content = read_text(ANSIBLE_USER_EXAMPLE)
+
+    updated = user_content
+    for source_path, keys in (
+        (ANSIBLE_ENV_YML, ANSIBLE_ENV_USER_KEYS),
+        (ANSIBLE_ALL_YML, ANSIBLE_ALL_USER_KEYS),
+    ):
+        if not source_path.exists():
+            continue
+        source_blocks = yaml_top_level_blocks(read_text(source_path))
+        for key in keys:
+            if key in source_blocks:
+                updated = replace_or_append_yaml_block(updated, key, source_blocks[key])
+
+    queue_write(writes, ANSIBLE_USER_YML, before, updated, "migrate Ansible user vars")
+
+
 def render_diff(write: PendingWrite) -> str:
     diff = difflib.unified_diff(
         write.before.splitlines(keepends=True),
@@ -250,6 +328,7 @@ def main() -> None:
 
     migrate_ssh_key_name(writes)
     migrate_ingress_routing_strategy(writes)
+    migrate_ansible_user_yml(writes)
     if not args.skip_appliances:
         create_appliance_tfvars(writes)
         enable_appliance_tfvars(writes)
