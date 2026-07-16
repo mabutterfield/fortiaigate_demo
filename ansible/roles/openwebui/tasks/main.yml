@@ -10,13 +10,13 @@
       - openwebui_instances is sequence
       - openwebui_instances | length > 0
       - item.name is defined
-      - item.name | length > 0
+      - item.name | default('', true) | length > 0
       - item.namespace is defined
-      - item.namespace | length > 0
+      - item.namespace | default('', true) | length > 0
       - item.release_name is defined
-      - item.release_name | length > 0
+      - item.release_name | default('', true) | length > 0
       - item.openai_base_url is defined
-      - item.openai_base_url | length > 0
+      - item.openai_base_url | default('', true) | length > 0
       - item.node_port is defined
       - item.node_port | int >= 30000
       - item.node_port | int <= 32767
@@ -253,7 +253,7 @@
           item.name ~ ': http://' ~
           (
             public_ip
-            if (public_ip is defined and public_ip | length > 0)
+            if (public_ip is defined and public_ip | default('', true) | length > 0)
             else (ansible_host | default(inventory_hostname))
           )
           ~ ':' ~ (item.node_port | string)

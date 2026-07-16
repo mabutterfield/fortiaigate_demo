@@ -85,7 +85,7 @@
 
       [alt_names]
       DNS.1 = {{ demo_https_gateway_cert_common_name }}
-      {% if public_ip is defined and public_ip | length > 0 %}
+      {% if public_ip is defined and public_ip | default('', true) | length > 0 %}
       IP.1 = {{ public_ip }}
       {% endif %}
       {% if ansible_host is defined and ansible_host is match('^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$') and (public_ip is not defined or ansible_host != public_ip) %}

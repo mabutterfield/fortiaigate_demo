@@ -118,7 +118,7 @@
         if (fortiaigate_ingress_host is defined and fortiaigate_ingress_host | length > 0)
         else (
           public_ip
-          if (public_ip is defined and public_ip | length > 0)
+          if (public_ip is defined and public_ip | default('', true) | length > 0)
           else (ansible_host | default(inventory_hostname))
         )
       }}

@@ -279,6 +279,6 @@
     msg:
       - "LiteLLM release: {{ litellm_release_name }}"
       - "LiteLLM internal URL: {{ litellm_internal_base_url }}"
-      - "LiteLLM Admin/API URL: http://{{ public_ip if (public_ip is defined and public_ip | length > 0) else (ansible_host | default(inventory_hostname)) }}:{{ litellm_node_port }}/ui/"
+      - "LiteLLM Admin/API URL: http://{{ public_ip if (public_ip is defined and public_ip | default('', true) | length > 0) else (ansible_host | default(inventory_hostname)) }}:{{ litellm_node_port }}/ui/"
       - "Helm accepted the install or upgrade; run status_litellm.yml to check READY/NOT READY."
   when: litellm_enabled | bool

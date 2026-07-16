@@ -3,7 +3,7 @@
   ansible.builtin.assert:
     that:
       - fortiaigate_chart_path is defined
-      - fortiaigate_chart_path | length > 0
+      - fortiaigate_chart_path | default('', true) | length > 0
       - fortiaigate_chart_path is directory
     fail_msg: "Set fortiaigate_chart_path in tracked ansible/group_vars/system.yml or override it in ansible/group_vars/user.yml. Example path: FAIG_helm/{{ fortiaigate_version | default('<version>') }}/fortiaigate."
 
@@ -11,19 +11,19 @@
   ansible.builtin.assert:
     that:
       - aws_profile is defined
-      - aws_profile | length > 0
+      - aws_profile | default('', true) | length > 0
       - aws_region is defined
-      - aws_region | length > 0
+      - aws_region | default('', true) | length > 0
       - fortiaigate_ecr_token_source in ['instance_role', 'controller_profile']
       - ecr_registry is defined
-      - ecr_registry | length > 0
+      - ecr_registry | default('', true) | length > 0
       - fortiaigate_image_repository is defined
-      - fortiaigate_image_repository | length > 0
+      - fortiaigate_image_repository | default('', true) | length > 0
       - fortiaigate_image_tag is defined
-      - fortiaigate_image_tag | length > 0
-      - fortiaigate_licenses is mapping
-      - fortiaigate_license_files is sequence
-      - fortiaigate_licenses | length > 0 or fortiaigate_license_files | length > 0
+      - fortiaigate_image_tag | default('', true) | length > 0
+      - (fortiaigate_licenses | default({}, true)) is mapping
+      - (fortiaigate_license_files | default([], true)) is sequence
+      - fortiaigate_licenses | default({}, true) | length > 0 or fortiaigate_license_files | default([], true) | length > 0
     fail_msg: "Set repo defaults such as fortiaigate_chart_path in ansible/group_vars/system.yml, and user values such as licenses in ansible/group_vars/user.yml. Terraform-generated group vars should provide aws_profile/aws_region/ECR settings for AWS deployments."
 
 - name: Validate FortiAIGate TLS certificate files
@@ -31,8 +31,8 @@
     that:
       - (not (fortiaigate_tls_enabled | bool)) or fortiaigate_ssl_cert_path is file
       - (not (fortiaigate_tls_enabled | bool)) or fortiaigate_ssl_key_path is file
-      - fortiaigate_ssl_cert_chart_path | length > 0
-      - fortiaigate_ssl_key_chart_path | length > 0
+      - fortiaigate_ssl_cert_chart_path | default('', true) | length > 0
+      - fortiaigate_ssl_key_chart_path | default('', true) | length > 0
     fail_msg: "Set fortiaigate_ssl_cert_path and fortiaigate_ssl_key_path to readable local files, or disable fortiaigate_tls_enabled."
 
 - name: Discover Kubernetes node names for license mapping
@@ -47,21 +47,21 @@
       - jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}
   changed_when: false
   register: fortiaigate_k8s_nodes
-  when: fortiaigate_licenses | length == 0
+  when: fortiaigate_licenses | default({}, true) | length == 0
   # - ansible.builtin.debug:
   #     var: fortiaigate_k8s_nodes.stdout_lines
 
 - name: Build single-node FortiAIGate license mapping
   ansible.builtin.set_fact:
     fortiaigate_effective_licenses: "{{ {fortiaigate_k8s_nodes.stdout_lines[0]: fortiaigate_license_files[0]} }}"
-  when: fortiaigate_licenses | length == 0
+  when: fortiaigate_licenses | default({}, true) | length == 0
   # - ansible.builtin.debug:
   #     var: fortiaigate_effective_licenses
 
 - name: Use explicit FortiAIGate license mapping
   ansible.builtin.set_fact:
     fortiaigate_effective_licenses: "{{ fortiaigate_licenses }}"
-  when: fortiaigate_licenses | length > 0
+  when: fortiaigate_licenses | default({}, true) | length > 0
   # - ansible.builtin.debug:
   #     var: fortiaigate_effective_licenses
 
@@ -76,7 +76,7 @@
   ansible.builtin.assert:
     that:
       - license_source_dir is defined
-      - license_source_dir | length > 0
+      - license_source_dir | default('', true) | length > 0
       - license_source_dir is directory
     fail_msg: "Set license_source_dir to a readable local license directory, for example {{ faig_workspace_root }}/licenses."
   delegate_to: localhost

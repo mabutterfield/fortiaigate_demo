@@ -22,6 +22,8 @@ a "what's new" guide rather than a raw commit log.
   overrides and fall back to Terraform outputs or the configured default model.
 - Chatbot Helm values rendering now tolerates null optional prompt, ingress,
   image pull secret, and route override values after profile cleanup.
+- Hardened OpenWebUI, direct model test, demo output, FortiAIGate, and status
+  summaries against null optional values produced by older local profiles.
 
 ## v0.4.3 - User Profile Lifecycle
 
