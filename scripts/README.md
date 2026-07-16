@@ -21,10 +21,9 @@ Current scripts:
   lifecycle actions, and `--yolo` for repeat runs where local variables are
   already configured and images already exist in ECR.
 - `automated_teardown.py`: guided teardown for repeat lab cycles. It removes
-  ECR repository resources from Terraform state so repositories are not
-  deleted, runs ECR destroy for the remaining tracked lifecycle/local output
-  resources, then destroys appliances, EC2 k3s, and AWS prep in dependency
-  order.
+  appliances, EC2 k3s, and AWS prep in dependency order, then removes ECR
+  repository resources from Terraform state and destroys only the remaining
+  tracked ECR lifecycle/local output resources so repositories are not deleted.
 - `smoke_test.py`: no-apply release smoke test. It compiles Python scripts,
   checks Terraform formatting and shared tfvars symlinks, guards against
   tracked local/secret files, and runs Ansible syntax checks without applying

@@ -3,6 +3,13 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
+## Unreleased
+
+- Made `terraform/aws-prep` tolerate missing ECR repository outputs during
+  teardown after ECR repositories have been removed from Terraform state.
+- Moved automated teardown ECR state protection to the end of teardown so
+  `aws-prep` can still read ECR outputs while dependent resources are destroyed.
+
 ## v0.5.0 - Variable Ownership And Quickstart Stabilization
 
 Release date: 2026-07-16

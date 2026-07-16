@@ -64,11 +64,11 @@ teardown script:
 python3 scripts/automated_teardown.py
 ```
 
-It removes ECR repository resources from state, then runs a full
-`terraform/aws-ecr` destroy. Because repositories were removed from state
-first, Terraform preserves the ECR repositories while deleting tracked lifecycle
-policy resources and the generated local ECR vars file. The script then
-destroys appliances, EC2 k3s, and AWS prep in dependency order.
+It destroys appliances, EC2 k3s, and AWS prep in dependency order first. Then
+it removes ECR repository resources from state and runs a full
+`terraform/aws-ecr` destroy. Because repositories were removed from state,
+Terraform preserves the ECR repositories while deleting tracked lifecycle policy
+resources and the generated local ECR vars file.
 
 To preserve local user settings before rebuilding from a fresh clone, export
 the user profile:

@@ -342,15 +342,15 @@ python3 scripts/automated_teardown.py --auto-approve --yes
 
 The teardown order is:
 
-1. Remove `aws_ecr_repository.this[...]` resources from
+1. Destroy `terraform/aws-fortiweb` when state exists.
+2. Destroy `terraform/aws-fortigate` when state exists.
+3. Destroy `terraform/aws-ec2-k3s`.
+4. Destroy `terraform/aws-prep`.
+5. Remove `aws_ecr_repository.this[...]` resources from
    `terraform/aws-ecr` state so repositories are not deleted.
-2. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
+6. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
    and the generated local ECR vars file while preserving repositories already
    removed from state.
-3. Destroy `terraform/aws-fortiweb` when state exists.
-4. Destroy `terraform/aws-fortigate` when state exists.
-5. Destroy `terraform/aws-ec2-k3s`.
-6. Destroy `terraform/aws-prep`.
 
 Useful partial teardown flags:
 

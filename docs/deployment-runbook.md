@@ -702,9 +702,9 @@ Destroy AWS infrastructure only when the FortiAIGate license lifecycle is unders
 python3 scripts/automated_teardown.py
 ```
 
-The teardown script backs up local config/state, removes ECR repositories from
-Terraform state so they are not deleted, destroys ECR lifecycle/local output
-resources, then destroys EC2 k3s and AWS prep.
+The teardown script destroys FortiWeb, FortiGate, EC2 k3s, and AWS prep first.
+It then removes ECR repositories from Terraform state so they are not deleted
+and destroys only remaining ECR lifecycle/local output resources.
 
 Manual equivalent:
 

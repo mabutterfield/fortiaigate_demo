@@ -7,6 +7,7 @@ import argparse
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -231,7 +232,7 @@ def destroy_ecr_lifecycle_and_outputs(module_path: str, auto_approve: bool) -> N
         return
 
     print("Running full ECR module destroy after repository state removal.")
-    print("This preserves ECR repositories because they were removed from state first.")
+    print("This preserves ECR repositories because they are removed from state before the ECR destroy.")
     terraform_destroy(module_path, auto_approve=auto_approve)
 
 
@@ -299,25 +300,17 @@ def main() -> None:
     print("FortiAIGate automated teardown")
     print(f"Repo root: {REPO_ROOT}")
     print("Planned order:")
-    print("1. Remove ECR repository resources from Terraform state so repositories are not deleted.")
-    print("2. Destroy ECR lifecycle policy and generated local output resources only.")
-    print("3. Destroy terraform/aws-fortiweb if state exists.")
-    print("4. Destroy terraform/aws-fortigate if state exists.")
-    print("5. Destroy terraform/aws-ec2-k3s.")
-    print("6. Destroy terraform/aws-prep.")
+    print("1. Destroy terraform/aws-fortiweb if state exists.")
+    print("2. Destroy terraform/aws-fortigate if state exists.")
+    print("3. Destroy terraform/aws-ec2-k3s.")
+    print("4. Destroy terraform/aws-prep.")
+    print("5. Remove ECR repository resources from Terraform state so repositories are not deleted.")
+    print("6. Destroy ECR lifecycle policy and generated local output resources only.")
 
     if not args.yes and not prompt_yes_no("Proceed with teardown?", False):
         raise SystemExit("Stopped before teardown.")
 
     ensure_aws_login()
-
-    if args.skip_ecr:
-        print_header("Terraform: ECR")
-        print("Skipped by --skip-ecr.")
-    else:
-        terraform_init(TERRAFORM_MODULES["ecr"])
-        remove_ecr_repository_state(TERRAFORM_MODULES["ecr"])
-        destroy_ecr_lifecycle_and_outputs(TERRAFORM_MODULES["ecr"], args.auto_approve)
 
     if args.skip_appliances or args.skip_fortiweb:
         print_header("Terraform: FortiWeb Appliance")
@@ -346,6 +339,14 @@ def main() -> None:
     else:
         terraform_init(TERRAFORM_MODULES["prep"])
         destroy_module("AWS Prep", TERRAFORM_MODULES["prep"], args.auto_approve)
+
+    if args.skip_ecr:
+        print_header("Terraform: ECR")
+        print("Skipped by --skip-ecr.")
+    else:
+        terraform_init(TERRAFORM_MODULES["ecr"])
+        remove_ecr_repository_state(TERRAFORM_MODULES["ecr"])
+        destroy_ecr_lifecycle_and_outputs(TERRAFORM_MODULES["ecr"], args.auto_approve)
 
     print_header("Automated Teardown Complete")
     print("ECR repositories were protected by removing repository resources from Terraform state.")
