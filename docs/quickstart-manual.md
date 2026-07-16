@@ -55,13 +55,13 @@ The vendor Helm chart `.tar.gz` files may be stored under `FAIG_helm/<version>/`
 
 Local files you normally create or edit are intentionally not tracked:
 
-- `terraform/common.tfvars`
-- `terraform/aws-ecr/terraform.tfvars`
-- `terraform/aws-prep/terraform.tfvars`
-- `terraform/aws-ec2-k3s/terraform.tfvars`
+- `terraform/user.tfvars`
+- `terraform/aws-ecr/99-local.auto.tfvars`
+- `terraform/aws-prep/99-local.auto.tfvars`
+- `terraform/aws-ec2-k3s/99-local.auto.tfvars`
 - `ansible/group_vars/user.yml`
 
-Never commit real `terraform.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
+Never commit real `99-local.auto.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
 
 ## Quick Start
 
@@ -89,16 +89,16 @@ Create the shared Terraform config once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/common.tfvars.example terraform/common.tfvars
+cp terraform/user.tfvars.example terraform/user.tfvars
 ```
 
 Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
-`tags` in `terraform/common.tfvars`. `allowed_ingress_cidr` can be one CIDR
+`tags` in `terraform/user.tfvars`. `allowed_ingress_cidr` can be one CIDR
 string or a list of CIDR strings; the list form is preferred for multiple
 operators. Do not put secrets or access keys in this file.
 
-Each Terraform module has a tracked `common.auto.tfvars` symlink to
-`../common.tfvars`, so shared values are loaded automatically by
+Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
+`../user.tfvars`, so shared values are loaded automatically by
 `terraform plan` and `terraform apply`.
 
 ### Terraform 2 - Registry: ECR
@@ -107,11 +107,11 @@ Create the ECR module variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-ecr/terraform.tfvars.example terraform/aws-ecr/terraform.tfvars
+cp terraform/aws-ecr/99-local.auto.tfvars.example terraform/aws-ecr/99-local.auto.tfvars
 ```
 
 Set registry-specific values such as `repo_prefix` and `repositories` in
-`terraform/aws-ecr/terraform.tfvars`.
+`terraform/aws-ecr/99-local.auto.tfvars`.
 
 Create or import private ECR repositories:
 
@@ -135,11 +135,11 @@ Create the AWS prep variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-prep/terraform.tfvars.example terraform/aws-prep/terraform.tfvars
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
 ```
 
 Set IAM, EIP allocation, ECR pull, and Bedrock IAM options in
-`terraform/aws-prep/terraform.tfvars`.
+`terraform/aws-prep/99-local.auto.tfvars`.
 
 Create shared AWS prep resources:
 
@@ -164,12 +164,12 @@ Create the EC2 k3s variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-ec2-k3s/terraform.tfvars.example terraform/aws-ec2-k3s/terraform.tfvars
+cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
 ```
 
-Set `ssh_key_name` in `terraform/common.tfvars`. Set
+Set `ssh_key_name` in `terraform/user.tfvars`. Set
 `ssh_private_key_file`, `instance_type`, and network CIDRs in
-`terraform/aws-ec2-k3s/terraform.tfvars`.
+`terraform/aws-ec2-k3s/99-local.auto.tfvars`.
 
 Deploy the k3s host and AWS network foundation:
 
@@ -178,10 +178,10 @@ terraform -chdir=terraform/aws-ec2-k3s init
 terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
-Minimum `terraform/aws-ec2-k3s/terraform.tfvars` values to review:
+Minimum `terraform/aws-ec2-k3s/99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_private_key_file`; `ssh_key_name` is shared from `terraform/common.tfvars`
+- `ssh_private_key_file`; `ssh_key_name` is shared from `terraform/user.tfvars`
 - `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`
@@ -244,7 +244,7 @@ python3 scripts/upgrade_v0_3_to_v0_4.py
 ```
 
 The upgrade script consolidates legacy module-local `ssh_key_name` assignments
-into `terraform/common.tfvars`, creates missing FortiGate/FortiWeb local
+into `terraform/user.tfvars`, creates missing FortiGate/FortiWeb local
 tfvars, and enables the Phase 4 appliance prep defaults.
 
 Set local path overrides only when needed:
@@ -643,7 +643,7 @@ The output includes LiteLLM API details, LiteLLM UI credentials, application
 URLs, optional HTTPS URLs, and the Terraform-generated SSH command for the k3s
 host.
 
-The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/terraform.tfvars` before creating the host if they conflict with your environment.
+The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/99-local.auto.tfvars` before creating the host if they conflict with your environment.
 
 ## Operating Notes
 

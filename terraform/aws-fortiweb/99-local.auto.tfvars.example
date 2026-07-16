@@ -1,0 +1,8 @@
+# Optional FortiWeb local overrides.
+#
+# Copy this file to 99-local.auto.tfvars only when you intentionally want to
+# override tracked defaults from 00-system.auto.tfvars.
+
+# fortiweb_instance_type = "c5.xlarge"
+# fortiweb_version = "8.0"
+# fortiweb_license_file_name = "FWBVMSTM00000000.lic"

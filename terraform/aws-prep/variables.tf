@@ -15,7 +15,7 @@ variable "name_prefix" {
 
 variable "ssh_key_name" {
   type        = string
-  description = "Shared EC2 key pair name from terraform/common.tfvars. Accepted for common config consistency; not used by AWS prep."
+  description = "Shared EC2 key pair name from terraform/user.tfvars. Accepted for common config consistency; not used by AWS prep."
 }
 
 variable "allowed_ingress_cidr" {

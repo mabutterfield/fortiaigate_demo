@@ -14,9 +14,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 COMMON_TFVARS = REPO_ROOT / "terraform/common.tfvars"
-COMMON_EXAMPLE = REPO_ROOT / "terraform/common.tfvars.example"
-AWS_PREP_TFVARS = REPO_ROOT / "terraform/aws-prep/terraform.tfvars"
-AWS_EC2_K3S_TFVARS = REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars"
+USER_TFVARS = REPO_ROOT / "terraform/user.tfvars"
+USER_EXAMPLE = REPO_ROOT / "terraform/user.tfvars.example"
+AWS_PREP_TFVARS = REPO_ROOT / "terraform/aws-prep/99-local.auto.tfvars"
+AWS_EC2_K3S_TFVARS = REPO_ROOT / "terraform/aws-ec2-k3s/99-local.auto.tfvars"
 ANSIBLE_USER_EXAMPLE = REPO_ROOT / "ansible/group_vars/user.yml.example"
 ANSIBLE_USER_YML = REPO_ROOT / "ansible/group_vars/user.yml"
 ANSIBLE_ENV_YML = REPO_ROOT / "ansible/group_vars/env.yml"
@@ -25,13 +26,13 @@ ANSIBLE_ALL_YML = REPO_ROOT / "ansible/group_vars/all.yml"
 APPLIANCE_PAIRS = [
     (
         "fortigate",
-        REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars.example",
-        REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-fortigate/99-local.auto.tfvars.example",
+        REPO_ROOT / "terraform/aws-fortigate/99-local.auto.tfvars",
     ),
     (
         "fortiweb",
-        REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars.example",
-        REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-fortiweb/99-local.auto.tfvars.example",
+        REPO_ROOT / "terraform/aws-fortiweb/99-local.auto.tfvars",
     ),
 ]
 
@@ -39,6 +40,89 @@ SSH_KEY_NAME_LEGACY_TARGETS = [
     REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars",
     REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars",
     REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars",
+]
+
+SHARED_USER_KEYS = [
+    "aws_profile",
+    "aws_region",
+    "name_prefix",
+    "ssh_key_name",
+    "allowed_ingress_cidr",
+    "tags",
+]
+
+MODULE_LOCAL_MIGRATIONS = [
+    (
+        REPO_ROOT / "terraform/aws-ecr/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-ecr/99-local.auto.tfvars",
+        ["repo_prefix"],
+    ),
+    (
+        REPO_ROOT / "terraform/aws-prep/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-prep/99-local.auto.tfvars",
+        [
+            "allocate_eips",
+            "fortiweb_enabled",
+            "fortiweb_cloudinit_bucket_name",
+            "fortiweb_cloudinit_bucket_force_destroy",
+            "bedrock_model_ids",
+            "bedrock_allowed_source_cidrs",
+        ],
+    ),
+    (
+        REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-ec2-k3s/99-local.auto.tfvars",
+        [
+            "ssh_private_key_file",
+            "ec2_pull_github_keys",
+            "instance_type",
+            "availability_zone",
+            "vpc_cidr",
+            "public_subnet_cidr",
+            "k3s_private_subnet_cidr",
+            "fortigate_public_subnet_cidr",
+            "fortiweb_public_subnet_cidr",
+            "fortigate_internal_subnet_cidr",
+            "fortiweb_internal_subnet_cidr",
+            "k3s_cluster_cidr",
+            "k3s_service_cidr",
+            "k3s_cluster_dns",
+        ],
+    ),
+    (
+        REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-fortigate/99-local.auto.tfvars",
+        [
+            "fortigate_enabled",
+            "fortigate_instance_type",
+            "fortigate_version",
+            "fortigate_ami_name_override",
+            "fortigate_license_mode",
+            "fortigate_license_file",
+            "fortigate_license_source_dir",
+            "fortigate_license_file_name",
+            "fortigate_admin_port",
+        ],
+    ),
+    (
+        REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars",
+        REPO_ROOT / "terraform/aws-fortiweb/99-local.auto.tfvars",
+        [
+            "fortiweb_enabled",
+            "fortiweb_instance_type",
+            "fortiweb_version",
+            "fortiweb_ami_name_override",
+            "fortiweb_license_mode",
+            "fortiweb_license_file",
+            "fortiweb_license_source_dir",
+            "fortiweb_license_file_name",
+            "fortiweb_config_file",
+            "fortiweb_admin_https_port",
+            "fortiweb_admin_http_port",
+            "fortiweb_set_initial_password",
+            "fortiweb_admin_password",
+        ],
+    ),
 ]
 
 ANSIBLE_ENV_USER_KEYS = [
@@ -133,6 +217,54 @@ def set_hcl_object_bool(content: str, object_key: str, item_key: str, value: boo
     return content[: match.start()] + prefix + updated_body + suffix + content[match.end() :]
 
 
+def hcl_top_level_blocks(content: str) -> dict[str, str]:
+    lines = content.splitlines(keepends=True)
+    indexes: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
+        if match:
+            indexes.append((index, match.group(1)))
+
+    blocks: dict[str, str] = {}
+    for position, (start, key) in enumerate(indexes):
+        end = indexes[position + 1][0] if position + 1 < len(indexes) else len(lines)
+        blocks[key] = "".join(lines[start:end])
+    return blocks
+
+
+def replace_or_append_hcl_block(content: str, key: str, block: str) -> str:
+    blocks = hcl_top_level_blocks(content)
+    normalized_block = clean_hcl_block(block)
+    if key not in blocks:
+        separator = "\n" if content and not content.endswith("\n") else ""
+        return content.rstrip() + separator + "\n" + normalized_block
+    return content.replace(blocks[key], normalized_block, 1)
+
+
+def clean_hcl_block(block: str) -> str:
+    lines = block.splitlines(keepends=True)
+    if not lines:
+        return ""
+    first = lines[0]
+    if "[" in first:
+        if "]" in first:
+            return first.rstrip() + "\n"
+        kept: list[str] = []
+        for line in lines:
+            kept.append(line)
+            if line.strip().startswith("]"):
+                break
+        return "".join(kept).rstrip() + "\n"
+    if "{" in first:
+        kept = []
+        for line in lines:
+            kept.append(line)
+            if line.strip().startswith("}"):
+                break
+        return "".join(kept).rstrip() + "\n"
+    return first.rstrip() + "\n"
+
+
 def yaml_top_level_blocks(content: str) -> dict[str, str]:
     lines = content.splitlines(keepends=True)
     indexes: list[tuple[int, str]] = []
@@ -161,7 +293,7 @@ def replace_or_append_yaml_block(content: str, key: str, block: str) -> str:
 def comment_legacy_ssh_key_name(content: str) -> str:
     return re.sub(
         r'(?m)^([ \t]*)ssh_key_name[ \t]*=[ \t]*"([^"]*)"',
-        r'\1# migrated to terraform/common.tfvars: ssh_key_name = "\2"',
+        r'\1# migrated to terraform/user.tfvars: ssh_key_name = "\2"',
         content,
     )
 
@@ -179,12 +311,63 @@ def ensure_file_from_example(writes: list[PendingWrite], example: Path, target: 
     queue_write(writes, target, "", read_text(example), action)
 
 
-def migrate_ssh_key_name(writes: list[PendingWrite]) -> None:
-    if not COMMON_TFVARS.exists():
-        ensure_file_from_example(writes, COMMON_EXAMPLE, COMMON_TFVARS, "create common tfvars")
+def pending_after(writes: list[PendingWrite], path: Path) -> str:
+    pending = next((write for write in reversed(writes) if write.path == path), None)
+    if pending is not None:
+        return pending.after
+    return read_text(path) if path.exists() else ""
 
-    common_content = read_text(COMMON_TFVARS) if COMMON_TFVARS.exists() else read_text(COMMON_EXAMPLE)
-    common_ssh_key_name = get_hcl_string(common_content, "ssh_key_name")
+
+def migrate_shared_user_tfvars(writes: list[PendingWrite]) -> None:
+    if USER_TFVARS.exists():
+        target_content = read_text(USER_TFVARS)
+    elif USER_EXAMPLE.exists():
+        target_content = read_text(USER_EXAMPLE)
+    else:
+        raise SystemExit(f"Cannot create {relative_path(USER_TFVARS)}; missing {relative_path(USER_EXAMPLE)}.")
+
+    if COMMON_TFVARS.exists():
+        common_blocks = hcl_top_level_blocks(read_text(COMMON_TFVARS))
+        for key in SHARED_USER_KEYS:
+            if key in common_blocks:
+                target_content = replace_or_append_hcl_block(target_content, key, common_blocks[key])
+
+    before = read_text(USER_TFVARS) if USER_TFVARS.exists() else ""
+    queue_write(writes, USER_TFVARS, before, target_content, "migrate shared Terraform user vars")
+
+
+def migrate_module_local_tfvars(writes: list[PendingWrite]) -> None:
+    for legacy_path, target_path, keys in MODULE_LOCAL_MIGRATIONS:
+        if not legacy_path.exists():
+            continue
+        legacy_blocks = hcl_top_level_blocks(read_text(legacy_path))
+        if not legacy_blocks:
+            continue
+
+        before = pending_after(writes, target_path)
+        updated = before
+        migrated_keys: list[str] = []
+        for key in keys:
+            if key not in legacy_blocks:
+                continue
+            if key in hcl_top_level_blocks(updated):
+                continue
+            updated = replace_or_append_hcl_block(updated, key, legacy_blocks[key])
+            migrated_keys.append(key)
+
+        if migrated_keys:
+            queue_write(
+                writes,
+                target_path,
+                before,
+                updated,
+                f"migrate module-local Terraform vars: {', '.join(migrated_keys)}",
+            )
+
+
+def migrate_ssh_key_name(writes: list[PendingWrite]) -> None:
+    user_content = pending_after(writes, USER_TFVARS)
+    user_ssh_key_name = get_hcl_string(user_content, "ssh_key_name")
 
     legacy_value = ""
     legacy_source = None
@@ -199,16 +382,16 @@ def migrate_ssh_key_name(writes: list[PendingWrite]) -> None:
             legacy_value = value
             legacy_source = target_path
 
-    if common_ssh_key_name:
-        legacy_value = common_ssh_key_name
+    if user_ssh_key_name:
+        legacy_value = user_ssh_key_name
 
     if not legacy_value:
         return
 
-    if not common_ssh_key_name:
-        updated_common = set_hcl_string(common_content, "ssh_key_name", legacy_value)
+    if not user_ssh_key_name:
+        updated_user = set_hcl_string(user_content, "ssh_key_name", legacy_value)
         source_text = f" from {relative_path(legacy_source)}" if legacy_source else ""
-        queue_write(writes, COMMON_TFVARS, common_content, updated_common, f"migrate ssh_key_name{source_text}")
+        queue_write(writes, USER_TFVARS, user_content, updated_user, f"migrate ssh_key_name{source_text}")
 
     for legacy_path in legacy_paths_with_key:
         legacy_content = read_text(legacy_path)
@@ -302,7 +485,7 @@ def render_diff(write: PendingWrite) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Upgrade local v0.3 ignored Terraform config files for the v0.4 FortiGate/FortiWeb baseline."
+        description="Upgrade local ignored config files for the v0.4/v0.4.2 FortiGate/FortiWeb and variable-layout baseline."
     )
     parser.add_argument(
         "--check",
@@ -317,7 +500,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-appliances",
         action="store_true",
-        help="Only migrate shared variable moves; do not create/enable FortiGate/FortiWeb local tfvars or prep defaults.",
+        help="Only migrate shared variable moves; do not migrate FortiGate/FortiWeb local overrides.",
     )
     return parser.parse_args()
 
@@ -326,16 +509,14 @@ def main() -> None:
     args = parse_args()
     writes: list[PendingWrite] = []
 
-    migrate_ssh_key_name(writes)
-    migrate_ingress_routing_strategy(writes)
-    migrate_ansible_user_yml(writes)
+    migrate_shared_user_tfvars(writes)
     if not args.skip_appliances:
-        create_appliance_tfvars(writes)
-        enable_appliance_tfvars(writes)
-        enable_prep_appliance_defaults(writes)
+        migrate_module_local_tfvars(writes)
+    migrate_ssh_key_name(writes)
+    migrate_ansible_user_yml(writes)
 
     if not writes:
-        print("No v0.3-to-v0.4 local config migration changes are needed.")
+        print("No local config migration changes are needed.")
         return
 
     for write in writes:

@@ -1,4 +1,4 @@
-# terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
+# terraform/user.tfvars supplies aws_profile, aws_region, name_prefix,
 # ssh_key_name, allowed_ingress_cidr, and tags.
 
 aws_prep_state_path    = "../aws-prep/terraform.tfstate"

@@ -10,8 +10,8 @@ This workflow separates registry infrastructure from image publishing:
 
 ```bash
 cd terraform/aws-ecr
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars before terraform init. Set registry-specific values
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
+# Edit 99-local.auto.tfvars before terraform init. Set registry-specific values
 # such as repo_prefix and repositories.
 # Do not put secrets or access keys in this file.
 aws sso login --profile <profile-name>
@@ -293,4 +293,4 @@ policies, and image publishing may move to a separate registry/image workflow or
 repo. At minimum, keep ECR setup and publishing as a separate workflow from k3s
 and application deployment.
 
-Never commit real `terraform.tfvars`, image archives, registry passwords, or AWS credentials.
+Never commit real `99-local.auto.tfvars`, image archives, registry passwords, or AWS credentials.

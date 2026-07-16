@@ -41,16 +41,16 @@ Default command-file behavior:
   operator-provided initial admin password.
 
 For BYOL testing, set `fortiweb_license_source_dir` and
-`fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/terraform.tfvars`
+`fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/99-local.auto.tfvars`
 to a real FortiWeb license under the parent workspace `licenses/` directory.
 The committed placeholder file name is `FWBVMSTM00000000.lic`. Terraform uploads
 the license by source path, not by embedding the license text in Terraform
 configuration. Set `fortiweb_license_mode = "none"` for an unlicensed boot test.
 `fortiweb_license_file` remains available as a full-path compatibility override.
 
-The committed example sets `fortiweb_enabled = true`. Set it to false in
-ignored local tfvars only when you want to keep the module prepared but skip
-creating FortiWeb resources.
+The tracked `00-system.auto.tfvars` sets `fortiweb_enabled = true`. Set it to
+false in ignored `99-local.auto.tfvars` only when you want to keep the module
+prepared but skip creating FortiWeb resources.
 
 The AWS account must be subscribed to the selected FortiWeb Marketplace AMI
 before EC2 launch. If Terraform returns `OptInRequired`, accept the Marketplace
@@ -72,6 +72,6 @@ terraform output fortiweb_ssh_command
 terraform output fortiweb_instance_id
 ```
 
-Do not commit license files, rendered user-data, real `terraform.tfvars`, S3
+Do not commit license files, rendered user-data, real `99-local.auto.tfvars`, S3
 object copies containing license data, FortiWeb admin passwords, or Terraform
 state.

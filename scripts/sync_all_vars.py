@@ -14,12 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_PAIRS = [
-    ("terraform/common.tfvars.example", "terraform/common.tfvars"),
-    ("terraform/aws-ecr/terraform.tfvars.example", "terraform/aws-ecr/terraform.tfvars"),
-    ("terraform/aws-prep/terraform.tfvars.example", "terraform/aws-prep/terraform.tfvars"),
-    ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
-    ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
-    ("terraform/aws-fortiweb/terraform.tfvars.example", "terraform/aws-fortiweb/terraform.tfvars"),
+    ("terraform/user.tfvars.example", "terraform/user.tfvars"),
     ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
 ]
 

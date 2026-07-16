@@ -8,10 +8,10 @@ Unless noted otherwise, command blocks start from the `fortiaigate_demo` repo ro
 
 Required local inputs are intentionally ignored by Git:
 
-- `terraform/common.tfvars`
-- `terraform/aws-ecr/terraform.tfvars`
-- `terraform/aws-prep/terraform.tfvars`
-- `terraform/aws-ec2-k3s/terraform.tfvars`
+- `terraform/user.tfvars`
+- `terraform/aws-ecr/99-local.auto.tfvars`
+- `terraform/aws-prep/99-local.auto.tfvars`
+- `terraform/aws-ec2-k3s/99-local.auto.tfvars`
 - `ansible/group_vars/system.yml`
 - `ansible/group_vars/user.yml`
 - FortiAIGate license files
@@ -54,18 +54,18 @@ If these fail, fix the AWS CLI/SSO session before troubleshooting Terraform.
 
 ```bash
 cd terraform
-cp common.tfvars.example common.tfvars
+cp user.tfvars.example user.tfvars
 ```
 
 Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
-any shared tags in `common.tfvars`. `allowed_ingress_cidr` can be one CIDR
+any shared tags in `user.tfvars`. `allowed_ingress_cidr` can be one CIDR
 string or a list of CIDR strings; use `/32` entries for individual public IPs.
 
 ## 4. Create ECR Repositories
 
 ```bash
 cd aws-ecr
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -88,7 +88,7 @@ images.
 
 ```bash
 cd ../aws-prep
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -104,7 +104,7 @@ Terraform state configured by `aws_ecr_state_path`.
 
 ```bash
 cd ../aws-ec2-k3s
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -117,16 +117,16 @@ Terraform writes the generated Ansible inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
-Minimum `terraform.tfvars` values to review:
+Minimum `99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name` in `terraform/common.tfvars`
+- `ssh_key_name` in `terraform/user.tfvars`
 - `ssh_private_key_file` when the AWS key pair does not use your default SSH key
 - `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`
 - VPC, subnet, k3s pod, and k3s service CIDRs
 
-If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `terraform.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
+If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `99-local.auto.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
 
 If `ec2_pull_github_keys` is set, cloud-init appends those public GitHub SSH
 keys to `/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty
@@ -169,7 +169,7 @@ k3s_service_cidr: 10.70.0.0/16
 k3s_cluster_dns: 10.70.0.10
 ```
 
-Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
+Terraform passes these k3s values into the generated Ansible inventory. Override them in `99-local.auto.tfvars` before creating the host when your environment already uses one of these ranges.
 
 The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browser access through the prep-owned k3s Elastic IP. The k3s instance does not request an auto-assigned ephemeral public IP. Use `private` only when a private management path or FortiGate/FortiWeb front end is ready.
 

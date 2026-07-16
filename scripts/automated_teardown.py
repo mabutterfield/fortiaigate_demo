@@ -134,19 +134,19 @@ def choose_aws_login_method(profile: str) -> str:
         print("Choose aws sso login, aws login, or stop.")
 
 
-def aws_profile_from_common_tfvars() -> str:
-    path = REPO_ROOT / "terraform/common.tfvars"
+def aws_profile_from_user_tfvars() -> str:
+    path = REPO_ROOT / "terraform/user.tfvars"
     if not path.exists():
-        raise SystemExit("Cannot check AWS login because terraform/common.tfvars does not exist.")
+        raise SystemExit("Cannot check AWS login because terraform/user.tfvars does not exist.")
     profile = get_tf_string(path.read_text(encoding="utf-8"), "aws_profile")
     if not profile:
-        raise SystemExit("Cannot check AWS login because aws_profile is missing from terraform/common.tfvars.")
+        raise SystemExit("Cannot check AWS login because aws_profile is missing from terraform/user.tfvars.")
     return profile
 
 
 def ensure_aws_login() -> None:
     print_header("Checking AWS Login")
-    profile = aws_profile_from_common_tfvars()
+    profile = aws_profile_from_user_tfvars()
     result = run_command(["aws", "sts", "get-caller-identity", "--profile", profile], check=False)
     if result.returncode == 0:
         return

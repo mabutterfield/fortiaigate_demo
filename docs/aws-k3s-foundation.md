@@ -145,7 +145,7 @@ validate_faig_ollama_forwarding: true
 
 ## Required Local Inputs
 
-- `terraform/aws-ec2-k3s/terraform.tfvars`
+- `terraform/aws-ec2-k3s/99-local.auto.tfvars`
 - `ansible/group_vars/system.yml`
 - `ansible/group_vars/user.yml`
 - license files in `FAIG/licenses` by default, or another `license_source_dir`

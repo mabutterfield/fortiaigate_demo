@@ -30,7 +30,7 @@ cd ../aws-fortigate
 terraform apply
 ```
 
-Make sure `terraform/aws-prep/terraform.tfvars` enables the FortiGate EIP:
+Make sure `terraform/aws-prep/99-local.auto.tfvars` enables the FortiGate EIP:
 
 ```hcl
 allocate_eips = {
@@ -40,9 +40,9 @@ allocate_eips = {
 }
 ```
 
-The committed example sets `fortigate_enabled = true`. Set it to false in
-ignored local tfvars only when you want to keep the module prepared but skip
-creating FortiGate resources.
+The tracked `00-system.auto.tfvars` sets `fortigate_enabled = true`. Set it to
+false in ignored `99-local.auto.tfvars` only when you want to keep the module
+prepared but skip creating FortiGate resources.
 
 After apply, use:
 
@@ -56,9 +56,9 @@ The default username is `admin`. The initial admin password is the FortiGate
 EC2 instance ID.
 
 The default HTTPS admin port is `443`. Set `fortigate_admin_port = 8443` in
-ignored `terraform.tfvars` when you want the alternate management port.
+ignored `99-local.auto.tfvars` when you want the alternate management port.
 The default admin idle timeout is 60 minutes through
 `fortigate_admin_timeout_minutes`.
 
-Do not commit license files, rendered user-data, real `terraform.tfvars`, or
+Do not commit license files, rendered user-data, real `99-local.auto.tfvars`, or
 Terraform state.

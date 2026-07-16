@@ -1,4 +1,4 @@
-# terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
+# terraform/user.tfvars supplies aws_profile, aws_region, name_prefix,
 # ssh_key_name, allowed_ingress_cidr, and tags.
 
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
@@ -24,16 +24,16 @@ availability_zone = ""
 
 # Keep AWS VPC, k3s pod, and k3s service networks non-overlapping.
 # Defaults intentionally use 10.x networks with second octets between 20 and 90.
-vpc_cidr                     = "10.20.0.0/16"
-public_subnet_cidr           = "10.20.1.0/24"
-k3s_private_subnet_cidr      = "10.20.2.0/24"
-fortigate_public_subnet_cidr = "10.20.10.0/24"
-fortiweb_public_subnet_cidr  = "10.20.11.0/24"
+vpc_cidr                       = "10.20.0.0/16"
+public_subnet_cidr             = "10.20.1.0/24"
+k3s_private_subnet_cidr        = "10.20.2.0/24"
+fortigate_public_subnet_cidr   = "10.20.10.0/24"
+fortiweb_public_subnet_cidr    = "10.20.11.0/24"
 fortigate_internal_subnet_cidr = "10.20.20.0/24"
 fortiweb_internal_subnet_cidr  = "10.20.21.0/24"
-k3s_cluster_cidr             = "10.60.0.0/16"
-k3s_service_cidr             = "10.70.0.0/16"
-k3s_cluster_dns              = "10.70.0.10"
+k3s_cluster_cidr               = "10.60.0.0/16"
+k3s_service_cidr               = "10.70.0.0/16"
+k3s_cluster_dns                = "10.70.0.10"
 
 # Public preserves the current direct-access lab behavior. Private places the
 # k3s host in the private subnet without a public IP; use that only when an

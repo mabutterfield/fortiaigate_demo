@@ -72,11 +72,12 @@ To stop after Terraform and EC2 status, without running Ansible:
 python3 scripts/automated_quickstart.py --skip-ansible
 ```
 
-Phase 4 appliance tfvars are prepared by default. The committed examples set
-`fortigate_enabled=true` and `fortiweb_enabled=true`, so automated quickstart
-runs those Terraform modules unless local ignored tfvars set them to false.
+Phase 4 appliance defaults are prepared by default. The tracked
+`00-system.auto.tfvars` files set `fortigate_enabled=true` and
+`fortiweb_enabled=true`, so automated quickstart runs those Terraform modules
+unless ignored `99-local.auto.tfvars` files set them to false.
 
-Use these flags to force-enable appliances when local tfvars previously set
+Use these flags to force-enable appliances when local overrides previously set
 one or both to false:
 
 ```bash
@@ -86,7 +87,7 @@ python3 scripts/automated_quickstart.py --include-appliances
 ```
 
 When an appliance is enabled, quickstart reuses the shared EC2 key pair from
-`terraform/common.tfvars`, enables the required prep EIPs, and for FortiWeb
+`terraform/user.tfvars`, enables the required prep EIPs, and for FortiWeb
 enables the prep-owned S3/IAM cloud-init resources.
 
 If an enabled FortiGate or FortiWeb module uses BYOL file mode, quickstart
@@ -131,7 +132,7 @@ The current setup script:
 - back up existing private/local tfvars and Ansible group var YAML files,
   excluding generated `*.generated.yml` files
 - prompt for AWS profile, region, name prefix, trusted source CIDRs, and optional tags
-- prompt for the shared EC2 SSH key pair and save it in `terraform/common.tfvars`
+- prompt for the shared EC2 SSH key pair and save it in `terraform/user.tfvars`
 - check AWS caller identity and, when login is needed, prompt for
   `aws sso login` versus `aws login`; SSO-style profiles default to
   `aws sso login`
@@ -183,9 +184,9 @@ The script should collect or confirm:
 - local SSH private key path from `~/.ssh` or a manually entered path
 - FortiAIGate license file under `FAIG/licenses` by default
 - LiteLLM API key and Admin UI credentials; press Enter to keep current values
-- instance type, reviewed in `terraform/aws-ec2-k3s/terraform.tfvars`
+- instance type, reviewed in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
 - Bedrock IAM enablement and model allow list, reviewed in
-  `terraform/aws-prep/terraform.tfvars`
+  `terraform/aws-prep/99-local.auto.tfvars`
 
 For AWS deployments, Terraform writes shared Ansible values such as
 `aws_profile`, `aws_region`, SSH key details, CIDRs, and k3s host facts into
@@ -193,7 +194,7 @@ For AWS deployments, Terraform writes shared Ansible values such as
 `ansible/group_vars/system.yml` owns repo defaults. Local operator overrides
 belong in ignored `ansible/group_vars/user.yml`.
 
-Existing `terraform/*.tfvars`, module `terraform.tfvars`, and local
+Existing `terraform/*.tfvars`, module `99-local.auto.tfvars`, and local
 `ansible/group_vars/*.yml` values are read and offered as defaults. The script
 does not overwrite unrelated local settings; it updates only the values it
 prompts for.
@@ -212,7 +213,7 @@ license file when it is not configured or not found. In `--yolo` mode, the same
 check is non-interactive and fails fast if the configured file is missing.
 
 FortiGate and FortiWeb BYOL license files are also expected under `FAIG/licenses`
-by default. Their committed examples split the license setting into
+by default. Their tracked `00-system.auto.tfvars` files split the license setting into
 `*_license_source_dir` and `*_license_file_name`, with all-zero placeholder
 license file names. When `fortigate_license_mode = "byol_file"` or
 `fortiweb_license_mode = "byol_file"`, quickstart stats the selected file before
@@ -319,7 +320,7 @@ The automated teardown script is intended for frequent provision/deprovision
 cycles where image repositories should be retained.
 
 Before it starts backup or Terraform work, teardown checks AWS caller identity
-with the `aws_profile` from `terraform/common.tfvars`. If the session is not
+with the `aws_profile` from `terraform/user.tfvars`. If the session is not
 valid, it prompts for `aws sso login` or `aws login`, then checks caller
 identity again before continuing.
 

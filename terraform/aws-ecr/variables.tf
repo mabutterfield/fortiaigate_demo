@@ -11,17 +11,17 @@ variable "aws_region" {
 
 variable "name_prefix" {
   type        = string
-  description = "Shared name prefix from terraform/common.tfvars. Accepted for common config consistency; ECR uses repo_prefix for repository names."
+  description = "Shared name prefix from terraform/user.tfvars. Accepted for common config consistency; ECR uses repo_prefix for repository names."
 }
 
 variable "ssh_key_name" {
   type        = string
-  description = "Shared EC2 key pair name from terraform/common.tfvars. Accepted for common config consistency; not used by ECR."
+  description = "Shared EC2 key pair name from terraform/user.tfvars. Accepted for common config consistency; not used by ECR."
 }
 
 variable "allowed_ingress_cidr" {
   type        = any
-  description = "Shared trusted source CIDR or list of CIDRs from terraform/common.tfvars. Accepted for common config consistency; not used by ECR."
+  description = "Shared trusted source CIDR or list of CIDRs from terraform/user.tfvars. Accepted for common config consistency; not used by ECR."
 }
 
 variable "repo_prefix" {

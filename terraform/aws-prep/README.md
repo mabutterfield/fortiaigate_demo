@@ -12,16 +12,19 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 Run it after the registry module and before the EC2 k3s foundation module:
 
 ```bash
-cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
+
+Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
+overriding the tracked defaults in `00-system.auto.tfvars`.
 
 This module reads `terraform/aws-ecr` local state by default when
 `registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
 state by default.
 
-Enable Phase 4 appliance prep only when deploying FortiGate/FortiWeb:
+Phase 4 appliance prep is enabled by default for the full demo. Override these
+values in `99-local.auto.tfvars` only when disabling appliance prep:
 
 ```hcl
 allocate_eips = {
@@ -56,4 +59,4 @@ terraform output bedrock_model_ids
 ```
 
 The Bedrock secret access key is stored in Terraform state. Do not commit state
-or real `terraform.tfvars` files.
+or real `99-local.auto.tfvars` files.

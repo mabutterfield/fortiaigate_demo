@@ -59,7 +59,7 @@ variable "ec2_pull_github_keys" {
 
 variable "allowed_ingress_cidr" {
   type        = any
-  description = "Shared trusted source CIDR or list of CIDRs from terraform/common.tfvars. terraform/aws-prep is the effective source of truth for EC2 security group rules."
+  description = "Shared trusted source CIDR or list of CIDRs from terraform/user.tfvars. terraform/aws-prep is the effective source of truth for EC2 security group rules."
 }
 
 variable "aws_prep_state_path" {

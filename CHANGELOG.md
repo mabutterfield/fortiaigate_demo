@@ -3,6 +3,22 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
+## v0.4.2 - Terraform Variable Ownership Split
+
+Release date: 2026-07-15
+
+- Replaced the copied `terraform/common.tfvars` workflow with ignored
+  `terraform/user.tfvars`, created from tracked `terraform/user.tfvars.example`.
+- Added tracked `50-user.auto.tfvars` symlinks in each Terraform module so
+  shared user values load automatically from `../user.tfvars`.
+- Moved module-owned defaults into tracked `00-system.auto.tfvars` files.
+- Added tracked `99-local.auto.tfvars.example` files for focused per-module
+  local overrides while keeping real `99-local.auto.tfvars` files ignored.
+- Updated quickstart, teardown, reconfigure, sync, and migration helpers to use
+  the new Terraform variable layout.
+- Existing legacy module `terraform.tfvars` files are treated as migration
+  input; selected user-owned values are imported into `99-local.auto.tfvars`.
+
 ## v0.4.1 - Ansible Variable Ownership Split
 
 Release date: 2026-07-15
@@ -71,7 +87,7 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
 - Automated quickstart now runs the v0.3-to-v0.4 upgrade step before normal
   example/default syncing.
 - The upgrade script:
-  - moves legacy module-local `ssh_key_name` into `terraform/common.tfvars`
+  - moves legacy module-local `ssh_key_name` into `terraform/user.tfvars`
   - comments out old module-local `ssh_key_name` assignments
   - creates missing FortiGate/FortiWeb local tfvars from examples
   - enables appliance prep defaults when local values still reflect the v0.3
@@ -105,11 +121,11 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
 
 ### Shared Terraform Defaults
 
-- Moved `ssh_key_name` into `terraform/common.tfvars` so k3s, FortiGate, and
+- Moved `ssh_key_name` into `terraform/user.tfvars` so k3s, FortiGate, and
   FortiWeb use the same AWS EC2 key pair.
 - FortiGate and FortiWeb example tfvars are enabled by default for the Phase 4
   project baseline.
-- Local private-key path remains in `terraform/aws-ec2-k3s/terraform.tfvars`
+- Local private-key path remains in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
   because it is used for generated Ansible inventory.
 
 ### Deferred
@@ -256,7 +272,7 @@ after changing optional paths.
 ### Terraform And AWS Infrastructure
 
 - Continued the split Terraform flow:
-  - `terraform/common.tfvars`
+  - `terraform/user.tfvars`
   - `terraform/aws-ecr`
   - `terraform/aws-prep`
   - `terraform/aws-ec2-k3s`
@@ -340,7 +356,7 @@ This was the first larger frontend/application milestone.
 - Added publish flow for the chatbot image.
 - Added status and validation playbooks for the new app layer.
 - Added consolidated output playbook for demo URLs and provider values.
-- Introduced `terraform/common.tfvars` and moved user-facing AWS prep work into
+- Introduced `terraform/user.tfvars` and moved user-facing AWS prep work into
   `terraform/aws-prep`.
 - Removed the standalone user-facing `terraform/aws-bedrock` flow in favor of
   AWS Prep.

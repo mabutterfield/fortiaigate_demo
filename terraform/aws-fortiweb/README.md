@@ -16,11 +16,12 @@ It creates:
 FortiWeb cloud-init reads its config and license from the S3 bucket created by
 `terraform/aws-prep` when `fortiweb_enabled = true` there. The EC2 instance
 uses the prep-owned FortiWeb instance profile so it can read those objects.
-Set `fortiweb_enabled = true` in this module's ignored `terraform.tfvars` when
-you want to deploy the appliance.
+`fortiweb_enabled = true` is tracked in this module's `00-system.auto.tfvars`
+for the full demo. Override it in ignored `99-local.auto.tfvars` only when you
+want to disable or customize the appliance.
 
 For BYOL testing, set `fortiweb_license_source_dir` and
-`fortiweb_license_file_name` in ignored `terraform.tfvars` to a real FortiWeb
+`fortiweb_license_file_name` in ignored `99-local.auto.tfvars` to a real FortiWeb
 license under the parent workspace `licenses/` directory. The committed
 placeholder file name is `FWBVMSTM00000000.lic`. The license object is uploaded
 to S3 by path; Terraform state should not contain the license file content.
@@ -50,12 +51,15 @@ Run order:
 
 ```bash
 cd terraform/aws-fortiweb
-cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform fmt
 terraform validate
 terraform apply
 ```
+
+Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
+overriding the tracked defaults in `00-system.auto.tfvars`, such as license
+file names or instance size.
 
 Useful outputs:
 
@@ -65,5 +69,5 @@ terraform output fortiweb_ssh_command
 terraform output fortiweb_instance_id
 ```
 
-Do not commit real `terraform.tfvars`, license files, rendered user-data, or
+Do not commit real `99-local.auto.tfvars`, license files, rendered user-data, or
 Terraform state.

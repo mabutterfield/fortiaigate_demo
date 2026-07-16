@@ -20,15 +20,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 BASE_LOCAL_FILE_PAIRS = [
-    ("terraform/common.tfvars.example", "terraform/common.tfvars"),
-    ("terraform/aws-ecr/terraform.tfvars.example", "terraform/aws-ecr/terraform.tfvars"),
-    ("terraform/aws-prep/terraform.tfvars.example", "terraform/aws-prep/terraform.tfvars"),
-    ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
+    ("terraform/user.tfvars.example", "terraform/user.tfvars"),
     ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
 ]
 APPLIANCE_LOCAL_FILE_PAIRS = {
-    "fortigate": ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
-    "fortiweb": ("terraform/aws-fortiweb/terraform.tfvars.example", "terraform/aws-fortiweb/terraform.tfvars"),
+    "fortigate": ("terraform/aws-fortigate/99-local.auto.tfvars.example", "terraform/aws-fortigate/99-local.auto.tfvars"),
+    "fortiweb": ("terraform/aws-fortiweb/99-local.auto.tfvars.example", "terraform/aws-fortiweb/99-local.auto.tfvars"),
 }
 
 REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook"]
@@ -346,45 +343,66 @@ def read_file(path: Path) -> str:
 
 
 def write_file(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
 
+def module_system_tfvars_path(module_path: str) -> Path:
+    return REPO_ROOT / module_path / "00-system.auto.tfvars"
+
+
+def module_local_tfvars_path(module_path: str) -> Path:
+    return REPO_ROOT / module_path / "99-local.auto.tfvars"
+
+
+def read_existing_file(path: Path) -> str:
+    return read_file(path) if path.exists() else ""
+
+
+def read_effective_module_tfvars(module_path: str) -> str:
+    parts = [
+        read_existing_file(module_system_tfvars_path(module_path)),
+        read_existing_file(module_local_tfvars_path(module_path)),
+    ]
+    return "\n".join(part for part in parts if part)
+
+
 def get_tf_string(content: str, key: str, default: str = "") -> str:
-    match = re.search(rf'(?m)^\s*{re.escape(key)}\s*=\s*"([^"]*)"', content)
-    return match.group(1) if match else default
+    matches = re.findall(rf'(?m)^\s*{re.escape(key)}\s*=\s*"([^"]*)"', content)
+    return matches[-1] if matches else default
 
 
 def get_tf_bool(content: str, key: str, default: bool = False) -> bool:
-    match = re.search(rf"(?m)^\s*{re.escape(key)}\s*=\s*(true|false)\b", content)
-    if not match:
+    matches = re.findall(rf"(?m)^\s*{re.escape(key)}\s*=\s*(true|false)\b", content)
+    if not matches:
         return default
-    return match.group(1) == "true"
+    return matches[-1] == "true"
 
 
 def get_tf_object_bool(content: str, object_key: str, item_key: str, default: bool = False) -> bool:
-    match = re.search(rf"(?ms)^\s*{re.escape(object_key)}\s*=\s*\{{(.*?)^\s*\}}", content)
-    if not match:
+    matches = re.findall(rf"(?ms)^\s*{re.escape(object_key)}\s*=\s*\{{(.*?)^\s*\}}", content)
+    if not matches:
         return default
-    item_match = re.search(rf"(?m)^\s*{re.escape(item_key)}\s*=\s*(true|false)\b", match.group(1))
+    item_match = re.search(rf"(?m)^\s*{re.escape(item_key)}\s*=\s*(true|false)\b", matches[-1])
     if not item_match:
         return default
     return item_match.group(1) == "true"
 
 
 def get_tf_list_strings(content: str, key: str) -> list[str]:
-    match = re.search(rf"(?ms)^\s*{re.escape(key)}\s*=\s*\[(.*?)\]", content)
-    if not match:
+    matches = re.findall(rf"(?ms)^\s*{re.escape(key)}\s*=\s*\[(.*?)\]", content)
+    if not matches:
         single = get_tf_string(content, key)
         return [single] if single else []
-    return re.findall(r'"([^"]+)"', match.group(1))
+    return re.findall(r'"([^"]+)"', matches[-1])
 
 
 def get_tf_map_strings(content: str, key: str) -> dict[str, str]:
-    match = re.search(rf"(?ms)^\s*{re.escape(key)}\s*=\s*\{{(.*?)\}}", content)
-    if not match:
+    matches = re.findall(rf"(?ms)^\s*{re.escape(key)}\s*=\s*\{{(.*?)\}}", content)
+    if not matches:
         return {}
     pairs: dict[str, str] = {}
-    for pair_match in re.finditer(r'(?m)^\s*"?([^"\s=]+)"?\s*=\s*"([^"]*)"', match.group(1)):
+    for pair_match in re.finditer(r'(?m)^\s*"?([^"\s=]+)"?\s*=\s*"([^"]*)"', matches[-1]):
         pairs[pair_match.group(1)] = pair_match.group(2)
     return pairs
 
@@ -744,15 +762,16 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
         config = APPLIANCE_LICENSES[appliance_key]
         label = config["label"]
         module_path = config["module_path"]
-        tfvars_path = REPO_ROOT / module_path / "terraform.tfvars"
-        content = read_file(tfvars_path)
-        license_mode = get_tf_string(content, config["mode_key"], "byol_file")
+        tfvars_path = module_local_tfvars_path(module_path)
+        effective_content = read_effective_module_tfvars(module_path)
+        local_content = read_existing_file(tfvars_path)
+        license_mode = get_tf_string(effective_content, config["mode_key"], "byol_file")
 
         if license_mode != "byol_file":
             print(f"{label}: {config['mode_key']}={license_mode}; no local BYOL license file stat needed.")
             continue
 
-        license_path, license_value, license_name = resolve_appliance_license_parts(content, config)
+        license_path, license_value, license_name = resolve_appliance_license_parts(effective_content, config)
         if not license_name:
             raise SystemExit(f"{label} license preflight failed: {config['file_name_key']} is empty.")
 
@@ -771,10 +790,10 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
         reason = "is still the committed placeholder" if using_default else "does not exist"
         print(f"{label}: license {reason}: {license_value}")
         selected_path = choose_appliance_license_file(label, default_license_dir, license_name if not using_default else "")
-        content = set_tf_string(content, config["file_key"], "")
-        content = set_tf_string(content, config["source_dir_key"], render_appliance_license_dir_for_tfvars(selected_path, module_path))
-        content = set_tf_string(content, config["file_name_key"], selected_path.name)
-        write_file(tfvars_path, content)
+        local_content = set_tf_string(local_content, config["file_key"], "")
+        local_content = set_tf_string(local_content, config["source_dir_key"], render_appliance_license_dir_for_tfvars(selected_path, module_path))
+        local_content = set_tf_string(local_content, config["file_name_key"], selected_path.name)
+        write_file(tfvars_path, local_content)
         print(f"updated: {tfvars_path.relative_to(REPO_ROOT)}")
         print(f"{label}: license directory {selected_path.parent}")
         print(f"{label}: selected license file {selected_path}")
@@ -861,17 +880,16 @@ def configure_litellm_credentials(*, noninteractive: bool = False) -> None:
         print("LiteLLM credentials unchanged.")
 
 
-def configure_common_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
+def configure_user_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
     print_header("Shared Terraform Config")
-    path = REPO_ROOT / "terraform/common.tfvars"
+    path = REPO_ROOT / "terraform/user.tfvars"
     content = read_file(path)
-    ec2_content = read_file(REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars")
 
     current_region = get_tf_string(content, "aws_region", "us-east-1")
     profile_region = command_output(["aws", "configure", "get", "region", "--profile", profile], check=False)
     default_region = profile_region or current_region or "us-east-1"
     current_prefix = get_tf_string(content, "name_prefix", "fortiaigate-demo")
-    current_key_name = get_tf_string(content, "ssh_key_name", get_tf_string(ec2_content, "ssh_key_name"))
+    current_key_name = get_tf_string(content, "ssh_key_name")
     current_cidrs = get_tf_list_strings(content, "allowed_ingress_cidr")
     current_tags = get_tf_map_strings(content, "tags")
 
@@ -1001,9 +1019,9 @@ def choose_local_ssh_private_key(default_private_key: str, key_name: str) -> str
 
 
 def configure_ec2_tfvars(ssh_key_name: str) -> str:
-    path = REPO_ROOT / "terraform/aws-ec2-k3s/terraform.tfvars"
-    content = read_file(path)
-    current_private_key = get_tf_string(content, "ssh_private_key_file")
+    path = module_local_tfvars_path("terraform/aws-ec2-k3s")
+    content = read_existing_file(path)
+    current_private_key = get_tf_string(read_effective_module_tfvars("terraform/aws-ec2-k3s"), "ssh_private_key_file")
 
     private_key = choose_local_ssh_private_key(current_private_key, ssh_key_name)
 
@@ -1027,10 +1045,8 @@ def appliance_tfvars_path(appliance_key: str) -> Path:
 
 
 def appliance_enabled_from_tfvars(appliance_key: str) -> bool:
-    path = appliance_tfvars_path(appliance_key)
-    if not path.exists():
-        return False
-    content = read_file(path)
+    module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key][1]
+    content = read_effective_module_tfvars(module_path)
     enabled_key = f"{appliance_key}_enabled"
     return get_tf_bool(content, enabled_key, False)
 
@@ -1045,9 +1061,7 @@ def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
 
 
 def local_file_pairs_for_run(args: argparse.Namespace) -> list[tuple[str, str]]:
-    pairs = list(BASE_LOCAL_FILE_PAIRS)
-    pairs.extend(APPLIANCE_LOCAL_FILE_PAIRS.values())
-    return pairs
+    return list(BASE_LOCAL_FILE_PAIRS)
 
 
 def configure_appliance_tfvars(appliance_keys: list[str]) -> None:
@@ -1068,20 +1082,21 @@ def ensure_appliance_prep_tfvars(appliance_keys: list[str]) -> None:
         return
 
     print_header("Appliance AWS Prep Config")
-    path = REPO_ROOT / "terraform/aws-prep/terraform.tfvars"
-    content = read_file(path)
+    path = module_local_tfvars_path("terraform/aws-prep")
+    content = read_existing_file(path)
+    effective = read_effective_module_tfvars("terraform/aws-prep")
     updated = content
     changes: list[str] = []
 
-    if "fortigate" in appliance_keys and not get_tf_object_bool(updated, "allocate_eips", "fortigate", False):
+    if "fortigate" in appliance_keys and not get_tf_object_bool(effective, "allocate_eips", "fortigate", False):
         updated = set_tf_object_bool(updated, "allocate_eips", "fortigate", True)
         changes.append("allocate_eips.fortigate=true")
 
     if "fortiweb" in appliance_keys:
-        if not get_tf_object_bool(updated, "allocate_eips", "fortiweb", False):
+        if not get_tf_object_bool(effective, "allocate_eips", "fortiweb", False):
             updated = set_tf_object_bool(updated, "allocate_eips", "fortiweb", True)
             changes.append("allocate_eips.fortiweb=true")
-        if not get_tf_bool(updated, "fortiweb_enabled", False):
+        if not get_tf_bool(effective, "fortiweb_enabled", False):
             updated = set_tf_bool(updated, "fortiweb_enabled", True)
             changes.append("fortiweb_enabled=true")
 
@@ -1096,11 +1111,11 @@ def ensure_appliance_prep_tfvars(appliance_keys: list[str]) -> None:
 
 
 def parse_ecr_tfvars() -> tuple[str, list[str]]:
-    content = read_file(REPO_ROOT / "terraform/aws-ecr/terraform.tfvars")
+    content = read_effective_module_tfvars("terraform/aws-ecr")
     repo_prefix = get_tf_string(content, "repo_prefix", "fortiaigate")
     repositories = get_tf_list_strings(content, "repositories")
     if not repositories:
-        raise SystemExit("No repositories found in terraform/aws-ecr/terraform.tfvars.")
+        raise SystemExit("No repositories found in terraform/aws-ecr effective tfvars.")
     return repo_prefix, repositories
 
 
@@ -1158,23 +1173,24 @@ def prompt_manual_review(appliance_keys: list[str]) -> None:
     print_header("Manual Review Before Terraform")
     print("Review these files before continuing:")
     review_files = [
-        "terraform/common.tfvars",
-        "terraform/aws-ecr/terraform.tfvars",
-        "terraform/aws-prep/terraform.tfvars",
-        "terraform/aws-ec2-k3s/terraform.tfvars",
+        "terraform/user.tfvars",
+        "terraform/aws-ecr/00-system.auto.tfvars",
+        "terraform/aws-prep/00-system.auto.tfvars",
+        "terraform/aws-ec2-k3s/00-system.auto.tfvars",
+        "terraform/aws-ec2-k3s/99-local.auto.tfvars",
         "ansible/group_vars/system.yml",
         "ansible/group_vars/user.yml",
     ]
     if "fortigate" in appliance_keys:
-        review_files.append("terraform/aws-fortigate/terraform.tfvars")
+        review_files.append("terraform/aws-fortigate/99-local.auto.tfvars")
     if "fortiweb" in appliance_keys:
-        review_files.append("terraform/aws-fortiweb/terraform.tfvars")
+        review_files.append("terraform/aws-fortiweb/99-local.auto.tfvars")
     for path in review_files:
         print(f"- {path}")
     print("\nCritical EC2 values usually needing edits:")
-    print("- terraform/common.tfvars: ssh_key_name")
-    print("- terraform/aws-ec2-k3s/terraform.tfvars: ssh_private_key_file")
-    print("- terraform/aws-ec2-k3s/terraform.tfvars: instance_type")
+    print("- terraform/user.tfvars: ssh_key_name")
+    print("- terraform/aws-ec2-k3s/99-local.auto.tfvars: ssh_private_key_file")
+    print("- terraform/aws-ec2-k3s/99-local.auto.tfvars: optional instance_type override")
     print("\nAnsible system defaults are tracked; local overrides belong in ansible/group_vars/user.yml.")
     input("Press Enter after reviewing/editing those files.")
 
@@ -1542,12 +1558,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-fortigate",
         action="store_true",
-        help="Create/sync FortiGate local tfvars and run terraform/aws-fortigate after the k3s foundation.",
+        help="Ensure FortiGate local overrides are enabled and run terraform/aws-fortigate after the k3s foundation.",
     )
     parser.add_argument(
         "--include-fortiweb",
         action="store_true",
-        help="Create/sync FortiWeb local tfvars and run terraform/aws-fortiweb after the k3s foundation.",
+        help="Ensure FortiWeb local overrides are enabled and run terraform/aws-fortiweb after the k3s foundation.",
     )
     parser.add_argument(
         "--include-appliances",
@@ -1623,28 +1639,28 @@ def main() -> None:
     copy_missing_examples(local_file_pairs)
     sync_missing_example_defaults(local_file_pairs)
 
-    current_common = read_file(REPO_ROOT / "terraform/common.tfvars")
-    default_profile = get_tf_string(current_common, "aws_profile")
+    current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
+    default_profile = get_tf_string(current_user_tfvars, "aws_profile")
     if args.yolo and default_profile:
         profile = default_profile
         print_header("AWS Profile")
-        print(f"Using aws_profile from terraform/common.tfvars: {profile}")
+        print(f"Using aws_profile from terraform/user.tfvars: {profile}")
     else:
         profile = choose_aws_profile(default_profile)
     ensure_aws_login(profile)
 
     if args.yolo:
-        region = get_tf_string(current_common, "aws_region")
-        ssh_key_name = get_tf_string(current_common, "ssh_key_name")
+        region = get_tf_string(current_user_tfvars, "aws_region")
+        ssh_key_name = get_tf_string(current_user_tfvars, "ssh_key_name")
         if not region:
             region = quiet_command_output(["aws", "configure", "get", "region", "--profile", profile]) or "us-east-1"
         print_header("Shared Terraform Config")
         print("Using existing local Terraform and Ansible variable files because --yolo was set.")
         print(f"AWS region: {region}")
         if not ssh_key_name:
-            raise SystemExit("ssh_key_name is missing from terraform/common.tfvars.")
+            raise SystemExit("ssh_key_name is missing from terraform/user.tfvars.")
     else:
-        profile, region, _name_prefix, _cidrs, ssh_key_name = configure_common_tfvars(profile)
+        profile, region, _name_prefix, _cidrs, ssh_key_name = configure_user_tfvars(profile)
 
     configure_ansible_env(profile, region)
     appliance_keys = selected_appliance_keys(args)

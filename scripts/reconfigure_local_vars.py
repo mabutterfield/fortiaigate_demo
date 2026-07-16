@@ -20,12 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_PAIRS = [
-    ("terraform/common.tfvars.example", "terraform/common.tfvars"),
-    ("terraform/aws-ecr/terraform.tfvars.example", "terraform/aws-ecr/terraform.tfvars"),
-    ("terraform/aws-prep/terraform.tfvars.example", "terraform/aws-prep/terraform.tfvars"),
-    ("terraform/aws-ec2-k3s/terraform.tfvars.example", "terraform/aws-ec2-k3s/terraform.tfvars"),
-    ("terraform/aws-fortigate/terraform.tfvars.example", "terraform/aws-fortigate/terraform.tfvars"),
-    ("terraform/aws-fortiweb/terraform.tfvars.example", "terraform/aws-fortiweb/terraform.tfvars"),
+    ("terraform/user.tfvars.example", "terraform/user.tfvars"),
     ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
 ]
 
@@ -73,68 +68,68 @@ class ConfigItem:
 
 
 IMPORTANT_ITEMS = [
-    ConfigItem("terraform/common.tfvars", "aws_profile", "AWS profile", section="Shared Terraform"),
-    ConfigItem("terraform/common.tfvars", "aws_region", "AWS region", section="Shared Terraform"),
-    ConfigItem("terraform/common.tfvars", "name_prefix", "Deployment name prefix", section="Shared Terraform"),
-    ConfigItem("terraform/common.tfvars", "ssh_key_name", "AWS EC2 key pair name", section="Shared Terraform"),
-    ConfigItem("terraform/common.tfvars", "allowed_ingress_cidr", "Trusted source CIDRs", "list", "Shared Terraform", validate_cidr=True),
-    ConfigItem("terraform/common.tfvars", "tags", "Terraform tags", "map", "Shared Terraform"),
-    ConfigItem("terraform/aws-ecr/terraform.tfvars", "repo_prefix", "ECR repository prefix", section="ECR"),
-    ConfigItem("terraform/aws-ecr/terraform.tfvars", "image_tag_mutability", "Default ECR image tag mutability", section="ECR"),
-    ConfigItem("terraform/aws-ecr/terraform.tfvars", "scan_on_push", "Enable ECR scan on push", "bool", "ECR"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "enable_bedrock_iam", "Create Bedrock IAM user/access key", "bool", "AWS prep / Bedrock"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "enable_ec2_bedrock_iam", "Attach Bedrock IAM to EC2 role", "bool", "AWS prep / Bedrock"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "bedrock_model_ids", "Bedrock model IDs", "list", "AWS prep / Bedrock"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "bedrock_allowed_regions", "Bedrock allowed regions", "list", "AWS prep / Bedrock"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "bedrock_no_ip_restriction", "Disable Bedrock source-IP restriction", "bool", "AWS prep / Bedrock"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "bedrock_allowed_source_cidrs", "Bedrock allowed source CIDRs", "list", "AWS prep / Bedrock", validate_cidr=True),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "allocate_eips", "Prep EIP allocation map", "map_bool", "AWS prep / Appliances"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "fortiweb_enabled", "Create FortiWeb cloud-init IAM/S3 prep", "bool", "AWS prep / Appliances"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "fortiweb_cloudinit_bucket_name", "FortiWeb cloud-init bucket name", section="AWS prep / Appliances"),
-    ConfigItem("terraform/aws-prep/terraform.tfvars", "fortiweb_cloudinit_bucket_force_destroy", "Allow FortiWeb cloud-init bucket force destroy", "bool", "AWS prep / Appliances"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ssh_private_key_file", "Local SSH private key path", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ec2_pull_github_keys", "GitHub users to add to authorized_keys", "list", "EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "instance_type", "k3s EC2 instance type", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "availability_zone", "Availability zone override", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "vpc_cidr", "VPC CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "public_subnet_cidr", "k3s public subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "k3s_private_subnet_cidr", "k3s private subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "fortigate_public_subnet_cidr", "FortiGate public subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "fortiweb_public_subnet_cidr", "FortiWeb public subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "fortigate_internal_subnet_cidr", "FortiGate internal subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "fortiweb_internal_subnet_cidr", "FortiWeb internal subnet CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "k3s_cluster_cidr", "k3s pod CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "k3s_service_cidr", "k3s service CIDR", section="EC2 k3s", validate_cidr=True),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "k3s_cluster_dns", "k3s cluster DNS IP", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "k3s_subnet_mode", "k3s subnet mode", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "demo_http_base_port", "Demo HTTP NodePort base", "number", "EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "demo_https_base_port", "Demo HTTPS NodePort base", "number", "EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "additional_ingress_tcp_ports", "Additional public TCP ports", "list_number", "EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ingress_routing_strategy", "Ingress routing strategy (current demo is port_based)", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "ingress_base_domain", "Ingress base domain", section="EC2 k3s"),
-    ConfigItem("terraform/aws-ec2-k3s/terraform.tfvars", "magic_dns_zone", "Magic DNS zone", section="EC2 k3s"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enabled", "Deploy FortiGate", "bool", "FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_instance_type", "FortiGate instance type", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_version", "FortiGate version filter", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_type", "FortiGate Marketplace license type", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_mode", "FortiGate license mode", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_source_dir", "FortiGate license source directory", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_license_file_name", "FortiGate license file", section="FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_admin_port", "FortiGate admin HTTPS port", "number", "FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enable_ssh", "Enable FortiGate SSH", "bool", "FortiGate"),
-    ConfigItem("terraform/aws-fortigate/terraform.tfvars", "fortigate_enable_api", "Enable FortiGate API admin", "bool", "FortiGate"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_enabled", "Deploy FortiWeb", "bool", "FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_instance_type", "FortiWeb instance type", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_version", "FortiWeb version filter", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_type", "FortiWeb Marketplace license type", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_mode", "FortiWeb license mode", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_source_dir", "FortiWeb license source directory", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_license_file_name", "FortiWeb license file", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_config_file", "FortiWeb custom config file", section="FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_https_port", "FortiWeb HTTPS admin port", "number", "FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_http_port", "FortiWeb HTTP admin port", "number", "FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_set_initial_password", "Set FortiWeb initial password in user-data", "bool", "FortiWeb"),
-    ConfigItem("terraform/aws-fortiweb/terraform.tfvars", "fortiweb_admin_password", "FortiWeb initial admin password", section="FortiWeb", sensitive=True),
+    ConfigItem("terraform/user.tfvars", "aws_profile", "AWS profile", section="Shared Terraform"),
+    ConfigItem("terraform/user.tfvars", "aws_region", "AWS region", section="Shared Terraform"),
+    ConfigItem("terraform/user.tfvars", "name_prefix", "Deployment name prefix", section="Shared Terraform"),
+    ConfigItem("terraform/user.tfvars", "ssh_key_name", "AWS EC2 key pair name", section="Shared Terraform"),
+    ConfigItem("terraform/user.tfvars", "allowed_ingress_cidr", "Trusted source CIDRs", "list", "Shared Terraform", validate_cidr=True),
+    ConfigItem("terraform/user.tfvars", "tags", "Terraform tags", "map", "Shared Terraform"),
+    ConfigItem("terraform/aws-ecr/99-local.auto.tfvars", "repo_prefix", "ECR repository prefix", section="ECR"),
+    ConfigItem("terraform/aws-ecr/99-local.auto.tfvars", "image_tag_mutability", "Default ECR image tag mutability", section="ECR"),
+    ConfigItem("terraform/aws-ecr/99-local.auto.tfvars", "scan_on_push", "Enable ECR scan on push", "bool", "ECR"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "enable_bedrock_iam", "Create Bedrock IAM user/access key", "bool", "AWS prep / Bedrock"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "enable_ec2_bedrock_iam", "Attach Bedrock IAM to EC2 role", "bool", "AWS prep / Bedrock"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "bedrock_model_ids", "Bedrock model IDs", "list", "AWS prep / Bedrock"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "bedrock_allowed_regions", "Bedrock allowed regions", "list", "AWS prep / Bedrock"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "bedrock_no_ip_restriction", "Disable Bedrock source-IP restriction", "bool", "AWS prep / Bedrock"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "bedrock_allowed_source_cidrs", "Bedrock allowed source CIDRs", "list", "AWS prep / Bedrock", validate_cidr=True),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "allocate_eips", "Prep EIP allocation map", "map_bool", "AWS prep / Appliances"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "fortiweb_enabled", "Create FortiWeb cloud-init IAM/S3 prep", "bool", "AWS prep / Appliances"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "fortiweb_cloudinit_bucket_name", "FortiWeb cloud-init bucket name", section="AWS prep / Appliances"),
+    ConfigItem("terraform/aws-prep/99-local.auto.tfvars", "fortiweb_cloudinit_bucket_force_destroy", "Allow FortiWeb cloud-init bucket force destroy", "bool", "AWS prep / Appliances"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "ssh_private_key_file", "Local SSH private key path", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "ec2_pull_github_keys", "GitHub users to add to authorized_keys", "list", "EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "instance_type", "k3s EC2 instance type", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "availability_zone", "Availability zone override", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "vpc_cidr", "VPC CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "public_subnet_cidr", "k3s public subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "k3s_private_subnet_cidr", "k3s private subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "fortigate_public_subnet_cidr", "FortiGate public subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "fortiweb_public_subnet_cidr", "FortiWeb public subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "fortigate_internal_subnet_cidr", "FortiGate internal subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "fortiweb_internal_subnet_cidr", "FortiWeb internal subnet CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "k3s_cluster_cidr", "k3s pod CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "k3s_service_cidr", "k3s service CIDR", section="EC2 k3s", validate_cidr=True),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "k3s_cluster_dns", "k3s cluster DNS IP", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "k3s_subnet_mode", "k3s subnet mode", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "demo_http_base_port", "Demo HTTP NodePort base", "number", "EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "demo_https_base_port", "Demo HTTPS NodePort base", "number", "EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "additional_ingress_tcp_ports", "Additional public TCP ports", "list_number", "EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "ingress_routing_strategy", "Ingress routing strategy (current demo is port_based)", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "ingress_base_domain", "Ingress base domain", section="EC2 k3s"),
+    ConfigItem("terraform/aws-ec2-k3s/99-local.auto.tfvars", "magic_dns_zone", "Magic DNS zone", section="EC2 k3s"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_enabled", "Deploy FortiGate", "bool", "FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_instance_type", "FortiGate instance type", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_version", "FortiGate version filter", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_license_type", "FortiGate Marketplace license type", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_license_mode", "FortiGate license mode", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_license_source_dir", "FortiGate license source directory", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_license_file_name", "FortiGate license file", section="FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_admin_port", "FortiGate admin HTTPS port", "number", "FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_enable_ssh", "Enable FortiGate SSH", "bool", "FortiGate"),
+    ConfigItem("terraform/aws-fortigate/99-local.auto.tfvars", "fortigate_enable_api", "Enable FortiGate API admin", "bool", "FortiGate"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_enabled", "Deploy FortiWeb", "bool", "FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_instance_type", "FortiWeb instance type", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_version", "FortiWeb version filter", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_license_type", "FortiWeb Marketplace license type", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_license_mode", "FortiWeb license mode", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_license_source_dir", "FortiWeb license source directory", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_license_file_name", "FortiWeb license file", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_config_file", "FortiWeb custom config file", section="FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_admin_https_port", "FortiWeb HTTPS admin port", "number", "FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_admin_http_port", "FortiWeb HTTP admin port", "number", "FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_set_initial_password", "Set FortiWeb initial password in user-data", "bool", "FortiWeb"),
+    ConfigItem("terraform/aws-fortiweb/99-local.auto.tfvars", "fortiweb_admin_password", "FortiWeb initial admin password", section="FortiWeb", sensitive=True),
     ConfigItem("ansible/group_vars/user.yml", "license_source_dir", "FortiAIGate license source directory", section="FortiAIGate"),
     ConfigItem("ansible/group_vars/user.yml", "fortiaigate_license_files", "FortiAIGate license files", "list", "FortiAIGate"),
     ConfigItem("ansible/group_vars/user.yml", "direct_model_provider", "Direct model provider", section="Model paths"),
@@ -240,8 +235,34 @@ def write_text(path: Path, content: str, *, dry_run: bool) -> None:
     if dry_run:
         print(f"would update: {rel(path)}")
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     print(f"updated: {rel(path)}")
+
+
+def module_path_from_local_tfvars(path: Path) -> Path | None:
+    if path.name != "99-local.auto.tfvars":
+        return None
+    if path.parent.parent != REPO_ROOT / "terraform":
+        return None
+    return path.parent
+
+
+def system_tfvars_for_local(path: Path) -> Path | None:
+    module_path = module_path_from_local_tfvars(path)
+    if module_path is None:
+        return None
+    return module_path / "00-system.auto.tfvars"
+
+
+def effective_hcl_content(path: Path) -> str:
+    system_path = system_tfvars_for_local(path)
+    parts: list[str] = []
+    if system_path and system_path.exists():
+        parts.append(read_text(system_path))
+    if path.exists():
+        parts.append(read_text(path))
+    return "\n".join(parts)
 
 
 def copy_missing_examples(*, dry_run: bool) -> None:
@@ -338,26 +359,26 @@ def normalize_block_for_compare(block: VarBlock | None) -> str:
 
 
 def get_hcl_string(content: str, key: str, default: str = "") -> str:
-    match = re.search(rf'(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*"([^"]*)"', content)
-    return match.group(1) if match else default
+    matches = re.findall(rf'(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*"([^"]*)"', content)
+    return matches[-1] if matches else default
 
 
 def get_hcl_bool(content: str, key: str, default: bool = False) -> bool:
-    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*(true|false)\b", content)
-    return (match.group(1) == "true") if match else default
+    matches = re.findall(rf"(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*(true|false)\b", content)
+    return (matches[-1] == "true") if matches else default
 
 
 def get_hcl_number(content: str, key: str, default: str = "") -> str:
-    match = re.search(rf"(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*([0-9]+)\b", content)
-    return match.group(1) if match else default
+    matches = re.findall(rf"(?m)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*([0-9]+)\b", content)
+    return matches[-1] if matches else default
 
 
 def get_hcl_list(content: str, key: str) -> list[str]:
-    match = re.search(rf"(?ms)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*\[(.*?)\]", content)
-    if not match:
+    matches = re.findall(rf"(?ms)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*\[(.*?)\]", content)
+    if not matches:
         single = get_hcl_string(content, key)
         return [single] if single else []
-    body = match.group(1)
+    body = matches[-1]
     quoted = re.findall(r'"([^"]*)"', body)
     if quoted:
         return quoted
@@ -365,11 +386,11 @@ def get_hcl_list(content: str, key: str) -> list[str]:
 
 
 def get_hcl_map(content: str, key: str) -> dict[str, str]:
-    match = re.search(rf"(?ms)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*\{{(.*?)^\s*\}}", content)
-    if not match:
+    matches = re.findall(rf"(?ms)^[ \t]*{re.escape(key)}[ \t]*=[ \t]*\{{(.*?)^\s*\}}", content)
+    if not matches:
         return {}
     values: dict[str, str] = {}
-    for pair_match in re.finditer(r'(?m)^[ \t]*"?([^"\s=]+)"?[ \t]*=[ \t]*"?([^"\n]+?)"?[ \t]*(?:#.*)?$', match.group(1)):
+    for pair_match in re.finditer(r'(?m)^[ \t]*"?([^"\s=]+)"?[ \t]*=[ \t]*"?([^"\n]+?)"?[ \t]*(?:#.*)?$', matches[-1]):
         values[pair_match.group(1)] = pair_match.group(2).strip()
     return values
 
@@ -738,7 +759,8 @@ def legacy_license_path_from_content(content: str, prefix: str, module_path: Pat
 def should_skip_item(item: ConfigItem) -> bool:
     if item.key == "fortiweb_admin_password":
         path = REPO_ROOT / item.path
-        if path.exists() and not get_hcl_bool(read_text(path), "fortiweb_set_initial_password", False):
+        content = effective_hcl_content(path) if system_tfvars_for_local(path) is not None else (read_text(path) if path.exists() else "")
+        if content and not get_hcl_bool(content, "fortiweb_set_initial_password", False):
             print("Skipping FortiWeb initial admin password because fortiweb_set_initial_password=false.")
             return True
     return False
@@ -816,7 +838,7 @@ def prompt_for_item(item: ConfigItem, content: str, *, default_from_common: str 
     if item.key == "aws_profile":
         return choose_aws_profile(str(current))
     if item.key == "ssh_key_name":
-        common = read_text(REPO_ROOT / "terraform/common.tfvars")
+        common = read_text(REPO_ROOT / "terraform/user.tfvars")
         profile = get_hcl_string(common, "aws_profile")
         region = get_hcl_string(common, "aws_region", "us-east-1")
         return choose_ec2_key_pair(profile, region, str(current))
@@ -857,7 +879,9 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
 
     for item in IMPORTANT_ITEMS:
         path = REPO_ROOT / item.path
-        if not path.exists():
+        system_path = system_tfvars_for_local(path)
+        is_module_local_tfvars = system_path is not None
+        if not path.exists() and not is_module_local_tfvars:
             print(f"skip missing file: {item.path}")
             continue
         if should_skip_item(item):
@@ -866,9 +890,10 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
         if item.section != current_section:
             current_section = item.section
             print_header(current_section or rel(path))
-        content = read_text(path)
-        if item.path == "terraform/aws-ec2-k3s/terraform.tfvars":
-            common_ssh_key = get_hcl_string(read_text(REPO_ROOT / "terraform/common.tfvars"), "ssh_key_name")
+        local_content = read_text(path) if path.exists() else ""
+        content = effective_hcl_content(path) if is_module_local_tfvars else local_content
+        if item.path == "terraform/aws-ec2-k3s/99-local.auto.tfvars":
+            common_ssh_key = get_hcl_string(read_text(REPO_ROOT / "terraform/user.tfvars"), "ssh_key_name")
         file_format = detect_format(path)
         original_value = current_value(content, item.key, item.kind, file_format)
         value = prompt_for_item(item, content, default_from_common=common_ssh_key)
@@ -878,11 +903,11 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
         if value == original_value:
             handled.add((item.path, item.key))
             continue
-        updated = apply_value(content, item.key, item.kind, file_format, value)
+        updated = apply_value(local_content, item.key, item.kind, file_format, value)
         if item.key.endswith("_license_file_name"):
             prefix = appliance_prefix_from_key(item.key)
             updated = set_hcl_string(updated, f"{prefix}_license_file", "")
-        if updated != content:
+        if updated != local_content:
             write_text(path, updated, dry_run=dry_run)
         handled.add((item.path, item.key))
 
@@ -891,16 +916,15 @@ def configure_important_items(*, dry_run: bool) -> set[tuple[str, str]]:
 
 
 def sync_appliance_prep_from_enabled(*, dry_run: bool) -> None:
-    prep_path = REPO_ROOT / "terraform/aws-prep/terraform.tfvars"
-    fgt_path = REPO_ROOT / "terraform/aws-fortigate/terraform.tfvars"
-    fwb_path = REPO_ROOT / "terraform/aws-fortiweb/terraform.tfvars"
-    if not prep_path.exists():
-        return
-    prep = read_text(prep_path)
+    prep_path = REPO_ROOT / "terraform/aws-prep/99-local.auto.tfvars"
+    fgt_path = REPO_ROOT / "terraform/aws-fortigate/99-local.auto.tfvars"
+    fwb_path = REPO_ROOT / "terraform/aws-fortiweb/99-local.auto.tfvars"
+    prep = read_text(prep_path) if prep_path.exists() else ""
+    effective_prep = effective_hcl_content(prep_path)
     updated = prep
-    fgt_enabled = fgt_path.exists() and get_hcl_bool(read_text(fgt_path), "fortigate_enabled", False)
-    fwb_enabled = fwb_path.exists() and get_hcl_bool(read_text(fwb_path), "fortiweb_enabled", False)
-    allocate = get_hcl_object_bool(updated, "allocate_eips")
+    fgt_enabled = get_hcl_bool(effective_hcl_content(fgt_path), "fortigate_enabled", False)
+    fwb_enabled = get_hcl_bool(effective_hcl_content(fwb_path), "fortiweb_enabled", False)
+    allocate = get_hcl_object_bool(effective_prep, "allocate_eips")
     allocate_changed = False
     if fgt_enabled and not allocate.get("fortigate", False):
         allocate["fortigate"] = True
@@ -908,7 +932,7 @@ def sync_appliance_prep_from_enabled(*, dry_run: bool) -> None:
     if fwb_enabled and not allocate.get("fortiweb", False):
         allocate["fortiweb"] = True
         allocate_changed = True
-    if fwb_enabled and not get_hcl_bool(updated, "fortiweb_enabled", False):
+    if fwb_enabled and not get_hcl_bool(effective_prep, "fortiweb_enabled", False):
         updated = set_hcl_bool(updated, "fortiweb_enabled", True)
     if allocate and allocate_changed:
         updated = set_hcl_map(updated, "allocate_eips", allocate, bool_values=True)

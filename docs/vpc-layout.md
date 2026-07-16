@@ -103,7 +103,7 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    Common["terraform/common.tfvars<br/>profile, region, prefix, SSH key, CIDRs"]
+    Common["terraform/user.tfvars<br/>profile, region, prefix, SSH key, CIDRs"]
 
     subgraph Prep["terraform/aws-prep"]
         K3SEIP["k3s Elastic IP"]

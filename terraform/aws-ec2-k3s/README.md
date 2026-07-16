@@ -11,7 +11,6 @@ Canonical documentation:
 Quick usage:
 
 ```bash
-cp terraform.tfvars.example terraform.tfvars
 aws sso login --profile <profile-name>
 terraform init
 terraform fmt
@@ -19,9 +18,12 @@ terraform validate
 terraform apply
 ```
 
+Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
+overriding the tracked defaults in `00-system.auto.tfvars`.
+
 The generated inventory is written to `../../ansible/inventory/aws.generated.ini`.
 
-Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform uses that value in both the generated Ansible inventory and the `ssh_command` output.
+Set `ssh_private_key_file` in `99-local.auto.tfvars` when the EC2 key pair does not use your default SSH key. Terraform uses that value in both the generated Ansible inventory and the `ssh_command` output.
 
 Set `ec2_pull_github_keys = ["<github-user>"]` only when the instance should
 pull public GitHub SSH keys into `/home/ubuntu/.ssh/authorized_keys` during

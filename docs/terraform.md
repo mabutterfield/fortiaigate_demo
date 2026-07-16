@@ -2,7 +2,7 @@
 
 Terraform is split into user-facing steps that keep AWS setup in Terraform before switching to Ansible:
 
-- `terraform/common.tfvars`: shared local configuration for all Terraform modules
+- `terraform/user.tfvars`: shared local configuration for all Terraform modules
 - `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
 - `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
@@ -23,10 +23,10 @@ Set shared values once:
 
 ```bash
 cd terraform
-cp common.tfvars.example common.tfvars
+cp user.tfvars.example user.tfvars
 ```
 
-Edit `common.tfvars`:
+Edit `user.tfvars`:
 
 ```hcl
 aws_profile          = "AdministratorAccess-123456789012"
@@ -43,8 +43,8 @@ tags                 = {}
 strings. The list form is preferred when multiple operators need direct lab
 access.
 
-Each Terraform module has a tracked `common.auto.tfvars` symlink to
-`../common.tfvars`, so the shared values are loaded automatically:
+Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
+`../user.tfvars`, so the shared values are loaded automatically:
 
 ```bash
 terraform plan
@@ -67,7 +67,7 @@ Use `python3 scripts/backup_config.py --dry-run` to preview the selected files.
 
 ```bash
 cd terraform/aws-ecr
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -102,7 +102,7 @@ terraform import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-
 
 ```bash
 cd terraform/aws-prep
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -141,7 +141,7 @@ terraform output bedrock_allowed_regions
 terraform output bedrock_model_ids
 ```
 
-The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
+The secret access key is stored in Terraform state. Do not commit state or real `99-local.auto.tfvars`.
 
 For Phase 4 appliance deployment, enable prep-owned appliance EIPs:
 
@@ -167,7 +167,7 @@ Those objects and Terraform state are sensitive.
 
 ```bash
 cd terraform/aws-ec2-k3s
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -197,7 +197,7 @@ Terraform writes the inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
-Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform includes that path in both:
+Set `ssh_private_key_file` in `99-local.auto.tfvars` when the EC2 key pair does not use your default SSH key. Terraform includes that path in both:
 
 - `ansible_ssh_private_key_file` in the generated inventory
 - the `ssh_command` output as `ssh -i <keypath> ubuntu@<host-ip>`
@@ -254,7 +254,7 @@ terraform output ec2_instance_pricing_location
 The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,
 data transfer, Bedrock, marketplace, and licensing costs. If AWS adds a region
 that is not in the module's built-in pricing-location map, set
-`aws_pricing_location_override` in `terraform.tfvars`.
+`aws_pricing_location_override` in `99-local.auto.tfvars`.
 
 ## Optional Appliance Modules
 

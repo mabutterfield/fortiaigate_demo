@@ -1,4 +1,4 @@
-# terraform/common.tfvars supplies aws_profile, aws_region, name_prefix,
+# terraform/user.tfvars supplies aws_profile, aws_region, name_prefix,
 # allowed_ingress_cidr, and tags.
 
 repo_prefix = "fortiaigate"

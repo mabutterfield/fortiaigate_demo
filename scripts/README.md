@@ -39,10 +39,10 @@ Current scripts:
   `user.yml`. Use `--check` for CI/preflight,
   `--dry-run` to preview the diff, or `--list` to show managed pairs.
 - `upgrade_v0_3_to_v0_4.py`: one-time local config migration for existing
-  `v0.3` labs. It consolidates `ssh_key_name` into `terraform/common.tfvars`,
-  creates missing appliance tfvars, enables Phase 4 appliance prep defaults,
-  and migrates legacy Ansible `env.yml`/`all.yml` user-owned values into
-  `ansible/group_vars/user.yml`.
+  `v0.3`/`v0.4` labs. It migrates shared Terraform values into
+  `terraform/user.tfvars`, imports selected module-local Terraform values into
+  `99-local.auto.tfvars`, and migrates legacy Ansible `env.yml`/`all.yml`
+  user-owned values into `ansible/group_vars/user.yml`.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
 - `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
 
