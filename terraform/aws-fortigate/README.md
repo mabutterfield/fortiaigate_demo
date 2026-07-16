@@ -37,8 +37,8 @@ The FortiGate initial admin password is the EC2 instance ID. The generated API
 key and any BYOL license content passed through user-data are stored in local
 Terraform state.
 
-The default HTTPS admin port is `443`. Set `fortigate_admin_port = 8443` in
-ignored `99-local.auto.tfvars` when you want the alternate management port.
+The default HTTPS admin port is `8443`. Set `fortigate_admin_port = 443` in
+ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes. Override it with
 `fortigate_admin_timeout_minutes` when needed.
 

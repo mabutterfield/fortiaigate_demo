@@ -6,3 +6,4 @@
 # fortigate_instance_type = "c6i.large"
 # fortigate_version = "7.6"
 # fortigate_license_file_name = "FGVMSLTM00000000.lic"
+# fortigate_admin_port = 443
