@@ -24,6 +24,12 @@ variable "ssh_private_key_file" {
   default     = ""
 }
 
+variable "ec2_pull_github_keys" {
+  type        = list(string)
+  description = "Shared GitHub usernames for EC2 authorized_keys. Accepted for common config consistency; not used by AWS prep."
+  default     = []
+}
+
 variable "allowed_ingress_cidr" {
   type        = any
   description = "Trusted public CIDR or list of CIDRs allowed to reach lab management and demo endpoints."

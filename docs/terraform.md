@@ -204,10 +204,11 @@ does not use your default SSH key. Terraform includes that path in both:
 - `ansible_ssh_private_key_file` in the generated inventory
 - the `ssh_command` output as `ssh -i <keypath> ubuntu@<host-ip>`
 
-Set `ec2_pull_github_keys = ["<github-user>"]` only when the instance should
-pull public GitHub SSH keys into `/home/ubuntu/.ssh/authorized_keys` during
-first boot. Leave it empty to skip. This requires the instance to reach GitHub
-during cloud-init and does not re-run automatically on an existing instance.
+Set `ec2_pull_github_keys = ["<github-user>"]` in `terraform/user.tfvars` only
+when the instance should pull public GitHub SSH keys into
+`/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty to skip.
+This requires the instance to reach GitHub during cloud-init and does not
+re-run automatically on an existing instance.
 
 The selected Availability Zone controls the k3s and appliance subnets. By default, Terraform queries EC2 instance type offerings, sorts the AZs that offer `instance_type`, and selects the first one.
 

@@ -47,6 +47,12 @@ variable "ssh_private_key_file" {
   default     = ""
 }
 
+variable "ec2_pull_github_keys" {
+  type        = list(string)
+  description = "Shared GitHub usernames for EC2 authorized_keys. Accepted for common config consistency; not used by FortiWeb."
+  default     = []
+}
+
 variable "fortiweb_instance_type" {
   type        = string
   description = "EC2 instance type for FortiWeb."

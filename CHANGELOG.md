@@ -9,6 +9,8 @@ a "what's new" guide rather than a raw commit log.
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so
   `aws-prep` can still read ECR outputs while dependent resources are destroyed.
+- Moved optional GitHub SSH public-key import (`ec2_pull_github_keys`) into
+  shared `terraform/user.tfvars.example` so it travels with the user profile.
 
 ## v0.5.0 - Variable Ownership And Quickstart Stabilization
 

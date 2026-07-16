@@ -181,10 +181,12 @@ terraform -chdir=terraform/aws-ec2-k3s apply
 Minimum `terraform/aws-ec2-k3s/99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`
 - VPC, subnet, k3s pod, and k3s service CIDRs
+
+Set optional `ec2_pull_github_keys` in `terraform/user.tfvars` when importing
+GitHub public SSH keys on first boot.
 
 Optionally validate the instance from the CLI:
 
