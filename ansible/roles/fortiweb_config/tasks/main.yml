@@ -79,6 +79,61 @@
   # - ansible.builtin.debug:
   #     var: fortiweb_admin_user_apply
 
+- name: Gather FortiWeb traffic log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/log/traffic-log', 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_traffic_log_get
+  when: fortiweb_config_enable_logging | bool
+  tags: [fortiweb_config, fortiweb_logging]
+
+- name: Configure FortiWeb traffic log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'PUT', 'path': '/api/v2.0/cmdb/log/traffic-log', 'jsonbody': fortiweb_traffic_log_settings} | to_json }}"
+  vars:
+    fortiweb_traffic_log_current: "{{ (fortiweb_traffic_log_get.res | default({})).results | default({}) }}"
+  when:
+    - fortiweb_config_enable_logging | bool
+    - >-
+      (fortiweb_traffic_log_current.status | default('') | string) != (fortiweb_traffic_log_settings.status | default('') | string)
+      or (fortiweb_traffic_log_current['packet-log'] | default('') | string) != (fortiweb_traffic_log_settings['packet-log'] | default('') | string)
+  register: fortiweb_traffic_log_apply
+  failed_when: "'errcode' in (fortiweb_traffic_log_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_traffic_log_apply
+
+- name: Gather FortiWeb disk log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/log/disk', 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_disk_log_get
+  when: fortiweb_config_enable_logging | bool
+  tags: [fortiweb_config, fortiweb_logging]
+
+- name: Configure FortiWeb disk log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'PUT', 'path': '/api/v2.0/cmdb/log/disk', 'jsonbody': fortiweb_disk_log_settings} | to_json }}"
+  vars:
+    fortiweb_disk_log_current: "{{ (fortiweb_disk_log_get.res | default({})).results | default({}) }}"
+  when:
+    - fortiweb_config_enable_logging | bool
+    - >-
+      (fortiweb_disk_log_current.status | default('') | string) != (fortiweb_disk_log_settings.status | default('') | string)
+      or (fortiweb_disk_log_current.severity | default('') | string) != (fortiweb_disk_log_settings.severity | default('') | string)
+      or (fortiweb_disk_log_current.logtype | default('') | string | trim) != (fortiweb_disk_log_settings.logtype | default('') | string | trim)
+  register: fortiweb_disk_log_apply
+  failed_when: "'errcode' in (fortiweb_disk_log_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_disk_log_apply
+
 - name: Build desired FortiWeb interface list
   ansible.builtin.set_fact:
     fortiweb_interfaces_desired: >-
@@ -638,6 +693,7 @@
       - "FortiWeb config target: {{ ansible_host | default(inventory_hostname) }}:{{ ansible_httpapi_port | default(fortiweb_admin_https_port | default(443)) }}"
       - "System settings managed: {{ fortiweb_config_enable_system_settings | bool }}"
       - "Admin user managed: {{ fortiweb_config_enable_admin_user | bool }}"
+      - "Logging managed: {{ fortiweb_config_enable_logging | bool }}"
       - "Interfaces managed: {{ fortiweb_config_enable_interfaces | bool }}"
       - "Static routes managed: {{ fortiweb_config_enable_static_routes | bool }}"
       - "Admin force password change: {{ fortiweb_admin_user.force_password_change | default('unmanaged') }}"

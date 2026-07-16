@@ -103,6 +103,30 @@
   # - ansible.builtin.debug:
   #     var: fortiweb_status_static_routes_raw
 
+- name: Gather FortiWeb traffic log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_traffic_log_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_traffic_log_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_traffic_log_raw
+
+- name: Gather FortiWeb disk log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_disk_log_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_disk_log_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_disk_log_raw
+
 - name: Fail when FortiWeb API status could not be gathered
   ansible.builtin.fail:
     msg: >-
@@ -121,6 +145,8 @@
     fortiweb_status_admin_settings: "{{ (fortiweb_status_admin_settings_raw.res | default({})).results | default({}) }}"
     fortiweb_status_interfaces: "{{ (fortiweb_status_interfaces_raw.res | default({})).results | default([]) }}"
     fortiweb_status_static_routes: "{{ (fortiweb_status_static_routes_raw.res | default({})).results | default([]) }}"
+    fortiweb_status_traffic_log: "{{ (fortiweb_status_traffic_log_raw.res | default({})).results | default({}) }}"
+    fortiweb_status_disk_log: "{{ (fortiweb_status_disk_log_raw.res | default({})).results | default({}) }}"
   tags: [fortiweb_status]
   # - ansible.builtin.debug:
   #     msg:
@@ -134,6 +160,8 @@
       admin_settings: "{{ fortiweb_status_admin_settings }}"
       interfaces: "{{ fortiweb_status_interfaces }}"
       static_routes: "{{ fortiweb_status_static_routes }}"
+      traffic_log: "{{ fortiweb_status_traffic_log }}"
+      disk_log: "{{ fortiweb_status_disk_log }}"
   when: fortiweb_status_verbose | bool
   tags: [fortiweb_status]
 
@@ -151,5 +179,7 @@
       - "Admin idle timeout: {{ fortiweb_status_admin_settings.idleTimeout | default('unknown') }}"
       - "Interfaces reported: {{ fortiweb_status_interfaces | length }}"
       - "Static routes reported: {{ fortiweb_status_static_routes | length }}"
+      - "Traffic log status: {{ fortiweb_status_traffic_log.status | default('unknown') }}"
+      - "Disk log status/severity: {{ fortiweb_status_disk_log.status | default('unknown') }}/{{ fortiweb_status_disk_log.severity | default('unknown') }}"
       - "Admin URL: {{ fortiweb_admin_url | default('unknown') }}"
   tags: [fortiweb_status]

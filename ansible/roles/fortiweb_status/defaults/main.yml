@@ -8,3 +8,5 @@ fortiweb_status_system_path: /api/v2.0/system/status.systemstatus
 fortiweb_status_admin_settings_path: /api/v2.0/system/admin.settings
 fortiweb_status_interfaces_path: /api/v2.0/cmdb/system/interface
 fortiweb_status_static_routes_path: /api/v2.0/cmdb/router/static
+fortiweb_status_traffic_log_path: /api/v2.0/cmdb/log/traffic-log
+fortiweb_status_disk_log_path: /api/v2.0/cmdb/log/disk

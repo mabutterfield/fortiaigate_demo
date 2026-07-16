@@ -4,6 +4,7 @@ fortiweb_config_no_log: true
 fortiweb_config_admin_username: "{{ fortiweb_username | default('admin') }}"
 fortiweb_config_enable_system_settings: true
 fortiweb_config_enable_admin_user: true
+fortiweb_config_enable_logging: true
 fortiweb_config_enable_interfaces: true
 fortiweb_config_enable_static_routes: true
 fortiweb_config_enable_proxy_objects: true
@@ -21,6 +22,15 @@ fortiweb_admin_user:
   action: edit
   name: "{{ fortiweb_config_admin_username }}"
   force_password_change: disable
+
+fortiweb_traffic_log_settings:
+  status: enable
+  packet-log: disable
+
+fortiweb_disk_log_settings:
+  status: enable
+  severity: information
+  logtype: "elog tlog alog"
 
 fortiweb_public_interface_name: port1
 fortiweb_internal_interface_name: port2

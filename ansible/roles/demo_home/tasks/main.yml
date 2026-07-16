@@ -16,9 +16,125 @@
   # - ansible.builtin.debug:
   #     var: demo_home_host
 
+- name: Read FortiWeb public IP from Terraform when not already set
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ demo_home_fortiweb_terraform_dir }}
+      - output
+      - -raw
+      - fortiweb_public_ip
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: demo_home_fortiweb_public_ip_raw
+  no_log: true
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_host | default('', true) | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb public IP discovered: {{ demo_home_fortiweb_public_ip_raw.rc == 0 and demo_home_fortiweb_public_ip_raw.stdout | default('') | trim | length > 0 }}"
+
+- name: Read FortiWeb admin URL from Terraform when not already set
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ demo_home_fortiweb_terraform_dir }}
+      - output
+      - -raw
+      - fortiweb_admin_url
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: demo_home_fortiweb_admin_url_raw
+  no_log: true
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_admin_url | default('', true) | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb admin URL discovered: {{ demo_home_fortiweb_admin_url_raw.rc == 0 and demo_home_fortiweb_admin_url_raw.stdout | default('') | trim | length > 0 }}"
+
+- name: Read FortiGate admin URL from Terraform when not already set
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ demo_home_fortigate_terraform_dir }}
+      - output
+      - -raw
+      - fortigate_admin_url
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: demo_home_fortigate_admin_url_raw
+  no_log: true
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortigate_enabled | bool
+    - demo_home_fortigate_admin_url | default('', true) | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate admin URL discovered: {{ demo_home_fortigate_admin_url_raw.rc == 0 and demo_home_fortigate_admin_url_raw.stdout | default('') | trim | length > 0 }}"
+
+- name: Set demo home FortiWeb host fact
+  ansible.builtin.set_fact:
+    demo_home_fortiweb_effective_host: >-
+      {{
+        demo_home_fortiweb_host
+        if demo_home_fortiweb_host | default('', true) | length > 0
+        else (
+          demo_home_fortiweb_public_ip_raw.stdout | default('') | trim
+          if demo_home_fortiweb_public_ip_raw is defined
+          and demo_home_fortiweb_public_ip_raw.rc | default(1) == 0
+          else ''
+        )
+      }}
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_fortiweb_effective_host
+
+- name: Set demo home admin URL facts
+  ansible.builtin.set_fact:
+    demo_home_fortiweb_effective_admin_url: >-
+      {{
+        demo_home_fortiweb_admin_url
+        if demo_home_fortiweb_admin_url | default('', true) | length > 0
+        else (
+          demo_home_fortiweb_admin_url_raw.stdout | default('') | trim
+          if demo_home_fortiweb_admin_url_raw is defined
+          and demo_home_fortiweb_admin_url_raw.rc | default(1) == 0
+          else ''
+        )
+      }}
+    demo_home_fortigate_effective_admin_url: >-
+      {{
+        demo_home_fortigate_admin_url
+        if demo_home_fortigate_admin_url | default('', true) | length > 0
+        else (
+          demo_home_fortigate_admin_url_raw.stdout | default('') | trim
+          if demo_home_fortigate_admin_url_raw is defined
+          and demo_home_fortigate_admin_url_raw.rc | default(1) == 0
+          else ''
+        )
+      }}
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "FortiGate admin URL available: {{ demo_home_fortigate_effective_admin_url | length > 0 }}"
+  #       - "FortiWeb admin URL available: {{ demo_home_fortiweb_effective_admin_url | length > 0 }}"
+
 - name: Build demo home link facts
   ansible.builtin.set_fact:
     demo_home_fortiaigate_url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
+    demo_home_admin_links:
+      - label: "FortiAIGate UI"
+        url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
     demo_home_litellm_url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
     demo_home_links:
       - label: "Demo Home HTTP"
@@ -35,6 +151,76 @@
   # - ansible.builtin.debug:
   #     var: demo_home_fortiaigate_url
 
+- name: Add optional FortiGate admin link
+  ansible.builtin.set_fact:
+    demo_home_admin_links: "{{ demo_home_admin_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "FortiGate Admin"
+      url: "{{ demo_home_fortigate_effective_admin_url }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortigate_effective_admin_url | default('', true) | length > 0
+    - demo_home_fortigate_effective_admin_url != "null"
+  # - ansible.builtin.debug:
+  #     var: demo_home_admin_links
+
+- name: Add optional FortiWeb admin link
+  ansible.builtin.set_fact:
+    demo_home_admin_links: "{{ demo_home_admin_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "FortiWeb Admin"
+      url: "{{ demo_home_fortiweb_effective_admin_url }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_effective_admin_url | default('', true) | length > 0
+    - demo_home_fortiweb_effective_admin_url != "null"
+  # - ansible.builtin.debug:
+  #     var: demo_home_admin_links
+
+- name: Add FortiWeb HTTP demo home links
+  ansible.builtin.set_fact:
+    demo_home_links: "{{ demo_home_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "Demo Home HTTP via FortiWeb"
+      url: "http://{{ demo_home_fortiweb_effective_host }}:{{ demo_home_node_port }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_home_links
+
+- name: Add FortiWeb HTTP LiteLLM links
+  ansible.builtin.set_fact:
+    demo_home_litellm_links: "{{ demo_home_litellm_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "LiteLLM Admin UI HTTP via FortiWeb"
+      url: "http://{{ demo_home_fortiweb_effective_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_home_litellm_links
+
+- name: Add FortiWeb HTTP MCP links
+  ansible.builtin.set_fact:
+    demo_home_mcp_links: "{{ demo_home_mcp_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "MCP Demo Tools HTTP via FortiWeb"
+      url: "http://{{ demo_home_fortiweb_effective_host }}:{{ mcp_node_port | default(demo_mcp_http_port | default(30084)) }}/tools"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_home_mcp_links
+
 - name: Add optional HTTPS demo home links
   ansible.builtin.set_fact:
     demo_home_links: "{{ demo_home_links + [demo_home_link] }}"
@@ -44,6 +230,21 @@
       url: "https://{{ demo_home_host }}:{{ demo_https_gateway_demo_home_https_port }}"
   when:
     - demo_home_enabled | bool
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_links
+
+- name: Add optional FortiWeb HTTPS demo home links
+  ansible.builtin.set_fact:
+    demo_home_links: "{{ demo_home_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "Demo Home HTTPS via FortiWeb"
+      url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_demo_home_https_port }}"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
     - demo_https_gateway_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_links
@@ -61,6 +262,21 @@
   # - ansible.builtin.debug:
   #     var: demo_home_litellm_links
 
+- name: Add optional FortiWeb HTTPS LiteLLM links
+  ansible.builtin.set_fact:
+    demo_home_litellm_links: "{{ demo_home_litellm_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "LiteLLM Admin UI HTTPS via FortiWeb"
+      url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_litellm_links
+
 - name: Add optional HTTPS MCP links
   ansible.builtin.set_fact:
     demo_home_mcp_links: "{{ demo_home_mcp_links + [demo_home_link] }}"
@@ -70,6 +286,21 @@
       url: "https://{{ demo_home_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_home_enabled | bool
+    - demo_https_gateway_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: demo_home_mcp_links
+
+- name: Add optional FortiWeb HTTPS MCP links
+  ansible.builtin.set_fact:
+    demo_home_mcp_links: "{{ demo_home_mcp_links + [demo_home_link] }}"
+  vars:
+    demo_home_link:
+      label: "MCP Demo Tools HTTPS via FortiWeb"
+      url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
+  when:
+    - demo_home_enabled | bool
+    - demo_home_fortiweb_enabled | bool
+    - demo_home_fortiweb_effective_host | default('', true) | length > 0
     - demo_https_gateway_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_mcp_links
@@ -89,11 +320,33 @@
         + (
           [
             {
+              'label': 'OpenWebUI ' ~ item.name ~ ' HTTP via FortiWeb',
+              'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
+            }
+          ]
+          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          else []
+        )
+        + (
+          [
+            {
               'label': 'OpenWebUI ' ~ item.name ~ ' HTTPS',
               'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
             }
           ]
           if demo_https_gateway_enabled | default(false) | bool
+          else []
+        )
+        + (
+          [
+            {
+              'label': 'OpenWebUI ' ~ item.name ~ ' HTTPS via FortiWeb',
+              'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
+            }
+          ]
+          if demo_home_fortiweb_enabled | bool
+          and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          and demo_https_gateway_enabled | default(false) | bool
           else []
         )
       }}
@@ -119,11 +372,33 @@
         + (
           [
             {
+              'label': item.name ~ ' HTTP via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
+              'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
+            }
+          ]
+          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          else []
+        )
+        + (
+          [
+            {
               'label': item.name ~ ' HTTPS (' ~ (item.provider_label | default('Model')) ~ ')',
               'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
             }
           ]
           if demo_https_gateway_enabled | default(false) | bool
+          else []
+        )
+        + (
+          [
+            {
+              'label': item.name ~ ' HTTPS via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
+              'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
+            }
+          ]
+          if demo_home_fortiweb_enabled | bool
+          and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          and demo_https_gateway_enabled | default(false) | bool
           else []
         )
       }}
