@@ -2,7 +2,7 @@
 
 This page freezes the current working baseline. Use it as the short reference
 for what the demo deploys today before FortiWeb/FortiGate traffic paths, shared
-ECR modes, and local Ubuntu parity.
+ECR modes, first-class Ollama setup, and local Ubuntu parity.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Operator workstation
       -> ECR repositories
       -> AWS prep IAM, EIPs, Bedrock credentials
       -> VPC, subnets, security group, EC2 k3s host
-      -> optional FortiGate/FortiWeb appliance EC2 instances
+      -> FortiGate/FortiWeb appliance EC2 instances when enabled
   -> Ansible
       -> optional image publishing
       -> k3s bootstrap
@@ -59,8 +59,8 @@ when testing the inspected LiteLLM path.
 | MCP demo tools | optional baseline | `mcp` | `http://<k3s-ip>:30084/tools` |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` |
 | HTTPS gateway | optional | `demo-https-gateway` | generated HTTPS ports |
-| FortiGate appliance | optional Phase 4 Terraform deployment | n/a | FortiGate EIP when enabled |
-| FortiWeb appliance | optional Phase 4 Terraform deployment | n/a | FortiWeb EIP when enabled |
+| FortiGate appliance | Terraform baseline, enabled by default | n/a | FortiGate EIP when enabled |
+| FortiWeb appliance | Terraform baseline, enabled by default | n/a | FortiWeb EIP when enabled |
 
 ## Default Port Map
 
@@ -86,8 +86,8 @@ Automated quick start and manual deployment use this order:
 2. Terraform ECR
 3. Terraform AWS prep
 4. Terraform EC2 k3s foundation
-5. Optional FortiGate Terraform deployment
-6. Optional FortiWeb Terraform deployment
+5. FortiGate Terraform deployment when enabled
+6. FortiWeb Terraform deployment when enabled
 7. Optional image publishing
 8. k3s bootstrap
 9. FortiAIGate deploy

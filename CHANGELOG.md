@@ -3,7 +3,9 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
-## Unreleased
+## v0.5.0 - Variable Ownership And Quickstart Stabilization
+
+Release date: 2026-07-16
 
 - Trimmed profile onboarding prompts to user-owned basics: AWS identity/network
   values, SSH key selection, FortiAIGate license, LiteLLM credentials, and
@@ -24,6 +26,9 @@ a "what's new" guide rather than a raw commit log.
   image pull secret, and route override values after profile cleanup.
 - Hardened OpenWebUI, direct model test, demo output, FortiAIGate, and status
   summaries against null optional values produced by older local profiles.
+- Added `scripts/smoke_test.py` for no-apply release checks across Python
+  scripts, Terraform formatting, shared variable-file structure, tracked
+  local/secret file guards, and Ansible syntax.
 
 ## v0.4.3 - User Profile Lifecycle
 

@@ -21,7 +21,10 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - LiteLLM, custom chatbot, and demo home deployment roles are implemented for the agent demo path
 - Open WebUI is available as an optional secondary chat UI when enabled
 - Optional MCP demo tools and chatbot tool-loop support are implemented
+- FortiGate and FortiWeb Terraform appliance baselines are enabled by default
+  for the full AWS demo and can be disabled with local overrides
 - Automated quickstart and teardown scripts support repeat lab rebuilds
+- A no-apply smoke test is available for release and workstation sanity checks
 - FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
 
 See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
@@ -34,8 +37,9 @@ Operator workstation
   -> Ansible: publish images, bootstrap k3s, deploy FortiAIGate and demo apps
   -> k3s host: nginx ingress, FortiAIGate, LiteLLM, chatbot, demo home
   -> optional k3s apps: Open WebUI, MCP demo tools, HTTPS gateway
-  -> Optional providers: Amazon Bedrock, Ollama
-  -> Optional appliance baselines: FortiGate, FortiWeb
+  -> default provider path: Amazon Bedrock through LiteLLM
+  -> future/manual provider path: Ollama
+  -> appliance baselines: FortiGate, FortiWeb
 ```
 
 ## Choose Your Path
@@ -53,8 +57,7 @@ Operator workstation
 - Move Terraform state to a remote backend when the workflow leaves local lab mode
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add cleanup and recovery runbooks for failed Helm releases and license resets
-- Add optional Bedrock-direct and Ollama provider paths
-- Add a single smoke-test wrapper for final validation
+- Add first-class Ollama provider setup after the workflow is built
 
 ## Repository Layout
 

@@ -11,6 +11,10 @@ Start with one quick start, then use the topic docs for details and recovery.
 | Step-by-step operator-run deployment | [Manual Quick Start](quickstart-manual.md) |
 | End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
 
+Run `python3 scripts/smoke_test.py` before tagging a release to perform
+no-apply checks across scripts, Terraform formatting, variable-file structure,
+and Ansible syntax.
+
 ## Core Topics
 
 | Topic | Document |

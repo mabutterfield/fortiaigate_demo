@@ -20,11 +20,15 @@ Current scripts:
   placeholder names. Use `--init`, `--import`, or `--export` for profile
   lifecycle actions, and `--yolo` for repeat runs where local variables are
   already configured and images already exist in ECR.
-- `automated_teardown.py`: guided teardown for repeat lab cycles. It creates a
-  removes ECR repository resources from Terraform state so repositories are not
+- `automated_teardown.py`: guided teardown for repeat lab cycles. It removes
+  ECR repository resources from Terraform state so repositories are not
   deleted, runs ECR destroy for the remaining tracked lifecycle/local output
   resources, then destroys appliances, EC2 k3s, and AWS prep in dependency
   order.
+- `smoke_test.py`: no-apply release smoke test. It compiles Python scripts,
+  checks Terraform formatting and shared tfvars symlinks, guards against
+  tracked local/secret files, and runs Ansible syntax checks without applying
+  Terraform or running deployment tasks.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
 - `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
 
