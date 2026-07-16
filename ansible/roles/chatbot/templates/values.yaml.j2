@@ -1,26 +1,27 @@
 nameOverride: "{{ item.release_name }}"
 
 image:
-  repository: "{{ item.image_repository | default(chatbot_image_repository) }}"
-  tag: "{{ item.image_tag | default(chatbot_image_tag) }}"
-  pullPolicy: "{{ item.image_pull_policy | default(chatbot_image_pull_policy) }}"
+  repository: "{{ item.image_repository | default(chatbot_image_repository, true) }}"
+  tag: "{{ item.image_tag | default(chatbot_image_tag, true) }}"
+  pullPolicy: "{{ item.image_pull_policy | default(chatbot_image_pull_policy, true) }}"
   pullSecrets:
-{% for pull_secret in item.image_pull_secrets | default(chatbot_image_pull_secrets) %}
+{% for pull_secret in item.image_pull_secrets | default(chatbot_image_pull_secrets, true) | default([], true) %}
     - name: "{{ pull_secret.name }}"
 {% endfor %}
 
 service:
-  type: "{{ item.service_type | default(chatbot_service_type) }}"
-  port: {{ item.service_port | default(chatbot_service_port) }}
+  type: "{{ item.service_type | default(chatbot_service_type, true) }}"
+  port: {{ item.service_port | default(chatbot_service_port, true) }}
   nodePort: {{ item.node_port }}
 
-containerPort: {{ item.container_port | default(chatbot_container_port) }}
+containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 
-{% set chatbot_prompt_source_path = item.frontend_system_prompt_source_path | default(chatbot_frontend_system_prompt_source_path) %}
-{% set chatbot_prompt_inline = item.frontend_system_prompt | default(chatbot_frontend_system_prompt) %}
-{% set chatbot_model_options_value = item.model_options | default(chatbot_model_options) %}
-{% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes) %}
-{% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes) %}
+{% set chatbot_prompt_source_path = item.frontend_system_prompt_source_path | default(chatbot_frontend_system_prompt_source_path, true) | default('', true) %}
+{% set chatbot_prompt_inline = item.frontend_system_prompt | default(chatbot_frontend_system_prompt, true) | default('', true) %}
+{% set chatbot_model_options_value = item.model_options | default(chatbot_model_options, true) | default([], true) %}
+{% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes, true) | default([], true) %}
+{% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes, true) | default([], true) %}
+{% set chatbot_ingress_host = item.ingress_host | default('', true) %}
 {% set chatbot_app_checksum_source = lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/chatbot.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/Dockerfile') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/requirements.txt') %}
 {% if (chatbot_prompt_inline | length == 0) and (chatbot_prompt_source_path | length > 0) %}
 {% set chatbot_effective_frontend_prompt = lookup('ansible.builtin.file', chatbot_prompt_source_path) %}
@@ -30,39 +31,39 @@ containerPort: {{ item.container_port | default(chatbot_container_port) }}
 
 chatbot:
   appChecksum: "{{ chatbot_app_checksum_source | hash('sha256') }}"
-  directBaseUrl: "{{ item.direct_base_url | default(chatbot_direct_base_url) }}"
-  directApiKey: "{{ item.direct_api_key | default(chatbot_direct_api_key) }}"
-  faigBaseUrl: "{{ item.faig_base_url | default(chatbot_faig_base_url) }}"
-  faigApiKey: "{{ item.faig_api_key | default(chatbot_faig_api_key) }}"
-  faigStaticRoute: "{{ item.faig_static_route | default(chatbot_faig_static_route) }}"
+  directBaseUrl: "{{ item.direct_base_url | default(chatbot_direct_base_url, true) }}"
+  directApiKey: "{{ item.direct_api_key | default(chatbot_direct_api_key, true) }}"
+  faigBaseUrl: "{{ item.faig_base_url | default(chatbot_faig_base_url, true) }}"
+  faigApiKey: "{{ item.faig_api_key | default(chatbot_faig_api_key, true) }}"
+  faigStaticRoute: "{{ item.faig_static_route | default(chatbot_faig_static_route, true) }}"
   faigStaticRoutesJson: {{ (chatbot_faig_static_routes_value if chatbot_faig_static_routes_value is string else chatbot_faig_static_routes_value | to_json) | to_json }}
-  faigHeaderRoute: "{{ item.faig_header_route | default(chatbot_faig_header_route) }}"
+  faigHeaderRoute: "{{ item.faig_header_route | default(chatbot_faig_header_route, true) }}"
   faigHeaderRoutesJson: {{ (chatbot_faig_header_routes_value if chatbot_faig_header_routes_value is string else chatbot_faig_header_routes_value | to_json) | to_json }}
-  faigModelRouteHeaderName: "{{ item.faig_model_route_header_name | default(faig_model_route_header_name) }}"
-  model: "{{ item.model | default('auto') }}"
+  faigModelRouteHeaderName: "{{ item.faig_model_route_header_name | default(faig_model_route_header_name, true) }}"
+  model: "{{ item.model | default('auto', true) }}"
   modelOptions: "{{ chatbot_model_options_value if chatbot_model_options_value is string else chatbot_model_options_value | join(',') }}"
-  pageTitle: "{{ item.title }}"
-  headerTitle: "{{ item.header_title }}"
+  pageTitle: "{{ item.title | default('Demo Chatbot', true) }}"
+  headerTitle: "{{ item.header_title | default('FortiAIGate Demo Chatbot', true) }}"
   frontendSystemPrompt: {{ chatbot_effective_frontend_prompt | to_json }}
-  temperature: "{{ item.temperature | default('0.0') }}"
-  maxTokens: "{{ item.max_tokens | default('4096') }}"
+  temperature: "{{ item.temperature | default('0.0', true) }}"
+  maxTokens: "{{ item.max_tokens | default('4096', true) }}"
   streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"
   verifyTls: "{{ (item.verify_tls | default(false) | bool) | ternary('true', 'false') }}"
   mcpEnabled: "{{ (item.mcp_enabled | default(chatbot_mcp_enabled) | bool) | ternary('true', 'false') }}"
-  mcpDirectBaseUrl: "{{ item.mcp_direct_base_url | default(chatbot_mcp_direct_base_url) }}"
-  mcpFortiwebBaseUrl: "{{ item.mcp_fortiweb_base_url | default(chatbot_mcp_fortiweb_base_url) }}"
-  mcpDefaultPath: "{{ item.mcp_default_path | default(chatbot_mcp_default_path) }}"
-  mcpTimeoutSeconds: "{{ item.mcp_timeout_seconds | default(chatbot_mcp_timeout_seconds) }}"
+  mcpDirectBaseUrl: "{{ item.mcp_direct_base_url | default(chatbot_mcp_direct_base_url, true) }}"
+  mcpFortiwebBaseUrl: "{{ item.mcp_fortiweb_base_url | default(chatbot_mcp_fortiweb_base_url, true) }}"
+  mcpDefaultPath: "{{ item.mcp_default_path | default(chatbot_mcp_default_path, true) }}"
+  mcpTimeoutSeconds: "{{ item.mcp_timeout_seconds | default(chatbot_mcp_timeout_seconds, true) }}"
   mcpVerifyTls: "{{ (item.mcp_verify_tls | default(chatbot_mcp_verify_tls) | bool) | ternary('true', 'false') }}"
-  mcpMaxToolRounds: "{{ item.mcp_max_tool_rounds | default(chatbot_mcp_max_tool_rounds) }}"
+  mcpMaxToolRounds: "{{ item.mcp_max_tool_rounds | default(chatbot_mcp_max_tool_rounds, true) }}"
 
 instructions:
   content: ""
 
 ingress:
-  enabled: {{ (item.ingress_host is defined and item.ingress_host | length > 0) | ternary('true', 'false') }}
-  className: "{{ item.ingress_class | default(chatbot_ingress_class) }}"
-  host: "{{ item.ingress_host | default('') }}"
+  enabled: {{ (chatbot_ingress_host | length > 0) | ternary('true', 'false') }}
+  className: "{{ item.ingress_class | default(chatbot_ingress_class, true) }}"
+  host: "{{ chatbot_ingress_host }}"
   tls:
     enabled: {{ chatbot_ingress_tls_enabled | ternary('true', 'false') }}
     secretName: "{{ chatbot_ingress_tls_secret_name }}"

@@ -10,15 +10,15 @@
       - chatbot_instances is sequence
       - chatbot_instances | length > 0
       - item.name is defined
-      - item.name | length > 0
+      - item.name | default('', true) | length > 0
       - item.namespace is defined
-      - item.namespace | length > 0
+      - item.namespace | default('', true) | length > 0
       - item.release_name is defined
-      - item.release_name | length > 0
+      - item.release_name | default('', true) | length > 0
       - item.direct_base_url is defined
-      - item.direct_base_url | length > 0
+      - item.direct_base_url | default('', true) | length > 0
       - item.faig_base_url is defined
-      - item.faig_base_url | length > 0
+      - item.faig_base_url | default('', true) | length > 0
       - item.node_port is defined
       - item.node_port | int >= 30000
       - item.node_port | int <= 32767
@@ -49,15 +49,15 @@
     that:
       - chatbot_ecr_token_source in ['instance_role', 'controller_profile']
       - aws_region is defined
-      - aws_region | length > 0
+      - aws_region | default('', true) | length > 0
       - ecr_registry is defined
-      - ecr_registry | length > 0
+      - ecr_registry | default('', true) | length > 0
       - ecr_pull_secret_name is defined
-      - ecr_pull_secret_name | length > 0
+      - ecr_pull_secret_name | default('', true) | length > 0
     fail_msg: "Chatbot ECR image pulls require aws_region, ecr_registry, ecr_pull_secret_name, and chatbot_ecr_token_source as instance_role or controller_profile."
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
 
 - name: Create chatbot namespaces
   ansible.builtin.command:
@@ -90,7 +90,7 @@
   failed_when: false
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
     - chatbot_ecr_token_source == "instance_role"
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_instance_role_pull_token.rc
@@ -109,7 +109,7 @@
   failed_when: false
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
     - chatbot_ecr_token_source == "controller_profile"
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_controller_profile_pull_token.rc
@@ -125,7 +125,7 @@
   no_log: true
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_pull_token_result.rc
 
@@ -138,7 +138,7 @@
       For controller_profile, run `aws sso login --profile {{ aws_profile }}`.
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
     - chatbot_ecr_pull_token_result.rc != 0
 
 - name: Create or refresh chatbot ECR pull secret
@@ -160,7 +160,7 @@
   failed_when: false
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_secret_apply.results
 
@@ -172,7 +172,7 @@
       temporarily disabled if deeper troubleshooting is needed.
   when:
     - chatbots_enabled | bool
-    - chatbot_image_pull_secrets | length > 0
+    - chatbot_image_pull_secrets | default([], true) | length > 0
     - chatbot_ecr_secret_apply.results | selectattr('rc', 'ne', 0) | list | length > 0
 
 - name: Remove previous remote chatbot chart staging directories
@@ -286,7 +286,7 @@
           item.name ~ ': http://' ~
           (
             public_ip
-            if (public_ip is defined and public_ip | length > 0)
+            if (public_ip is defined and public_ip | default('', true) | length > 0)
             else (ansible_host | default(inventory_hostname))
           )
           ~ ':' ~ (item.node_port | string)

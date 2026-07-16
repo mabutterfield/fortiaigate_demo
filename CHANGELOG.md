@@ -20,6 +20,8 @@ a "what's new" guide rather than a raw commit log.
   repositories in AWS and importing only those missing from Terraform state.
 - LiteLLM and OpenWebUI Bedrock model selection now tolerate null local model
   overrides and fall back to Terraform outputs or the configured default model.
+- Chatbot Helm values rendering now tolerates null optional prompt, ingress,
+  image pull secret, and route override values after profile cleanup.
 
 ## v0.4.3 - User Profile Lifecycle
 
