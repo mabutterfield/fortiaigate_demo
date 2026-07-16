@@ -383,6 +383,14 @@ resource "aws_security_group" "this" {
   vpc_id      = aws_vpc.this.id
 
   ingress {
+    description = "All VPC internal traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  ingress {
     description = "SSH"
     from_port   = 22
     to_port     = 22
@@ -528,16 +536,27 @@ resource "local_file" "ansible_ports_vars" {
 resource "local_file" "ansible_terraform_vars" {
   filename = var.ansible_terraform_vars_output_path
   content = templatefile("${path.module}/templates/terraform.generated.yml.tftpl", {
-    aws_profile           = var.aws_profile
-    aws_region            = var.aws_region
-    name_prefix           = var.name_prefix
-    ssh_key_name          = var.ssh_key_name
-    ssh_private_key_file  = var.ssh_private_key_file
-    allowed_ingress_cidr  = local.effective_allowed_ingress_cidr
-    allowed_ingress_cidrs = local.effective_allowed_ingress_cidrs
-    instance_id           = aws_instance.this.id
-    public_ip             = local.k3s_public_ip
-    private_ip            = aws_instance.this.private_ip
-    ansible_host          = local.k3s_inventory_host
+    aws_profile                        = var.aws_profile
+    aws_region                         = var.aws_region
+    name_prefix                        = var.name_prefix
+    ssh_key_name                       = var.ssh_key_name
+    ssh_private_key_file               = var.ssh_private_key_file
+    allowed_ingress_cidr               = local.effective_allowed_ingress_cidr
+    allowed_ingress_cidrs              = local.effective_allowed_ingress_cidrs
+    aws_vpc_cidr                       = var.vpc_cidr
+    aws_public_subnet_cidr             = var.public_subnet_cidr
+    aws_k3s_private_subnet_cidr        = var.k3s_private_subnet_cidr
+    aws_fortigate_public_subnet_cidr   = var.fortigate_public_subnet_cidr
+    aws_fortigate_internal_subnet_cidr = var.fortigate_internal_subnet_cidr
+    aws_fortiweb_public_subnet_cidr    = var.fortiweb_public_subnet_cidr
+    aws_fortiweb_internal_subnet_cidr  = var.fortiweb_internal_subnet_cidr
+    aws_k3s_subnet_mode                = var.k3s_subnet_mode
+    k3s_cluster_cidr                   = var.k3s_cluster_cidr
+    k3s_service_cidr                   = var.k3s_service_cidr
+    k3s_cluster_dns                    = var.k3s_cluster_dns
+    instance_id                        = aws_instance.this.id
+    public_ip                          = local.k3s_public_ip
+    private_ip                         = aws_instance.this.private_ip
+    ansible_host                       = local.k3s_inventory_host
   })
 }

@@ -153,6 +153,14 @@ resource "aws_security_group" "fortigate_mgmt" {
   description = "FortiGate management access"
   vpc_id      = local.vpc_id
 
+  ingress {
+    description = "All VPC internal traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [local.vpc_cidr]
+  }
+
   dynamic "ingress" {
     for_each = local.fortigate_management_tcp_ports
 

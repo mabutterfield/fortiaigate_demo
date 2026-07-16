@@ -72,6 +72,74 @@ terraform output fortiweb_ssh_command
 terraform output fortiweb_instance_id
 ```
 
+The FortiWeb module also writes generated Ansible inventory to:
+
+```text
+ansible/inventory/fortiweb.generated.ini
+```
+
+Install the pinned Fortinet Ansible collections before running appliance
+playbooks:
+
+```bash
+ansible-galaxy collection install -r ansible/collections/requirements.yml
+```
+
+Then poll FortiWeb status from the repo root:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/status_fortiweb.yml
+```
+
+Configure the FortiWeb baseline from the repo root:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
+```
+
+The status playbook reads Terraform outputs at runtime. It uses
+`fortiweb_admin_password` when `fortiweb_set_initial_password = true`;
+otherwise it uses the FortiWeb EC2 instance ID as the default admin password.
+The generated inventory does not contain the admin password.
+
+`configure_fortiweb.yml` currently manages the narrow baseline:
+
+- system admin settings: hostname, HTTP/HTTPS management ports, and admin idle
+  timeout
+- default `admin` account `force-password-change disable`
+- port2 internal interface IP from the Terraform-created FortiWeb internal ENI
+- static route ID `1`: default route through port1's gateway
+- static route ID `2`: VPC route through port2's internal subnet gateway
+- optional generated reverse-proxy framework without MCP inspection: service,
+  virtual server, server pool, pool member, and server policy for all demo HTTP
+  NodePorts and, when `demo_https_gateway_enabled = true`, all demo HTTPS
+  NodePorts
+
+The generated FortiWeb command file sets `force-password-change disable` for
+the default `admin` account so future builds can be automated without an
+interactive first-login password change. Changing this template does not replace
+the current FortiWeb instance unless Terraform is applied in a way that
+recreates it.
+
+The generated FortiWeb NodePort proxy chain is disabled by default. Enable it in
+ignored `ansible/group_vars/user.yml` when the intended traffic path is ready:
+
+```yaml
+fortiweb_mcp_proxy_enabled: true
+```
+
+This creates no-inspection reverse proxies using the FortiWeb collection's
+existing server-policy resources. HTTP listeners use the generated HTTP
+NodePorts. HTTPS listeners use FortiWeb reverse-proxy SSL on the front end and
+SSL-enabled server-pool members on the back end. Listener and backend ports
+match by default.
+
+FortiWeb 8.0.3+ MCP Security appears to use
+`/api/v2.0/cmdb/waf/mcp-security.policy`, but the pinned collection does not
+currently expose a module for that object. When the full REST schema is known,
+add it as an explicit gather/compare/apply object rather than relying on
+collection-side defaults.
+
 Do not commit license files, rendered user-data, real `99-local.auto.tfvars`, S3
 object copies containing license data, FortiWeb admin passwords, or Terraform
 state.

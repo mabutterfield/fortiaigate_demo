@@ -1,0 +1,155 @@
+---
+- name: Read FortiWeb Terraform outputs
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ fortiweb_terraform_dir }}
+      - output
+      - -json
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  register: fortiweb_status_terraform_output_raw
+  tags: [fortiweb_status, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb Terraform outputs read: {{ fortiweb_status_terraform_output_raw.stdout | length > 0 }}"
+
+- name: Set FortiWeb Terraform output facts
+  ansible.builtin.set_fact:
+    fortiweb_status_terraform_outputs: "{{ fortiweb_status_terraform_output_raw.stdout | from_json }}"
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb Terraform output keys: {{ fortiweb_status_terraform_outputs.keys() | list }}"
+
+- name: Set FortiWeb admin credential facts
+  ansible.builtin.set_fact:
+    fortiweb_status_instance_id: "{{ (fortiweb_status_terraform_outputs.fortiweb_instance_id | default({})).value | default(fortiweb_instance_id | default('')) }}"
+    fortiweb_status_admin_password_from_output: "{{ (fortiweb_status_terraform_outputs.fortiweb_admin_password | default({})).value | default('') }}"
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "FortiWeb instance ID present: {{ fortiweb_status_instance_id | length > 0 }}"
+  #       - "FortiWeb explicit admin password present: {{ fortiweb_status_admin_password_from_output | length > 0 }}"
+
+- name: Set FortiWeb HTTPAPI login facts
+  ansible.builtin.set_fact:
+    ansible_user: "{{ fortiweb_admin_username }}"
+    ansible_password: >-
+      {{
+        fortiweb_status_admin_password_from_output
+        if fortiweb_status_admin_password_from_output | length > 0
+        else fortiweb_status_instance_id
+      }}
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb HTTPAPI password selected from {{ 'terraform password output' if fortiweb_status_admin_password_from_output | length > 0 else 'instance id' }}"
+
+- name: Fail when FortiWeb admin password is not available
+  ansible.builtin.fail:
+    msg: "FortiWeb admin password is empty. Confirm terraform/aws-fortiweb was applied and fortiweb_instance_id is available, or set fortiweb_set_initial_password=true."
+  when: ansible_password | length == 0
+  tags: [fortiweb_status, fortiweb_auth]
+
+- name: Gather FortiWeb system status
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_system_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_system_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_system_raw
+
+- name: Gather FortiWeb admin settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_admin_settings_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_admin_settings_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_admin_settings_raw
+
+- name: Gather FortiWeb interfaces
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_interfaces_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_interfaces_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_network]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_interfaces_raw
+
+- name: Gather FortiWeb static routes
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_status_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': fortiweb_status_static_routes_path, 'jsonbody': {}} | to_json }}"
+  register: fortiweb_status_static_routes_raw
+  changed_when: false
+  failed_when: false
+  no_log: "{{ fortiweb_no_log | bool }}"
+  tags: [fortiweb_status, fortiweb_network]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_status_static_routes_raw
+
+- name: Fail when FortiWeb API status could not be gathered
+  ansible.builtin.fail:
+    msg: >-
+      FortiWeb API status failed. If this is a new appliance, the default
+      admin password may still require an interactive first-login change.
+      For future builds, keep fortiweb_admin_force_password_change="disable"
+      or set fortiweb_set_initial_password=true.
+  when:
+    - fortiweb_status_system_raw.failed | default(false)
+    - fortiweb_status_admin_settings_raw.failed | default(false)
+  tags: [fortiweb_status]
+
+- name: Set FortiWeb status facts
+  ansible.builtin.set_fact:
+    fortiweb_status_system: "{{ (fortiweb_status_system_raw.res | default({})).results | default({}) }}"
+    fortiweb_status_admin_settings: "{{ (fortiweb_status_admin_settings_raw.res | default({})).results | default({}) }}"
+    fortiweb_status_interfaces: "{{ (fortiweb_status_interfaces_raw.res | default({})).results | default([]) }}"
+    fortiweb_status_static_routes: "{{ (fortiweb_status_static_routes_raw.res | default({})).results | default([]) }}"
+  tags: [fortiweb_status]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "FortiWeb status keys: {{ fortiweb_status_system.keys() | list }}"
+  #       - "FortiWeb admin setting keys: {{ fortiweb_status_admin_settings.keys() | list }}"
+
+- name: Show raw FortiWeb status when verbose
+  ansible.builtin.debug:
+    msg:
+      system: "{{ fortiweb_status_system }}"
+      admin_settings: "{{ fortiweb_status_admin_settings }}"
+      interfaces: "{{ fortiweb_status_interfaces }}"
+      static_routes: "{{ fortiweb_status_static_routes }}"
+  when: fortiweb_status_verbose | bool
+  tags: [fortiweb_status]
+
+- name: Show FortiWeb status summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiWeb status source: fortinet.fortiweb.fwebos_json_generic"
+      - "Host: {{ ansible_host | default(inventory_hostname) }}:{{ ansible_httpapi_port | default(fortiweb_admin_https_port | default(443)) }}"
+      - "Hostname: {{ fortiweb_status_system.hostName | default(fortiweb_status_admin_settings.hostname | default('unknown')) }}"
+      - "Version: {{ fortiweb_status_system.firmwareVersion | default('unknown') }}"
+      - "Serial: {{ fortiweb_status_system.serialNumber | default(fortiweb_status_system.serial | default('unknown')) }}"
+      - "VM license: {{ fortiweb_status_system.vmLicense | default('unknown') }}"
+      - "Administrative domain: {{ fortiweb_status_system.administrativeDomain | default('unknown') }}"
+      - "Uptime: {{ fortiweb_status_system.up_days | default('unknown') }}d {{ fortiweb_status_system.up_hrs | default('unknown') }}h {{ fortiweb_status_system.up_mins | default('unknown') }}m"
+      - "Admin idle timeout: {{ fortiweb_status_admin_settings.idleTimeout | default('unknown') }}"
+      - "Interfaces reported: {{ fortiweb_status_interfaces | length }}"
+      - "Static routes reported: {{ fortiweb_status_static_routes | length }}"
+      - "Admin URL: {{ fortiweb_admin_url | default('unknown') }}"
+  tags: [fortiweb_status]

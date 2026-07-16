@@ -3,3 +3,9 @@ config system global
     set admin-sport ${admin_https_port}
     set admin-console-timeout ${admin_console_timeout_seconds}
 end
+
+config system admin
+    edit admin
+        set force-password-change ${admin_force_password_change}
+    next
+end

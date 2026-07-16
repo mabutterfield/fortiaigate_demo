@@ -1,0 +1,144 @@
+---
+fortiweb_config_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortiweb') | realpath }}"
+fortiweb_config_no_log: true
+fortiweb_config_admin_username: "{{ fortiweb_username | default('admin') }}"
+fortiweb_config_enable_system_settings: true
+fortiweb_config_enable_admin_user: true
+fortiweb_config_enable_interfaces: true
+fortiweb_config_enable_static_routes: true
+fortiweb_config_enable_proxy_objects: true
+fortiweb_config_vdom: "{{ fortiweb_vdom | default('root') }}"
+
+# FortiWeb's REST API reports admin idle timeout in minutes. Terraform keeps
+# the cloud-init value in seconds because that matches the CLI setting name.
+fortiweb_system_settings:
+  hostname: "{{ fortiweb_hostname | default('') }}"
+  idle_timeout: 60
+  http_port: "{{ fortiweb_admin_http_port | default(8080) | int }}"
+  https_port: "{{ fortiweb_admin_https_port | default(8443) | int }}"
+
+fortiweb_admin_user:
+  action: edit
+  name: "{{ fortiweb_config_admin_username }}"
+  force_password_change: disable
+
+fortiweb_public_interface_name: port1
+fortiweb_internal_interface_name: port2
+fortiweb_internal_interface_subnet_cidr: "{{ aws_fortiweb_internal_subnet_cidr | default('10.20.21.0/24') }}"
+fortiweb_internal_interface_prefix_length: "{{ fortiweb_internal_interface_subnet_cidr | regex_replace('^.*/', '') }}"
+fortiweb_internal_interface_ip: "{{ fortiweb_internal_ip | default('') }}/{{ fortiweb_internal_interface_prefix_length }}"
+fortiweb_internal_interface_allowaccess: ping
+fortiweb_interfaces_static: []
+
+fortiweb_static_route_vpc_destination: "{{ aws_vpc_cidr | default('10.20.0.0/16') }}"
+fortiweb_static_route_vpc_gateway: "{{ fortiweb_internal_interface_subnet_cidr | regex_replace('\\.[0-9]+/.*$', '.1') }}"
+fortiweb_static_route_vpc_id: "2"
+fortiweb_static_route_default_destination: 0.0.0.0/0
+fortiweb_static_route_default_gateway: ""
+fortiweb_static_route_default_id: "1"
+fortiweb_static_routes_static: []
+
+# Optional generated NodePort reverse-proxy chains. Disabled by default until
+# the intended traffic path and AWS security group listener ports are confirmed.
+fortiweb_mcp_proxy_enabled: false
+fortiweb_mcp_proxy_name_prefix: FAIG_MCP
+fortiweb_mcp_proxy_listen_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+fortiweb_mcp_proxy_backend_ip: "{{ k3s_private_ip | default('') }}"
+fortiweb_mcp_proxy_backend_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+fortiweb_mcp_proxy_policy_name: "{{ fortiweb_mcp_proxy_name_prefix }}_POLICY"
+fortiweb_mcp_proxy_service_name: "{{ fortiweb_mcp_proxy_name_prefix }}_HTTP"
+fortiweb_mcp_proxy_virtual_server_name: "{{ fortiweb_mcp_proxy_name_prefix }}_VSERVER"
+fortiweb_mcp_proxy_server_pool_name: "{{ fortiweb_mcp_proxy_name_prefix }}_POOL"
+fortiweb_mcp_proxy_server_pool_member_name: "1"
+fortiweb_mcp_proxy_virtual_server_vips:
+  - name: "1"
+    interface: port1
+    status: enable
+    use_interface_ip: enable
+  - name: "2"
+    interface: port2
+    status: enable
+    use_interface_ip: enable
+fortiweb_nodeport_proxy_enabled: "{{ fortiweb_mcp_proxy_enabled | bool }}"
+fortiweb_nodeport_proxy_name_prefix: FAIG
+fortiweb_nodeport_proxy_backend_ip: "{{ k3s_private_ip | default('') }}"
+fortiweb_nodeport_proxy_backend_member_name: "1"
+fortiweb_nodeport_proxy_virtual_server_vips: "{{ fortiweb_mcp_proxy_virtual_server_vips }}"
+fortiweb_nodeport_proxy_http_paths:
+  - object_suffix: OPENWEBUI_HTTP
+    listen_port: "{{ demo_openwebui_http_port | default(30080) | int }}"
+    backend_port: "{{ demo_openwebui_http_port | default(30080) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+  - object_suffix: CHATBOT_HTTP
+    listen_port: "{{ demo_chatbot_http_port | default(30081) | int }}"
+    backend_port: "{{ demo_chatbot_http_port | default(30081) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+  - object_suffix: DEMO_HOME_HTTP
+    listen_port: "{{ demo_home_http_port | default(30082) | int }}"
+    backend_port: "{{ demo_home_http_port | default(30082) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+  - object_suffix: LITELLM_HTTP
+    listen_port: "{{ demo_litellm_http_port | default(30083) | int }}"
+    backend_port: "{{ demo_litellm_http_port | default(30083) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+  - object_suffix: MCP_HTTP
+    service_name: "{{ fortiweb_mcp_proxy_service_name }}"
+    virtual_server_name: "{{ fortiweb_mcp_proxy_virtual_server_name }}"
+    server_pool_name: "{{ fortiweb_mcp_proxy_server_pool_name }}"
+    policy_name: "{{ fortiweb_mcp_proxy_policy_name }}"
+    listen_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    backend_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+fortiweb_nodeport_proxy_https_paths:
+  - object_suffix: OPENWEBUI_HTTPS
+    listen_port: "{{ demo_openwebui_https_port | default(30443) | int }}"
+    backend_port: "{{ demo_openwebui_https_port | default(30443) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
+  - object_suffix: CHATBOT_HTTPS
+    listen_port: "{{ demo_chatbot_https_port | default(30444) | int }}"
+    backend_port: "{{ demo_chatbot_https_port | default(30444) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
+  - object_suffix: DEMO_HOME_HTTPS
+    listen_port: "{{ demo_home_https_port | default(30445) | int }}"
+    backend_port: "{{ demo_home_https_port | default(30445) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
+  - object_suffix: LITELLM_HTTPS
+    listen_port: "{{ demo_litellm_https_port | default(30446) | int }}"
+    backend_port: "{{ demo_litellm_https_port | default(30446) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
+  - object_suffix: MCP_HTTPS
+    listen_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    backend_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
+
+fortiweb_server_services_static: []
+fortiweb_virtual_servers_static: []
+fortiweb_virtual_server_vips_static: []
+fortiweb_server_pools_static: []
+fortiweb_server_pool_members_static: []
+fortiweb_server_policies_static: []

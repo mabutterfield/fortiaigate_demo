@@ -48,6 +48,16 @@ output "fortiweb_http_admin_url" {
   value       = local.fortiweb_eip_public_ip != null ? "http://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_http_port}" : null
 }
 
+output "fortiweb_data_plane_tcp_ports" {
+  description = "FortiWeb data-plane TCP listener ports allowed by this module."
+  value       = distinct(var.fortiweb_data_plane_tcp_ports)
+}
+
+output "fortiweb_data_plane_public_cidrs" {
+  description = "Public CIDRs allowed to FortiWeb data-plane listener ports."
+  value       = local.fortiweb_data_plane_public_cidrs
+}
+
 output "fortiweb_ssh_command" {
   description = "SSH command for FortiWeb management."
   value       = local.fortiweb_eip_public_ip != null ? "ssh admin@${local.fortiweb_eip_public_ip}" : null

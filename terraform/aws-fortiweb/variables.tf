@@ -36,6 +36,12 @@ variable "fortiweb_enabled" {
   default     = true
 }
 
+variable "ansible_inventory_output_path" {
+  type        = string
+  description = "Path where this module writes the generated FortiWeb Ansible inventory."
+  default     = "../../ansible/inventory/fortiweb.generated.ini"
+}
+
 variable "ssh_key_name" {
   type        = string
   description = "Existing AWS EC2 key pair name for FortiWeb SSH access."
@@ -179,6 +185,17 @@ variable "fortiweb_admin_console_timeout_seconds" {
   }
 }
 
+variable "fortiweb_admin_force_password_change" {
+  type        = string
+  description = "Default admin force-password-change setting rendered into the generated FortiWeb command file."
+  default     = "disable"
+
+  validation {
+    condition     = contains(["enable", "disable"], var.fortiweb_admin_force_password_change)
+    error_message = "fortiweb_admin_force_password_change must be enable or disable."
+  }
+}
+
 variable "fortiweb_enable_ssh" {
   type        = bool
   description = "Enable SSH management when supported by FortiWeb bootstrap syntax."
@@ -201,6 +218,37 @@ variable "fortiweb_enable_icmp" {
   type        = bool
   description = "Allow ICMP from trusted CIDRs to the FortiWeb management ENI for basic reachability testing."
   default     = true
+}
+
+variable "fortiweb_data_plane_tcp_ports" {
+  type        = list(number)
+  description = "FortiWeb data-plane TCP listener ports to allow from trusted public CIDRs and the VPC."
+  default     = [30080, 30081, 30082, 30083, 30084, 30443, 30444, 30445, 30446, 30447]
+
+  validation {
+    condition = alltrue([
+      for port in var.fortiweb_data_plane_tcp_ports : port >= 1 && port <= 65535
+    ])
+    error_message = "fortiweb_data_plane_tcp_ports values must be between 1 and 65535."
+  }
+}
+
+variable "fortiweb_enable_public_data_plane_ingress" {
+  type        = bool
+  description = "Allow FortiWeb data-plane TCP listener ports from trusted public CIDRs."
+  default     = true
+}
+
+variable "fortiweb_enable_vpc_data_plane_ingress" {
+  type        = bool
+  description = "Allow FortiWeb data-plane TCP listener ports from the VPC CIDR on the public ENI."
+  default     = true
+}
+
+variable "fortiweb_data_plane_allowed_public_cidrs" {
+  type        = list(string)
+  description = "Optional override for public CIDRs allowed to FortiWeb data-plane listener ports. Empty uses the prep-generated allowed ingress CIDRs."
+  default     = []
 }
 
 variable "fortiweb_admin_password" {

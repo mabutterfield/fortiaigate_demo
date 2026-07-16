@@ -58,6 +58,7 @@ locals {
     hostname                      = local.fortiweb_name
     admin_https_port              = var.fortiweb_admin_https_port
     admin_console_timeout_seconds = var.fortiweb_admin_console_timeout_seconds
+    admin_force_password_change   = var.fortiweb_admin_force_password_change
   })
   fortiweb_admin_password = var.fortiweb_set_initial_password ? (var.fortiweb_admin_password != "" ? var.fortiweb_admin_password : random_password.fortiweb_admin[0].result) : ""
   fortiweb_license_key    = var.fortiweb_license_mode == "byol_file" ? local.fortiweb_cloudinit_license_key : ""
@@ -74,6 +75,17 @@ locals {
       )
     }
   }
+  fortiweb_data_plane_tcp_ports = {
+    for port in distinct(var.fortiweb_data_plane_tcp_ports) : tostring(port) => port
+  }
+  fortiweb_data_plane_public_cidrs = distinct([
+    for cidr in(
+      length(var.fortiweb_data_plane_allowed_public_cidrs) > 0
+      ? var.fortiweb_data_plane_allowed_public_cidrs
+      : local.effective_allowed_ingress_cidrs
+    ) : trimspace(cidr)
+    if trimspace(cidr) != ""
+  ])
   fortiweb_user_data = templatefile("${path.module}/templates/fortiweb-user-data.json.tftpl", {
     bucket                 = coalesce(local.fortiweb_cloudinit_bucket_name, "")
     region                 = var.aws_region
@@ -189,6 +201,14 @@ resource "aws_security_group" "fortiweb_mgmt" {
   description = "FortiWeb management access"
   vpc_id      = local.vpc_id
 
+  ingress {
+    description = "All VPC internal traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [local.vpc_cidr]
+  }
+
   dynamic "ingress" {
     for_each = local.fortiweb_management_tcp_ports
 
@@ -198,6 +218,30 @@ resource "aws_security_group" "fortiweb_mgmt" {
       to_port     = ingress.value.port
       protocol    = "tcp"
       cidr_blocks = local.effective_allowed_ingress_cidrs
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.fortiweb_enable_public_data_plane_ingress ? local.fortiweb_data_plane_tcp_ports : {}
+
+    content {
+      description = "Public data-plane TCP ${ingress.value}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = local.fortiweb_data_plane_public_cidrs
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.fortiweb_enable_vpc_data_plane_ingress ? local.fortiweb_data_plane_tcp_ports : {}
+
+    content {
+      description = "VPC data-plane TCP ${ingress.value}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = [local.vpc_cidr]
     }
   }
 
@@ -344,4 +388,21 @@ resource "aws_eip_association" "public" {
   depends_on = [
     aws_instance.this,
   ]
+}
+
+resource "local_file" "ansible_inventory" {
+  filename = var.ansible_inventory_output_path
+  content = templatefile("${path.module}/templates/fortiweb.generated.ini.tftpl", {
+    ansible_host      = local.fortiweb_eip_public_ip
+    hostname          = local.fortiweb_name
+    public_ip         = local.fortiweb_eip_public_ip
+    public_private_ip = try(aws_network_interface.public[0].private_ip, "")
+    internal_ip       = try(aws_network_interface.internal[0].private_ip, "")
+    instance_id       = try(aws_instance.this[0].id, "")
+    admin_https_port  = var.fortiweb_admin_https_port
+    admin_http_port   = var.fortiweb_admin_http_port
+    admin_url         = local.fortiweb_eip_public_ip != null ? "https://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_https_port}" : ""
+    http_admin_url    = local.fortiweb_eip_public_ip != null ? "http://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_http_port}" : ""
+    api_url           = local.fortiweb_eip_public_ip != null ? "https://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_https_port}/api/v2.0" : ""
+  })
 }

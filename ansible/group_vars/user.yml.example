@@ -143,6 +143,52 @@ fortiaigate_licenses: {}
 #     target_service: mcp
 #     mode: proxy_nat
 
+# Optional FortiWeb system/configuration overrides used by
+# ansible/playbooks/configure_fortiweb.yml.
+# fortiweb_system_settings:
+#   hostname: "{{ fortiweb_hostname }}"
+#   idle_timeout: 60
+#   http_port: 8080
+#   https_port: 8443
+# fortiweb_admin_user:
+#   action: edit
+#   name: admin
+#   force_password_change: disable
+# fortiweb_internal_interface_name: port2
+# fortiweb_internal_interface_ip: "{{ fortiweb_internal_ip }}/24"
+# fortiweb_static_route_default_id: "1"
+# fortiweb_static_route_default_destination: 0.0.0.0/0
+# # Leave blank to use port1's DHCP dynamic_gateway.
+# fortiweb_static_route_default_gateway: ""
+# fortiweb_static_route_vpc_id: "2"
+# fortiweb_static_route_vpc_destination: "{{ aws_vpc_cidr }}"
+# fortiweb_static_route_vpc_gateway: "{{ aws_fortiweb_internal_subnet_cidr | regex_replace('\\.[0-9]+/.*$', '.1') }}"
+# fortiweb_mcp_proxy_enabled: true
+# fortiweb_mcp_proxy_listen_port: "{{ demo_mcp_http_port }}"
+# fortiweb_mcp_proxy_backend_ip: "{{ k3s_private_ip }}"
+# fortiweb_mcp_proxy_backend_port: "{{ demo_mcp_http_port }}"
+# # Listener and backend ports intentionally match by default. Use separate
+# # values only when publishing a public-friendly or shared listener port.
+# # When enabled, the generated FortiWeb proxy creates pass-through paths for
+# # all demo HTTP NodePorts and, when demo_https_gateway_enabled=true, all demo
+# # HTTPS NodePorts.
+# fortiweb_virtual_server_vips_static:
+#   - table_name: FAIG_CUSTOM_MCP_VSERVER
+#     name: "1"
+#     interface: port1
+#     status: enable
+#     use_interface_ip: enable
+# fortiweb_server_policies_static:
+#   - name: FAIG_CUSTOM_MCP_POLICY
+#     deployment_mode: server-pool
+#     protocol: HTTP
+#     service: FAIG_MCP_HTTP
+#     vserver: FAIG_MCP_VSERVER
+#     server_pool: FAIG_MCP_POOL
+#     ssl: disable
+#     monitor_mode: enable
+#     comment: "Manual MCP reverse proxy policy without MCP inspection"
+
 # Demo credentials. Change these for any shared or long-lived environment.
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin

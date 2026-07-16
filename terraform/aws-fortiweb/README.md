@@ -34,6 +34,12 @@ terms for the listed SKU and rerun `terraform apply`.
 The default AMI filter is FortiWeb `8.0`, which selects the latest matching
 8.0.x BYOL Marketplace image.
 
+By default, the module also opens the generated demo NodePorts on the FortiWeb
+public ENI from the prep-generated trusted public CIDRs and from the VPC CIDR:
+TCP `30080` through `30084` for HTTP and TCP `30443` through `30447` for the
+optional HTTPS gateway. Override `fortiweb_data_plane_tcp_ports` in ignored
+`99-local.auto.tfvars` when the generated listener ports change.
+
 The default instance type is `c5.xlarge`. FortiWeb Marketplace images support
 the `t3`, `m5`, `m4`, `c5`, and `c4` families; `c6i` is rejected by EC2 for
 the current FortiWeb 8.0 BYOL image.
@@ -68,6 +74,34 @@ terraform output fortiweb_admin_url
 terraform output fortiweb_ssh_command
 terraform output fortiweb_instance_id
 ```
+
+This module also writes:
+
+```text
+../../ansible/inventory/fortiweb.generated.ini
+```
+
+From the repo root, poll FortiWeb with:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/status_fortiweb.yml
+```
+
+Configure the FortiWeb baseline with:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
+```
+
+The FortiWeb Ansible config role can also create an optional no-inspection MCP
+reverse-proxy chain. Enable `fortiweb_mcp_proxy_enabled` in ignored
+`ansible/group_vars/user.yml` after the desired data-plane listener path is
+confirmed.
+
+The generated inventory contains appliance connection facts but not the admin
+password. The status playbook reads Terraform outputs at runtime and uses
+`fortiweb_admin_password` when `fortiweb_set_initial_password = true`, otherwise
+it uses the EC2 instance ID as the default admin password.
 
 Do not commit real `99-local.auto.tfvars`, license files, rendered user-data, or
 Terraform state.

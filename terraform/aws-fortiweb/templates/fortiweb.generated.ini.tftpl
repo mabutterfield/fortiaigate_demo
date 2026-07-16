@@ -1,0 +1,23 @@
+[fortiweb]
+faig-fortiweb ansible_host=${ansible_host}
+
+[fortiweb:vars]
+ansible_connection=httpapi
+ansible_network_os=fortinet.fortiweb.fwebos
+ansible_httpapi_use_ssl=true
+ansible_httpapi_validate_certs=false
+ansible_httpapi_port=${admin_https_port}
+fortiweb_admin_https_port=${admin_https_port}
+fortiweb_admin_http_port=${admin_http_port}
+fortiweb_hostname=${hostname}
+fortiweb_public_ip=${public_ip}
+fortiweb_public_private_ip=${public_private_ip}
+fortiweb_internal_ip=${internal_ip}
+fortiweb_instance_id=${instance_id}
+fortiweb_admin_url=${admin_url}
+fortiweb_http_admin_url=${http_admin_url}
+fortiweb_api_url=${api_url}
+fortiweb_vdom=root
+
+[fortinet_appliances:children]
+fortiweb
