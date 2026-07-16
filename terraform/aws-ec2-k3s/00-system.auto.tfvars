@@ -3,8 +3,6 @@
 
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
 
-ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
-
 # Optional GitHub usernames whose public SSH keys should be appended to
 # /home/ubuntu/.ssh/authorized_keys on first boot. Leave empty to skip.
 # Example: ["mabutterfield"]

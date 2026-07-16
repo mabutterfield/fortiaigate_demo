@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import ipaddress
 import os
 import platform
@@ -12,17 +11,14 @@ import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import time
 from pathlib import Path
+
+import user_profile as profile_tool
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-BASE_LOCAL_FILE_PAIRS = [
-    ("terraform/user.tfvars.example", "terraform/user.tfvars"),
-    ("ansible/group_vars/user.yml.example", "ansible/group_vars/user.yml"),
-]
 APPLIANCE_LOCAL_FILE_PAIRS = {
     "fortigate": ("terraform/aws-fortigate/99-local.auto.tfvars.example", "terraform/aws-fortigate/99-local.auto.tfvars"),
     "fortiweb": ("terraform/aws-fortiweb/99-local.auto.tfvars.example", "terraform/aws-fortiweb/99-local.auto.tfvars"),
@@ -185,78 +181,6 @@ def check_requirements() -> None:
             missing.append(command)
     if missing:
         raise SystemExit(f"Missing required commands: {', '.join(missing)}")
-
-
-def collect_private_config_files() -> list[Path]:
-    files: list[Path] = []
-    terraform_root = REPO_ROOT / "terraform"
-    ansible_group_vars = REPO_ROOT / "ansible/group_vars"
-
-    if terraform_root.exists():
-        files.extend(path for path in terraform_root.rglob("*.tfvars") if path.is_file() or path.is_symlink())
-
-    if ansible_group_vars.exists():
-        files.extend(
-            path
-            for path in ansible_group_vars.glob("*.yml")
-            if (path.is_file() or path.is_symlink())
-            and path.name != "system.yml"
-            and not path.name.endswith(".example.yml")
-            and not path.name.endswith(".yml.example")
-            and not path.name.endswith(".generated.yml")
-        )
-
-    return sorted(set(files))
-
-
-def backup_private_config(backup_dir: Path) -> Path | None:
-    print_header("Backing Up Local Config")
-    files = collect_private_config_files()
-    if not files:
-        print("No existing private tfvars/YAML config files found to back up.")
-        return None
-
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    archive_path = backup_dir / f"fortiaigate-demo-config-{timestamp}.tar.gz"
-
-    with tarfile.open(archive_path, "w:gz") as archive:
-        for path in files:
-            archive.add(path, arcname=path.relative_to(REPO_ROOT), recursive=False)
-
-    print(f"created: {archive_path}")
-    print("included:")
-    for path in files:
-        print(f"- {path.relative_to(REPO_ROOT)}")
-    return archive_path
-
-
-def copy_missing_examples(local_file_pairs: list[tuple[str, str]]) -> None:
-    print_header("Preparing Local Config Files")
-    for source_rel, dest_rel in local_file_pairs:
-        source = REPO_ROOT / source_rel
-        dest = REPO_ROOT / dest_rel
-        if dest.exists():
-            print(f"exists: {dest_rel}")
-            continue
-        shutil.copyfile(source, dest)
-        print(f"created: {dest_rel} from {source_rel}")
-
-
-def sync_missing_example_defaults(local_file_pairs: list[tuple[str, str]]) -> None:
-    print_header("Syncing Missing Local Defaults")
-    run_command([sys.executable, "scripts/upgrade_v0_3_to_v0_4.py"])
-    for source_rel, dest_rel in local_file_pairs:
-        run_command(
-            [
-                sys.executable,
-                "scripts/sync_all_vars.py",
-                "--source",
-                source_rel,
-                "--target",
-                dest_rel,
-            ]
-        )
 
 
 def list_aws_profiles() -> list[str]:
@@ -890,12 +814,14 @@ def configure_user_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
     default_region = profile_region or current_region or "us-east-1"
     current_prefix = get_tf_string(content, "name_prefix", "fortiaigate-demo")
     current_key_name = get_tf_string(content, "ssh_key_name")
+    current_private_key = get_tf_string(content, "ssh_private_key_file")
     current_cidrs = get_tf_list_strings(content, "allowed_ingress_cidr")
     current_tags = get_tf_map_strings(content, "tags")
 
     region = prompt_text("AWS region", default_region)
     name_prefix = prompt_text("Deployment name prefix", current_prefix)
     key_name = choose_ec2_key_pair(profile, region, current_key_name)
+    private_key = choose_local_ssh_private_key(current_private_key, key_name)
     cidr_default = ", ".join(current_cidrs) if current_cidrs else ""
     cidrs = prompt_cidr_list("Trusted source CIDR list, comma-separated", cidr_default, "Trusted source CIDR list")
     tags_text = prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(current_tags))
@@ -905,6 +831,7 @@ def configure_user_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
     content = set_tf_string(content, "aws_region", region)
     content = set_tf_string(content, "name_prefix", name_prefix)
     content = set_tf_string(content, "ssh_key_name", key_name)
+    content = set_tf_string(content, "ssh_private_key_file", private_key)
     content = set_tf_list_strings(content, "allowed_ingress_cidr", cidrs)
     content = set_tf_map_strings(content, "tags", tags)
     write_file(path, content)
@@ -1018,19 +945,6 @@ def choose_local_ssh_private_key(default_private_key: str, key_name: str) -> str
         print("Enter a private key path.")
 
 
-def configure_ec2_tfvars(ssh_key_name: str) -> str:
-    path = module_local_tfvars_path("terraform/aws-ec2-k3s")
-    content = read_existing_file(path)
-    current_private_key = get_tf_string(read_effective_module_tfvars("terraform/aws-ec2-k3s"), "ssh_private_key_file")
-
-    private_key = choose_local_ssh_private_key(current_private_key, ssh_key_name)
-
-    content = set_tf_string(content, "ssh_private_key_file", private_key)
-    write_file(path, content)
-    print(f"updated: {path.relative_to(REPO_ROOT)}")
-    return private_key
-
-
 def requested_appliance_keys(args: argparse.Namespace) -> list[str]:
     requested: list[str] = []
     if args.include_appliances or args.include_fortigate:
@@ -1060,10 +974,6 @@ def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
     return selected
 
 
-def local_file_pairs_for_run(args: argparse.Namespace) -> list[tuple[str, str]]:
-    return list(BASE_LOCAL_FILE_PAIRS)
-
-
 def configure_appliance_tfvars(appliance_keys: list[str]) -> None:
     if not appliance_keys:
         return
@@ -1071,7 +981,7 @@ def configure_appliance_tfvars(appliance_keys: list[str]) -> None:
     print_header("Appliance Terraform Config")
     for appliance_key in appliance_keys:
         path = appliance_tfvars_path(appliance_key)
-        content = read_file(path)
+        content = read_existing_file(path)
         content = set_tf_bool(content, f"{appliance_key}_enabled", True)
         write_file(path, content)
         print(f"updated: {path.relative_to(REPO_ROOT)}")
@@ -1189,7 +1099,7 @@ def prompt_manual_review(appliance_keys: list[str]) -> None:
         print(f"- {path}")
     print("\nCritical EC2 values usually needing edits:")
     print("- terraform/user.tfvars: ssh_key_name")
-    print("- terraform/aws-ec2-k3s/99-local.auto.tfvars: ssh_private_key_file")
+    print("- terraform/user.tfvars: ssh_private_key_file")
     print("- terraform/aws-ec2-k3s/99-local.auto.tfvars: optional instance_type override")
     print("\nAnsible system defaults are tracked; local overrides belong in ansible/group_vars/user.yml.")
     input("Press Enter after reviewing/editing those files.")
@@ -1520,6 +1430,67 @@ def run_ansible_flow(args: argparse.Namespace) -> None:
         run_fortiaigate_status_once("Ansible: Final FortiAIGate Status")
 
 
+def missing_user_profile_files() -> list[Path]:
+    return [path for path in profile_tool.REQUIRED_PROFILE_FILES if not (REPO_ROOT / path).exists()]
+
+
+def run_profile_init() -> str:
+    profile_tool.init_profile(force=True)
+    return "init"
+
+
+def run_profile_import(path: str | None, *, yes: bool) -> str:
+    profile_tool.import_profile(Path(path or profile_tool.DEFAULT_PROFILE_ARCHIVE), yes=yes)
+    return "import"
+
+
+def ensure_user_profile(args: argparse.Namespace) -> str:
+    if args.export_profile is not None:
+        profile_tool.export_profile(Path(args.export_profile or profile_tool.DEFAULT_PROFILE_ARCHIVE))
+        return "export"
+
+    action = ""
+    if args.import_profile is not None:
+        action = run_profile_import(args.import_profile, yes=args.yolo)
+
+    if args.init_profile:
+        if any((REPO_ROOT / path).exists() for path in profile_tool.REQUIRED_PROFILE_FILES):
+            if args.yolo:
+                raise SystemExit("--init with --yolo refuses to overwrite existing profile files.")
+            if prompt_yes_no("Export the current user profile before reinitializing?", True):
+                profile_tool.export_profile(profile_tool.DEFAULT_PROFILE_ARCHIVE)
+        action = run_profile_init()
+
+    missing = missing_user_profile_files()
+    if not missing:
+        return action
+
+    if args.yolo:
+        missing_text = ", ".join(path.as_posix() for path in missing)
+        raise SystemExit(
+            "Missing required user profile files in --yolo mode: "
+            f"{missing_text}. Run scripts/user_profile.py init or pass --import."
+        )
+
+    print_header("User Profile Required")
+    print("Missing required user profile files:")
+    for path in missing:
+        print(f"- {path.as_posix()}")
+    print("1. Import user profile")
+    print("2. Initialize/onboard user profile")
+    print("3. Exit")
+    while True:
+        choice = prompt_text("Choose profile action", "2").strip().lower()
+        if choice in {"1", "import"}:
+            import_path = prompt_text("Profile archive path", str(profile_tool.DEFAULT_PROFILE_ARCHIVE))
+            return run_profile_import(import_path, yes=False)
+        if choice in {"2", "init", "initialize", "onboard"}:
+            return run_profile_init()
+        if choice in {"3", "exit", "quit", "stop"}:
+            raise SystemExit("Stopped before deployment.")
+        print("Choose import, init, or exit.")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Guided Terraform bootstrap for the FortiAIGate demo.")
     parser.add_argument(
@@ -1536,14 +1507,26 @@ def parse_args() -> argparse.Namespace:
         help="Pass -auto-approve to Terraform apply. Default is interactive Terraform approval.",
     )
     parser.add_argument(
-        "--backup-dir",
-        default=str(REPO_ROOT.parent / "backup"),
-        help="Directory for tar.gz backups of existing private tfvars/YAML config files. Default: repo_root/../backup.",
+        "--init",
+        dest="init_profile",
+        action="store_true",
+        help="Initialize or reinitialize local user profile files before deployment.",
     )
     parser.add_argument(
-        "--skip-backup",
-        action="store_true",
-        help="Do not create a backup archive before copying or editing local config files.",
+        "--import",
+        dest="import_profile",
+        nargs="?",
+        const=str(profile_tool.DEFAULT_PROFILE_ARCHIVE),
+        default=None,
+        help="Import a user profile archive before deployment. Default path: ../user_profile.tgz.",
+    )
+    parser.add_argument(
+        "--export",
+        dest="export_profile",
+        nargs="?",
+        const=str(profile_tool.DEFAULT_PROFILE_ARCHIVE),
+        default=None,
+        help="Export the current user profile archive and exit. Default path: ../user_profile.tgz.",
     )
     parser.add_argument(
         "--skip-terraform",
@@ -1630,18 +1613,15 @@ def main() -> None:
             print(f"- {appliance_key}")
 
     check_requirements()
-    if args.skip_backup:
-        print_header("Backing Up Local Config")
-        print("Skipped by --skip-backup.")
-    else:
-        backup_private_config(Path(args.backup_dir).expanduser())
-    local_file_pairs = local_file_pairs_for_run(args)
-    copy_missing_examples(local_file_pairs)
-    sync_missing_example_defaults(local_file_pairs)
+    profile_action = ensure_user_profile(args)
+    if profile_action == "export":
+        return
+    profile_tool.warn_legacy_files()
 
     current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
     default_profile = get_tf_string(current_user_tfvars, "aws_profile")
-    if args.yolo and default_profile:
+    profile_is_fresh = profile_action in {"init", "import"}
+    if (args.yolo or profile_is_fresh) and default_profile:
         profile = default_profile
         print_header("AWS Profile")
         print(f"Using aws_profile from terraform/user.tfvars: {profile}")
@@ -1659,22 +1639,31 @@ def main() -> None:
         print(f"AWS region: {region}")
         if not ssh_key_name:
             raise SystemExit("ssh_key_name is missing from terraform/user.tfvars.")
+    elif profile_is_fresh:
+        region = get_tf_string(current_user_tfvars, "aws_region")
+        ssh_key_name = get_tf_string(current_user_tfvars, "ssh_key_name")
+        if not region:
+            raise SystemExit("aws_region is missing from terraform/user.tfvars.")
+        if not ssh_key_name:
+            raise SystemExit("ssh_key_name is missing from terraform/user.tfvars.")
+        print_header("Shared Terraform Config")
+        print(f"Using user profile values from terraform/user.tfvars.")
+        print(f"AWS region: {region}")
     else:
         profile, region, _name_prefix, _cidrs, ssh_key_name = configure_user_tfvars(profile)
 
     configure_ansible_env(profile, region)
     appliance_keys = selected_appliance_keys(args)
     if not args.yolo:
-        configure_ec2_tfvars(ssh_key_name)
         configure_appliance_tfvars(appliance_keys)
     elif appliance_keys:
         configure_appliance_tfvars(appliance_keys)
     ensure_appliance_prep_tfvars(appliance_keys)
 
-    configure_license_preflight(noninteractive=args.yolo)
+    configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
     if not args.skip_terraform:
         configure_appliance_license_preflight(appliance_keys, noninteractive=args.yolo)
-    configure_litellm_credentials(noninteractive=args.yolo)
+    configure_litellm_credentials(noninteractive=args.yolo or profile_is_fresh)
 
     if not args.yolo:
         prompt_manual_review(appliance_keys)

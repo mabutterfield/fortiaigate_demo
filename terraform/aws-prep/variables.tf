@@ -18,6 +18,12 @@ variable "ssh_key_name" {
   description = "Shared EC2 key pair name from terraform/user.tfvars. Accepted for common config consistency; not used by AWS prep."
 }
 
+variable "ssh_private_key_file" {
+  type        = string
+  description = "Shared local SSH private key path from terraform/user.tfvars. Accepted for common config consistency; not used by AWS prep."
+  default     = ""
+}
+
 variable "allowed_ingress_cidr" {
   type        = any
   description = "Trusted public CIDR or list of CIDRs allowed to reach lab management and demo endpoints."

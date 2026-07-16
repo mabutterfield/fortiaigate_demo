@@ -3,7 +3,6 @@
 # Copy this file to 99-local.auto.tfvars only when you intentionally want to
 # override tracked defaults from 00-system.auto.tfvars.
 
-# ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
 # instance_type = "g6.8xlarge"
 # availability_zone = "us-east-1a"
 #

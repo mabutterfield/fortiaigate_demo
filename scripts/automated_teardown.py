@@ -7,7 +7,6 @@ import argparse
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -200,24 +199,6 @@ def terraform_destroy(module_path: str, *, auto_approve: bool) -> None:
     run_command(argv)
 
 
-def run_backup(backup_dir: Path, skip_backup: bool) -> None:
-    print_header("Backup")
-    if skip_backup:
-        print("Skipped by --skip-backup.")
-        return
-
-    run_command(
-        [
-            sys.executable,
-            "scripts/backup_config.py",
-            "--backup-dir",
-            str(backup_dir.expanduser()),
-            "--archive-prefix",
-            "fortiaigate-demo-teardown-backup",
-        ]
-    )
-
-
 def remove_ecr_repository_state(module_path: str) -> None:
     print_header("ECR Repository State Protection")
     state_addresses = terraform_state_list(module_path)
@@ -265,22 +246,12 @@ def destroy_module(label: str, module_path: str, auto_approve: bool) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Back up local state/config, preserve ECR repositories, and destroy demo AWS infrastructure."
+        description="Preserve ECR repositories and destroy demo AWS infrastructure."
     )
     parser.add_argument(
         "--auto-approve",
         action="store_true",
         help="Pass -auto-approve to Terraform destroy commands.",
-    )
-    parser.add_argument(
-        "--backup-dir",
-        default=str(REPO_ROOT.parent / "backup"),
-        help="Directory for teardown backups. Default: repo_root/../backup.",
-    )
-    parser.add_argument(
-        "--skip-backup",
-        action="store_true",
-        help="Do not create a backup archive before teardown.",
     )
     parser.add_argument(
         "--skip-ecr",
@@ -328,19 +299,17 @@ def main() -> None:
     print("FortiAIGate automated teardown")
     print(f"Repo root: {REPO_ROOT}")
     print("Planned order:")
-    print("1. Back up local config, generated values, inventory, and Terraform state.")
-    print("2. Remove ECR repository resources from Terraform state so repositories are not deleted.")
-    print("3. Destroy ECR lifecycle policy and generated local output resources only.")
-    print("4. Destroy terraform/aws-fortiweb if state exists.")
-    print("5. Destroy terraform/aws-fortigate if state exists.")
-    print("6. Destroy terraform/aws-ec2-k3s.")
-    print("7. Destroy terraform/aws-prep.")
+    print("1. Remove ECR repository resources from Terraform state so repositories are not deleted.")
+    print("2. Destroy ECR lifecycle policy and generated local output resources only.")
+    print("3. Destroy terraform/aws-fortiweb if state exists.")
+    print("4. Destroy terraform/aws-fortigate if state exists.")
+    print("5. Destroy terraform/aws-ec2-k3s.")
+    print("6. Destroy terraform/aws-prep.")
 
     if not args.yes and not prompt_yes_no("Proceed with teardown?", False):
         raise SystemExit("Stopped before teardown.")
 
     ensure_aws_login()
-    run_backup(Path(args.backup_dir), args.skip_backup)
 
     if args.skip_ecr:
         print_header("Terraform: ECR")

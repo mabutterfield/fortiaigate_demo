@@ -53,15 +53,16 @@ terraform apply
 
 Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
 
-Before Terraform imports, destructive changes, or larger refactors, create a
-local backup of operator config, generated values, inventory, and Terraform
-state:
+Before moving to a fresh clone or reinitializing local user settings, export
+the portable user profile:
 
 ```bash
-python3 scripts/backup_config.py
+python3 scripts/user_profile.py export ../user_profile.tgz
 ```
 
-Use `python3 scripts/backup_config.py --dry-run` to preview the selected files.
+The profile includes user-owned tfvars/YAML and module-local overrides. It does
+not include Terraform state, generated inventory, license files, private keys,
+or certificates.
 
 ## ECR Module
 
@@ -197,7 +198,8 @@ Terraform writes the inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
-Set `ssh_private_key_file` in `99-local.auto.tfvars` when the EC2 key pair does not use your default SSH key. Terraform includes that path in both:
+Set `ssh_private_key_file` in `terraform/user.tfvars` when the EC2 key pair
+does not use your default SSH key. Terraform includes that path in both:
 
 - `ansible_ssh_private_key_file` in the generated inventory
 - the `ssh_command` output as `ssh -i <keypath> ubuntu@<host-ip>`

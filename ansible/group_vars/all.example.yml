@@ -1,22 +1,14 @@
 ---
 # Legacy compatibility example.
 #
-# New deployments should use tracked ansible/group_vars/system.yml for repo
-# defaults and copy ansible/group_vars/user.yml.example to ignored user.yml for
-# operator-owned settings. This file remains temporarily for v0.4 upgrade
-# migrations and older local workflows.
+# New deployments use tracked ansible/group_vars/system.yml for repo defaults
+# and ignored ansible/group_vars/user.yml for operator-owned settings.
 #
-# Copy this file to group_vars/all.yml and fill in FortiAIGate-specific values.
+# Do not copy this file for new deployments. It remains only as a reference for
+# older local workflows that still have ansible/group_vars/all.yml.
 #
-# Expected local edits:
-# - fortiaigate_version and matching image tags
-# - fortiaigate_license_files under FAIG/licenses, or license_source_dir
-# - fortiaigate_ingress_host when using DNS instead of the EC2 public IP
-#
-# AWS/common environment values normally live in ansible/group_vars/env.yml.
-# The automated quick start syncs aws_profile and aws_region there from
-# terraform/common.tfvars. Uncomment only when intentionally overriding env.yml
-# for a special local run.
+# AWS/common values now come from terraform/user.tfvars through generated
+# ansible/group_vars/terraform.generated.yml.
 # aws_profile: AdministratorAccess-123456789012
 # aws_region: us-east-1
 # registry_type: ecr

@@ -41,6 +41,12 @@ variable "ssh_key_name" {
   description = "Existing AWS EC2 key pair name for FortiWeb SSH access."
 }
 
+variable "ssh_private_key_file" {
+  type        = string
+  description = "Shared local SSH private key path from terraform/user.tfvars. Accepted for common config consistency; not used by FortiWeb."
+  default     = ""
+}
+
 variable "fortiweb_instance_type" {
   type        = string
   description = "EC2 instance type for FortiWeb."

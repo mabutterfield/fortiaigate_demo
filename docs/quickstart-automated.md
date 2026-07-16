@@ -54,17 +54,19 @@ YOLO mode is intended for subsequent lab cycles, not first-time setup. It:
 - runs the remaining Ansible bootstrap/deployment flow without the normal
   confirmation prompts
 
-To reconfigure local ignored Terraform and Ansible variables without running
-Terraform or Ansible, use the standalone local reconfiguration tool:
+To initialize, export, or import local user-owned settings without running
+Terraform or Ansible, use the standalone user profile tool:
 
 ```bash
-python3 scripts/reconfigure_local_vars.py
+python3 scripts/user_profile.py init
+python3 scripts/user_profile.py export ../user_profile.tgz
+python3 scripts/user_profile.py import ../user_profile.tgz
 ```
 
-The tool backs up local tfvars/YAML files, copies missing local files from
-examples, syncs missing defaults, walks through the important quickstart
-variables, and then prompts for every remaining top-level difference between
-local files and their committed examples.
+The profile contains `terraform/user.tfvars`,
+`ansible/group_vars/user.yml`, and any existing module
+`99-local.auto.tfvars` files. It does not embed license files, private keys,
+certificates, Terraform state, generated inventory, or generated Ansible vars.
 
 To stop after Terraform and EC2 status, without running Ansible:
 
@@ -97,42 +99,27 @@ interactive runs prompt for a real license file under `FAIG/licenses`. In
 `--yolo` mode, the same check is non-interactive and fails fast so Terraform
 does not fail later on a missing local file.
 
-Before copying or editing local config, the script creates a tar.gz backup of
-existing private/local Terraform and Ansible config files in `../backup`
-relative to the repository root. To choose another backup directory:
+Quickstart can also run the same profile lifecycle actions directly:
 
 ```bash
-python3 scripts/automated_quickstart.py --backup-dir /path/to/backup
+python3 scripts/automated_quickstart.py --init
+python3 scripts/automated_quickstart.py --import ../user_profile.tgz
+python3 scripts/automated_quickstart.py --export ../user_profile.tgz
 ```
 
-Use `--skip-backup` only when you already have a current backup.
-
-For a full operator backup that includes generated Ansible values, generated
-inventory, and local Terraform state, run:
-
-```bash
-python3 scripts/backup_config.py
-```
-
-Preview the selected files first with:
-
-```bash
-python3 scripts/backup_config.py --dry-run
-```
-
-Use the full backup before destructive Terraform work, state imports, or larger
-refactors. The automated quick start's built-in backup is intentionally lighter
-and excludes generated `*.generated.yml` files.
+If required profile files are missing, interactive quickstart asks whether to
+import a profile, initialize one, or exit. In `--yolo` mode, missing profile
+files fail fast unless `--import` or `--init` is provided.
 
 ## Current Script Behavior
 
 The current setup script:
 
 - confirm prerequisites on the workstation
-- back up existing private/local tfvars and Ansible group var YAML files,
-  excluding generated `*.generated.yml` files
+- ensure required user profile files exist, or guide import/init
 - prompt for AWS profile, region, name prefix, trusted source CIDRs, and optional tags
-- prompt for the shared EC2 SSH key pair and save it in `terraform/user.tfvars`
+- prompt for the shared EC2 SSH key pair and local private key path, then save
+  both in `terraform/user.tfvars`
 - check AWS caller identity and, when login is needed, prompt for
   `aws sso login` versus `aws login`; SSO-style profiles default to
   `aws sso login`
@@ -145,9 +132,6 @@ The current setup script:
   and prompt when a placeholder or missing file is configured
 - offer to keep or change the current LiteLLM API key, admin username, and
   admin password in `ansible/group_vars/user.yml`
-- copy missing `*.example` variable files to local ignored files
-- append missing top-level defaults from updated example files into existing
-  local tfvars/YAML files without overwriting existing local values
 - collect required Terraform values using existing local files as prompt defaults
 - generate Terraform-owned Ansible values into
   `ansible/group_vars/terraform.generated.yml`
@@ -253,10 +237,9 @@ that should now exist:
 - `ansible/group_vars/terraform.generated.yml`
 - `ansible/inventory/aws.generated.ini`
 
-At the beginning of the run, it also prints the backup archive path when any
-private/local config files existed. Generated Ansible files such as
-`ecr.generated.yml`, `ports.generated.yml`, and `terraform.generated.yml` are
-intentionally excluded.
+At the beginning of the run, it verifies that the required user profile files
+exist. When they are missing, interactive runs offer profile import,
+initialization, or exit.
 
 After Terraform finishes, it runs a compact EC2 status check:
 
@@ -319,7 +302,7 @@ The final `show_demo_outputs.yml` playbook should print:
 The automated teardown script is intended for frequent provision/deprovision
 cycles where image repositories should be retained.
 
-Before it starts backup or Terraform work, teardown checks AWS caller identity
+Before it starts Terraform work, teardown checks AWS caller identity
 with the `aws_profile` from `terraform/user.tfvars`. If the session is not
 valid, it prompts for `aws sso login` or `aws login`, then checks caller
 identity again before continuing.
@@ -344,20 +327,15 @@ python3 scripts/automated_teardown.py --auto-approve --yes
 
 The teardown order is:
 
-1. Create a full backup with `scripts/backup_config.py`.
-2. Remove `aws_ecr_repository.this[...]` resources from
+1. Remove `aws_ecr_repository.this[...]` resources from
    `terraform/aws-ecr` state so repositories are not deleted.
-3. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
+2. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
    and the generated local ECR vars file while preserving repositories already
    removed from state.
-4. Destroy `terraform/aws-fortiweb` when state exists.
-5. Destroy `terraform/aws-fortigate` when state exists.
-6. Destroy `terraform/aws-ec2-k3s`.
-7. Destroy `terraform/aws-prep`.
-
-The backup includes local tfvars, generated Ansible vars, generated inventory,
-and Terraform state. Use `--backup-dir /path/to/backup` to choose another
-destination, or `--skip-backup` only when you already have a current backup.
+3. Destroy `terraform/aws-fortiweb` when state exists.
+4. Destroy `terraform/aws-fortigate` when state exists.
+5. Destroy `terraform/aws-ec2-k3s`.
+6. Destroy `terraform/aws-prep`.
 
 Useful partial teardown flags:
 

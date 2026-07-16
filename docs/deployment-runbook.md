@@ -120,13 +120,13 @@ ansible/inventory/aws.generated.ini
 Minimum `99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name` in `terraform/user.tfvars`
-- `ssh_private_key_file` when the AWS key pair does not use your default SSH key
 - `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`
 - VPC, subnet, k3s pod, and k3s service CIDRs
 
-If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `99-local.auto.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
+Set `ssh_key_name` and `ssh_private_key_file` in `terraform/user.tfvars`. If the
+EC2 key pair uses a non-default local private key path, Terraform includes that
+key in the generated Ansible inventory and in the `ssh_command` output.
 
 If `ec2_pull_github_keys` is set, cloud-init appends those public GitHub SSH
 keys to `/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty

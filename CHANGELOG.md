@@ -3,6 +3,30 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
+## v0.4.3 - User Profile Lifecycle
+
+Release date: 2026-07-16
+
+- Added `scripts/user_profile.py` for explicit local user profile lifecycle:
+  `init`, `import`, `export`, and `check`.
+- Automated quickstart now checks for required user profile files before
+  Terraform or Ansible and offers import/init/exit when they are missing.
+- Added quickstart `--init`, `--import`, and `--export` profile options.
+- Removed the transitional local config scripts:
+  `backup_config.py`, `sync_all_vars.py`, `reconfigure_local_vars.py`, and
+  `upgrade_v0_3_to_v0_4.py`.
+- Removed automatic broad backup/sync behavior from quickstart and teardown.
+  User profile export is now the portable user-owned configuration mechanism.
+- Updated docs and legacy Ansible example comments so new deployments point to
+  `terraform/user.tfvars`, `ansible/group_vars/user.yml`, and profile
+  import/export instead of `env.yml`, `all.yml`, or sync/migration scripts.
+- Moved `ssh_private_key_file` into shared `terraform/user.tfvars.example` so
+  SSH key name and local private-key path travel together in the user profile.
+- Added placeholder `ssh_private_key_file` declarations to modules that load
+  shared `50-user.auto.tfvars`, preventing undeclared-variable warnings.
+- Kept `bedrock_direct_test.py` and `fortiaigate_chat_test.py` as Ansible
+  support smoke-test helpers.
+
 ## v0.4.2 - Terraform Variable Ownership Split
 
 Release date: 2026-07-15
@@ -40,9 +64,8 @@ Release date: 2026-07-15
 - Updated quickstart, reconfigure, sync, backup, and upgrade helpers to create
   and maintain `user.yml` instead of copying new local `all.yml`, `env.yml`, or
   `images.yml` files.
-- Follow-up planned for v0.4.3: replace the transitional migration flow with a
-  cleaner import-old-settings-then-start-fresh migration path for local
-  configuration files.
+- Completed in v0.4.3: the transitional migration flow was replaced by explicit
+  user profile init/import/export.
 
 ## v0.4 - Phase 4 Appliance Baseline
 
@@ -125,8 +148,9 @@ default public k3s/FortiAIGate path to a private or appliance-fronted topology.
   FortiWeb use the same AWS EC2 key pair.
 - FortiGate and FortiWeb example tfvars are enabled by default for the Phase 4
   project baseline.
-- Local private-key path remains in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
-  because it is used for generated Ansible inventory.
+- Local private-key path initially remained in
+  `terraform/aws-ec2-k3s/99-local.auto.tfvars`; v0.4.3 moved it into shared
+  `terraform/user.tfvars`.
 
 ### Deferred
 

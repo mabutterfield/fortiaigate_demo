@@ -167,9 +167,9 @@ Terraform. Subsequent runs reuse this file.
 cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
 ```
 
-Set `ssh_key_name` in `terraform/user.tfvars`. Set
-`ssh_private_key_file`, `instance_type`, and network CIDRs in
-`terraform/aws-ec2-k3s/99-local.auto.tfvars`.
+Set `ssh_key_name` and `ssh_private_key_file` in `terraform/user.tfvars`. Set
+`instance_type` and network CIDRs in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
+only when overriding the tracked defaults.
 
 Deploy the k3s host and AWS network foundation:
 
@@ -181,7 +181,6 @@ terraform -chdir=terraform/aws-ec2-k3s apply
 Minimum `terraform/aws-ec2-k3s/99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_private_key_file`; `ssh_key_name` is shared from `terraform/user.tfvars`
 - `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`
@@ -228,24 +227,14 @@ and optional local paths.
 cp ansible/group_vars/user.yml.example ansible/group_vars/user.yml
 ```
 
-When pulling repo updates, sync any newly added example defaults into existing
-local files before reviewing values. Existing local values are preserved; new
-defaults are appended at the bottom for review.
+For guided setup or profile reuse, use the profile tool instead of manually
+copying and editing local files:
 
 ```bash
-python3 scripts/sync_all_vars.py
+python3 scripts/user_profile.py init
+python3 scripts/user_profile.py export ../user_profile.tgz
+python3 scripts/user_profile.py import ../user_profile.tgz
 ```
-
-When upgrading an existing `v0.3` lab to `v0.4`, run the versioned local config
-migration before reviewing values:
-
-```bash
-python3 scripts/upgrade_v0_3_to_v0_4.py
-```
-
-The upgrade script consolidates legacy module-local `ssh_key_name` assignments
-into `terraform/user.tfvars`, creates missing FortiGate/FortiWeb local
-tfvars, and enables the Phase 4 appliance prep defaults.
 
 Set local path overrides only when needed:
 

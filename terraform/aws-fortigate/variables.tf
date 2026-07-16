@@ -41,6 +41,12 @@ variable "ssh_key_name" {
   description = "Existing AWS EC2 key pair name for FortiGate SSH access."
 }
 
+variable "ssh_private_key_file" {
+  type        = string
+  description = "Shared local SSH private key path from terraform/user.tfvars. Accepted for common config consistency; not used by FortiGate."
+  default     = ""
+}
+
 variable "fortigate_instance_type" {
   type        = string
   description = "EC2 instance type for FortiGate."
