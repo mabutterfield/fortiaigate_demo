@@ -220,23 +220,23 @@ Guard/provider screenshots:
 Create the remaining flow URI rules in the order shown below. If you recreate
 the fallback `/v1/*` flow, make sure it is last.
 
-| Order | Name | GUI configured path | Actual request path | AI guard | Purpose |
+| Order | Name | GUI configured path | AI guard | Purpose | Resulting request path, not a GUI field |
 |---:|---|---|---|---|---|
-| 1 | Passthrough | `/v1/passthrough/*` | `/v1/passthrough/chat/completions` | `litellm-pass-bedrock` | Explicit passthrough static route. This may be created during first-login onboarding. |
-| 2 | Demo A | `/v1/demo-a/*` | `/v1/demo-a/chat/completions` | `demo-a` | Static route with default demo backend instructions |
-| 3 | Demo B | `/v1/demo-b/*` | `/v1/demo-b/chat/completions` | `demo-b` | Static route with alternate backend instructions |
-| 4 | `demo-a_faig-backend` | `/v1/demo-a-faig-be/*` | `/v1/demo-a-faig-be/chat/completions` | `demo-a-faig-be` | Static route that chains back through FAIG after LiteLLM injection |
-| 5 | `demo-b_faig-backend` | `/v1/demo-b-faig-be/*` | `/v1/demo-b-faig-be/chat/completions` | `demo-b-faig-be` | Alternate post-injection inspection route |
-| 6 | Intelligent routing | `/v1/intelligent/*` | `/v1/intelligent/chat/completions` | default `litellm-pass-bedrock`; header-selected `demo-a` or `demo-b` | One URI with optional header routing |
-| 7 | Default fallback, create last | `/v1/*` | `/v1/chat/completions` | `litellm-pass-bedrock` | Generic OpenAI-compatible fallback |
+| 1 | Passthrough | `/v1/passthrough/*` | `litellm-pass-bedrock` | Explicit passthrough static route. This may be created during first-login onboarding. | `/v1/passthrough/chat/completions` |
+| 2 | Demo A | `/v1/demo-a/*` | `demo-a` | Static route with default demo backend instructions | `/v1/demo-a/chat/completions` |
+| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route with alternate backend instructions | `/v1/demo-b/chat/completions` |
+| 4 | `demo-a_faig-backend` | `/v1/demo-a-faig-be/*` | `demo-a-faig-be` | Static route that chains back through FAIG after LiteLLM injection | `/v1/demo-a-faig-be/chat/completions` |
+| 5 | `demo-b_faig-backend` | `/v1/demo-b-faig-be/*` | `demo-b-faig-be` | Alternate post-injection inspection route | `/v1/demo-b-faig-be/chat/completions` |
+| 6 | Intelligent routing | `/v1/intelligent/*` | default `litellm-pass-bedrock`; header-selected `demo-a` or `demo-b` | One URI with optional header routing | `/v1/intelligent/chat/completions` |
+| 7 | Default fallback, create last | `/v1/*` | `litellm-pass-bedrock` | Generic OpenAI-compatible fallback | `/v1/chat/completions` |
 
 Optional routes:
 
-| Name | GUI configured path | Actual request path | AI guard / model |
+| Name | GUI configured path | AI guard / model | Resulting request path, not a GUI field |
 |---|---|---|---|
-| Open WebUI support / experimentation | `/v1/openwebui/*` | `/v1/openwebui/chat/completions` | Request body model or selected provider/model |
-| API test | `/v1/test/*` | `/v1/test/chat/completions` | Test provider/model |
-| Ollama validation | `/v1/ollama/*` | `/v1/ollama/chat/completions` | Ollama provider/model |
+| Open WebUI support / experimentation | `/v1/openwebui/*` | Request body model or selected provider/model | `/v1/openwebui/chat/completions` |
+| API test | `/v1/test/*` | Test provider/model | `/v1/test/chat/completions` |
+| Ollama validation | `/v1/ollama/*` | Ollama provider/model | `/v1/ollama/chat/completions` |
 
 ![Create demo flow](images/create-demo-flow.jpg)
 
@@ -245,9 +245,9 @@ rules:
 
 | Routing name | Type | Header name | Operator | Value | AI guard |
 |---|---|---|---|---|---|
-| `passthrough` | default / no header | none | none | none | `litellm-pass-bedrock` |
 | `demo-a` | header | `X-FAIG-Model-Route` | `is` | `demo-a` | `demo-a` |
 | `demo-b` | header | `X-FAIG-Model-Route` | `is` | `demo-b` | `demo-b` |
+| `Default*` | default / no header | none | none | none | `litellm-pass-bedrock` |
 
 The chatbot sends no intelligent-route header for `passthrough`; FortiAIGate
 should therefore use the default pass-through guard/provider for that flow.

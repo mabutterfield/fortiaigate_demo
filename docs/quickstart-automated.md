@@ -14,15 +14,6 @@ Run from the repository root:
 python3 scripts/automated_quickstart.py
 ```
 
-For a no-apply release or workstation sanity check, run:
-
-```bash
-python3 scripts/smoke_test.py
-```
-
-The smoke test does not run `terraform apply`, `terraform destroy`, or Ansible
-deployment tasks.
-
 For repeat lab cycles, use the paired teardown script when you want to remove
 the EC2/k3s host and AWS prep resources while keeping ECR repositories:
 

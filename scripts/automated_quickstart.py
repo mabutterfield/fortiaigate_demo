@@ -34,6 +34,14 @@ APPLIANCE_TERRAFORM_MODULES = {
     "fortigate": ("FortiGate appliance", "terraform/aws-fortigate"),
     "fortiweb": ("FortiWeb appliance", "terraform/aws-fortiweb"),
 }
+APPLIANCE_COLLECTION_REQUIREMENTS = {
+    "fortigate": {
+        "fortinet.fortios": "2.5.1",
+    },
+    "fortiweb": {
+        "fortinet.fortiweb": "1.3.2",
+    },
+}
 APPLIANCE_LICENSES = {
     "fortigate": {
         "label": "FortiGate",
@@ -181,6 +189,58 @@ def check_requirements() -> None:
             missing.append(command)
     if missing:
         raise SystemExit(f"Missing required commands: {', '.join(missing)}")
+
+
+def installed_ansible_collection_version(collection_name: str) -> str:
+    result = subprocess.run(
+        ["ansible-galaxy", "collection", "list", collection_name],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        return ""
+
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == collection_name:
+            return parts[1]
+    return ""
+
+
+def required_appliance_collections(appliance_keys: list[str]) -> dict[str, str]:
+    requirements: dict[str, str] = {}
+    for appliance_key in appliance_keys:
+        requirements.update(APPLIANCE_COLLECTION_REQUIREMENTS.get(appliance_key, {}))
+    return requirements
+
+
+def check_appliance_collections(appliance_keys: list[str]) -> None:
+    requirements = required_appliance_collections(appliance_keys)
+    if not requirements:
+        return
+
+    print_header("Checking Fortinet Ansible Collections")
+    problems: list[str] = []
+    for collection_name, required_version in sorted(requirements.items()):
+        installed_version = installed_ansible_collection_version(collection_name)
+        if not installed_version:
+            problems.append(f"{collection_name}: missing, required {required_version}")
+            print(f"{collection_name}: missing, required {required_version}")
+            continue
+        if installed_version != required_version:
+            problems.append(f"{collection_name}: installed {installed_version}, required {required_version}")
+            print(f"{collection_name}: installed {installed_version}, required {required_version}")
+            continue
+        print(f"{collection_name}: {installed_version}")
+
+    if problems:
+        raise SystemExit(
+            "Missing or mismatched Fortinet Ansible collections. Run: "
+            "ansible-galaxy collection install -r ansible/collections/requirements.yml"
+        )
 
 
 def list_aws_profiles() -> list[str]:
@@ -1768,6 +1828,7 @@ def main() -> None:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
+    check_appliance_collections(appliance_keys)
     run_ansible_flow(args)
 
     print_header("Automated Quick Start Complete")

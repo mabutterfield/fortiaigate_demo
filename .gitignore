@@ -80,6 +80,9 @@ ansible/host_vars/*.yml
 !ansible/group_vars/*.yml.example
 !ansible/host_vars/*.example.yml
 ansible/inventory/aws.generated.ini
+ansible/inventory/fortigate.generated.ini
+ansible/inventory/fortiweb.generated.ini
+ansible/secrets/
 ansible/group_vars/ecr.generated.yml
 ansible/group_vars/bedrock.generated.yml
 ansible/group_vars/ports.generated.yml

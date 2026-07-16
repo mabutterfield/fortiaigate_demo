@@ -11,10 +11,6 @@ Start with one quick start, then use the topic docs for details and recovery.
 | Step-by-step operator-run deployment | [Manual Quick Start](quickstart-manual.md) |
 | End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
 
-Run `python3 scripts/smoke_test.py` before tagging a release to perform
-no-apply checks across scripts, Terraform formatting, variable-file structure,
-and Ansible syntax.
-
 ## Core Topics
 
 | Topic | Document |
@@ -56,7 +52,7 @@ and Ansible syntax.
 - `deploy_demo_https_gateway.yml`: optionally adds self-signed HTTPS listeners for HTTP-only demo services.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
-- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion smoke test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
+- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

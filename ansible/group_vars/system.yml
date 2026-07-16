@@ -407,7 +407,7 @@ demo_home_ingress_host: ""
 # to the existing internal HTTP services. Keep internal cluster traffic HTTP;
 # this only encrypts optional public browser/API access.
 # terraform/aws-ec2-k3s opens the generated HTTP and HTTPS demo ports.
-demo_https_gateway_enabled: false
+demo_https_gateway_enabled: true
 demo_https_gateway_self_signed: true
 demo_https_gateway_cert_local_path: ""
 demo_https_gateway_key_local_path: ""
@@ -416,6 +416,11 @@ demo_https_gateway_chatbot_https_port: "{{ demo_chatbot_https_port | default(304
 demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(30445) }}"
 demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
+
+# === Fortinet appliance traffic paths: Phase 6 desired-state input ===
+# Empty by default so the direct public k3s demo path remains unchanged.
+# User-specific path selections belong in ignored ansible/group_vars/user.yml.
+fortinet_traffic_paths: []
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server

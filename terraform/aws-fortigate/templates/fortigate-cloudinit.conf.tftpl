@@ -24,6 +24,9 @@ config system api-user
     set api-key "${api_key}"
     set accprofile "super_admin"
     set vdom "root"
+%{ for trusthost in api_admin_trusthosts ~}
+    set trusthost${trusthost.id} ${trusthost.network} ${trusthost.netmask}
+%{ endfor ~}
   next
 end
 %{ endif }

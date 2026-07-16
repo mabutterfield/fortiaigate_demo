@@ -36,6 +36,12 @@ variable "fortigate_enabled" {
   default     = true
 }
 
+variable "ansible_inventory_output_path" {
+  type        = string
+  description = "Path where this module writes the generated FortiGate Ansible inventory."
+  default     = "../../ansible/inventory/fortigate.generated.ini"
+}
+
 variable "ssh_key_name" {
   type        = string
   description = "Existing AWS EC2 key pair name for FortiGate SSH access."
@@ -68,7 +74,7 @@ variable "fortigate_architecture" {
 variable "fortigate_version" {
   type        = string
   description = "FortiGate major/minor version to select from AWS Marketplace images."
-  default     = "7.6"
+  default     = "8.0"
 }
 
 variable "fortigate_ami_name_override" {

@@ -1,0 +1,6 @@
+---
+collections:
+  - name: fortinet.fortios
+    version: 2.5.1
+  - name: fortinet.fortiweb
+    version: 1.3.2

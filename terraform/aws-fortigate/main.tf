@@ -51,6 +51,13 @@ locals {
   ]
   fortigate_public_allowaccess   = var.fortigate_enable_ssh ? "ping https ssh fgfm" : "ping https fgfm"
   fortigate_internal_allowaccess = var.fortigate_enable_ssh ? "ping https ssh fgfm" : "ping https fgfm"
+  fortigate_api_admin_trusthosts = [
+    for index, cidr in slice(local.effective_allowed_ingress_cidrs, 0, min(length(local.effective_allowed_ingress_cidrs), 10)) : {
+      id      = index + 1
+      network = cidrhost(cidr, 0)
+      netmask = cidrnetmask(cidr)
+    }
+  ]
   fortigate_management_tcp_ports = {
     for port in distinct(concat(
       [var.fortigate_admin_port, 443],
@@ -124,6 +131,7 @@ data "cloudinit_config" "fortigate" {
       enable_api           = var.fortigate_enable_api
       api_admin            = var.fortigate_api_admin
       api_key              = try(random_string.fortigate_api_key[0].result, "")
+      api_admin_trusthosts = local.fortigate_api_admin_trusthosts
     })
   }
 
@@ -296,4 +304,19 @@ resource "aws_eip_association" "public" {
   depends_on = [
     aws_instance.this,
   ]
+}
+
+resource "local_file" "ansible_inventory" {
+  filename = var.ansible_inventory_output_path
+  content = templatefile("${path.module}/templates/fortigate.generated.ini.tftpl", {
+    ansible_host      = local.fortigate_eip_public_ip
+    public_ip         = local.fortigate_eip_public_ip
+    public_private_ip = try(aws_network_interface.public[0].private_ip, "")
+    internal_ip       = try(aws_network_interface.internal[0].private_ip, "")
+    instance_id       = try(aws_instance.this[0].id, "")
+    admin_port        = var.fortigate_admin_port
+    api_admin         = var.fortigate_enable_api ? var.fortigate_api_admin : ""
+    admin_url         = local.fortigate_eip_public_ip != null ? "https://${local.fortigate_eip_public_ip}:${var.fortigate_admin_port}" : ""
+    api_url           = local.fortigate_eip_public_ip != null ? "https://${local.fortigate_eip_public_ip}:${var.fortigate_admin_port}/api/v2" : ""
+  })
 }

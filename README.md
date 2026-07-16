@@ -24,7 +24,6 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - FortiGate and FortiWeb Terraform appliance baselines are enabled by default
   for the full AWS demo and can be disabled with local overrides
 - Automated quickstart and teardown scripts support repeat lab rebuilds
-- A no-apply smoke test is available for release and workstation sanity checks
 - FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
 
 See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
@@ -67,6 +66,6 @@ ansible/        Image publishing, host bootstrap, deploy, status, and validation
 helm-values/    Example FortiAIGate Helm values
 k8s-overlays/   Helm post-renderer and patch notes
 docs/           Quick starts, architecture, operations, and troubleshooting documentation
-scripts/        Operational helper and smoke-test scripts
+scripts/        Operational helper scripts
 chatbot/        Demo chatbot, LiteLLM, OpenWebUI-adjacent app assets, and home page charts
 ```

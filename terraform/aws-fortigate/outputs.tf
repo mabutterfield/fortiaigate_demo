@@ -74,6 +74,11 @@ output "fortigate_api_key" {
   sensitive   = true
 }
 
+output "ansible_inventory" {
+  description = "Generated FortiGate Ansible inventory path."
+  value       = local_file.ansible_inventory.filename
+}
+
 output "fortigate_license_mode" {
   description = "FortiGate license bootstrap mode."
   value       = var.fortigate_license_mode

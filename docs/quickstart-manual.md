@@ -689,7 +689,7 @@ To test Bedrock directly before configuring the FortiAIGate guard:
 ansible-playbook ansible/playbooks/test_model_direct.yml
 ```
 
-The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock smoke test; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
+The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock API check; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
 
 The direct Ollama path is not part of the default build yet. Advanced users can
 set `direct_model_provider=ollama` and the related Ollama vars manually when

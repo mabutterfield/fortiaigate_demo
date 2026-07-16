@@ -1,7 +1,8 @@
 # Scripts
 
-Operational helper and smoke-test scripts used by the Ansible playbooks and
-manual troubleshooting.
+Operational helper scripts used by the Ansible playbooks and manual
+troubleshooting. Release smoke tests are internal development checks and are not
+part of the end-user quickstart path.
 
 Current scripts:
 
