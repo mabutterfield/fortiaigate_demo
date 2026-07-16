@@ -9,10 +9,13 @@
       loop: >-
         {{
           query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
-          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
-          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/all.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
   roles:
     - demo_home_status

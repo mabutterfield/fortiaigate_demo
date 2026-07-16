@@ -6,14 +6,14 @@ AWS infrastructure is split across three user-facing Terraform folders:
 - `terraform/aws-prep`: IAM roles, ECR pull permissions, EIPs, trusted source CIDRs, and optional Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, security group, EC2 k3s host, EIP association, and generated Ansible inventory
 
-Shared values live in `terraform/common.tfvars`.
+Shared values live in `terraform/user.tfvars`.
 
 See [VPC Layout](vpc-layout.md) for the current public-k3s network diagram and
 the private/appliance placeholder layout.
 
 ## Trusted Source CIDRs
 
-`allowed_ingress_cidr` in `terraform/common.tfvars` accepts either one CIDR
+`allowed_ingress_cidr` in `terraform/user.tfvars` accepts either one CIDR
 string or a list of CIDR strings. Use `/32` entries for individual public IPs.
 
 ```hcl

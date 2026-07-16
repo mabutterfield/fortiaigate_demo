@@ -2,7 +2,7 @@
 
 This page freezes the current working baseline. Use it as the short reference
 for what the demo deploys today before FortiWeb/FortiGate traffic paths, shared
-ECR modes, and local Ubuntu parity.
+ECR modes, first-class Ollama setup, and local Ubuntu parity.
 
 ## Architecture
 
@@ -12,6 +12,7 @@ Operator workstation
       -> ECR repositories
       -> AWS prep IAM, EIPs, Bedrock credentials
       -> VPC, subnets, security group, EC2 k3s host
+      -> FortiGate/FortiWeb appliance EC2 instances when enabled
   -> Ansible
       -> optional image publishing
       -> k3s bootstrap
@@ -58,7 +59,8 @@ when testing the inspected LiteLLM path.
 | MCP demo tools | optional baseline | `mcp` | `http://<k3s-ip>:30084/tools` |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` |
 | HTTPS gateway | optional | `demo-https-gateway` | generated HTTPS ports |
-| FortiWeb/FortiGate appliances | deferred | n/a | not implemented |
+| FortiGate appliance | Terraform baseline, enabled by default | n/a | FortiGate EIP when enabled |
+| FortiWeb appliance | Terraform baseline, enabled by default | n/a | FortiWeb EIP when enabled |
 
 ## Default Port Map
 
@@ -84,18 +86,20 @@ Automated quick start and manual deployment use this order:
 2. Terraform ECR
 3. Terraform AWS prep
 4. Terraform EC2 k3s foundation
-5. Optional image publishing
-6. k3s bootstrap
-7. FortiAIGate deploy
-8. FortiAIGate status check
-9. LiteLLM deploy
-10. optional Open WebUI deploy, skipped unless `openwebui_enabled=true`
-11. custom chatbot UI deploy
-12. optional MCP demo tools deploy
-13. demo home deploy
-14. optional HTTPS gateway deploy
-15. final FortiAIGate status check
-16. consolidated output display
+5. FortiGate Terraform deployment when enabled
+6. FortiWeb Terraform deployment when enabled
+7. Optional image publishing
+8. k3s bootstrap
+9. FortiAIGate deploy
+10. FortiAIGate status check
+11. LiteLLM deploy
+12. optional Open WebUI deploy, skipped unless `openwebui_enabled=true`
+13. custom chatbot UI deploy
+14. optional MCP demo tools deploy
+15. demo home deploy
+16. optional HTTPS gateway deploy
+17. final FortiAIGate status check
+18. consolidated output display
 
 Automated quick start checks FortiAIGate once after Helm deploy, continues with
 the remaining app deployments, then checks FortiAIGate status again at the end.
@@ -126,7 +130,6 @@ Smoke-test playbooks:
 The following are intentionally not part of the current baseline:
 
 - FortiWeb-protected MCP path
-- FortiGate/FortiWeb appliance Terraform deployment
 - private k3s mode validation
 - shared/cross-account ECR support
 - host-based/path-based routing implementation

@@ -96,21 +96,21 @@
   ansible.builtin.set_fact:
     direct_model_bedrock_models: >-
       {{
-        direct_model_bedrock_models_raw.stdout | from_json
+        (direct_model_bedrock_models_raw.stdout | from_json) | default([], true)
         if (
           direct_model_bedrock_models_raw is defined
           and direct_model_bedrock_models_raw.rc == 0
-          and direct_model_bedrock_models_raw.stdout | length > 0
+          and direct_model_bedrock_models_raw.stdout | default('', true) | length > 0
         )
         else []
       }}
     direct_model_bedrock_regions: >-
       {{
-        direct_model_bedrock_regions_raw.stdout | from_json
+        (direct_model_bedrock_regions_raw.stdout | from_json) | default([], true)
         if (
           direct_model_bedrock_regions_raw is defined
           and direct_model_bedrock_regions_raw.rc == 0
-          and direct_model_bedrock_regions_raw.stdout | length > 0
+          and direct_model_bedrock_regions_raw.stdout | default('', true) | length > 0
         )
         else []
       }}
@@ -120,7 +120,7 @@
         if (
           direct_model_bedrock_region_raw is defined
           and direct_model_bedrock_region_raw.rc == 0
-          and direct_model_bedrock_region_raw.stdout | length > 0
+          and direct_model_bedrock_region_raw.stdout | default('', true) | length > 0
         )
         else ""
       }}
@@ -132,8 +132,8 @@
   ansible.builtin.set_fact:
     direct_model_effective_aws_access_key_id: >-
       {{
-        direct_model_aws_access_key_id | trim
-        if direct_model_aws_access_key_id | length > 0
+        direct_model_aws_access_key_id | default('', true) | trim
+        if direct_model_aws_access_key_id | default('', true) | length > 0
         else (
           direct_model_bedrock_access_key_raw.stdout | trim
           if (
@@ -145,8 +145,8 @@
       }}
     direct_model_effective_aws_secret_access_key: >-
       {{
-        direct_model_aws_secret_access_key | trim
-        if direct_model_aws_secret_access_key | length > 0
+        direct_model_aws_secret_access_key | default('', true) | trim
+        if direct_model_aws_secret_access_key | default('', true) | length > 0
         else (
           direct_model_bedrock_secret_key_raw.stdout | trim
           if (
@@ -165,11 +165,11 @@
   ansible.builtin.set_fact:
     direct_model_effective_region: >-
       {{
-        direct_model_bedrock_region
-        if direct_model_bedrock_region | length > 0
+        direct_model_bedrock_region | default('', true) | trim
+        if direct_model_bedrock_region | default('', true) | trim | length > 0
         else (
           direct_model_bedrock_module_region
-          if direct_model_bedrock_module_region | length > 0
+          if direct_model_bedrock_module_region | default('', true) | trim | length > 0
           else (
             direct_model_bedrock_regions[0]
             if direct_model_bedrock_regions | length > 0
@@ -179,12 +179,12 @@
       }}
     direct_model_effective_model: >-
       {{
-        direct_model_bedrock_model
-        if direct_model_bedrock_model | length > 0
+        direct_model_bedrock_model | default('', true) | trim
+        if direct_model_bedrock_model | default('', true) | trim | length > 0
         else (
           direct_model_bedrock_models[0]
           if direct_model_bedrock_models | length > 0
-          else direct_model_bedrock_fallback_model
+          else direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0', true)
         )
       }}
   when: direct_model_provider == "bedrock"
@@ -194,8 +194,8 @@
 - name: Validate Bedrock credentials are available
   ansible.builtin.assert:
     that:
-      - direct_model_effective_aws_access_key_id | length > 0
-      - direct_model_effective_aws_secret_access_key | length > 0
+      - direct_model_effective_aws_access_key_id | default('', true) | length > 0
+      - direct_model_effective_aws_secret_access_key | default('', true) | length > 0
     fail_msg: >-
       Bedrock direct test needs credentials. Run terraform/aws-prep apply and keep
       direct_model_bedrock_read_credentials_from_terraform=true, or set

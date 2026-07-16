@@ -1,0 +1,19 @@
+# Shared Terraform user settings.
+#
+# Copy this file to terraform/user.tfvars and personalize it for your AWS
+# account, region, trusted source IPs, and EC2 key pair. Module-specific
+# overrides belong in terraform/<module>/99-local.auto.tfvars.
+
+aws_profile          = "AdministratorAccess-123456789012"
+aws_region           = "us-east-1"
+name_prefix          = "fortiaigate-demo"
+ssh_key_name         = "my-existing-keypair"
+ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
+
+# Trusted public CIDRs allowed to reach lab management and demo endpoints.
+# Each entry must be a valid CIDR block. Use /32 for a single public IP.
+allowed_ingress_cidr = [
+  "203.0.113.10/32",
+]
+
+tags = {}

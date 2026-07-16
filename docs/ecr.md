@@ -10,8 +10,8 @@ This workflow separates registry infrastructure from image publishing:
 
 ```bash
 cd terraform/aws-ecr
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars before terraform init. Set registry-specific values
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
+# Edit 99-local.auto.tfvars before terraform init. Set registry-specific values
 # such as repo_prefix and repositories.
 # Do not put secrets or access keys in this file.
 aws sso login --profile <profile-name>
@@ -31,8 +31,11 @@ Terraform also writes non-secret Ansible registry vars to:
 ansible/group_vars/ecr.generated.yml
 ```
 
-The publish, deploy, status, and validation playbooks load `env.yml`,
-`ecr.generated.yml`, `images.yml`, and then `all.yml`.
+The publish, deploy, status, and validation playbooks load tracked
+`system.yml`, generated `terraform.generated.yml`, `ecr.generated.yml`, and
+`ports.generated.yml`, then ignored `user.yml` overrides. Legacy `env.yml`,
+`images.yml`, and `all.yml` are loaded first when present for upgrade
+compatibility.
 
 If repositories already exist from manual testing, import them before applying:
 
@@ -61,14 +64,17 @@ teardown script:
 python3 scripts/automated_teardown.py
 ```
 
-It backs up local config and state, removes ECR repository resources from state,
-destroys only ECR lifecycle/local output resources, and then destroys EC2 k3s
-and AWS prep.
+It removes ECR repository resources from state, then runs a full
+`terraform/aws-ecr` destroy. Because repositories were removed from state
+first, Terraform preserves the ECR repositories while deleting tracked lifecycle
+policy resources and the generated local ECR vars file. The script then
+destroys appliances, EC2 k3s, and AWS prep in dependency order.
 
-Back up local config and state first:
+To preserve local user settings before rebuilding from a fresh clone, export
+the user profile:
 
 ```bash
-python3 scripts/backup_config.py
+python3 scripts/user_profile.py export ../user_profile.tgz
 ```
 
 Then remove the imported repositories from Terraform state:
@@ -134,10 +140,12 @@ ansible-playbook playbooks/publish_images.yml \
   -e registry_type=ecr
 ```
 
-The playbook loads `ansible/group_vars/images.yml` when present. Copy the example catalog and set paths for local release directories:
+Tracked `ansible/group_vars/system.yml` contains the default active image
+settings. For custom local release directories, put only the override values in
+`ansible/group_vars/user.yml` or pass them with `-e`.
 
 ```bash
-cp group_vars/images.example.yml group_vars/images.yml
+ansible-playbook playbooks/publish_images.yml -e image_archive_dir=/path/to/images/8.0.1
 ```
 
 Publish all builds marked `state: active`:
@@ -286,4 +294,4 @@ policies, and image publishing may move to a separate registry/image workflow or
 repo. At minimum, keep ECR setup and publishing as a separate workflow from k3s
 and application deployment.
 
-Never commit real `terraform.tfvars`, image archives, registry passwords, or AWS credentials.
+Never commit real `99-local.auto.tfvars`, image archives, registry passwords, or AWS credentials.

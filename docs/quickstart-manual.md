@@ -29,7 +29,7 @@ Expected parent workspace layout:
 
 The sample variables and documentation assume this parent `FAIG/` layout. You
 can use different paths, but then set the corresponding variables in
-`ansible/group_vars/all.yml`.
+`ansible/group_vars/user.yml`.
 
 ```text
 FAIG/
@@ -55,15 +55,13 @@ The vendor Helm chart `.tar.gz` files may be stored under `FAIG_helm/<version>/`
 
 Local files you normally create or edit are intentionally not tracked:
 
-- `terraform/common.tfvars`
-- `terraform/aws-ecr/terraform.tfvars`
-- `terraform/aws-prep/terraform.tfvars`
-- `terraform/aws-ec2-k3s/terraform.tfvars`
-- `ansible/group_vars/env.yml`
-- `ansible/group_vars/images.yml`
-- `ansible/group_vars/all.yml`
+- `terraform/user.tfvars`
+- `terraform/aws-ecr/99-local.auto.tfvars`
+- `terraform/aws-prep/99-local.auto.tfvars`
+- `terraform/aws-ec2-k3s/99-local.auto.tfvars`
+- `ansible/group_vars/user.yml`
 
-Never commit real `terraform.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
+Never commit real `99-local.auto.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
 
 ## Quick Start
 
@@ -91,16 +89,16 @@ Create the shared Terraform config once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/common.tfvars.example terraform/common.tfvars
+cp terraform/user.tfvars.example terraform/user.tfvars
 ```
 
 Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
-`tags` in `terraform/common.tfvars`. `allowed_ingress_cidr` can be one CIDR
+`tags` in `terraform/user.tfvars`. `allowed_ingress_cidr` can be one CIDR
 string or a list of CIDR strings; the list form is preferred for multiple
 operators. Do not put secrets or access keys in this file.
 
-Each Terraform module has a tracked `common.auto.tfvars` symlink to
-`../common.tfvars`, so shared values are loaded automatically by
+Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
+`../user.tfvars`, so shared values are loaded automatically by
 `terraform plan` and `terraform apply`.
 
 ### Terraform 2 - Registry: ECR
@@ -109,11 +107,11 @@ Create the ECR module variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-ecr/terraform.tfvars.example terraform/aws-ecr/terraform.tfvars
+cp terraform/aws-ecr/99-local.auto.tfvars.example terraform/aws-ecr/99-local.auto.tfvars
 ```
 
 Set registry-specific values such as `repo_prefix` and `repositories` in
-`terraform/aws-ecr/terraform.tfvars`.
+`terraform/aws-ecr/99-local.auto.tfvars`.
 
 Create or import private ECR repositories:
 
@@ -137,11 +135,11 @@ Create the AWS prep variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-prep/terraform.tfvars.example terraform/aws-prep/terraform.tfvars
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
 ```
 
 Set IAM, EIP allocation, ECR pull, and Bedrock IAM options in
-`terraform/aws-prep/terraform.tfvars`.
+`terraform/aws-prep/99-local.auto.tfvars`.
 
 Create shared AWS prep resources:
 
@@ -166,11 +164,12 @@ Create the EC2 k3s variables once. Edit the copied file before running
 Terraform. Subsequent runs reuse this file.
 
 ```bash
-cp terraform/aws-ec2-k3s/terraform.tfvars.example terraform/aws-ec2-k3s/terraform.tfvars
+cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
 ```
 
-Set `ssh_key_name`, `ssh_private_key_file`, `instance_type`, and network CIDRs
-in `terraform/aws-ec2-k3s/terraform.tfvars`.
+Set `ssh_key_name` and `ssh_private_key_file` in `terraform/user.tfvars`. Set
+`instance_type` and network CIDRs in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
+only when overriding the tracked defaults.
 
 Deploy the k3s host and AWS network foundation:
 
@@ -179,10 +178,9 @@ terraform -chdir=terraform/aws-ec2-k3s init
 terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
-Minimum `terraform/aws-ec2-k3s/terraform.tfvars` values to review:
+Minimum `terraform/aws-ec2-k3s/99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name` and `ssh_private_key_file`
 - `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`
@@ -220,36 +218,42 @@ Run the `ssh_command` output before starting Ansible. If SSH does not work, Ansi
 
 ### Ansible 1 - Shared Config And Image Publishing
 
-Create the Ansible variable files once. Edit the copied files before running
-Ansible. Subsequent runs reuse these files.
+Create the Ansible user variable file once. Repo-owned defaults are tracked in
+`ansible/group_vars/system.yml`; do not copy that file. Edit only
+`ansible/group_vars/user.yml` for local licenses, credentials, and optional
+local path overrides.
 
 ```bash
-cp ansible/group_vars/env.example.yml ansible/group_vars/env.yml
-cp ansible/group_vars/images.example.yml ansible/group_vars/images.yml
-cp ansible/group_vars/all.example.yml ansible/group_vars/all.yml
+cp ansible/group_vars/user.yml.example ansible/group_vars/user.yml
 ```
 
-When pulling repo updates, sync any newly added example defaults into existing
-local files before reviewing values. Existing local values are preserved; new
-defaults are appended at the bottom for review.
+For guided setup or profile reuse, use the profile tool instead of manually
+copying and editing local files:
 
 ```bash
-python3 scripts/sync_all_vars.py
+python3 scripts/user_profile.py init
+python3 scripts/user_profile.py export ../user_profile.tgz
+python3 scripts/user_profile.py import ../user_profile.tgz
 ```
 
-Set local values in `ansible/group_vars/env.yml`, especially:
+Set local path overrides only when needed:
 
-- `aws_profile`
-- `aws_region`
-- `faig_workspace_root` when your `FAIG` workspace is not the parent of this repo
-- `registry_type`
+- `faig_workspace_root` in `ansible/group_vars/user.yml` only when your `FAIG`
+  workspace is not the parent of this repo
 
-Set local values in `ansible/group_vars/all.yml`, especially:
+Set local values in `ansible/group_vars/user.yml`, especially:
 
-- `fortiaigate_version`
 - license file list under the default `FAIG/licenses`, or a custom `license_source_dir`
 - `litellm_master_key`, `litellm_ui_username`, and `litellm_ui_password` placeholders before exposing LiteLLM
-- Ollama endpoint/model if used for validation
+
+The default direct model path remains Bedrock through the Terraform-created IAM
+profile. Direct provider/model overrides, Ollama endpoints, chatbot prompt
+source paths, and TLS certificate paths are advanced manual settings. Ollama
+settings are intentionally commented out until that workflow is built.
+
+For AWS deployments, Terraform writes `aws_profile`, `aws_region`, SSH key
+details, CIDRs, and k3s host facts into
+`ansible/group_vars/terraform.generated.yml`.
 
 By default, `faig_workspace_root` resolves to the parent `FAIG` directory from the Ansible playbook location. You can override it per shell:
 
@@ -411,14 +415,14 @@ model, plus an optional chained FAIG inspection alias:
   configured backend FortiAIGate URI as an OpenAI-compatible upstream
 
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
-in `ansible/group_vars/all.yml`, then rerun `deploy_litellm.yml`.
+in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.
 
 ### Optional - Deploy Open WebUI
 
 Open WebUI is available as a secondary chat UI, but it is disabled by default.
 The primary lab walkthrough uses the custom chatbot because it exposes the
 direct LiteLLM, FAIG static, FAIG intelligent, and MCP controls. To deploy
-Open WebUI, set this in `ansible/group_vars/all.yml`:
+Open WebUI, set this in `ansible/group_vars/user.yml`:
 
 ```yaml
 openwebui_enabled: true
@@ -504,7 +508,7 @@ OpenAI-compatible base URL, so `/v1/passthrough` receives
 
 When a frontend-layer prompt is intentionally needed, set either
 `chatbot_frontend_system_prompt` or
-`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/all.yml`.
+`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/user.yml`.
 The sample file is `chatbot/instructions/frontend/instructions.txt`.
 
 Check readiness separately:
@@ -581,7 +585,7 @@ demo home `30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`.
 HTTP remains the primary demo access path. To add optional HTTPS listeners for
 the chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and
 Open WebUI when enabled, set
-`demo_https_gateway_enabled: true` in `ansible/group_vars/all.yml`, apply
+`demo_https_gateway_enabled: true` in `ansible/group_vars/user.yml`, apply
 `terraform/aws-ec2-k3s` so the generated HTTPS ports are open, then run:
 
 ```bash
@@ -632,7 +636,7 @@ The output includes LiteLLM API details, LiteLLM UI credentials, application
 URLs, optional HTTPS URLs, and the Terraform-generated SSH command for the k3s
 host.
 
-The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/terraform.tfvars` before creating the host if they conflict with your environment.
+The default network layout avoids overlap between the AWS VPC and k3s internals: AWS VPC `10.20.0.0/16`, k3s pods `10.60.0.0/16`, and k3s services `10.70.0.0/16`. Override these in `terraform/aws-ec2-k3s/99-local.auto.tfvars` before creating the host if they conflict with your environment.
 
 ## Operating Notes
 
@@ -685,7 +689,9 @@ ansible-playbook ansible/playbooks/test_model_direct.yml
 
 The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock smoke test; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
 
-Set `direct_model_provider=ollama` to use the same playbook for direct Ollama testing.
+The direct Ollama path is not part of the default build yet. Advanced users can
+set `direct_model_provider=ollama` and the related Ollama vars manually when
+testing that future workflow.
 
 After the guard is configured, generate and run the first external chat test:
 

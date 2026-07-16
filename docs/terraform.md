@@ -2,10 +2,12 @@
 
 Terraform is split into user-facing steps that keep AWS setup in Terraform before switching to Ansible:
 
-- `terraform/common.tfvars`: shared local configuration for all Terraform modules
+- `terraform/user.tfvars`: shared local configuration for all Terraform modules
 - `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
 - `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
+- `terraform/aws-fortigate`: optional FortiGate appliance deployment
+- `terraform/aws-fortiweb`: optional FortiWeb appliance deployment with S3-backed cloud-init
 
 All modules use local Terraform state for now. Remote state is a future enhancement.
 
@@ -21,15 +23,16 @@ Set shared values once:
 
 ```bash
 cd terraform
-cp common.tfvars.example common.tfvars
+cp user.tfvars.example user.tfvars
 ```
 
-Edit `common.tfvars`:
+Edit `user.tfvars`:
 
 ```hcl
 aws_profile          = "AdministratorAccess-123456789012"
 aws_region           = "us-east-1"
 name_prefix          = "fortiaigate-demo"
+ssh_key_name         = "my-existing-keypair"
 allowed_ingress_cidr = [
   "203.0.113.10/32",
 ]
@@ -40,8 +43,8 @@ tags                 = {}
 strings. The list form is preferred when multiple operators need direct lab
 access.
 
-Each Terraform module has a tracked `common.auto.tfvars` symlink to
-`../common.tfvars`, so the shared values are loaded automatically:
+Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
+`../user.tfvars`, so the shared values are loaded automatically:
 
 ```bash
 terraform plan
@@ -50,21 +53,22 @@ terraform apply
 
 Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
 
-Before Terraform imports, destructive changes, or larger refactors, create a
-local backup of operator config, generated values, inventory, and Terraform
-state:
+Before moving to a fresh clone or reinitializing local user settings, export
+the portable user profile:
 
 ```bash
-python3 scripts/backup_config.py
+python3 scripts/user_profile.py export ../user_profile.tgz
 ```
 
-Use `python3 scripts/backup_config.py --dry-run` to preview the selected files.
+The profile includes user-owned tfvars/YAML and module-local overrides. It does
+not include Terraform state, generated inventory, license files, private keys,
+or certificates.
 
 ## ECR Module
 
 ```bash
 cd terraform/aws-ecr
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -99,7 +103,7 @@ terraform import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-
 
 ```bash
 cd terraform/aws-prep
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -113,6 +117,7 @@ This module creates:
 - scoped Bedrock invoke policy attachment when `enable_ec2_bedrock_iam = true`
 - preallocated EIPs for selected entry points
 - trusted source CIDR outputs
+- optional FortiWeb S3 cloud-init bucket and IAM instance profile when `fortiweb_enabled = true`
 - optional Bedrock IAM user, access key, and policy
 
 The EC2 module reads this module's local state by default through:
@@ -137,13 +142,33 @@ terraform output bedrock_allowed_regions
 terraform output bedrock_model_ids
 ```
 
-The secret access key is stored in Terraform state. Do not commit state or real `terraform.tfvars`.
+The secret access key is stored in Terraform state. Do not commit state or real `99-local.auto.tfvars`.
+
+For Phase 4 appliance deployment, enable prep-owned appliance EIPs:
+
+```hcl
+allocate_eips = {
+  k3s       = true
+  fortigate = true
+  fortiweb  = true
+}
+```
+
+FortiWeb cloud-init also needs an S3 bucket and EC2 instance profile. Enable
+those only when deploying FortiWeb:
+
+```hcl
+fortiweb_enabled = true
+```
+
+The bucket stores the FortiWeb command/config object and BYOL license object.
+Those objects and Terraform state are sensitive.
 
 ## AWS EC2 k3s Module
 
 ```bash
 cd terraform/aws-ec2-k3s
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -159,7 +184,8 @@ This module creates:
 - dedicated VPC
 - k3s public subnet without automatic public-IP assignment
 - k3s private subnet
-- FortiGate and FortiWeb public placeholder subnets without automatic public-IP assignment
+- FortiGate and FortiWeb public management subnets without automatic public-IP assignment
+- FortiGate and FortiWeb internal subnets with local-only route tables
 - internet gateway and public route table
 - security group for SSH, HTTP, and HTTPS from the trusted CIDR in `aws-prep`
 - Ubuntu 24.04 GPU EC2 instance
@@ -172,7 +198,8 @@ Terraform writes the inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
-Set `ssh_private_key_file` in `terraform.tfvars` when the EC2 key pair does not use your default SSH key. Terraform includes that path in both:
+Set `ssh_private_key_file` in `terraform/user.tfvars` when the EC2 key pair
+does not use your default SSH key. Terraform includes that path in both:
 
 - `ansible_ssh_private_key_file` in the generated inventory
 - the `ssh_command` output as `ssh -i <keypath> ubuntu@<host-ip>`
@@ -191,7 +218,9 @@ aws_vpc_cidr=10.20.0.0/16
 aws_public_subnet_cidr=10.20.1.0/24
 aws_k3s_private_subnet_cidr=10.20.2.0/24
 aws_fortigate_public_subnet_cidr=10.20.10.0/24
+aws_fortigate_internal_subnet_cidr=10.20.20.0/24
 aws_fortiweb_public_subnet_cidr=10.20.11.0/24
+aws_fortiweb_internal_subnet_cidr=10.20.21.0/24
 aws_k3s_subnet_mode=public
 k3s_cluster_cidr=10.60.0.0/16
 k3s_service_cidr=10.70.0.0/16
@@ -202,11 +231,14 @@ Keep AWS VPC, k3s pod, and k3s service networks non-overlapping. Change these va
 
 `terraform/aws-ec2-k3s` generates the standard demo port assignments, opens
 those ports from `allowed_ingress_cidr`, and writes
-`ansible/group_vars/ports.generated.yml` for Ansible. The default generated
-HTTP ports are reserved consistently: Open WebUI uses `30080` when enabled,
-custom chatbot `30081`, demo home `30082`, LiteLLM Admin/API `30083`, and MCP
-demo tools `30084`. The optional HTTPS gateway uses matching offsets: `30443`,
-`30444`, `30445`, `30446`, and `30447`.
+`ansible/group_vars/ports.generated.yml` plus
+`ansible/group_vars/terraform.generated.yml` for Ansible. The Terraform bridge
+file carries AWS profile, region, SSH key details, trusted CIDRs, and k3s host
+facts into Ansible. The default generated HTTP ports are reserved consistently:
+Open WebUI uses `30080` when enabled, custom chatbot `30081`, demo home
+`30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`. The optional
+HTTPS gateway uses matching offsets: `30443`, `30444`, `30445`, `30446`, and
+`30447`.
 
 `additional_ingress_tcp_ports` is only for extra public TCP listeners beyond
 those generated demo ports.
@@ -224,7 +256,19 @@ terraform output ec2_instance_pricing_location
 The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,
 data transfer, Bedrock, marketplace, and licensing costs. If AWS adds a region
 that is not in the module's built-in pricing-location map, set
-`aws_pricing_location_override` in `terraform.tfvars`.
+`aws_pricing_location_override` in `99-local.auto.tfvars`.
+
+## Optional Appliance Modules
+
+`terraform/aws-fortigate` and `terraform/aws-fortiweb` are independent
+user-facing roots. They read local state from `terraform/aws-prep` and
+`terraform/aws-ec2-k3s`; they do not own the VPC or make appliances required
+for normal k3s demo rebuilds.
+
+FortiGate is implemented in `terraform/aws-fortigate` and uses a prep-owned
+EIP, two ENIs, FortiGate cloud-init, and an optional local BYOL license file.
+The initial FortiGate password is the EC2 instance ID. The generated API key
+and rendered user-data are stored in local Terraform state.
 
 ## Instance Sizing
 

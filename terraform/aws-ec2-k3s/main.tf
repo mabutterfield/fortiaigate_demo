@@ -51,11 +51,19 @@ locals {
   k3s_ssh_command_host           = local.k3s_inventory_host
   iam_instance_profile_name      = local.prep_outputs.ec2_instance_profile_name
   effective_allowed_ingress_cidr = local.prep_outputs.allowed_ingress_cidr
-  effective_allowed_ingress_cidrs = try(
-    local.prep_outputs.allowed_ingress_cidrs,
-    [local.prep_outputs.allowed_ingress_cidr]
-  )
-  appliance_ingress_cidrs = [var.fortigate_public_subnet_cidr, var.fortiweb_public_subnet_cidr]
+  effective_allowed_ingress_cidrs = distinct([
+    for cidr in try(
+      local.prep_outputs.allowed_ingress_cidrs,
+      [local.prep_outputs.allowed_ingress_cidr]
+    ) : trimspace(cidr)
+    if trimspace(cidr) != ""
+  ])
+  appliance_ingress_cidrs = distinct([
+    var.fortigate_public_subnet_cidr,
+    var.fortiweb_public_subnet_cidr,
+    var.fortigate_internal_subnet_cidr,
+    var.fortiweb_internal_subnet_cidr,
+  ])
   demo_port_assignments = {
     openwebui = {
       http  = var.demo_http_base_port
@@ -96,9 +104,17 @@ locals {
     local.demo_port_assignments.litellm.https,
     local.demo_port_assignments.mcp.https,
   ]
-  effective_additional_ingress_tcp_ports = setunion(
-    local.generated_demo_ingress_tcp_ports,
-    var.additional_ingress_tcp_ports
+  k3s_static_ingress_tcp_ports = toset([22, 80, 443])
+  effective_additional_ingress_tcp_ports = setsubtract(
+    setunion(
+      local.generated_demo_ingress_tcp_ports,
+      var.additional_ingress_tcp_ports
+    ),
+    local.k3s_static_ingress_tcp_ports
+  )
+  effective_appliance_ingress_cidrs = setsubtract(
+    toset(local.appliance_ingress_cidrs),
+    toset(local.effective_allowed_ingress_cidrs)
   )
   github_keys_user_data = length(var.ec2_pull_github_keys) > 0 ? templatefile("${path.module}/templates/user-data.sh.tftpl", {
     github_usernames = var.ec2_pull_github_keys
@@ -253,6 +269,17 @@ resource "aws_subnet" "fortigate_public" {
   })
 }
 
+resource "aws_subnet" "fortigate_internal" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortigate_internal_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortigate-internal"
+  })
+}
+
 resource "aws_subnet" "fortiweb_public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.fortiweb_public_subnet_cidr
@@ -261,6 +288,17 @@ resource "aws_subnet" "fortiweb_public" {
 
   tags = merge(local.tags, {
     Name = "${var.name_prefix}-fortiweb-public"
+  })
+}
+
+resource "aws_subnet" "fortiweb_internal" {
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.fortiweb_internal_subnet_cidr
+  availability_zone       = local.selected_availability_zone
+  map_public_ip_on_launch = false
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortiweb-internal"
   })
 }
 
@@ -300,6 +338,22 @@ resource "aws_route_table" "k3s_private" {
   })
 }
 
+resource "aws_route_table" "fortigate_internal" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortigate-internal"
+  })
+}
+
+resource "aws_route_table" "fortiweb_internal" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(local.tags, {
+    Name = "${var.name_prefix}-fortiweb-internal"
+  })
+}
+
 resource "aws_route" "k3s_private_default" {
   count = var.k3s_private_default_route_network_interface_id != "" ? 1 : 0
 
@@ -311,6 +365,16 @@ resource "aws_route" "k3s_private_default" {
 resource "aws_route_table_association" "k3s_private" {
   subnet_id      = aws_subnet.k3s_private.id
   route_table_id = aws_route_table.k3s_private.id
+}
+
+resource "aws_route_table_association" "fortigate_internal" {
+  subnet_id      = aws_subnet.fortigate_internal.id
+  route_table_id = aws_route_table.fortigate_internal.id
+}
+
+resource "aws_route_table_association" "fortiweb_internal" {
+  subnet_id      = aws_subnet.fortiweb_internal.id
+  route_table_id = aws_route_table.fortiweb_internal.id
 }
 
 resource "aws_security_group" "this" {
@@ -355,7 +419,7 @@ resource "aws_security_group" "this" {
   }
 
   dynamic "ingress" {
-    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.effective_appliance_ingress_cidrs : toset([])
 
     content {
       description = "HTTP from appliance subnet ${ingress.value}"
@@ -367,7 +431,7 @@ resource "aws_security_group" "this" {
   }
 
   dynamic "ingress" {
-    for_each = var.appliance_ingress_to_k3s_enabled ? local.appliance_ingress_cidrs : []
+    for_each = var.appliance_ingress_to_k3s_enabled ? local.effective_appliance_ingress_cidrs : toset([])
 
     content {
       description = "HTTPS from appliance subnet ${ingress.value}"
@@ -433,19 +497,21 @@ resource "aws_eip_association" "k3s" {
 resource "local_file" "ansible_inventory" {
   filename = var.inventory_output_path
   content = templatefile("${path.module}/templates/aws.generated.ini.tftpl", {
-    ansible_host                     = local.k3s_inventory_host
-    public_ip                        = local.k3s_public_ip
-    private_ip                       = aws_instance.this.private_ip
-    ssh_private_key_file             = var.ssh_private_key_file
-    aws_vpc_cidr                     = var.vpc_cidr
-    aws_public_subnet_cidr           = var.public_subnet_cidr
-    aws_k3s_private_subnet_cidr      = var.k3s_private_subnet_cidr
-    aws_fortigate_public_subnet_cidr = var.fortigate_public_subnet_cidr
-    aws_fortiweb_public_subnet_cidr  = var.fortiweb_public_subnet_cidr
-    aws_k3s_subnet_mode              = var.k3s_subnet_mode
-    k3s_cluster_cidr                 = var.k3s_cluster_cidr
-    k3s_service_cidr                 = var.k3s_service_cidr
-    k3s_cluster_dns                  = var.k3s_cluster_dns
+    ansible_host                       = local.k3s_inventory_host
+    public_ip                          = local.k3s_public_ip
+    private_ip                         = aws_instance.this.private_ip
+    ssh_private_key_file               = var.ssh_private_key_file
+    aws_vpc_cidr                       = var.vpc_cidr
+    aws_public_subnet_cidr             = var.public_subnet_cidr
+    aws_k3s_private_subnet_cidr        = var.k3s_private_subnet_cidr
+    aws_fortigate_public_subnet_cidr   = var.fortigate_public_subnet_cidr
+    aws_fortigate_internal_subnet_cidr = var.fortigate_internal_subnet_cidr
+    aws_fortiweb_public_subnet_cidr    = var.fortiweb_public_subnet_cidr
+    aws_fortiweb_internal_subnet_cidr  = var.fortiweb_internal_subnet_cidr
+    aws_k3s_subnet_mode                = var.k3s_subnet_mode
+    k3s_cluster_cidr                   = var.k3s_cluster_cidr
+    k3s_service_cidr                   = var.k3s_service_cidr
+    k3s_cluster_dns                    = var.k3s_cluster_dns
   })
 }
 
@@ -456,5 +522,22 @@ resource "local_file" "ansible_ports_vars" {
     demo_https_base_port    = var.demo_https_base_port
     demo_port_assignments   = local.demo_port_assignments
     generated_ingress_ports = local.generated_demo_ingress_tcp_port_list
+  })
+}
+
+resource "local_file" "ansible_terraform_vars" {
+  filename = var.ansible_terraform_vars_output_path
+  content = templatefile("${path.module}/templates/terraform.generated.yml.tftpl", {
+    aws_profile           = var.aws_profile
+    aws_region            = var.aws_region
+    name_prefix           = var.name_prefix
+    ssh_key_name          = var.ssh_key_name
+    ssh_private_key_file  = var.ssh_private_key_file
+    allowed_ingress_cidr  = local.effective_allowed_ingress_cidr
+    allowed_ingress_cidrs = local.effective_allowed_ingress_cidrs
+    instance_id           = aws_instance.this.id
+    public_ip             = local.k3s_public_ip
+    private_ip            = aws_instance.this.private_ip
+    ansible_host          = local.k3s_inventory_host
   })
 }

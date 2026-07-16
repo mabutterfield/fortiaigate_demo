@@ -69,6 +69,62 @@
   # - ansible.builtin.debug:
   #     var: demo_outputs_ssh_command_raw.stdout_lines
 
+- name: Read FortiGate admin URL from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_fortigate_module_path }}"
+      - output
+      - -raw
+      - fortigate_admin_url
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_fortigate_admin_url_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_fortigate_admin_url_raw.stdout_lines
+
+- name: Read FortiGate instance ID from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_fortigate_module_path }}"
+      - output
+      - -raw
+      - fortigate_instance_id
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_fortigate_instance_id_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_fortigate_instance_id_raw.stdout_lines
+
+- name: Read FortiWeb admin URL from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_fortiweb_module_path }}"
+      - output
+      - -raw
+      - fortiweb_admin_url
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_fortiweb_admin_url_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_fortiweb_admin_url_raw.stdout_lines
+
+- name: Read FortiWeb instance ID from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ demo_outputs_aws_fortiweb_module_path }}"
+      - output
+      - -raw
+      - fortiweb_instance_id
+  changed_when: false
+  failed_when: false
+  register: demo_outputs_fortiweb_instance_id_raw
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_fortiweb_instance_id_raw.stdout_lines
+
 - name: Read Bedrock secret access key from Terraform output when explicitly requested
   ansible.builtin.command:
     argv:
@@ -140,7 +196,7 @@
         )
         else (
           public_ip
-          if public_ip is defined and public_ip | length > 0
+          if public_ip is defined and public_ip | default('', true) | length > 0
           else (
             ansible_host
             if ansible_host is defined and ansible_host not in ['localhost', '127.0.0.1']
@@ -151,7 +207,7 @@
     demo_outputs_bedrock_model_display: >-
       {{
         direct_model_bedrock_model
-        if direct_model_bedrock_model is defined and direct_model_bedrock_model | length > 0
+        if direct_model_bedrock_model is defined and direct_model_bedrock_model | default('', true) | length > 0
         else (
           demo_outputs_bedrock_models[0]
           if demo_outputs_bedrock_models | length > 0
@@ -161,7 +217,7 @@
     demo_outputs_bedrock_region_display: >-
       {{
         direct_model_bedrock_region
-        if direct_model_bedrock_region is defined and direct_model_bedrock_region | length > 0
+        if direct_model_bedrock_region is defined and direct_model_bedrock_region | default('', true) | length > 0
         else (
           demo_outputs_bedrock_regions[0]
           if demo_outputs_bedrock_regions | length > 0
@@ -183,21 +239,110 @@
         )
         else 'terraform -chdir=terraform/aws-ec2-k3s output ssh_command'
       }}
+    demo_outputs_fortigate_admin_url: >-
+      {{
+        demo_outputs_fortigate_admin_url_raw.stdout | trim
+        if (
+          demo_outputs_fortigate_admin_url_raw.rc == 0
+          and demo_outputs_fortigate_admin_url_raw.stdout | default('') | trim | length > 0
+          and demo_outputs_fortigate_admin_url_raw.stdout | trim != 'null'
+        )
+        else ''
+      }}
+    demo_outputs_fortigate_instance_id: >-
+      {{
+        demo_outputs_fortigate_instance_id_raw.stdout | trim
+        if (
+          demo_outputs_fortigate_instance_id_raw.rc == 0
+          and demo_outputs_fortigate_instance_id_raw.stdout | default('') | trim | length > 0
+          and demo_outputs_fortigate_instance_id_raw.stdout | trim != 'null'
+        )
+        else ''
+      }}
+    demo_outputs_fortiweb_admin_url: >-
+      {{
+        demo_outputs_fortiweb_admin_url_raw.stdout | trim
+        if (
+          demo_outputs_fortiweb_admin_url_raw.rc == 0
+          and demo_outputs_fortiweb_admin_url_raw.stdout | default('') | trim | length > 0
+          and demo_outputs_fortiweb_admin_url_raw.stdout | trim != 'null'
+        )
+        else ''
+      }}
+    demo_outputs_fortiweb_instance_id: >-
+      {{
+        demo_outputs_fortiweb_instance_id_raw.stdout | trim
+        if (
+          demo_outputs_fortiweb_instance_id_raw.rc == 0
+          and demo_outputs_fortiweb_instance_id_raw.stdout | default('') | trim | length > 0
+          and demo_outputs_fortiweb_instance_id_raw.stdout | trim != 'null'
+        )
+        else ''
+      }}
   no_log: "{{ demo_outputs_show_secrets | bool }}"
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_model_display
+
+- name: Build appliance access output facts
+  ansible.builtin.set_fact:
+    demo_outputs_appliance_lines: []
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_appliance_lines
+
+- name: Add appliance output heading when Fortinet appliances are present
+  ansible.builtin.set_fact:
+    demo_outputs_appliance_lines: "{{ demo_outputs_appliance_lines + ['Fortinet appliances:'] }}"
+  when:
+    - demo_outputs_fortigate_admin_url | default('', true) | length > 0
+      or demo_outputs_fortigate_instance_id | default('', true) | length > 0
+      or demo_outputs_fortiweb_admin_url | default('', true) | length > 0
+      or demo_outputs_fortiweb_instance_id | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_appliance_lines
+
+- name: Add FortiGate access output facts when present
+  ansible.builtin.set_fact:
+    demo_outputs_appliance_lines: >-
+      {{
+        demo_outputs_appliance_lines
+        + [
+          'FortiGate Admin: ' ~ demo_outputs_fortigate_admin_url,
+          'FortiGate Instance ID: ' ~ demo_outputs_fortigate_instance_id
+        ]
+      }}
+  when:
+    - demo_outputs_fortigate_admin_url | default('', true) | length > 0
+      or demo_outputs_fortigate_instance_id | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_appliance_lines
+
+- name: Add FortiWeb access output facts when present
+  ansible.builtin.set_fact:
+    demo_outputs_appliance_lines: >-
+      {{
+        demo_outputs_appliance_lines
+        + [
+          'FortiWeb Admin: ' ~ demo_outputs_fortiweb_admin_url,
+          'FortiWeb Instance ID: ' ~ demo_outputs_fortiweb_instance_id
+        ]
+      }}
+  when:
+    - demo_outputs_fortiweb_admin_url | default('', true) | length > 0
+      or demo_outputs_fortiweb_instance_id | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_appliance_lines
 
 - name: Build demo access URL facts
   ansible.builtin.set_fact:
     demo_outputs_fortiaigate_admin_url: >-
       {{
         fortiaigate_status_login_url_override
-        if fortiaigate_status_login_url_override is defined and fortiaigate_status_login_url_override | length > 0
+        if fortiaigate_status_login_url_override is defined and fortiaigate_status_login_url_override | default('', true) | length > 0
         else 'https://' ~ demo_outputs_access_host ~ demo_outputs_fortiaigate_ui_path
       }}
     demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
   loop: "{{ chatbot_instances | default([]) }}"
-  when: demo_outputs_access_host | length > 0
+  when: demo_outputs_access_host | default('', true) | length > 0
   # - ansible.builtin.debug:
   #     var: demo_outputs_chatbot_urls
 
@@ -206,7 +351,7 @@
     demo_outputs_openwebui_urls: "{{ demo_outputs_openwebui_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
   loop: "{{ openwebui_instances | default([]) }}"
   when:
-    - demo_outputs_access_host | length > 0
+    - demo_outputs_access_host | default('', true) | length > 0
     - openwebui_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_outputs_openwebui_urls
@@ -227,19 +372,19 @@
     demo_outputs_litellm_admin_url: >-
       {{
         'http://' ~ demo_outputs_access_host ~ ':' ~ (litellm_node_port | default(demo_litellm_http_port | default(30083)) | string) ~ '/ui/'
-        if demo_outputs_access_host | length > 0
+        if demo_outputs_access_host | default('', true) | length > 0
         else 'unavailable'
       }}
     demo_outputs_demo_home_url: >-
       {{
         'http://' ~ demo_outputs_access_host ~ ':' ~ (demo_home_node_port | default(demo_home_http_port | default(30082)) | string)
-        if demo_outputs_access_host | length > 0
+        if demo_outputs_access_host | default('', true) | length > 0
         else 'unavailable'
       }}
     demo_outputs_mcp_tools_url: >-
       {{
         'http://' ~ demo_outputs_access_host ~ ':' ~ (mcp_node_port | default(demo_mcp_http_port | default(30084)) | string) ~ '/tools'
-        if demo_outputs_access_host | length > 0
+        if demo_outputs_access_host | default('', true) | length > 0
         else 'unavailable'
       }}
   # - ansible.builtin.debug:
@@ -257,7 +402,7 @@
       - "MCP Tools HTTPS: https://{{ demo_outputs_access_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_https_gateway_enabled | default(false) | bool
-    - demo_outputs_access_host | length > 0
+    - demo_outputs_access_host | default('', true) | length > 0
   # - ansible.builtin.debug:
   #     var: demo_outputs_https_urls
 
@@ -267,7 +412,7 @@
   when:
     - demo_https_gateway_enabled | default(false) | bool
     - openwebui_enabled | default(false) | bool
-    - demo_outputs_access_host | length > 0
+    - demo_outputs_access_host | default('', true) | length > 0
   # - ansible.builtin.debug:
   #     var: demo_outputs_https_urls
 
@@ -307,6 +452,9 @@
           'Demo Home: ' ~ demo_outputs_demo_home_url,
           'LiteLLM Admin: ' ~ demo_outputs_litellm_admin_url,
           'MCP Tools: ' ~ demo_outputs_mcp_tools_url,
+        ]
+        + demo_outputs_appliance_lines
+        + [
           'SSH access:',
           '  ' ~ demo_outputs_ssh_command
         ]

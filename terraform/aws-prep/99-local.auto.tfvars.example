@@ -1,0 +1,15 @@
+# Optional AWS prep local overrides.
+#
+# Copy this file to 99-local.auto.tfvars only when you intentionally want to
+# override tracked defaults from 00-system.auto.tfvars.
+
+# allocate_eips = {
+#   k3s       = true
+#   fortigate = true
+#   fortiweb  = true
+# }
+#
+# fortiweb_enabled = true
+# bedrock_model_ids = [
+#   "openai.gpt-oss-20b-1:0",
+# ]

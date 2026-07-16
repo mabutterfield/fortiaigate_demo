@@ -25,7 +25,7 @@ Model access must already be enabled in the AWS account and region.
 
 ```bash
 cd terraform/aws-prep
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 aws sso login --profile <profile-name>
 terraform init
 terraform fmt
@@ -33,7 +33,7 @@ terraform validate
 terraform apply
 ```
 
-Set these values in ignored `terraform.tfvars`. Use the exact Bedrock model ID, including provider suffixes such as `-1:0`; the short display name `openai.gpt-oss-20b` is not enough for the FortiAIGate provider.
+Set these values in ignored `99-local.auto.tfvars`. Use the exact Bedrock model ID, including provider suffixes such as `-1:0`; the short display name `openai.gpt-oss-20b` is not enough for the FortiAIGate provider.
 
 ```hcl
 enable_bedrock_iam = true
@@ -50,7 +50,7 @@ bedrock_model_ids = [
 # Use ["*"] only when the selected model IDs should be allowed in any region.
 bedrock_allowed_regions = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]
 
-# By default, source IP restrictions use terraform/common.tfvars
+# By default, source IP restrictions use terraform/user.tfvars
 # allowed_ingress_cidr, which may be one CIDR or a list of CIDRs, and the
 # prep-owned k3s EIP when allocated.
 bedrock_no_ip_restriction = false
@@ -177,7 +177,7 @@ The secret access key is stored in Terraform state.
 Rules:
 
 - do not commit Terraform state
-- do not commit real `terraform.tfvars`
+- do not commit real `99-local.auto.tfvars`
 - do not print the secret in logs
 - do not paste the secret into chat or tickets
 - treat terminal scrollback as sensitive after running `terraform output -raw bedrock_secret_access_key`
@@ -191,7 +191,7 @@ The expiration policy denies access after the expiration timestamp. It does not 
 By default, `terraform/aws-prep` allows requests from:
 
 - the prep-owned k3s public IP as `<eip>/32`, when allocated
-- `allowed_ingress_cidr` CIDR or CIDRs from `terraform/common.tfvars`
+- `allowed_ingress_cidr` CIDR or CIDRs from `terraform/user.tfvars`
 - any additional `bedrock_allowed_source_cidrs`
 
 To disable source IP restrictions:

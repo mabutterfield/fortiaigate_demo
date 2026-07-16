@@ -63,6 +63,16 @@ output "selected_availability_zone" {
   value       = local.selected_availability_zone
 }
 
+output "vpc_id" {
+  description = "VPC ID created by this module."
+  value       = aws_vpc.this.id
+}
+
+output "internet_gateway_id" {
+  description = "Internet gateway ID created by this module."
+  value       = aws_internet_gateway.this.id
+}
+
 output "ssh_command" {
   description = "SSH command for the k3s host. In private mode this uses the private IP and requires network reachability."
   value       = var.ssh_private_key_file != "" ? "ssh -i ${var.ssh_private_key_file} ubuntu@${local.k3s_ssh_command_host}" : "ssh ubuntu@${local.k3s_ssh_command_host}"
@@ -96,24 +106,45 @@ output "iam_role_name" {
 output "network_cidrs" {
   description = "AWS and k3s network CIDRs used by the deployment."
   value = {
-    aws_vpc_cidr                     = var.vpc_cidr
-    aws_public_subnet_cidr           = var.public_subnet_cidr
-    aws_k3s_private_subnet_cidr      = var.k3s_private_subnet_cidr
-    aws_fortigate_public_subnet_cidr = var.fortigate_public_subnet_cidr
-    aws_fortiweb_public_subnet_cidr  = var.fortiweb_public_subnet_cidr
-    k3s_cluster_cidr                 = var.k3s_cluster_cidr
-    k3s_service_cidr                 = var.k3s_service_cidr
-    k3s_cluster_dns                  = var.k3s_cluster_dns
+    aws_vpc_cidr                       = var.vpc_cidr
+    aws_public_subnet_cidr             = var.public_subnet_cidr
+    aws_k3s_private_subnet_cidr        = var.k3s_private_subnet_cidr
+    aws_fortigate_public_subnet_cidr   = var.fortigate_public_subnet_cidr
+    aws_fortigate_internal_subnet_cidr = var.fortigate_internal_subnet_cidr
+    aws_fortiweb_public_subnet_cidr    = var.fortiweb_public_subnet_cidr
+    aws_fortiweb_internal_subnet_cidr  = var.fortiweb_internal_subnet_cidr
+    k3s_cluster_cidr                   = var.k3s_cluster_cidr
+    k3s_service_cidr                   = var.k3s_service_cidr
+    k3s_cluster_dns                    = var.k3s_cluster_dns
   }
 }
 
 output "subnet_ids" {
   description = "Subnet IDs created by this module."
   value = {
-    k3s_public       = aws_subnet.public.id
-    k3s_private      = aws_subnet.k3s_private.id
-    fortigate_public = aws_subnet.fortigate_public.id
-    fortiweb_public  = aws_subnet.fortiweb_public.id
+    k3s_public         = aws_subnet.public.id
+    k3s_private        = aws_subnet.k3s_private.id
+    fortigate_public   = aws_subnet.fortigate_public.id
+    fortigate_internal = aws_subnet.fortigate_internal.id
+    fortiweb_public    = aws_subnet.fortiweb_public.id
+    fortiweb_internal  = aws_subnet.fortiweb_internal.id
+  }
+}
+
+output "route_table_ids" {
+  description = "Route table IDs created by this module."
+  value = {
+    public             = aws_route_table.public.id
+    k3s_private        = aws_route_table.k3s_private.id
+    fortigate_internal = aws_route_table.fortigate_internal.id
+    fortiweb_internal  = aws_route_table.fortiweb_internal.id
+  }
+}
+
+output "security_group_ids" {
+  description = "Security group IDs created by this module."
+  value = {
+    k3s = aws_security_group.this.id
   }
 }
 

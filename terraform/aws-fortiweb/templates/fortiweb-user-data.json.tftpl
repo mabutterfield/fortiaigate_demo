@@ -1,0 +1,12 @@
+{
+  "cloud-initd": "enable",
+  "bucket": "${bucket}",
+  "region": "${region}",
+%{ if include_initial_passwd ~}
+  "initial_passwd": "${initial_passwd}",
+%{ endif ~}
+%{ if license_key != "" ~}
+  "license": "${license_key}",
+%{ endif ~}
+  "config": "${config_key}"
+}

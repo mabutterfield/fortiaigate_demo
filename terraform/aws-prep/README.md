@@ -6,19 +6,47 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 - scoped ECR pull permissions from the ECR Terraform state when `registry_backend = "ecr"`
 - trusted source CIDR outputs
 - preallocated public EIPs for selected entry points
+- optional FortiWeb S3 cloud-init bucket and IAM instance profile
 - optional temporary Bedrock IAM credentials for FortiAIGate provider setup
 
 Run it after the registry module and before the EC2 k3s foundation module:
 
 ```bash
-cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
 
+Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
+overriding the tracked defaults in `00-system.auto.tfvars`.
+
 This module reads `terraform/aws-ecr` local state by default when
 `registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
 state by default.
+
+Phase 4 appliance prep is enabled by default for the full demo. Override these
+values in `99-local.auto.tfvars` only when disabling appliance prep:
+
+```hcl
+allocate_eips = {
+  k3s       = true
+  fortigate = true
+  fortiweb  = true
+}
+
+fortiweb_enabled = true
+```
+
+When `fortiweb_enabled = true`, this module creates a private encrypted S3
+bucket and an EC2 instance profile FortiWeb can use to read its cloud-init
+command file and license file. The default object keys are:
+
+```text
+fortiweb/cloud-init/config.txt
+fortiweb/cloud-init/FWB.lic
+```
+
+License objects are sensitive. Do not commit license files, rendered user-data,
+or Terraform state.
 
 Retrieve Bedrock GUI values when `enable_bedrock_iam = true`:
 
@@ -31,4 +59,4 @@ terraform output bedrock_model_ids
 ```
 
 The Bedrock secret access key is stored in Terraform state. Do not commit state
-or real `terraform.tfvars` files.
+or real `99-local.auto.tfvars` files.

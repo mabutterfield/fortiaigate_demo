@@ -10,13 +10,13 @@
       - openwebui_instances is sequence
       - openwebui_instances | length > 0
       - item.name is defined
-      - item.name | length > 0
+      - item.name | default('', true) | length > 0
       - item.namespace is defined
-      - item.namespace | length > 0
+      - item.namespace | default('', true) | length > 0
       - item.release_name is defined
-      - item.release_name | length > 0
+      - item.release_name | default('', true) | length > 0
       - item.openai_base_url is defined
-      - item.openai_base_url | length > 0
+      - item.openai_base_url | default('', true) | length > 0
       - item.node_port is defined
       - item.node_port | int >= 30000
       - item.node_port | int <= 32767
@@ -75,45 +75,50 @@
   # - ansible.builtin.debug:
   #     var: openwebui_bedrock_region_raw.stdout_lines
 
-- name: Set Open WebUI Bedrock proxy facts
+- name: Set Open WebUI Bedrock model list fact
   ansible.builtin.set_fact:
     openwebui_bedrock_models: >-
       {{
-        openwebui_bedrock_models_raw.stdout | from_json
+        (openwebui_bedrock_models_raw.stdout | from_json) | default([], true)
         if (
           openwebui_bedrock_models_raw is defined
           and openwebui_bedrock_models_raw.rc == 0
-          and openwebui_bedrock_models_raw.stdout | length > 0
+          and openwebui_bedrock_models_raw.stdout | default('', true) | length > 0
         )
         else []
       }}
+  when:
+    - openwebui_enabled | bool
+    - openwebui_direct_provider == "bedrock"
+  # - ansible.builtin.debug:
+  #     var: openwebui_bedrock_models
+
+- name: Set Open WebUI Bedrock proxy facts
+  ansible.builtin.set_fact:
     openwebui_effective_bedrock_region: >-
       {{
-        openwebui_bedrock_region
-        if openwebui_bedrock_region | length > 0
+        openwebui_bedrock_region | default('', true) | trim
+        if openwebui_bedrock_region | default('', true) | trim | length > 0
         else (
           openwebui_bedrock_region_raw.stdout | trim
           if (
             openwebui_bedrock_region_raw is defined
             and openwebui_bedrock_region_raw.rc == 0
-            and openwebui_bedrock_region_raw.stdout | length > 0
+            and openwebui_bedrock_region_raw.stdout | default('', true) | length > 0
           )
           else aws_region
         )
       }}
     openwebui_effective_bedrock_model_id: >-
       {{
-        openwebui_bedrock_model_id
-        if openwebui_bedrock_model_id | length > 0
+        openwebui_bedrock_model_id | default('', true) | trim
+        if openwebui_bedrock_model_id | default('', true) | trim | length > 0
         else (
-          (openwebui_bedrock_models_raw.stdout | from_json)[0]
+          openwebui_bedrock_models[0]
           if (
-            openwebui_bedrock_models_raw is defined
-            and openwebui_bedrock_models_raw.rc == 0
-            and openwebui_bedrock_models_raw.stdout | length > 0
-            and (openwebui_bedrock_models_raw.stdout | from_json | length) > 0
+            openwebui_bedrock_models | length > 0
           )
-          else openwebui_bedrock_fallback_model_id
+          else openwebui_bedrock_fallback_model_id | default('openai.gpt-oss-20b-1:0', true)
         )
       }}
   when:
@@ -248,7 +253,7 @@
           item.name ~ ': http://' ~
           (
             public_ip
-            if (public_ip is defined and public_ip | length > 0)
+            if (public_ip is defined and public_ip | default('', true) | length > 0)
             else (ansible_host | default(inventory_hostname))
           )
           ~ ':' ~ (item.node_port | string)

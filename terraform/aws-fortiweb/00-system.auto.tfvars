@@ -1,0 +1,26 @@
+# terraform/user.tfvars supplies aws_profile, aws_region, name_prefix,
+# ssh_key_name, allowed_ingress_cidr, and tags.
+
+aws_prep_state_path    = "../aws-prep/terraform.tfstate"
+aws_ec2_k3s_state_path = "../aws-ec2-k3s/terraform.tfstate"
+
+fortiweb_enabled = true
+
+fortiweb_instance_type                 = "c5.xlarge"
+fortiweb_architecture                  = "x86_64"
+fortiweb_version                       = "8.0"
+fortiweb_ami_name_override             = ""
+fortiweb_license_type                  = "byol"
+fortiweb_license_mode                  = "byol_file"
+fortiweb_license_file                  = ""
+fortiweb_license_source_dir            = "../../../licenses"
+fortiweb_license_file_name             = "FWBVMSTM00000000.lic"
+fortiweb_config_file                   = ""
+fortiweb_admin_https_port              = 8443
+fortiweb_admin_http_port               = 8080
+fortiweb_admin_console_timeout_seconds = 3600
+fortiweb_enable_ssh                    = true
+fortiweb_enable_api                    = true
+fortiweb_set_initial_password          = false
+fortiweb_enable_icmp                   = true
+fortiweb_admin_password                = ""

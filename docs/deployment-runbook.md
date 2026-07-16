@@ -8,13 +8,12 @@ Unless noted otherwise, command blocks start from the `fortiaigate_demo` repo ro
 
 Required local inputs are intentionally ignored by Git:
 
-- `terraform/common.tfvars`
-- `terraform/aws-ecr/terraform.tfvars`
-- `terraform/aws-prep/terraform.tfvars`
-- `terraform/aws-ec2-k3s/terraform.tfvars`
-- `ansible/group_vars/env.yml`
-- `ansible/group_vars/all.yml`
-- `ansible/group_vars/images.yml`
+- `terraform/user.tfvars`
+- `terraform/aws-ecr/99-local.auto.tfvars`
+- `terraform/aws-prep/99-local.auto.tfvars`
+- `terraform/aws-ec2-k3s/99-local.auto.tfvars`
+- `ansible/group_vars/system.yml`
+- `ansible/group_vars/user.yml`
 - FortiAIGate license files
 - FortiAIGate release image archives
 - FortiAIGate Helm chart archives and extracted chart directories
@@ -55,18 +54,18 @@ If these fail, fix the AWS CLI/SSO session before troubleshooting Terraform.
 
 ```bash
 cd terraform
-cp common.tfvars.example common.tfvars
+cp user.tfvars.example user.tfvars
 ```
 
 Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
-any shared tags in `common.tfvars`. `allowed_ingress_cidr` can be one CIDR
+any shared tags in `user.tfvars`. `allowed_ingress_cidr` can be one CIDR
 string or a list of CIDR strings; use `/32` entries for individual public IPs.
 
 ## 4. Create ECR Repositories
 
 ```bash
 cd aws-ecr
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -89,7 +88,7 @@ images.
 
 ```bash
 cd ../aws-prep
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -105,7 +104,7 @@ Terraform state configured by `aws_ecr_state_path`.
 
 ```bash
 cd ../aws-ec2-k3s
-cp terraform.tfvars.example terraform.tfvars
+cp 99-local.auto.tfvars.example 99-local.auto.tfvars
 terraform init
 terraform fmt
 terraform validate
@@ -118,16 +117,16 @@ Terraform writes the generated Ansible inventory to:
 ansible/inventory/aws.generated.ini
 ```
 
-Minimum `terraform.tfvars` values to review:
+Minimum `99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ssh_key_name`
-- `ssh_private_key_file` when the AWS key pair does not use your default SSH key
 - `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`
 - VPC, subnet, k3s pod, and k3s service CIDRs
 
-If the EC2 key pair uses a non-default SSH key, set `ssh_private_key_file` in `terraform.tfvars`. Terraform includes that key in the generated Ansible inventory and in the `ssh_command` output.
+Set `ssh_key_name` and `ssh_private_key_file` in `terraform/user.tfvars`. If the
+EC2 key pair uses a non-default local private key path, Terraform includes that
+key in the generated Ansible inventory and in the `ssh_command` output.
 
 If `ec2_pull_github_keys` is set, cloud-init appends those public GitHub SSH
 keys to `/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty
@@ -170,7 +169,7 @@ k3s_service_cidr: 10.70.0.0/16
 k3s_cluster_dns: 10.70.0.10
 ```
 
-Terraform passes these k3s values into the generated Ansible inventory. Override them in `terraform.tfvars` before creating the host when your environment already uses one of these ranges.
+Terraform passes these k3s values into the generated Ansible inventory. Override them in `99-local.auto.tfvars` before creating the host when your environment already uses one of these ranges.
 
 The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browser access through the prep-owned k3s Elastic IP. The k3s instance does not request an auto-assigned ephemeral public IP. Use `private` only when a private management path or FortiGate/FortiWeb front end is ready.
 
@@ -178,9 +177,7 @@ The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browse
 
 ```bash
 cd ../../ansible
-cp group_vars/env.example.yml group_vars/env.yml
-cp group_vars/images.example.yml group_vars/images.yml
-cp group_vars/all.example.yml group_vars/all.yml
+cp group_vars/user.yml.example group_vars/user.yml
 ansible-playbook playbooks/publish_images.yml
 ```
 
@@ -209,7 +206,8 @@ To publish only the chatbot image without loading FortiAIGate release archives:
 ansible-playbook playbooks/publish_chatbot_images.yml
 ```
 
-To publish all active builds, set `state: active` in `group_vars/images.yml` and run the playbook without overrides.
+To publish from a custom local image directory, set the override in
+`group_vars/user.yml` or pass `image_archive_dir` with `-e`.
 
 For FortiAIGate 8.0.0:
 
@@ -272,10 +270,10 @@ fortiaigate_ssl_key_path: /path/to/private/tls.key
 
 Ansible copies the selected files into the temporary remote chart copy before Helm renders.
 
-Minimum `group_vars/env.yml` and `group_vars/all.yml` values to review:
+Minimum `group_vars/user.yml` values to review:
 
 - `fortiaigate_version` and the matching image tags
-- `faig_workspace_root` in `env.yml` only when the repo is not under the default parent `FAIG` directory
+- `faig_workspace_root` only when the repo is not under the default parent `FAIG` directory
 - `license_source_dir` only when licenses are not under `FAIG/licenses`
 - `fortiaigate_license_files`
 - `fortiaigate_ingress_host` when using DNS instead of the EC2 public IP
@@ -534,7 +532,7 @@ The current chart does not expose a provider bootstrap value for Ollama. Configu
 ```text
 Provider: OpenAI-compatible
 Base URL: http://<ollama-host>:11434/v1
-Model:    llama3.2:1b
+Model:    <ollama-model>
 API key:  blank or a dummy value if required
 ```
 
@@ -714,7 +712,7 @@ Manual equivalent:
 cd terraform/aws-ecr
 terraform state rm 'aws_ecr_repository.this["api"]'
 # repeat for each repository that should be retained
-terraform destroy -target=aws_ecr_lifecycle_policy.this -target=local_file.ansible_ecr_vars
+terraform destroy
 
 cd ../aws-ec2-k3s
 terraform destroy

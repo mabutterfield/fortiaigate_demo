@@ -1,5 +1,12 @@
 ---
-# Copy this file to images.yml and update paths/tags for locally available image archives.
+# Legacy compatibility example.
+#
+# New deployments use tracked ansible/group_vars/system.yml for repo-owned
+# image defaults. Put local image archive overrides in ansible/group_vars/user.yml
+# or pass them with -e.
+#
+# Do not copy this file for new deployments. It remains only as a reference for
+# older local workflows that still have ansible/group_vars/images.yml.
 #
 # version is the FortiAIGate release version.
 # By default, publish_images.yml extracts loaded Docker RepoTags and preserves those exact tags when pushing.

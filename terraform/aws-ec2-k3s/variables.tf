@@ -59,7 +59,7 @@ variable "ec2_pull_github_keys" {
 
 variable "allowed_ingress_cidr" {
   type        = any
-  description = "Shared trusted source CIDR or list of CIDRs from terraform/common.tfvars. terraform/aws-prep is the effective source of truth for EC2 security group rules."
+  description = "Shared trusted source CIDR or list of CIDRs from terraform/user.tfvars. terraform/aws-prep is the effective source of truth for EC2 security group rules."
 }
 
 variable "aws_prep_state_path" {
@@ -123,6 +123,17 @@ variable "fortigate_public_subnet_cidr" {
   }
 }
 
+variable "fortigate_internal_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiGate internal subnet."
+  default     = "10.20.20.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortigate_internal_subnet_cidr, 0))
+    error_message = "fortigate_internal_subnet_cidr must be a valid CIDR block."
+  }
+}
+
 variable "fortiweb_public_subnet_cidr" {
   type        = string
   description = "CIDR for the FortiWeb public/front-end subnet placeholder."
@@ -131,6 +142,17 @@ variable "fortiweb_public_subnet_cidr" {
   validation {
     condition     = can(cidrhost(var.fortiweb_public_subnet_cidr, 0))
     error_message = "fortiweb_public_subnet_cidr must be a valid CIDR block."
+  }
+}
+
+variable "fortiweb_internal_subnet_cidr" {
+  type        = string
+  description = "CIDR for the FortiWeb internal subnet."
+  default     = "10.20.21.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.fortiweb_internal_subnet_cidr, 0))
+    error_message = "fortiweb_internal_subnet_cidr must be a valid CIDR block."
   }
 }
 
@@ -187,6 +209,12 @@ variable "ansible_ports_vars_output_path" {
   default     = "../../ansible/group_vars/ports.generated.yml"
 }
 
+variable "ansible_terraform_vars_output_path" {
+  type        = string
+  description = "Path for generated Ansible Terraform/user bridge variables, relative to this Terraform module."
+  default     = "../../ansible/group_vars/terraform.generated.yml"
+}
+
 variable "k3s_cluster_cidr" {
   type        = string
   description = "k3s pod network CIDR passed to the Ansible bootstrap inventory."
@@ -239,8 +267,8 @@ variable "tags" {
 
 variable "ingress_routing_strategy" {
   type        = string
-  description = "Application ingress routing strategy placeholder. path_based is the no-domain default; port_based supports root-path apps; host_based is for future DNS-backed demos."
-  default     = "path_based"
+  description = "Application ingress routing strategy placeholder. port_based matches the current NodePort demo; path_based and host_based are future ingress/DNS options."
+  default     = "port_based"
 
   validation {
     condition     = contains(["path_based", "port_based", "host_based"], var.ingress_routing_strategy)

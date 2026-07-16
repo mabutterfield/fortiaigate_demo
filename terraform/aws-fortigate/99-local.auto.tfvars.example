@@ -1,0 +1,9 @@
+# Optional FortiGate local overrides.
+#
+# Copy this file to 99-local.auto.tfvars only when you intentionally want to
+# override tracked defaults from 00-system.auto.tfvars.
+
+# fortigate_instance_type = "c6i.large"
+# fortigate_version = "7.6"
+# fortigate_license_file_name = "FGVMSLTM00000000.lic"
+# fortigate_admin_port = 443

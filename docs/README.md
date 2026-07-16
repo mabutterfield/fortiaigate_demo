@@ -11,6 +11,10 @@ Start with one quick start, then use the topic docs for details and recovery.
 | Step-by-step operator-run deployment | [Manual Quick Start](quickstart-manual.md) |
 | End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
 
+Run `python3 scripts/smoke_test.py` before tagging a release to perform
+no-apply checks across scripts, Terraform formatting, variable-file structure,
+and Ansible syntax.
+
 ## Core Topics
 
 | Topic | Document |
@@ -23,6 +27,8 @@ Start with one quick start, then use the topic docs for details and recovery.
 | MCP demo tools | [MCP](mcp.md) |
 | Helm chart deployment and post-rendering | [Helm](helm.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
+| Optional FortiGate appliance | [FortiGate](fortigate.md) |
+| Optional FortiWeb appliance | [FortiWeb](fortiweb.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
 | Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
 
