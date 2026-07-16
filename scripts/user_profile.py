@@ -586,15 +586,7 @@ def configure_ansible_user_profile() -> None:
         ("litellm_master_key", "LiteLLM API/master key"),
         ("litellm_ui_username", "LiteLLM admin username"),
         ("litellm_ui_password", "LiteLLM admin password"),
-        ("direct_model_provider", "Direct model provider"),
-        ("direct_model_bedrock_model", "Direct Bedrock model override"),
-        ("direct_model_bedrock_region", "Direct Bedrock region override"),
-        ("ollama_base_url", "Ollama base URL"),
-        ("ollama_model", "Ollama model"),
         ("openwebui_enabled", "Enable OpenWebUI true/false"),
-        ("chatbot_frontend_system_prompt_source_path", "Optional chatbot prompt source path"),
-        ("demo_https_gateway_cert_local_path", "Optional HTTPS gateway cert path"),
-        ("demo_https_gateway_key_local_path", "Optional HTTPS gateway key path"),
     ]
     print("Press Enter to keep the current value.")
     for key, label in credential_fields:

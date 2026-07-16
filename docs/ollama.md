@@ -4,7 +4,9 @@ Ollama is an alternate/future provider path. The default AWS demo does not
 deploy an Ollama server and does not configure an Ollama FortiAIGate provider
 automatically; the default model path is LiteLLM to Amazon Bedrock.
 
-Relevant Ansible user overrides live in `ansible/group_vars/user.yml`:
+These values are intentionally not active in the default profile. Advanced
+manual testing can set the relevant Ansible overrides in
+`ansible/group_vars/user.yml` or with `-e`:
 
 - `ollama_base_url`
 - `ollama_model`

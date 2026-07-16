@@ -35,7 +35,7 @@ openwebui_bedrock_proxy_service_port: 4000
 openwebui_bedrock_proxy_extra_env: []
 openwebui_direct_bedrock_base_url: "http://{{ openwebui_direct_release_name }}-bedrock-proxy:{{ openwebui_bedrock_proxy_service_port }}/v1"
 openwebui_direct_litellm_base_url: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
-openwebui_direct_ollama_base_url: "{{ ollama_base_url | default('http://127.0.0.1:11434/v1') }}"
+openwebui_direct_ollama_base_url: "{{ ollama_base_url | default('', true) }}"
 openwebui_direct_openai_base_url: "{{ openwebui_direct_bedrock_base_url if openwebui_direct_provider == 'bedrock' else (openwebui_direct_ollama_base_url if openwebui_direct_provider == 'ollama' else openwebui_direct_litellm_base_url) }}"
 openwebui_direct_openai_api_key: "{{ 'not-used' if openwebui_direct_provider == 'bedrock' else ((ollama_api_key | default('not-used')) if openwebui_direct_provider == 'ollama' else (litellm_master_key | default('sk-litellm-demo-change-me'))) }}"
 openwebui_faig_openai_base_url: "{{ openwebui_faig_default_base_url }}"

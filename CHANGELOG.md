@@ -3,6 +3,24 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
+## Unreleased
+
+- Trimmed profile onboarding prompts to user-owned basics: AWS identity/network
+  values, SSH key selection, FortiAIGate license, LiteLLM credentials, and
+  optional OpenWebUI enablement.
+- Direct provider/model overrides, Ollama settings, chatbot prompt source path,
+  and TLS certificate paths are now documented as manual advanced settings
+  rather than quickstart prompts.
+- Commented or neutralized Ollama defaults in tracked Ansible system/user
+  examples, role defaults, and OpenWebUI chart values until the Ollama workflow
+  is built.
+- Quickstart review now optionally pages through profile-owned files only,
+  instead of blocking on a broad manual review list.
+- Interactive ECR setup now defaults to auto-discovering existing configured
+  repositories in AWS and importing only those missing from Terraform state.
+- LiteLLM and OpenWebUI Bedrock model selection now tolerate null local model
+  overrides and fall back to Terraform outputs or the configured default model.
+
 ## v0.4.3 - User Profile Lifecycle
 
 Release date: 2026-07-16

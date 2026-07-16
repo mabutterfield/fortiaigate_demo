@@ -31,13 +31,17 @@ litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin
 litellm_ui_password: litellm-demo-change-me
 
-# Direct provider overrides. The default demo path uses Bedrock through
-# Terraform-created credentials.
-direct_model_provider: bedrock
-direct_model_bedrock_model: ""
-direct_model_bedrock_region: ""
-ollama_base_url: http://10.11.41.201:11434/v1
-ollama_model: llama3.2:1b
+# Direct provider and model defaults are repo-owned in system.yml. Advanced
+# users can uncomment these manually when intentionally overriding the default
+# Bedrock path.
+# direct_model_provider: bedrock
+# direct_model_bedrock_model: ""
+# direct_model_bedrock_region: ""
+
+# Ollama is not part of the default guided path yet. Leave these commented
+# unless manually building the future Ollama provider workflow.
+# ollama_base_url: http://<ollama-host>:11434/v1
+# ollama_model: llama3.2:1b
 
 # Optional secondary UI.
 openwebui_enabled: false
@@ -46,10 +50,11 @@ openwebui_enabled: false
 # fortiaigate_ssl_cert_path: /path/to/private/tls.crt
 # fortiaigate_ssl_key_path: /path/to/private/tls.key
 
-# Optional UI-layer system prompt. Leave empty for the default architecture
-# where backend demo instructions are injected by LiteLLM instead.
-chatbot_frontend_system_prompt_source_path: ""
+# Advanced manual override for a UI-layer system prompt. Leave commented for
+# the default architecture where backend demo instructions are injected by
+# LiteLLM instead.
+# chatbot_frontend_system_prompt_source_path: /path/to/frontend/instructions.txt
 
-# Optional HTTPS gateway local certificate paths.
-demo_https_gateway_cert_local_path: ""
-demo_https_gateway_key_local_path: ""
+# Advanced manual HTTPS gateway certificate paths.
+# demo_https_gateway_cert_local_path: /path/to/private/tls.crt
+# demo_https_gateway_key_local_path: /path/to/private/tls.key

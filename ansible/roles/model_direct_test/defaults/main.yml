@@ -15,6 +15,6 @@ direct_model_aws_access_key_id: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') | default
 direct_model_aws_secret_access_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') | default('', true) }}"
 direct_model_aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') | default('', true) }}"
 
-direct_model_ollama_base_url: "{{ ollama_base_url | default('http://127.0.0.1:11434/v1') }}"
-direct_model_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
+direct_model_ollama_base_url: "{{ ollama_base_url | default('', true) }}"
+direct_model_ollama_model: "{{ ollama_model | default('', true) }}"
 direct_model_ollama_api_key: ""

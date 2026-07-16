@@ -135,12 +135,13 @@ Set `fortiaigate_helm_wait: true` only when you want Helm to block until Kuberne
 
 The chart currently does not expose a provider bootstrap value for Ollama. Configure the OpenAI-compatible provider in the FortiAIGate UI or a supported API after deployment.
 
-Use these Ansible vars for validation once the provider exists:
+Advanced users can set these Ansible vars manually for validation once the
+provider exists:
 
 ```yaml
-ollama_base_url: http://<ollama-host>:11434/v1
-ollama_model: llama3.2:1b
-validate_faig_ollama_forwarding: true
+# ollama_base_url: http://<ollama-host>:11434/v1
+# ollama_model: llama3.2:1b
+# validate_faig_ollama_forwarding: true
 ```
 
 ## Required Local Inputs

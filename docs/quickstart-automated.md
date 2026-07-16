@@ -132,6 +132,8 @@ The current setup script:
   and prompt when a placeholder or missing file is configured
 - offer to keep or change the current LiteLLM API key, admin username, and
   admin password in `ansible/group_vars/user.yml`
+- leave direct provider, Bedrock model override, Ollama, chatbot prompt source,
+  and TLS certificate path tuning to manual advanced configuration
 - collect required Terraform values using existing local files as prompt defaults
 - generate Terraform-owned Ansible values into
   `ansible/group_vars/terraform.generated.yml`
@@ -139,7 +141,8 @@ The current setup script:
   optional FortiGate, optional FortiWeb
 - inspect ECR Terraform state before apply and report whether configured
   repositories are tracked, partially missing, or absent from state
-- optionally import missing existing ECR repositories before applying the ECR module
+- default to auto-discovering configured ECR repositories that exist in AWS but
+  are missing from Terraform state, then importing those before ECR apply
 - print a compact EC2 READY/NOT READY status and let the operator continue,
   recheck, or quit
 - prompt before running ECR image publishing; the default is `none` so operators
@@ -169,8 +172,11 @@ The script should collect or confirm:
 - FortiAIGate license file under `FAIG/licenses` by default
 - LiteLLM API key and Admin UI credentials; press Enter to keep current values
 - instance type, reviewed in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
-- Bedrock IAM enablement and model allow list, reviewed in
-  `terraform/aws-prep/99-local.auto.tfvars`
+
+The default direct model path remains Bedrock through the Terraform-created IAM
+profile. Direct provider/model overrides, Ollama endpoints, chatbot prompt
+source paths, and TLS certificate paths are advanced manual settings and are
+not prompted during quickstart.
 
 For AWS deployments, Terraform writes shared Ansible values such as
 `aws_profile`, `aws_region`, SSH key details, CIDRs, and k3s host facts into

@@ -532,7 +532,7 @@ The current chart does not expose a provider bootstrap value for Ollama. Configu
 ```text
 Provider: OpenAI-compatible
 Base URL: http://<ollama-host>:11434/v1
-Model:    llama3.2:1b
+Model:    <ollama-model>
 API key:  blank or a dummy value if required
 ```
 

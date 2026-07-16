@@ -1079,30 +1079,42 @@ def show_ecr_state_status(repositories: list[str]) -> tuple[list[str], list[str]
     return tracked_configured, missing
 
 
-def prompt_manual_review(appliance_keys: list[str]) -> None:
-    print_header("Manual Review Before Terraform")
-    print("Review these files before continuing:")
-    review_files = [
-        "terraform/user.tfvars",
-        "terraform/aws-ecr/00-system.auto.tfvars",
-        "terraform/aws-prep/00-system.auto.tfvars",
-        "terraform/aws-ec2-k3s/00-system.auto.tfvars",
-        "terraform/aws-ec2-k3s/99-local.auto.tfvars",
-        "ansible/group_vars/system.yml",
-        "ansible/group_vars/user.yml",
-    ]
-    if "fortigate" in appliance_keys:
-        review_files.append("terraform/aws-fortigate/99-local.auto.tfvars")
-    if "fortiweb" in appliance_keys:
-        review_files.append("terraform/aws-fortiweb/99-local.auto.tfvars")
-    for path in review_files:
-        print(f"- {path}")
-    print("\nCritical EC2 values usually needing edits:")
-    print("- terraform/user.tfvars: ssh_key_name")
-    print("- terraform/user.tfvars: ssh_private_key_file")
-    print("- terraform/aws-ec2-k3s/99-local.auto.tfvars: optional instance_type override")
-    print("\nAnsible system defaults are tracked; local overrides belong in ansible/group_vars/user.yml.")
-    input("Press Enter after reviewing/editing those files.")
+def profile_review_files() -> list[Path]:
+    return [path for path in profile_tool.ALLOWLIST if (REPO_ROOT / path).exists()]
+
+
+def page_file(path: Path) -> None:
+    absolute_path = REPO_ROOT / path
+    pager = shutil.which("less")
+    if pager and sys.stdin.isatty():
+        subprocess.run([pager, str(absolute_path)], cwd=str(REPO_ROOT), check=False)
+        return
+    print(absolute_path.read_text(encoding="utf-8"))
+
+
+def prompt_profile_review() -> None:
+    print_header("User Profile Review")
+    review_files = profile_review_files()
+    if not review_files:
+        print("No profile files exist to review.")
+        return
+    if not prompt_yes_no("Would you like to review user profile files before Terraform?", True):
+        return
+
+    while True:
+        print("Profile files:")
+        for index, path in enumerate(review_files, start=1):
+            print(f"{index}. {path.as_posix()}")
+        print("d. done")
+        choice = prompt_text("File number or done", "done").strip().lower()
+        if choice in {"", "d", "done", "q", "quit", "exit"}:
+            return
+        if choice.isdigit():
+            index = int(choice)
+            if 1 <= index <= len(review_files):
+                page_file(review_files[index - 1])
+                continue
+        print("Choose a listed number or done.")
 
 
 def terraform_init_validate(module_path: str) -> None:
@@ -1146,20 +1158,68 @@ def import_existing_ecr_repos(
             raise SystemExit(result.returncode)
 
 
+def aws_ecr_repository_exists(profile: str, region: str, repository_name: str) -> bool:
+    result = subprocess.run(
+        [
+            "aws",
+            "ecr",
+            "describe-repositories",
+            "--profile",
+            profile,
+            "--region",
+            region,
+            "--repository-names",
+            repository_name,
+            "--query",
+            "repositories[0].repositoryName",
+            "--output",
+            "text",
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return result.returncode == 0 and (result.stdout or "").strip() == repository_name
+
+
+def find_existing_aws_ecr_repos(profile: str, region: str, repo_prefix: str, repositories: list[str]) -> list[str]:
+    print_header("AWS ECR Repository Discovery")
+    existing: list[str] = []
+    for repository in repositories:
+        repository_name = f"{repo_prefix}/{repository}"
+        if aws_ecr_repository_exists(profile, region, repository_name):
+            existing.append(repository)
+            print(f"- {repository_name}: exists")
+        else:
+            print(f"- {repository_name}: not found")
+    return existing
+
+
 def run_terraform(
     ecr_mode: str,
     auto_approve: bool,
     appliance_keys: list[str],
+    profile: str,
+    region: str,
     *,
     noninteractive_import: bool = False,
 ) -> None:
     print_header("Terraform: ECR")
     terraform_init_validate("terraform/aws-ecr")
-    _tracked_repositories, missing_repositories = show_ecr_state_status(parse_ecr_tfvars()[1])
+    repo_prefix, repositories = parse_ecr_tfvars()
+    _tracked_repositories, missing_repositories = show_ecr_state_status(repositories)
     if ecr_mode == "existing":
         import_existing_ecr_repos(missing_repositories, prompt_on_failure=not noninteractive_import)
+    elif ecr_mode == "auto":
+        existing_repositories = find_existing_aws_ecr_repos(profile, region, repo_prefix, missing_repositories)
+        if existing_repositories:
+            import_existing_ecr_repos(existing_repositories)
+        else:
+            print("No missing configured ECR repositories were found in AWS. Terraform apply can create them.")
     elif missing_repositories:
-        if prompt_yes_no("Import missing ECR repositories before apply?", False):
+        if prompt_yes_no("Import missing ECR repositories before apply?", True):
             import_existing_ecr_repos(missing_repositories)
     terraform_apply("terraform/aws-ecr", auto_approve)
 
@@ -1262,15 +1322,18 @@ def prompt_ec2_status(
 
 def choose_ecr_mode() -> str:
     print_header("ECR Mode")
-    print("1. Create/manage ECR repositories with Terraform")
-    print("2. Import existing ECR repositories, then apply")
+    print("1. Auto-import existing ECR repositories missing from state, then apply")
+    print("2. Create/manage ECR repositories with Terraform without import")
+    print("3. Import all configured repositories missing from state, then apply")
     while True:
-        value = prompt_text("Choose ECR mode", "1")
-        if value == "1":
+        value = prompt_text("Choose ECR mode", "1").strip().lower()
+        if value in {"", "1", "auto"}:
+            return "auto"
+        if value in {"2", "new", "create"}:
             return "new"
-        if value == "2":
+        if value in {"3", "existing", "import"}:
             return "existing"
-        print("Choose 1 or 2.")
+        print("Choose 1, 2, or 3.")
 
 
 def run_ansible_playbook(
@@ -1663,22 +1726,29 @@ def main() -> None:
     configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
     if not args.skip_terraform:
         configure_appliance_license_preflight(appliance_keys, noninteractive=args.yolo)
-    configure_litellm_credentials(noninteractive=args.yolo or profile_is_fresh)
+    if profile_action == "init":
+        print_header("LiteLLM Credentials")
+        print("Using LiteLLM credential values configured during profile initialization.")
+    elif profile_action == "import":
+        print_header("LiteLLM Credentials")
+        print("Using LiteLLM credential values from the imported user profile.")
+    else:
+        configure_litellm_credentials(noninteractive=args.yolo)
 
     if not args.yolo:
-        prompt_manual_review(appliance_keys)
+        prompt_profile_review()
     if args.skip_terraform:
         print_header("Terraform")
         print("Skipped by --skip-terraform.")
     else:
-        if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", False):
+        if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", True):
             raise SystemExit("Stopped before Terraform execution.")
 
         ecr_mode = "existing" if args.yolo else choose_ecr_mode()
         if args.yolo:
             print_header("ECR Mode")
             print("YOLO mode: importing missing existing ECR repositories, then applying.")
-        run_terraform(ecr_mode, terraform_auto_approve, appliance_keys, noninteractive_import=args.yolo)
+        run_terraform(ecr_mode, terraform_auto_approve, appliance_keys, profile, region, noninteractive_import=args.yolo)
     prompt_ec2_status(
         profile,
         region,

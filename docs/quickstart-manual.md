@@ -220,8 +220,8 @@ Run the `ssh_command` output before starting Ansible. If SSH does not work, Ansi
 
 Create the Ansible user variable file once. Repo-owned defaults are tracked in
 `ansible/group_vars/system.yml`; do not copy that file. Edit only
-`ansible/group_vars/user.yml` for local licenses, credentials, model overrides,
-and optional local paths.
+`ansible/group_vars/user.yml` for local licenses, credentials, and optional
+local path overrides.
 
 ```bash
 cp ansible/group_vars/user.yml.example ansible/group_vars/user.yml
@@ -245,7 +245,11 @@ Set local values in `ansible/group_vars/user.yml`, especially:
 
 - license file list under the default `FAIG/licenses`, or a custom `license_source_dir`
 - `litellm_master_key`, `litellm_ui_username`, and `litellm_ui_password` placeholders before exposing LiteLLM
-- Ollama endpoint/model if used for validation
+
+The default direct model path remains Bedrock through the Terraform-created IAM
+profile. Direct provider/model overrides, Ollama endpoints, chatbot prompt
+source paths, and TLS certificate paths are advanced manual settings. Ollama
+settings are intentionally commented out until that workflow is built.
 
 For AWS deployments, Terraform writes `aws_profile`, `aws_region`, SSH key
 details, CIDRs, and k3s host facts into
@@ -685,7 +689,9 @@ ansible-playbook ansible/playbooks/test_model_direct.yml
 
 The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock smoke test; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
 
-Set `direct_model_provider=ollama` to use the same playbook for direct Ollama testing.
+The direct Ollama path is not part of the default build yet. Advanced users can
+set `direct_model_provider=ollama` and the related Ollama vars manually when
+testing that future workflow.
 
 After the guard is configured, generate and run the first external chat test:
 

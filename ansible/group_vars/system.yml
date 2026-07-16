@@ -93,8 +93,11 @@ fortiaigate_license_files:
 #   ip-10-42-1-10.ec2.internal: License1.lic
 fortiaigate_licenses: {}
 
-ollama_base_url: http://10.11.41.201:11434/v1
-ollama_model: llama3.2:1b
+# Ollama is not part of the default guided path yet. Advanced users can set
+# these manually in ansible/group_vars/user.yml or with -e when testing a local
+# Ollama provider workflow.
+# ollama_base_url: http://<ollama-host>:11434/v1
+# ollama_model: llama3.2:1b
 # FortiAIGate 8.0.1 serves the UI under /ui/. 8.0.0 used /.
 fortiaigate_ui_path: "{{ '/ui/' if fortiaigate_version is version('8.0.1', '>=') else '/' }}"
 fortiaigate_status_verbose: false
@@ -131,8 +134,8 @@ direct_model_message: "Hello, is this thing on? Reply in one short sentence and 
 direct_model_bedrock_model: ""
 direct_model_bedrock_region: ""
 direct_model_bedrock_read_credentials_from_terraform: true
-direct_model_ollama_base_url: "{{ ollama_base_url }}"
-direct_model_ollama_model: "{{ ollama_model }}"
+# direct_model_ollama_base_url: "{{ ollama_base_url }}"
+# direct_model_ollama_model: "{{ ollama_model }}"
 
 # === LiteLLM proxy: ansible/playbooks/deploy_litellm.yml ===
 # LiteLLM is the shared OpenAI-compatible model proxy for demo UIs.
