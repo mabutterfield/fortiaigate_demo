@@ -1,0 +1,44 @@
+---
+demo_http_paths_test_fail_on_error: true
+demo_http_paths_test_timeout_seconds: 10
+demo_http_paths_test_connect_timeout_seconds: 5
+demo_http_paths_test_include_direct: true
+demo_http_paths_test_include_fortiweb: true
+demo_http_paths_test_include_https: "{{ demo_https_gateway_enabled | default(false) | bool }}"
+demo_http_paths_test_fortiweb_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortiweb') | realpath }}"
+demo_http_paths_test_direct_host: "{{ k3s_public_ip | default(public_ip | default(ansible_host | default(''))) }}"
+demo_http_paths_test_fortiweb_host: "{{ fortiweb_public_ip | default('') }}"
+demo_http_paths_test_expected_min: 200
+demo_http_paths_test_expected_max: 399
+
+demo_http_paths_test_services:
+  - name: openwebui
+    display_name: OpenWebUI
+    enabled: "{{ openwebui_enabled | default(false) | bool }}"
+    path: "{{ openwebui_status_health_path | default('/health') }}"
+    http_port: "{{ demo_openwebui_http_port | default(30080) | int }}"
+    https_port: "{{ demo_openwebui_https_port | default(30443) | int }}"
+  - name: chatbot
+    display_name: Chatbot
+    enabled: "{{ chatbots_enabled | default(true) | bool }}"
+    path: "{{ chatbot_status_health_path | default('/') }}"
+    http_port: "{{ demo_chatbot_http_port | default(30081) | int }}"
+    https_port: "{{ demo_chatbot_https_port | default(30444) | int }}"
+  - name: demo_home
+    display_name: Demo Home
+    enabled: "{{ demo_home_enabled | default(true) | bool }}"
+    path: "{{ demo_home_status_health_path | default('/') }}"
+    http_port: "{{ demo_home_http_port | default(demo_home_node_port | default(30082)) | int }}"
+    https_port: "{{ demo_home_https_port | default(30445) | int }}"
+  - name: litellm
+    display_name: LiteLLM
+    enabled: "{{ litellm_enabled | default(true) | bool }}"
+    path: "{{ litellm_status_health_path | default('/health/readiness') }}"
+    http_port: "{{ demo_litellm_http_port | default(litellm_node_port | default(30083)) | int }}"
+    https_port: "{{ demo_litellm_https_port | default(30446) | int }}"
+  - name: mcp
+    display_name: MCP
+    enabled: "{{ mcp_enabled | default(true) | bool }}"
+    path: "{{ mcp_status_health_path | default('/health') }}"
+    http_port: "{{ demo_mcp_http_port | default(mcp_node_port | default(30084)) | int }}"
+    https_port: "{{ demo_mcp_https_port | default(30447) | int }}"
