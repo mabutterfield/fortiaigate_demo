@@ -361,6 +361,12 @@ def main() -> None:
     mcp_direct_base_url = os.getenv("CHATBOT_MCP_DIRECT_BASE_URL", "").strip()
     mcp_fortiweb_base_url = os.getenv("CHATBOT_MCP_FORTIWEB_BASE_URL", "").strip()
     mcp_default_path = os.getenv("CHATBOT_MCP_DEFAULT_PATH", "direct").strip().lower()
+    if mcp_default_path not in {"direct", "fortiweb"}:
+        logger.warning("Invalid CHATBOT_MCP_DEFAULT_PATH=%s; using direct", mcp_default_path)
+        mcp_default_path = "direct"
+    if mcp_default_path == "fortiweb" and not mcp_fortiweb_base_url:
+        logger.warning("CHATBOT_MCP_DEFAULT_PATH=fortiweb but CHATBOT_MCP_FORTIWEB_BASE_URL is empty; using direct")
+        mcp_default_path = "direct"
     mcp_timeout_seconds = env_int("CHATBOT_MCP_TIMEOUT_SECONDS", 10)
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)

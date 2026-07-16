@@ -406,3 +406,21 @@ resource "local_file" "ansible_inventory" {
     api_url           = local.fortiweb_eip_public_ip != null ? "https://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_https_port}/api/v2.0" : ""
   })
 }
+
+resource "local_file" "ansible_group_vars" {
+  filename = var.ansible_group_vars_output_path
+  content = templatefile("${path.module}/templates/fortiweb.generated.yml.tftpl", {
+    hostname          = local.fortiweb_name
+    public_ip         = local.fortiweb_eip_public_ip
+    public_private_ip = try(aws_network_interface.public[0].private_ip, "")
+    internal_ip       = try(aws_network_interface.internal[0].private_ip, "")
+    instance_id       = try(aws_instance.this[0].id, "")
+    admin_https_port  = var.fortiweb_admin_https_port
+    admin_http_port   = var.fortiweb_admin_http_port
+    admin_url         = local.fortiweb_eip_public_ip != null ? "https://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_https_port}" : ""
+    http_admin_url    = local.fortiweb_eip_public_ip != null ? "http://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_http_port}" : ""
+    api_url           = local.fortiweb_eip_public_ip != null ? "https://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_https_port}/api/v2.0" : ""
+    mcp_http_port     = try(local.k3s_outputs.demo_port_assignments.mcp.http, 30084)
+    mcp_https_port    = try(local.k3s_outputs.demo_port_assignments.mcp.https, 30447)
+  })
+}

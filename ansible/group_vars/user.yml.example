@@ -172,6 +172,11 @@ fortiaigate_licenses: {}
 # # When enabled, the generated FortiWeb proxy creates pass-through paths for
 # # all demo HTTP NodePorts and, when demo_https_gateway_enabled=true, all demo
 # # HTTPS NodePorts.
+# # Optional chatbot MCP controls. Direct uses the in-cluster MCP service.
+# # FortiWeb uses terraform/aws-fortiweb generated vars when present.
+# chatbot_mcp_enabled: true
+# chatbot_mcp_default_path: fortiweb
+# chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url }}"
 # fortiweb_virtual_server_vips_static:
 #   - table_name: FAIG_CUSTOM_MCP_VSERVER
 #     name: "1"

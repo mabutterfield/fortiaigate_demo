@@ -81,7 +81,18 @@ chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
 chatbot_mcp_enabled: false
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8000') }}"
-chatbot_mcp_fortiweb_base_url: ""
+chatbot_mcp_fortiweb_base_url: >-
+  {{
+    fortiweb_mcp_http_base_url
+    | default(
+      (
+        'http://' ~ fortiweb_internal_ip ~ ':' ~ (demo_mcp_http_port | default(30084) | string)
+      )
+      if fortiweb_internal_ip | default('') | string | length > 0
+      else '',
+      true
+    )
+  }}
 chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false

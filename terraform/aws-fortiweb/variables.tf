@@ -42,6 +42,12 @@ variable "ansible_inventory_output_path" {
   default     = "../../ansible/inventory/fortiweb.generated.ini"
 }
 
+variable "ansible_group_vars_output_path" {
+  type        = string
+  description = "Path where this module writes generated FortiWeb Ansible group vars."
+  default     = "../../ansible/group_vars/fortiweb.generated.yml"
+}
+
 variable "ssh_key_name" {
   type        = string
   description = "Existing AWS EC2 key pair name for FortiWeb SSH access."

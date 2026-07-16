@@ -10,3 +10,4 @@
 # fortiweb_data_plane_tcp_ports = [30080, 30081, 30082, 30083, 30084, 30443, 30444, 30445, 30446, 30447]
 # fortiweb_enable_public_data_plane_ingress = true
 # fortiweb_enable_vpc_data_plane_ingress = true
+# ansible_group_vars_output_path = "../../ansible/group_vars/fortiweb.generated.yml"

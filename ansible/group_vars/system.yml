@@ -332,11 +332,12 @@ chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
 # chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
 # MCP tools are optional in the browser UI. The current default path is direct
-# chatbot -> MCP. Set chatbot_mcp_fortiweb_base_url and default_path=fortiweb
-# later when FortiWeb is placed in front of MCP.
+# chatbot -> MCP. When terraform/aws-fortiweb has generated
+# ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
+# defaults to FortiWeb port2 on the MCP HTTP NodePort.
 chatbot_mcp_enabled: false
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
-chatbot_mcp_fortiweb_base_url: ""
+chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false

@@ -85,6 +85,7 @@ ansible/inventory/fortiweb.generated.ini
 ansible/secrets/
 ansible/group_vars/ecr.generated.yml
 ansible/group_vars/bedrock.generated.yml
+ansible/group_vars/fortiweb.generated.yml
 ansible/group_vars/ports.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml

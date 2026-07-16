@@ -33,6 +33,11 @@ output "fortiweb_public_network_interface_id" {
   value       = try(aws_network_interface.public[0].id, null)
 }
 
+output "ansible_group_vars" {
+  description = "Generated FortiWeb Ansible group vars path."
+  value       = local_file.ansible_group_vars.filename
+}
+
 output "fortiweb_internal_network_interface_id" {
   description = "FortiWeb port2/internal ENI ID."
   value       = try(aws_network_interface.internal[0].id, null)

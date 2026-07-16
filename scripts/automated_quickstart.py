@@ -34,6 +34,25 @@ APPLIANCE_TERRAFORM_MODULES = {
     "fortigate": ("FortiGate appliance", "terraform/aws-fortigate"),
     "fortiweb": ("FortiWeb appliance", "terraform/aws-fortiweb"),
 }
+APPLIANCE_ANSIBLE_PLANS = {
+    "fortigate": {
+        "label": "FortiGate appliance",
+        "inventory": "ansible/inventory/fortigate.generated.ini",
+        "status": "status_fortigate.yml",
+        "configure": [
+            ("FortiGate baseline configuration", "configure_fortigate.yml"),
+            ("FortiGate API accounts", "configure_fortigate_api_accounts.yml"),
+        ],
+    },
+    "fortiweb": {
+        "label": "FortiWeb appliance",
+        "inventory": "ansible/inventory/fortiweb.generated.ini",
+        "status": "status_fortiweb.yml",
+        "configure": [
+            ("FortiWeb baseline configuration", "configure_fortiweb.yml"),
+        ],
+    },
+}
 APPLIANCE_COLLECTION_REQUIREMENTS = {
     "fortigate": {
         "fortinet.fortios": "2.5.1",
@@ -64,9 +83,9 @@ APPLIANCE_LICENSES = {
 }
 APPLICATION_PLAYBOOKS = [
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
+    ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
     ("custom chatbot UI", "deploy_chatbots.yml", "status_chatbots.yml"),
-    ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("demo home page", "deploy_demo_home.yml", "status_demo_home.yml"),
 ]
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -84,6 +103,7 @@ ANSIBLE_VAR_LOAD_ORDER = [
     "ansible/group_vars/terraform.generated.yml",
     "ansible/group_vars/ecr.generated.yml",
     "ansible/group_vars/ports.generated.yml",
+    "ansible/group_vars/fortiweb.generated.yml",
     "ansible/group_vars/user.yml",
 ]
 
@@ -1399,11 +1419,16 @@ def choose_ecr_mode() -> str:
 def run_ansible_playbook(
     playbook: str,
     *,
+    inventory: str | None = None,
     check: bool = True,
     capture: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    argv = ["ansible-playbook"]
+    if inventory:
+        argv.extend(["-i", inventory])
+    argv.append(f"ansible/playbooks/{playbook}")
     result = run_command(
-        ["ansible-playbook", f"ansible/playbooks/{playbook}"],
+        argv,
         check=False if capture else check,
         capture=capture,
     )
@@ -1415,6 +1440,31 @@ def run_ansible_playbook(
         if check and result.returncode != 0:
             raise SystemExit(result.returncode)
     return result
+
+
+def run_ansible_playbook_until_success(
+    label: str,
+    playbook: str,
+    *,
+    inventory: str | None = None,
+    delay_seconds: int = 30,
+    max_attempts: int = 10,
+) -> None:
+    attempts = max(1, max_attempts)
+    delay = max(1, delay_seconds)
+
+    for attempt in range(1, attempts + 1):
+        print(f"Checking {label}, attempt {attempt}/{attempts}.")
+        result = run_ansible_playbook(playbook, inventory=inventory, check=False, capture=True)
+        if result.returncode == 0:
+            print(f"{label} is ready.")
+            return
+
+        if attempt == attempts:
+            raise SystemExit(f"Stopped because {label} did not become ready.")
+
+        print(f"{label} is not ready yet. Waiting {delay} seconds before checking again.")
+        time.sleep(delay)
 
 
 def run_image_publishing(args: argparse.Namespace) -> None:
@@ -1526,7 +1576,42 @@ def run_application_deployments(args: argparse.Namespace) -> None:
     run_ansible_playbook("show_demo_outputs.yml", check=False)
 
 
-def run_ansible_flow(args: argparse.Namespace) -> None:
+def run_appliance_ansible_deployments(args: argparse.Namespace, appliance_keys: list[str]) -> None:
+    if not appliance_keys:
+        return
+
+    print_header("Ansible: Appliance Configuration")
+    for appliance_key in appliance_keys:
+        plan = APPLIANCE_ANSIBLE_PLANS[appliance_key]
+        label = plan["label"]
+        inventory = plan["inventory"]
+        status_playbook = plan["status"]
+
+        run_ansible_playbook_until_success(
+            f"{label} API",
+            status_playbook,
+            inventory=inventory,
+            delay_seconds=args.appliance_status_delay,
+            max_attempts=args.appliance_status_retries,
+        )
+
+        for step_label, playbook in plan["configure"]:
+            print_header(f"Ansible: {step_label}")
+            run_ansible_playbook(playbook, inventory=inventory)
+
+        print_header(f"Ansible: Status {label}")
+        run_ansible_playbook(status_playbook, inventory=inventory, check=False)
+
+
+def run_post_application_validations(appliance_keys: list[str]) -> None:
+    if "fortiweb" not in appliance_keys:
+        return
+
+    print_header("Ansible: Validate Demo HTTP Paths")
+    run_ansible_playbook("validate_demo_http_paths.yml", check=False)
+
+
+def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str]) -> None:
     print_header("Ansible Deployment")
     if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
         raise SystemExit("Stopped before Ansible execution.")
@@ -1548,7 +1633,9 @@ def run_ansible_flow(args: argparse.Namespace) -> None:
     else:
         run_fortiaigate_status_once("Ansible: FortiAIGate Status After Deploy")
 
+    run_appliance_ansible_deployments(args, appliance_keys)
     run_application_deployments(args)
+    run_post_application_validations(appliance_keys)
     if faig_status_mode == "once":
         run_fortiaigate_status_once("Ansible: Final FortiAIGate Status")
 
@@ -1664,12 +1751,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-fortigate",
         action="store_true",
-        help="Ensure FortiGate local overrides are enabled and run terraform/aws-fortigate after the k3s foundation.",
+        help="Ensure FortiGate local overrides are enabled, run terraform/aws-fortigate, and apply FortiGate Ansible configuration.",
     )
     parser.add_argument(
         "--include-fortiweb",
         action="store_true",
-        help="Ensure FortiWeb local overrides are enabled and run terraform/aws-fortiweb after the k3s foundation.",
+        help="Ensure FortiWeb local overrides are enabled, run terraform/aws-fortiweb, and apply FortiWeb Ansible configuration.",
     )
     parser.add_argument(
         "--include-appliances",
@@ -1708,6 +1795,18 @@ def parse_args() -> argparse.Namespace:
             "FortiAIGate post-deploy status behavior. wait polls until READY; once checks once, "
             "continues with other charts, then checks again at the end. Default: once."
         ),
+    )
+    parser.add_argument(
+        "--appliance-status-delay",
+        type=int,
+        default=30,
+        help="Seconds to wait between FortiGate/FortiWeb API readiness checks. Default: 30.",
+    )
+    parser.add_argument(
+        "--appliance-status-retries",
+        type=int,
+        default=20,
+        help="Maximum FortiGate/FortiWeb API readiness checks before stopping. Default: 20.",
     )
     return parser.parse_args()
 
@@ -1823,13 +1922,18 @@ def main() -> None:
     print("- ansible/group_vars/ecr.generated.yml")
     print("- ansible/group_vars/ports.generated.yml")
     print("- ansible/inventory/aws.generated.ini")
+    if "fortigate" in appliance_keys:
+        print("- ansible/inventory/fortigate.generated.ini")
+    if "fortiweb" in appliance_keys:
+        print("- ansible/inventory/fortiweb.generated.ini")
+        print("- ansible/group_vars/fortiweb.generated.yml")
 
     if args.skip_ansible:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
     check_appliance_collections(appliance_keys)
-    run_ansible_flow(args)
+    run_ansible_flow(args, appliance_keys)
 
     print_header("Automated Quick Start Complete")
     print("Terraform and Ansible deployment steps completed.")
