@@ -33,9 +33,7 @@ ansible/group_vars/ecr.generated.yml
 
 The publish, deploy, status, and validation playbooks load tracked
 `system.yml`, generated `terraform.generated.yml`, `ecr.generated.yml`, and
-`ports.generated.yml`, then ignored `user.yml` overrides. Legacy `env.yml`,
-`images.yml`, and `all.yml` are loaded first when present for upgrade
-compatibility.
+`ports.generated.yml`, then ignored `user.yml` overrides.
 
 If repositories already exist from manual testing, import them before applying:
 

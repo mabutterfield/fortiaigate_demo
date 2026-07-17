@@ -340,7 +340,19 @@
         if fortiaigate_status_login_url_override is defined and fortiaigate_status_login_url_override | default('', true) | length > 0
         else 'https://' ~ demo_outputs_access_host ~ demo_outputs_fortiaigate_ui_path
       }}
-    demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
+    demo_outputs_chatbot_urls: >-
+      {{
+        demo_outputs_chatbot_urls | default([])
+        + [
+          item.name ~ ': '
+          ~ (
+            'https://' ~ demo_outputs_access_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
+            if demo_https_gateway_enabled | default(false) | bool
+            else 'http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)
+          )
+        ]
+      }}
+    demo_outputs_chatbot_http_urls: "{{ demo_outputs_chatbot_http_urls | default([]) + [item.name ~ ': http://' ~ demo_outputs_access_host ~ ':' ~ (item.node_port | string)] }}"
   loop: "{{ chatbot_instances | default([]) }}"
   when: demo_outputs_access_host | default('', true) | length > 0
   # - ansible.builtin.debug:
@@ -360,6 +372,7 @@
   ansible.builtin.set_fact:
     demo_outputs_fortiaigate_admin_url: "{{ demo_outputs_fortiaigate_admin_url | default('unavailable') }}"
     demo_outputs_chatbot_urls: "{{ demo_outputs_chatbot_urls | default(['unavailable']) }}"
+    demo_outputs_chatbot_http_urls: "{{ demo_outputs_chatbot_http_urls | default(['unavailable']) }}"
     demo_outputs_openwebui_urls: >-
       {{
         demo_outputs_openwebui_urls

@@ -363,23 +363,7 @@
   vars:
     demo_home_links_for_item: >-
       {{
-        [
-          {
-            'label': item.name ~ ' HTTP (' ~ (item.provider_label | default('Model')) ~ ')',
-            'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
-          }
-        ]
-        + (
-          [
-            {
-              'label': item.name ~ ' HTTP via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
-              'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
-            }
-          ]
-          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
-          else []
-        )
-        + (
+        (
           [
             {
               'label': item.name ~ ' HTTPS (' ~ (item.provider_label | default('Model')) ~ ')',
@@ -399,6 +383,22 @@
           if demo_home_fortiweb_enabled | bool
           and demo_home_fortiweb_effective_host | default('', true) | length > 0
           and demo_https_gateway_enabled | default(false) | bool
+          else []
+        )
+        + [
+          {
+            'label': item.name ~ ' HTTP (' ~ (item.provider_label | default('Model')) ~ ')',
+            'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
+          }
+        ]
+        + (
+          [
+            {
+              'label': item.name ~ ' HTTP via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
+              'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
+            }
+          ]
+          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
           else []
         )
       }}

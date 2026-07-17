@@ -100,7 +100,6 @@ SKIP_SSH_PRIVATE_KEY_NAMES = {
 ANSIBLE_VAR_LOAD_ORDER = [
     "ansible/group_vars/env.yml",
     "ansible/group_vars/images.yml",
-    "ansible/group_vars/all.yml",
     "ansible/group_vars/system.yml",
     "ansible/group_vars/terraform.generated.yml",
     "ansible/group_vars/ecr.generated.yml",

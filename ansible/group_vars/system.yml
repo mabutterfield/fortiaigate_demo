@@ -404,9 +404,9 @@ demo_home_page_title: FortiAIGate Demo Home
 demo_home_ingress_host: ""
 
 # === Optional HTTPS gateway: ansible/playbooks/deploy_demo_https_gateway.yml ===
-# Disabled by default. When enabled, nginx exposes HTTPS NodePorts and proxies
+# Enabled by default. The nginx gateway exposes HTTPS NodePorts and proxies
 # to the existing internal HTTP services. Keep internal cluster traffic HTTP;
-# this only encrypts optional public browser/API access.
+# this encrypts default public browser/API access.
 # terraform/aws-ec2-k3s opens the generated HTTP and HTTPS demo ports.
 demo_https_gateway_enabled: true
 demo_https_gateway_self_signed: true
