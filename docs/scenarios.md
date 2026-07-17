@@ -53,7 +53,7 @@ Recommended baseline settings:
 | Setting | Value |
 |---|---|
 | LLM path | Direct LiteLLM for first validation |
-| Model/profile | Match the installed slot, usually `demo-a` or `demo-b` |
+| Model/profile | Match the slot you installed into, usually `demo-a` or `demo-b` |
 | Context mode | Recent conversation, or Consolidated context for stateful demos |
 | Context messages | Default `8` when using Recent conversation |
 | Use MCP tools | On |

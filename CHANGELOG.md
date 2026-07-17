@@ -34,6 +34,9 @@ a "what's new" guide rather than a raw commit log.
 - Scenario profiles now use the single shared MCP server only. Their
   `required_tools` lists document expected tool use and are validated against
   the shared MCP catalog.
+- Removed scenario-profile recommended slots. Scenario installs now require an
+  explicit instruction slot, and instruction-profile status output clarifies
+  local source metadata.
 - Added a scenario runbook with chatbot settings, sample prompts, attack or
   boundary prompts, and expected behavior for each tracked scenario.
 - Added synthetic HR MCP tools and data for employee lookup/search, HR policy

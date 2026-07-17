@@ -2,7 +2,6 @@
   "id": "hr-policy-risk",
   "display_name": "HR Policy Risk Assistant",
   "description": "Synthetic HR assistant scenario for PII, instruction disclosure, and redaction behavior demos.",
-  "recommended_slot": "demo-a",
   "instruction_file": "instructions.txt",
   "mcp": {
     "required_tools": [

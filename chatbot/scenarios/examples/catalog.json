@@ -2,18 +2,15 @@
   "scenarios": {
     "fastfood-ordering": {
       "path": "fastfood-ordering/profile.json",
-      "display_name": "Fast Food Ordering Agent",
-      "recommended_slot": "demo-b"
+      "display_name": "Fast Food Ordering Agent"
     },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",
-      "display_name": "FortiGate Operator Assistant",
-      "recommended_slot": "demo-a"
+      "display_name": "FortiGate Operator Assistant"
     },
     "hr-policy-risk": {
       "path": "hr-policy-risk/profile.json",
-      "display_name": "HR Policy Risk Assistant",
-      "recommended_slot": "demo-a"
+      "display_name": "HR Policy Risk Assistant"
     }
   }
 }

@@ -2,7 +2,6 @@
   "id": "fortigate-operator",
   "display_name": "FortiGate Operator Assistant",
   "description": "Read-only network operations demo using FortiGate MCP status/configuration facts.",
-  "recommended_slot": "demo-a",
   "instruction_file": "instructions.txt",
   "mcp": {
     "required_tools": [

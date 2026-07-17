@@ -318,11 +318,12 @@ def cmd_create(args: argparse.Namespace) -> None:
 
 def cmd_list(_args: argparse.Namespace) -> None:
     print_header("Instruction Slots")
+    print("Status shows whether an ignored local instructions.txt exists for the slot.")
     slots = CATALOG.get("slots", {})
     for slot in known_slot_names():
         slot_meta = slots.get(slot, {})
         path = slot_path(slot)
-        status = "local" if path.exists() else "example-only"
+        status = "local file present" if path.exists() else "missing"
         default_example = slot_meta.get("default_example", "")
         description = slot_meta.get("description", "Custom local instruction slot.")
         print(f"- {slot}: {status}")
@@ -330,6 +331,9 @@ def cmd_list(_args: argparse.Namespace) -> None:
         if default_example:
             print(f"  default example: {default_example}")
         print(f"  description: {description}")
+        if path.exists():
+            print("  current local metadata:")
+            print_metadata(slot_metadata(slot), indent="    ")
 
 
 def cmd_examples(_args: argparse.Namespace) -> None:
@@ -381,11 +385,17 @@ def prompt_index(prompt: str, count: int, *, allow_quit: bool = True) -> int | N
 def print_metadata(metadata: dict, *, indent: str = "  ") -> None:
     display_name = metadata.get("display_name", "")
     description = metadata.get("description", "")
+    source_type = metadata.get("source_type", "")
+    scenario_id = metadata.get("scenario_id", "")
     source = metadata.get("source", "")
     if display_name:
         print(f"{indent}name: {display_name}")
     if description:
         print(f"{indent}description: {description}")
+    if source_type:
+        print(f"{indent}source type: {source_type}")
+    if scenario_id:
+        print(f"{indent}scenario: {scenario_id}")
     if source:
         print(f"{indent}source: {source}")
 
@@ -412,9 +422,11 @@ def write_slot_with_metadata(slot: str, source: Path, metadata: dict, *, force: 
 def wizard_current_slots() -> list[str]:
     slots = sorted(CATALOG.get("slots", {}))
     print_header("Current Instruction Slots")
+    print("Status shows whether an ignored local instructions.txt exists for the slot.")
+    print("Source metadata shows whether that local file came from an example, scenario, or local file.")
     for index, slot in enumerate(slots, start=1):
         path = slot_path(slot)
-        status = "installed" if path.exists() else "missing"
+        status = "local file present" if path.exists() else "missing"
         print(f"{index}. {slot} ({status})")
         print(f"   path: {path}")
         print_metadata(slot_metadata(slot), indent="   ")

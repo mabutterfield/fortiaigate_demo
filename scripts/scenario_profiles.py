@@ -76,7 +76,6 @@ def print_list() -> None:
         entry = scenarios[scenario_id]
         profile_path, profile = load_scenario(scenario_id)
         print(f"- {scenario_id}: {entry.get('display_name', profile.get('display_name', scenario_id))}")
-        print(f"  slot: {profile.get('recommended_slot', '')}")
         print(f"  path: {profile_path.relative_to(REPO_ROOT)}")
         description = profile.get("description", "")
         if description:
@@ -87,7 +86,6 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
     print_header(profile.get("display_name", profile.get("id", "Scenario")))
     print(f"id: {profile.get('id')}")
     print(f"description: {profile.get('description', '')}")
-    print(f"recommended slot: {profile.get('recommended_slot', '')}")
     print(f"instructions: {instruction_path(profile_path, profile).relative_to(REPO_ROOT)}")
 
     mcp = profile.get("mcp", {})
@@ -118,7 +116,9 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
 
 def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: bool) -> Path:
     profile_path, profile = load_scenario(scenario_id)
-    target_slot = slot or profile.get("recommended_slot", "demo-b")
+    if not slot:
+        raise SystemExit("Choose the target instruction slot with --slot, for example: --slot demo-b")
+    target_slot = slot
     source = instruction_path(profile_path, profile)
     destination = instruction_profiles.slot_path(target_slot)
     if destination.exists() and not force:
@@ -200,7 +200,7 @@ def parse_args() -> argparse.Namespace:
 
     install_parser = subparsers.add_parser("install", help="Install a scenario into a local instruction slot.")
     install_parser.add_argument("scenario", help="Scenario ID.")
-    install_parser.add_argument("--slot", help="Instruction slot to install into. Defaults to the scenario recommendation.")
+    install_parser.add_argument("--slot", required=True, help="Instruction slot to install into, such as demo-a or demo-b.")
     install_parser.add_argument("--force", action="store_true", help="Replace the target local slot if it exists.")
     install_parser.add_argument("--link", action="store_true", help="Symlink instead of copying scenario instructions.")
 

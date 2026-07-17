@@ -2,7 +2,6 @@
   "id": "fastfood-ordering",
   "display_name": "Fast Food Ordering Agent",
   "description": "Consumer ordering assistant demo based on realistic attempts to push a food-service agent into unrelated tasks.",
-  "recommended_slot": "demo-b",
   "instruction_file": "instructions.txt",
   "mcp": {
     "required_tools": [
