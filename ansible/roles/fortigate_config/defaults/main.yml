@@ -77,6 +77,12 @@ fortigate_repo_static_address_sources:
   - name: FAIG_FORTIWEB_EIP
     ip: "{{ fortiweb_public_ip | default(fortiweb_eip_public_ip | default('')) }}"
     comment: "FAIG managed FortiWeb public EIP"
+  - name: FAIG_FORTIWEB_PORT1
+    ip: "{{ fortiweb_public_private_ip | default('') }}"
+    comment: "FAIG managed FortiWeb port1 private IP"
+  - name: FAIG_FORTIWEB_PORT2
+    ip: "{{ fortiweb_internal_ip | default('') }}"
+    comment: "FAIG managed FortiWeb port2 internal IP"
   - name: FAIG_FORTIWEB_INTERNAL
     ip: "{{ fortiweb_internal_ip | default('') }}"
     comment: "FAIG managed FortiWeb internal IP"
