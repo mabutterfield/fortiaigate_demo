@@ -1,0 +1,127 @@
+---
+- name: Read FortiGate API key from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ fortigate_terraform_dir }}
+      - output
+      - -raw
+      - fortigate_api_key
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  no_log: "{{ fortigate_no_log | bool }}"
+  register: fortigate_status_api_key_raw
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate API key read from Terraform output: {{ fortigate_status_api_key_raw.stdout | length > 0 }}"
+
+- name: Set FortiGate API key fact
+  ansible.builtin.set_fact:
+    fortigate_access_token: "{{ fortigate_status_api_key_raw.stdout | trim }}"
+    ansible_httpapi_session_key:
+      access_token: "{{ fortigate_status_api_key_raw.stdout | trim }}"
+  no_log: "{{ fortigate_no_log | bool }}"
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate access token present: {{ fortigate_access_token | length > 0 }}"
+
+- name: Fail when FortiGate API key is not available
+  ansible.builtin.fail:
+    msg: "FortiGate API key is empty. Confirm terraform/aws-fortigate was applied with fortigate_enable_api=true."
+  when: fortigate_access_token | length == 0
+  tags: [fortigate_status]
+
+- name: Gather FortiGate system and license status with Fortinet collection
+  fortinet.fortios.fortios_monitor_fact:
+    vdom: "{{ fortigate_status_vdom }}"
+    selector: system_status
+  register: fortigate_status_monitor
+  failed_when: false
+  no_log: "{{ fortigate_no_log | bool }}"
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     var: fortigate_status_monitor
+
+- name: Set FortiGate collection status facts
+  ansible.builtin.set_fact:
+    fortigate_status_source: fortinet.fortios.fortios_monitor_fact
+    fortigate_status_state: "{{ fortigate_status_monitor.meta.status | default('unknown') }}"
+    fortigate_status_results: "{{ fortigate_status_monitor.meta.results | default({}) }}"
+    fortigate_status_system: >-
+      {{
+        (fortigate_status_monitor.meta.results | default({}))
+        | combine({
+            'version': fortigate_status_monitor.meta.version | default('unknown'),
+            'serial': fortigate_status_monitor.meta.serial | default('unknown'),
+            'build': fortigate_status_monitor.meta.build | default('unknown')
+          })
+      }}
+    fortigate_status_license: {}
+  when:
+    - not (fortigate_status_monitor.failed | default(false))
+    - fortigate_status_monitor.meta.results is defined
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     var: fortigate_status_system
+
+- name: Poll FortiGate system status with direct bearer API fallback
+  ansible.builtin.uri:
+    url: "{{ fortigate_api_url }}/monitor/system/status"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ fortigate_access_token }}"
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  delegate_to: localhost
+  become: false
+  no_log: "{{ fortigate_no_log | bool }}"
+  register: fortigate_status_uri
+  when: >-
+    (fortigate_status_monitor.failed | default(false))
+    or fortigate_status_monitor.meta.results is not defined
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     var: fortigate_status_uri.json
+
+- name: Set FortiGate fallback status facts
+  ansible.builtin.set_fact:
+    fortigate_status_source: ansible.builtin.uri
+    fortigate_status_state: "{{ fortigate_status_uri.json.status | default('unknown') }}"
+    fortigate_status_results: "{{ fortigate_status_uri.json.results | default({}) }}"
+    fortigate_status_system: >-
+      {{
+        (fortigate_status_uri.json.results | default({}))
+        | combine({
+            'version': fortigate_status_uri.json.version | default('unknown'),
+            'serial': fortigate_status_uri.json.serial | default('unknown'),
+            'build': fortigate_status_uri.json.build | default('unknown')
+          })
+      }}
+    fortigate_status_license: {}
+  when: >-
+    (fortigate_status_monitor.failed | default(false))
+    or fortigate_status_monitor.meta.results is not defined
+  tags: [fortigate_status]
+  # - ansible.builtin.debug:
+  #     var: fortigate_status_system
+
+- name: Show raw FortiGate status when verbose
+  ansible.builtin.debug:
+    var: fortigate_status_results
+  when: fortigate_status_verbose | bool
+  tags: [fortigate_status]
+
+- name: Show FortiGate status summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiGate status: {{ fortigate_status_state | default('unknown') }}"
+      - "Status source: {{ fortigate_status_source | default('unknown') }}"
+      - "Host: {{ ansible_host | default(inventory_hostname) }}:{{ ansible_httpapi_port | default(fortigate_admin_port | default(443)) }}"
+      - "Version: {{ fortigate_status_system.version | default(fortigate_status_monitor.version | default('unknown')) }}"
+      - "Serial: {{ fortigate_status_system.serial | default(fortigate_status_monitor.serial | default('unknown')) }}"
+      - "Build: {{ fortigate_status_system.build | default(fortigate_status_monitor.build | default('unknown')) }}"
+      - "License status: {{ fortigate_status_license.status | default('unknown') }}"
+      - "Admin URL: {{ fortigate_admin_url | default('unknown') }}"
+  tags: [fortigate_status]

@@ -1,12 +1,8 @@
 # terraform/user.tfvars supplies aws_profile, aws_region, name_prefix,
-# ssh_key_name, allowed_ingress_cidr, and tags.
+# ssh_key_name, ssh_private_key_file, ec2_pull_github_keys,
+# allowed_ingress_cidr, and tags.
 
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
-
-# Optional GitHub usernames whose public SSH keys should be appended to
-# /home/ubuntu/.ssh/authorized_keys on first boot. Leave empty to skip.
-# Example: ["mabutterfield"]
-ec2_pull_github_keys = []
 
 # g4dn.4xlarge is the default lab size used by this module.
 # Use g6.8xlarge for a stronger production-like L4 validation target.

@@ -1,0 +1,195 @@
+---
+- name: Read FortiWeb public IP from Terraform when not supplied
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ demo_http_paths_test_fortiweb_terraform_dir }}
+      - output
+      - -raw
+      - fortiweb_public_ip
+  changed_when: false
+  failed_when: false
+  register: demo_http_paths_test_fortiweb_output
+  when:
+    - demo_http_paths_test_include_fortiweb | bool
+    - demo_http_paths_test_fortiweb_host | default('') | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb public IP output present: {{ demo_http_paths_test_fortiweb_output.stdout | default('') | length > 0 }}"
+
+- name: Set demo HTTP path host facts
+  ansible.builtin.set_fact:
+    demo_http_paths_test_resolved_direct_host: "{{ demo_http_paths_test_direct_host | default('') }}"
+    demo_http_paths_test_resolved_fortiweb_host: >-
+      {{
+        demo_http_paths_test_fortiweb_host
+        if demo_http_paths_test_fortiweb_host | default('') | length > 0
+        else demo_http_paths_test_fortiweb_output.stdout | default('')
+      }}
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Direct host: {{ demo_http_paths_test_resolved_direct_host }}"
+  #       - "FortiWeb host present: {{ demo_http_paths_test_resolved_fortiweb_host | length > 0 }}"
+
+- name: Fail when direct host is not available
+  ansible.builtin.fail:
+    msg: "Direct k3s public host is empty. Confirm ansible/group_vars/terraform.generated.yml has k3s_public_ip or set demo_http_paths_test_direct_host."
+  when:
+    - demo_http_paths_test_include_direct | bool
+    - demo_http_paths_test_resolved_direct_host | length == 0
+
+- name: Fail when FortiWeb host is not available
+  ansible.builtin.fail:
+    msg: "FortiWeb public host is empty. Confirm terraform/aws-fortiweb has fortiweb_public_ip or set demo_http_paths_test_fortiweb_host."
+  when:
+    - demo_http_paths_test_include_fortiweb | bool
+    - demo_http_paths_test_resolved_fortiweb_host | length == 0
+
+- name: Initialize demo HTTP path target list
+  ansible.builtin.set_fact:
+    demo_http_paths_test_targets: []
+  # - ansible.builtin.debug:
+  #     var: demo_http_paths_test_targets
+
+- name: Add direct HTTP test targets
+  ansible.builtin.set_fact:
+    demo_http_paths_test_targets: "{{ demo_http_paths_test_targets + [demo_http_paths_test_target] }}"
+  vars:
+    demo_http_paths_test_target:
+      name: "{{ item.name }}"
+      display_name: "{{ item.display_name | default(item.name) }}"
+      route: direct-http
+      url: "http://{{ demo_http_paths_test_resolved_direct_host }}:{{ item.http_port }}{{ item.path | default('/') }}"
+      expected_min: "{{ item.expected_min | default(demo_http_paths_test_expected_min) | int }}"
+      expected_max: "{{ item.expected_max | default(demo_http_paths_test_expected_max) | int }}"
+  loop: "{{ demo_http_paths_test_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - demo_http_paths_test_include_direct | bool
+    - item.enabled | default(true) | bool
+
+- name: Add direct HTTPS test targets
+  ansible.builtin.set_fact:
+    demo_http_paths_test_targets: "{{ demo_http_paths_test_targets + [demo_http_paths_test_target] }}"
+  vars:
+    demo_http_paths_test_target:
+      name: "{{ item.name }}"
+      display_name: "{{ item.display_name | default(item.name) }}"
+      route: direct-https
+      url: "https://{{ demo_http_paths_test_resolved_direct_host }}:{{ item.https_port }}{{ item.path | default('/') }}"
+      expected_min: "{{ item.expected_min | default(demo_http_paths_test_expected_min) | int }}"
+      expected_max: "{{ item.expected_max | default(demo_http_paths_test_expected_max) | int }}"
+  loop: "{{ demo_http_paths_test_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - demo_http_paths_test_include_direct | bool
+    - demo_http_paths_test_include_https | bool
+    - item.enabled | default(true) | bool
+
+- name: Add FortiWeb HTTP test targets
+  ansible.builtin.set_fact:
+    demo_http_paths_test_targets: "{{ demo_http_paths_test_targets + [demo_http_paths_test_target] }}"
+  vars:
+    demo_http_paths_test_target:
+      name: "{{ item.name }}"
+      display_name: "{{ item.display_name | default(item.name) }}"
+      route: fortiweb-http
+      url: "http://{{ demo_http_paths_test_resolved_fortiweb_host }}:{{ item.http_port }}{{ item.path | default('/') }}"
+      expected_min: "{{ item.expected_min | default(demo_http_paths_test_expected_min) | int }}"
+      expected_max: "{{ item.expected_max | default(demo_http_paths_test_expected_max) | int }}"
+  loop: "{{ demo_http_paths_test_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - demo_http_paths_test_include_fortiweb | bool
+    - item.enabled | default(true) | bool
+
+- name: Add FortiWeb HTTPS test targets
+  ansible.builtin.set_fact:
+    demo_http_paths_test_targets: "{{ demo_http_paths_test_targets + [demo_http_paths_test_target] }}"
+  vars:
+    demo_http_paths_test_target:
+      name: "{{ item.name }}"
+      display_name: "{{ item.display_name | default(item.name) }}"
+      route: fortiweb-https
+      url: "https://{{ demo_http_paths_test_resolved_fortiweb_host }}:{{ item.https_port }}{{ item.path | default('/') }}"
+      expected_min: "{{ item.expected_min | default(demo_http_paths_test_expected_min) | int }}"
+      expected_max: "{{ item.expected_max | default(demo_http_paths_test_expected_max) | int }}"
+  loop: "{{ demo_http_paths_test_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - demo_http_paths_test_include_fortiweb | bool
+    - demo_http_paths_test_include_https | bool
+    - item.enabled | default(true) | bool
+
+- name: Show demo HTTP path test plan
+  ansible.builtin.debug:
+    msg:
+      - "Direct host: {{ demo_http_paths_test_resolved_direct_host if demo_http_paths_test_include_direct | bool else 'disabled' }}"
+      - "FortiWeb host: {{ demo_http_paths_test_resolved_fortiweb_host if demo_http_paths_test_include_fortiweb | bool else 'disabled' }}"
+      - "HTTPS tests: {{ demo_http_paths_test_include_https | bool }}"
+      - "Targets: {{ demo_http_paths_test_targets | length }}"
+
+- name: Check demo HTTP paths
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -k
+      - -sS
+      - -o
+      - /dev/null
+      - -w
+      - "%{http_code}"
+      - --connect-timeout
+      - "{{ demo_http_paths_test_connect_timeout_seconds | string }}"
+      - --max-time
+      - "{{ demo_http_paths_test_timeout_seconds | string }}"
+      - "{{ item.url }}"
+  changed_when: false
+  failed_when: false
+  register: demo_http_paths_test_curl
+  loop: "{{ demo_http_paths_test_targets }}"
+  loop_control:
+    label: "{{ item.route }} {{ item.display_name }}"
+  # - ansible.builtin.debug:
+  #     var: demo_http_paths_test_curl.results
+
+- name: Build demo HTTP path test results
+  ansible.builtin.set_fact:
+    demo_http_paths_test_results: "{{ demo_http_paths_test_results | default([]) + [demo_http_paths_test_result] }}"
+  vars:
+    demo_http_paths_test_status: "{{ item.stdout | default('000') }}"
+    demo_http_paths_test_ok: >-
+      {{
+        item.rc | int == 0
+        and (demo_http_paths_test_status | int) >= (item.item.expected_min | int)
+        and (demo_http_paths_test_status | int) <= (item.item.expected_max | int)
+      }}
+    demo_http_paths_test_result: "{{ item.item | combine({'status': demo_http_paths_test_status, 'rc': item.rc, 'ok': demo_http_paths_test_ok}) }}"
+  loop: "{{ demo_http_paths_test_curl.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.route }} {{ item.item.display_name }}"
+  # - ansible.builtin.debug:
+  #     var: demo_http_paths_test_results
+
+- name: Show demo HTTP path results
+  ansible.builtin.debug:
+    msg: "{{ 'OK' if item.ok | bool else 'FAIL' }} {{ item.route }} {{ item.display_name }} status={{ item.status }} url={{ item.url }}"
+  loop: "{{ demo_http_paths_test_results | default([]) }}"
+  loop_control:
+    label: "{{ item.route }} {{ item.display_name }}"
+
+- name: Set demo HTTP path failure list
+  ansible.builtin.set_fact:
+    demo_http_paths_test_failures: "{{ demo_http_paths_test_results | default([]) | rejectattr('ok', 'equalto', true) | list }}"
+  # - ansible.builtin.debug:
+  #     var: demo_http_paths_test_failures
+
+- name: Fail when demo HTTP path tests did not pass
+  ansible.builtin.fail:
+    msg: "Demo HTTP path validation failed for: {{ demo_http_paths_test_failures | map(attribute='route') | zip(demo_http_paths_test_failures | map(attribute='display_name')) | map('join', ' ') | list | join(', ') }}"
+  when:
+    - demo_http_paths_test_fail_on_error | bool
+    - demo_http_paths_test_failures | length > 0

@@ -181,10 +181,12 @@ terraform -chdir=terraform/aws-ec2-k3s apply
 Minimum `terraform/aws-ec2-k3s/99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ec2_pull_github_keys`, optionally, to import GitHub public SSH keys on first boot
 - `instance_type` if the default `g4dn.4xlarge` is not the target size
 - `k3s_subnet_mode`, which defaults to `public`
 - VPC, subnet, k3s pod, and k3s service CIDRs
+
+Set optional `ec2_pull_github_keys` in `terraform/user.tfvars` when importing
+GitHub public SSH keys on first boot.
 
 Optionally validate the instance from the CLI:
 
@@ -523,18 +525,18 @@ Use the validation playbook when you want a failing gate:
 ansible-playbook ansible/playbooks/validate_chatbots.yml
 ```
 
-### Optional - Deploy MCP Demo Tools
+### Ansible 7 - Deploy MCP Demo Tools
 
-Deploy the optional MCP demo tool server:
+Deploy the MCP demo tool server:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
-The MCP baseline runs in namespace `mcp`. It provides deterministic customer,
+The MCP baseline runs in namespace `mcp` and is enabled by default. It provides deterministic customer,
 ticket, policy, and echo tools for the later Python agent loop. It exposes HTTP
-on the generated default NodePort `30084`; if the optional HTTPS gateway is
-enabled, it also exposes HTTPS on `30447`. It does not require ECR image
+on the generated default NodePort `30084`. After the HTTPS gateway playbook
+runs, it also exposes HTTPS on `30447`. It does not require ECR image
 publishing.
 
 Check readiness separately:
@@ -549,7 +551,7 @@ Use the validation playbook when you want a failing gate:
 ansible-playbook ansible/playbooks/validate_mcp.yml
 ```
 
-### Ansible 7 - Deploy Demo Home Page
+### Ansible 8 - Deploy Demo Home Page
 
 Deploy a small home page with links to FortiAIGate, LiteLLM Admin UI, Open
 WebUI, chatbot test pages, and MCP tools:
@@ -580,13 +582,12 @@ and opens the standard demo ports, then writes
 reserved consistently: Open WebUI uses `30080` when enabled, chatbot `30081`,
 demo home `30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`.
 
-### Optional - Deploy HTTPS Gateway
+### Ansible 9 - Deploy HTTPS Gateway
 
-HTTP remains the primary demo access path. To add optional HTTPS listeners for
-the chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and
-Open WebUI when enabled, set
-`demo_https_gateway_enabled: true` in `ansible/group_vars/user.yml`, apply
-`terraform/aws-ec2-k3s` so the generated HTTPS ports are open, then run:
+HTTP remains available for direct demo access. The repo system default enables
+the HTTPS gateway variables; run this playbook to add HTTPS listeners for the
+chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and Open WebUI
+when enabled:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_demo_https_gateway.yml
@@ -687,7 +688,7 @@ To test Bedrock directly before configuring the FortiAIGate guard:
 ansible-playbook ansible/playbooks/test_model_direct.yml
 ```
 
-The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock smoke test; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
+The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock API check; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
 
 The direct Ollama path is not part of the default build yet. Advanced users can
 set `direct_model_provider=ollama` and the related Ollama vars manually when

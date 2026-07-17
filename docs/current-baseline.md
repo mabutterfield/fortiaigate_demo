@@ -1,52 +1,7 @@
 # Current Baseline
 
-This page freezes the current working baseline. Use it as the short reference
-for what the demo deploys today before FortiWeb/FortiGate traffic paths, shared
-ECR modes, first-class Ollama setup, and local Ubuntu parity.
-
-## Architecture
-
-```text
-Operator workstation
-  -> Terraform
-      -> ECR repositories
-      -> AWS prep IAM, EIPs, Bedrock credentials
-      -> VPC, subnets, security group, EC2 k3s host
-      -> FortiGate/FortiWeb appliance EC2 instances when enabled
-  -> Ansible
-      -> optional image publishing
-      -> k3s bootstrap
-      -> FortiAIGate
-      -> LiteLLM
-      -> custom chatbot UI
-      -> optional Open WebUI
-      -> optional MCP demo tools
-      -> demo home
-      -> optional HTTPS gateway
-```
-
-Runtime LLM paths:
-
-```text
-Direct path:
-Browser UI -> LiteLLM -> Bedrock
-
-FortiAIGate-inspected path:
-Browser UI -> FortiAIGate explicit /v1/<flow-name> path -> LiteLLM -> Bedrock
-```
-
-Optional chatbot MCP agent path:
-
-```text
-Browser
-  -> custom chatbot UI
-      -> Direct LiteLLM or FortiAIGate -> LiteLLM -> Bedrock
-      -> MCP demo tools
-      -> Direct LiteLLM or FortiAIGate -> LiteLLM -> Bedrock
-```
-
-FortiAIGate must be manually configured to use the in-cluster LiteLLM endpoint
-when testing the inspected LiteLLM path.
+This page is the compact status reference for current defaults. For the design
+and request paths, see [Architecture](architecture.md).
 
 ## Component Inventory
 
@@ -54,20 +9,20 @@ when testing the inspected LiteLLM path.
 |---|---:|---|---|
 | FortiAIGate | working | `fortiaigate` | `https://<k3s-ip>/ui/` for 8.0.1 |
 | LiteLLM | working | `litellm` | `http://<k3s-ip>:30083/ui/` |
+| custom chatbot UI | working | `chatbot` | `http://<k3s-ip>:30081` and `https://<k3s-ip>:30444` after HTTPS gateway deploy |
+| MCP demo tools | enabled by default | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
+| demo home | working | `demo-home` | `http://<k3s-ip>:30082` and `https://<k3s-ip>:30445` after HTTPS gateway deploy |
+| HTTPS gateway | enabled in system defaults | `demo-https-gateway` | generated HTTPS ports after the playbook runs |
 | Open WebUI | optional, disabled by default | `openwebui` | `http://<k3s-ip>:30080` when enabled |
-| custom chatbot UI | working | `chatbot` | `http://<k3s-ip>:30081` |
-| MCP demo tools | optional baseline | `mcp` | `http://<k3s-ip>:30084/tools` |
-| demo home | working | `demo-home` | `http://<k3s-ip>:30082` |
-| HTTPS gateway | optional | `demo-https-gateway` | generated HTTPS ports |
-| FortiGate appliance | Terraform baseline, enabled by default | n/a | FortiGate EIP when enabled |
-| FortiWeb appliance | Terraform baseline, enabled by default | n/a | FortiWeb EIP when enabled |
+| FortiGate appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiGate EIP |
+| FortiWeb appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiWeb EIP and FortiWeb-fronted NodePorts |
 
 ## Default Port Map
 
-The current no-DNS default is port-based NodePort access. Terraform generates
-these values into `ansible/group_vars/ports.generated.yml`.
+Terraform generates these values into
+`ansible/group_vars/ports.generated.yml`.
 
-| Service | HTTP | Optional HTTPS |
+| Service | HTTP | HTTPS gateway |
 |---|---:|---:|
 | Open WebUI, when enabled | `30080` | `30443` |
 | custom chatbot UI | `30081` | `30444` |
@@ -75,12 +30,13 @@ these values into `ansible/group_vars/ports.generated.yml`.
 | LiteLLM Admin/API | `30083` | `30446` |
 | MCP demo tools | `30084` | `30447` |
 
-The optional HTTPS gateway terminates a self-signed certificate and proxies to
-the HTTP NodePorts. Internal Kubernetes communication remains plain HTTP.
+The HTTPS gateway terminates a self-signed certificate and proxies to the HTTP
+services. It is enabled in repo system defaults, but interactive quickstart
+still asks before running the HTTPS gateway playbook.
 
 ## Deploy Order
 
-Automated quick start and manual deployment use this order:
+Automated quickstart and manual deployment use this order:
 
 1. Terraform shared config
 2. Terraform ECR
@@ -88,20 +44,23 @@ Automated quick start and manual deployment use this order:
 4. Terraform EC2 k3s foundation
 5. FortiGate Terraform deployment when enabled
 6. FortiWeb Terraform deployment when enabled
-7. Optional image publishing
-8. k3s bootstrap
-9. FortiAIGate deploy
-10. FortiAIGate status check
-11. LiteLLM deploy
-12. optional Open WebUI deploy, skipped unless `openwebui_enabled=true`
-13. custom chatbot UI deploy
-14. optional MCP demo tools deploy
-15. demo home deploy
-16. optional HTTPS gateway deploy
-17. final FortiAIGate status check
-18. consolidated output display
+7. Ansible collection preflight for appliance collections
+8. Image publishing when selected
+9. k3s bootstrap
+10. FortiAIGate Helm deploy
+11. FortiAIGate status check
+12. FortiGate status poll and baseline/API account configuration when enabled
+13. FortiWeb status poll and baseline reverse-proxy configuration when enabled
+14. LiteLLM deploy
+15. MCP demo tools deploy
+16. Open WebUI deploy when `openwebui_enabled=true`
+17. custom chatbot UI deploy
+18. demo home deploy
+19. HTTPS gateway deploy when run
+20. FortiWeb/direct HTTP path validation when FortiWeb is enabled
+21. final FortiAIGate status check and consolidated output display
 
-Automated quick start checks FortiAIGate once after Helm deploy, continues with
+Automated quickstart checks FortiAIGate once after Helm deploy, continues with
 the remaining app deployments, then checks FortiAIGate status again at the end.
 Use `--faig-status-mode wait` when a run should block until FortiAIGate reports
 READY before deploying the remaining demo apps.
@@ -112,10 +71,12 @@ READY before deploying the remaining demo apps.
 |---|---|---|
 | k3s foundation | n/a | `validate_k3s.yml` |
 | FortiAIGate | `status_fortiaigate.yml` | `validate_faig.yml` |
+| FortiGate | `status_fortigate.yml` | `configure_fortigate.yml` gathers and compares managed objects before applying |
+| FortiWeb | `status_fortiweb.yml` | `validate_demo_http_paths.yml` checks direct and FortiWeb paths |
 | LiteLLM | `status_litellm.yml` | `validate_litellm.yml` |
+| MCP demo tools | `status_mcp.yml` | `validate_mcp.yml` |
 | Open WebUI, when enabled | `status_openwebui.yml` | `validate_openwebui.yml` |
 | custom chatbot UI | `status_chatbots.yml` | `validate_chatbots.yml` |
-| MCP demo tools | `status_mcp.yml` | `validate_mcp.yml` |
 | demo home | `status_demo_home.yml` | `validate_demo_home.yml` |
 
 Smoke-test playbooks:
@@ -125,12 +86,11 @@ Smoke-test playbooks:
 - `test_fortiaigate_chat.yml`
 - `test_mcp.yml`
 
-## Deferred Work
+## Remaining Caveats
 
-The following are intentionally not part of the current baseline:
-
-- FortiWeb-protected MCP path
-- private k3s mode validation
-- shared/cross-account ECR support
-- host-based/path-based routing implementation
-- local Ubuntu installation workflow
+- FortiAIGate GUI provider/guard/route setup is still manual.
+- FortiWeb MCP Security policy is not automated because the FortiWeb collection
+  does not expose the FortiWeb 8.0.3+ MCP Security object yet.
+- FortiWeb default admin password reset behavior must be validated on a clean
+  rebuild where no prior GUI login changed the state.
+- private k3s subnet mode still needs a full appliance-fronted validation pass.

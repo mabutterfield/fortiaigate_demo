@@ -283,6 +283,37 @@
       {{
         chatbot_access_urls | default([])
         + [
+          item.name ~ ': ' ~
+          (
+            'https://' ~
+            (
+              public_ip
+              if (public_ip is defined and public_ip | default('', true) | length > 0)
+              else (ansible_host | default(inventory_hostname))
+            )
+            ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
+            if demo_https_gateway_enabled | default(false) | bool
+            else 'http://' ~
+            (
+              public_ip
+              if (public_ip is defined and public_ip | default('', true) | length > 0)
+              else (ansible_host | default(inventory_hostname))
+            )
+            ~ ':' ~ (item.node_port | string)
+          )
+        ]
+      }}
+  loop: "{{ chatbot_instances }}"
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_access_urls
+
+- name: Set chatbot HTTP fallback URL facts
+  ansible.builtin.set_fact:
+    chatbot_http_fallback_urls: >-
+      {{
+        chatbot_http_fallback_urls | default([])
+        + [
           item.name ~ ': http://' ~
           (
             public_ip
@@ -295,12 +326,13 @@
   loop: "{{ chatbot_instances }}"
   when: chatbots_enabled | bool
   # - ansible.builtin.debug:
-  #     var: chatbot_access_urls
+  #     var: chatbot_http_fallback_urls
 
 - name: Show chatbot deployment summary
   ansible.builtin.debug:
     msg:
       - "Chatbot releases: {{ chatbot_instances | map(attribute='release_name') | join(', ') }}"
       - "Chatbot URLs: {{ chatbot_access_urls | default([]) | join(' | ') }}"
+      - "Chatbot HTTP fallback URLs: {{ chatbot_http_fallback_urls | default([]) | join(' | ') }}"
       - "Helm accepted the install or upgrade; run status_chatbots.yml to check READY/NOT READY."
   when: chatbots_enabled | bool

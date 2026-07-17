@@ -332,11 +332,12 @@ chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
 # chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
 # MCP tools are optional in the browser UI. The current default path is direct
-# chatbot -> MCP. Set chatbot_mcp_fortiweb_base_url and default_path=fortiweb
-# later when FortiWeb is placed in front of MCP.
+# chatbot -> MCP. When terraform/aws-fortiweb has generated
+# ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
+# defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
 chatbot_mcp_enabled: false
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
-chatbot_mcp_fortiweb_base_url: ""
+chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
@@ -403,11 +404,11 @@ demo_home_page_title: FortiAIGate Demo Home
 demo_home_ingress_host: ""
 
 # === Optional HTTPS gateway: ansible/playbooks/deploy_demo_https_gateway.yml ===
-# Disabled by default. When enabled, nginx exposes HTTPS NodePorts and proxies
+# Enabled by default. The nginx gateway exposes HTTPS NodePorts and proxies
 # to the existing internal HTTP services. Keep internal cluster traffic HTTP;
-# this only encrypts optional public browser/API access.
+# this encrypts default public browser/API access.
 # terraform/aws-ec2-k3s opens the generated HTTP and HTTPS demo ports.
-demo_https_gateway_enabled: false
+demo_https_gateway_enabled: true
 demo_https_gateway_self_signed: true
 demo_https_gateway_cert_local_path: ""
 demo_https_gateway_key_local_path: ""
@@ -416,6 +417,18 @@ demo_https_gateway_chatbot_https_port: "{{ demo_chatbot_https_port | default(304
 demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(30445) }}"
 demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
+
+# === FortiWeb reverse-proxy appliance configuration ===
+# Repo-owned Phase 6 default: build pass-through FortiWeb virtual servers,
+# VIPs, server pools, pool members, services, and server policies for the demo
+# NodePorts. Operators can set this false in ignored user.yml for direct-only
+# testing.
+fortiweb_mcp_proxy_enabled: true
+
+# === Fortinet appliance traffic paths: Phase 6 desired-state input ===
+# Empty by default so the direct public k3s demo path remains unchanged.
+# User-specific path selections belong in ignored ansible/group_vars/user.yml.
+fortinet_traffic_paths: []
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server

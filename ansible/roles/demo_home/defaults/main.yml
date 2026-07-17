@@ -16,3 +16,10 @@ demo_home_ingress_class: nginx
 demo_home_ingress_host: ""
 demo_home_ingress_tls_enabled: false
 demo_home_ingress_tls_secret_name: ""
+demo_home_fortiweb_enabled: true
+demo_home_fortiweb_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortiweb') | realpath }}"
+demo_home_fortiweb_host: "{{ fortiweb_public_ip | default('') }}"
+demo_home_fortiweb_admin_url: "{{ fortiweb_admin_url | default('') }}"
+demo_home_fortigate_enabled: true
+demo_home_fortigate_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
+demo_home_fortigate_admin_url: "{{ fortigate_admin_url | default('') }}"

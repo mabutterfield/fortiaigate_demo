@@ -1,0 +1,711 @@
+---
+- name: Read FortiWeb Terraform outputs
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ fortiweb_config_terraform_dir }}
+      - output
+      - -json
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  no_log: "{{ fortiweb_config_no_log | bool }}"
+  register: fortiweb_config_terraform_output_raw
+  tags: [fortiweb_config, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb Terraform outputs read: {{ fortiweb_config_terraform_output_raw.stdout | length > 0 }}"
+
+- name: Set FortiWeb Terraform output facts
+  ansible.builtin.set_fact:
+    fortiweb_config_terraform_outputs: "{{ fortiweb_config_terraform_output_raw.stdout | from_json }}"
+  no_log: "{{ fortiweb_config_no_log | bool }}"
+  tags: [fortiweb_config, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb Terraform output keys: {{ fortiweb_config_terraform_outputs.keys() | list }}"
+
+- name: Set FortiWeb admin credential facts
+  ansible.builtin.set_fact:
+    fortiweb_config_instance_id: "{{ (fortiweb_config_terraform_outputs.fortiweb_instance_id | default({})).value | default(fortiweb_instance_id | default('')) }}"
+    fortiweb_config_admin_password_from_output: "{{ (fortiweb_config_terraform_outputs.fortiweb_admin_password | default({})).value | default('') }}"
+  no_log: "{{ fortiweb_config_no_log | bool }}"
+  tags: [fortiweb_config, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "FortiWeb instance ID present: {{ fortiweb_config_instance_id | length > 0 }}"
+  #       - "FortiWeb explicit admin password present: {{ fortiweb_config_admin_password_from_output | length > 0 }}"
+
+- name: Set FortiWeb HTTPAPI login facts
+  ansible.builtin.set_fact:
+    ansible_user: "{{ fortiweb_config_admin_username }}"
+    ansible_password: >-
+      {{
+        fortiweb_config_admin_password_from_output
+        if fortiweb_config_admin_password_from_output | length > 0
+        else fortiweb_config_instance_id
+      }}
+  no_log: "{{ fortiweb_config_no_log | bool }}"
+  tags: [fortiweb_config, fortiweb_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiWeb HTTPAPI password selected from {{ 'terraform password output' if fortiweb_config_admin_password_from_output | length > 0 else 'instance id' }}"
+
+- name: Fail when FortiWeb admin password is not available
+  ansible.builtin.fail:
+    msg: "FortiWeb admin password is empty. Confirm terraform/aws-fortiweb was applied and fortiweb_instance_id is available, or set fortiweb_set_initial_password=true."
+  when: ansible_password | length == 0
+  tags: [fortiweb_config, fortiweb_auth]
+
+- name: Configure FortiWeb system settings
+  fortinet.fortiweb.fwebos_system_setting:
+    hostname: "{{ fortiweb_system_settings.hostname | default(omit) }}"
+    idle_timeout: "{{ fortiweb_system_settings.idle_timeout | default(omit) }}"
+    http_port: "{{ fortiweb_system_settings.http_port | default(omit) }}"
+    https_port: "{{ fortiweb_system_settings.https_port | default(omit) }}"
+  when: fortiweb_config_enable_system_settings | bool
+  register: fortiweb_system_settings_apply
+  tags: [fortiweb_config, fortiweb_system]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_system_settings_apply
+
+- name: Configure FortiWeb admin user settings
+  fortinet.fortiweb.fwebos_admin:
+    action: "{{ fortiweb_admin_user.action }}"
+    name: "{{ fortiweb_admin_user.name }}"
+    force_password_change: "{{ fortiweb_admin_user.force_password_change | default(omit) }}"
+  when: fortiweb_config_enable_admin_user | bool
+  register: fortiweb_admin_user_apply
+  no_log: "{{ fortiweb_config_no_log | bool }}"
+  tags: [fortiweb_config, fortiweb_admin]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_admin_user_apply
+
+- name: Gather FortiWeb traffic log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/log/traffic-log', 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_traffic_log_get
+  when: fortiweb_config_enable_logging | bool
+  tags: [fortiweb_config, fortiweb_logging]
+
+- name: Configure FortiWeb traffic log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'PUT', 'path': '/api/v2.0/cmdb/log/traffic-log', 'jsonbody': fortiweb_traffic_log_settings} | to_json }}"
+  vars:
+    fortiweb_traffic_log_current: "{{ (fortiweb_traffic_log_get.res | default({})).results | default({}) }}"
+  when:
+    - fortiweb_config_enable_logging | bool
+    - >-
+      (fortiweb_traffic_log_current.status | default('') | string) != (fortiweb_traffic_log_settings.status | default('') | string)
+      or (fortiweb_traffic_log_current['packet-log'] | default('') | string) != (fortiweb_traffic_log_settings['packet-log'] | default('') | string)
+  register: fortiweb_traffic_log_apply
+  failed_when: "'errcode' in (fortiweb_traffic_log_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_traffic_log_apply
+
+- name: Gather FortiWeb disk log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/log/disk', 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_disk_log_get
+  when: fortiweb_config_enable_logging | bool
+  tags: [fortiweb_config, fortiweb_logging]
+
+- name: Configure FortiWeb disk log settings
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'PUT', 'path': '/api/v2.0/cmdb/log/disk', 'jsonbody': fortiweb_disk_log_settings} | to_json }}"
+  vars:
+    fortiweb_disk_log_current: "{{ (fortiweb_disk_log_get.res | default({})).results | default({}) }}"
+  when:
+    - fortiweb_config_enable_logging | bool
+    - >-
+      (fortiweb_disk_log_current.status | default('') | string) != (fortiweb_disk_log_settings.status | default('') | string)
+      or (fortiweb_disk_log_current.severity | default('') | string) != (fortiweb_disk_log_settings.severity | default('') | string)
+      or (fortiweb_disk_log_current.logtype | default('') | string | trim) != (fortiweb_disk_log_settings.logtype | default('') | string | trim)
+  register: fortiweb_disk_log_apply
+  failed_when: "'errcode' in (fortiweb_disk_log_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_logging]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_disk_log_apply
+
+- name: Build desired FortiWeb interface list
+  ansible.builtin.set_fact:
+    fortiweb_interfaces_desired: >-
+      {{
+        (
+          [
+            {
+              'name': fortiweb_internal_interface_name,
+              'mode': 'static',
+              'ip': fortiweb_internal_interface_ip,
+              'allowaccess': fortiweb_internal_interface_allowaccess
+            }
+          ]
+          if fortiweb_internal_ip | default('') | length > 0
+          else []
+        )
+        + fortiweb_interfaces_static
+      }}
+  when: fortiweb_config_enable_interfaces | bool
+  tags: [fortiweb_config, fortiweb_network, fortiweb_interfaces]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_interfaces_desired
+
+- name: Gather FortiWeb desired interfaces
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/system/interface?mkey=' ~ item.name, 'jsonbody': {}} | to_json }}"
+  loop: "{{ fortiweb_interfaces_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_interface_get
+  when:
+    - fortiweb_config_enable_interfaces | bool
+    - fortiweb_interfaces_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_network, fortiweb_interfaces]
+
+- name: Configure FortiWeb desired interfaces
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: >-
+      {{
+        {
+          'method': 'PUT',
+          'path': '/api/v2.0/cmdb/system/interface?mkey=' ~ item.name,
+          'jsonbody': {
+            'mode': item.mode | default('static'),
+            'ip': item.ip,
+            'allowaccess': item.allowaccess | default('ping')
+          }
+        } | to_json
+      }}
+  vars:
+    fortiweb_interface_current: "{{ (fortiweb_interface_get.results[ansible_loop.index0].res | default({})).results | default({}) }}"
+    fortiweb_interface_needs_update: >-
+      {{
+        (fortiweb_interface_current.mode | default('') | string) != (item.mode | default('static') | string)
+        or (fortiweb_interface_current.ip | default('') | string) != (item.ip | string)
+        or (fortiweb_interface_current.allowaccess | default('') | string | trim) != (item.allowaccess | default('ping') | string | trim)
+      }}
+  loop: "{{ fortiweb_interfaces_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_interfaces | bool
+    - fortiweb_interfaces_desired | default([]) | length > 0
+    - fortiweb_interface_needs_update | bool
+  register: fortiweb_interface_apply
+  failed_when: "'errcode' in (fortiweb_interface_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_network, fortiweb_interfaces]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_interface_apply
+
+- name: Gather FortiWeb public interface
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/system/interface?mkey=' ~ fortiweb_public_interface_name, 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_public_interface_get
+  when: fortiweb_config_enable_static_routes | bool
+  tags: [fortiweb_config, fortiweb_network, fortiweb_routes]
+
+- name: Build desired FortiWeb static route list
+  ansible.builtin.set_fact:
+    fortiweb_static_routes_desired: >-
+      {{
+        [
+          {
+            'id': fortiweb_static_route_default_id | string,
+            'dst': fortiweb_static_route_default_destination,
+            'gateway': (
+              fortiweb_static_route_default_gateway
+              if fortiweb_static_route_default_gateway | default('') | length > 0
+              else (
+                (fortiweb_public_interface_get.res.results.dynamic_gateway | default(
+                  fortiweb_public_interface_get.res.results['dynamic-gateway'] | default('')
+                ))
+                if fortiweb_public_interface_get.res.results is defined
+                else ''
+              )
+            ),
+            'device': fortiweb_public_interface_name
+          },
+          {
+            'id': fortiweb_static_route_vpc_id | string,
+            'dst': fortiweb_static_route_vpc_destination,
+            'gateway': fortiweb_static_route_vpc_gateway,
+            'device': fortiweb_internal_interface_name
+          }
+        ]
+        + fortiweb_static_routes_static
+      }}
+  when: fortiweb_config_enable_static_routes | bool
+  tags: [fortiweb_config, fortiweb_network, fortiweb_routes]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_static_routes_desired
+
+- name: Gather FortiWeb static routes
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/cmdb/router/static', 'jsonbody': {}} | to_json }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_static_routes_get
+  when: fortiweb_config_enable_static_routes | bool
+  tags: [fortiweb_config, fortiweb_network, fortiweb_routes]
+
+- name: Configure FortiWeb static routes
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_config_vdom }}"
+    json_generic: >-
+      {{
+        {
+          'method': 'POST' if fortiweb_static_route_missing else 'PUT',
+          'path': (
+            '/api/v2.0/cmdb/router/static'
+            if fortiweb_static_route_missing
+            else '/api/v2.0/cmdb/router/static?mkey=' ~ item.id
+          ),
+          'jsonbody': item
+        } | to_json
+      }}
+  vars:
+    fortiweb_static_routes_current: "{{ fortiweb_static_routes_get.res.results | default([]) }}"
+    fortiweb_static_route_id_matches: >-
+      {{
+        fortiweb_static_routes_current
+        | selectattr('id', 'equalto', item.id | string)
+        | list
+      }}
+    fortiweb_static_route_current: "{{ fortiweb_static_route_id_matches | first | default({}) }}"
+    fortiweb_static_route_missing: "{{ fortiweb_static_route_id_matches | length == 0 }}"
+    fortiweb_static_route_needs_update: >-
+      {{
+        fortiweb_static_route_missing
+        or (fortiweb_static_route_current.dst | default('') | string) != (item.dst | string)
+        or (fortiweb_static_route_current.gateway | default('') | string) != (item.gateway | string)
+        or (fortiweb_static_route_current.device | default('') | string) != (item.device | string)
+      }}
+  loop: "{{ fortiweb_static_routes_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.id }} {{ item.dst }} via {{ item.gateway }} {{ item.device }}"
+  when:
+    - fortiweb_config_enable_static_routes | bool
+    - fortiweb_static_routes_desired | default([]) | length > 0
+    - item.gateway | default('') | length > 0
+    - fortiweb_static_route_needs_update | bool
+  register: fortiweb_static_route_apply
+  failed_when: "'errcode' in (fortiweb_static_route_apply.res | default({}) | string)"
+  tags: [fortiweb_config, fortiweb_network, fortiweb_routes]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_static_route_apply
+
+- name: Build generated FortiWeb NodePort proxy path list
+  ansible.builtin.set_fact:
+    fortiweb_nodeport_proxy_paths_generated: >-
+      {{
+        fortiweb_nodeport_proxy_http_paths
+        + (fortiweb_nodeport_proxy_https_paths if demo_https_gateway_enabled | default(false) | bool else [])
+      }}
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_nodeport_proxy_enabled | bool
+    - fortiweb_nodeport_proxy_backend_ip | default('') | length > 0
+  tags: [fortiweb_config, fortiweb_proxy]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Generated FortiWeb NodePort proxy paths: {{ fortiweb_nodeport_proxy_paths_generated | map(attribute='object_suffix') | list }}"
+
+- name: Initialize generated FortiWeb proxy objects
+  ansible.builtin.set_fact:
+    fortiweb_server_services_generated: []
+    fortiweb_virtual_servers_generated: []
+    fortiweb_virtual_server_vips_generated: []
+    fortiweb_server_pools_generated: []
+    fortiweb_server_pool_members_generated: []
+    fortiweb_server_policies_generated: []
+  when: fortiweb_config_enable_proxy_objects | bool
+  tags: [fortiweb_config, fortiweb_proxy]
+
+- name: Build generated FortiWeb NodePort proxy objects
+  ansible.builtin.set_fact:
+    fortiweb_server_services_generated: "{{ fortiweb_server_services_generated + [fortiweb_nodeport_service] }}"
+    fortiweb_virtual_servers_generated: "{{ fortiweb_virtual_servers_generated + [fortiweb_nodeport_virtual_server] }}"
+    fortiweb_virtual_server_vips_generated: "{{ fortiweb_virtual_server_vips_generated + fortiweb_nodeport_virtual_server_vips }}"
+    fortiweb_server_pools_generated: "{{ fortiweb_server_pools_generated + [fortiweb_nodeport_server_pool] }}"
+    fortiweb_server_pool_members_generated: "{{ fortiweb_server_pool_members_generated + [fortiweb_nodeport_server_pool_member] }}"
+    fortiweb_server_policies_generated: "{{ fortiweb_server_policies_generated + [fortiweb_nodeport_server_policy] }}"
+  vars:
+    fortiweb_nodeport_object_name: "{{ fortiweb_nodeport_proxy_name_prefix }}_{{ item.object_suffix }}"
+    fortiweb_nodeport_service_name: "{{ item.service_name | default(fortiweb_nodeport_object_name) }}"
+    fortiweb_nodeport_virtual_server_name: "{{ item.virtual_server_name | default(fortiweb_nodeport_object_name + '_VSERVER') }}"
+    fortiweb_nodeport_server_pool_name: "{{ item.server_pool_name | default(fortiweb_nodeport_object_name + '_POOL') }}"
+    fortiweb_nodeport_policy_name: "{{ item.policy_name | default(fortiweb_nodeport_object_name + '_POLICY') }}"
+    fortiweb_nodeport_policy_service_field: "{{ 'https_service' if item.policy_use_https_service | default(false) | bool else 'service' }}"
+    fortiweb_nodeport_service:
+      name: "{{ fortiweb_nodeport_service_name }}"
+      port: "{{ item.listen_port | string }}"
+      protocol: TCP
+    fortiweb_nodeport_virtual_server:
+      name: "{{ fortiweb_nodeport_virtual_server_name }}"
+    fortiweb_nodeport_virtual_server_vips: >-
+      {{
+        fortiweb_nodeport_proxy_virtual_server_vips
+        | map('combine', {'table_name': fortiweb_nodeport_virtual_server_name})
+        | list
+      }}
+    fortiweb_nodeport_server_pool:
+      name: "{{ fortiweb_nodeport_server_pool_name }}"
+      type: reverse-proxy
+      server_balance: disable
+      lb_algo: round-robin
+      comment: "FAIG managed {{ item.object_suffix }} backend pool"
+    fortiweb_nodeport_server_pool_member:
+      table_name: "{{ fortiweb_nodeport_server_pool_name }}"
+      name: "{{ fortiweb_nodeport_proxy_backend_member_name }}"
+      ip: "{{ fortiweb_nodeport_proxy_backend_ip }}"
+      port: "{{ item.backend_port | int }}"
+      server_type: physical
+      status: enable
+      ssl: "{{ item.pool_member_ssl | default('disable') }}"
+      health_check_inherit: enable
+      backup_server: disable
+    fortiweb_nodeport_server_policy: >-
+      {{
+        fortiweb_nodeport_server_policy_base
+        | combine({fortiweb_nodeport_policy_service_field: fortiweb_nodeport_service_name})
+        | combine(fortiweb_nodeport_server_policy_http_options if item.policy_protocol | default('HTTP') == 'HTTP' else {})
+      }}
+    fortiweb_nodeport_server_policy_base:
+      name: "{{ fortiweb_nodeport_policy_name }}"
+      deployment_mode: server-pool
+      protocol: "{{ item.policy_protocol | default('HTTP') }}"
+      vserver: "{{ fortiweb_nodeport_virtual_server_name }}"
+      server_pool: "{{ fortiweb_nodeport_server_pool_name }}"
+      ssl: "{{ item.policy_ssl | default('disable') }}"
+      comment: "FAIG managed {{ item.object_suffix }} reverse proxy without inspection"
+    fortiweb_nodeport_server_policy_http_options:
+      monitor_mode: enable
+      client_real_ip: disable
+      proxy_protocol: disable
+      web_cache: disable
+      case_sensitive: disable
+      tlog: enable
+  loop: "{{ fortiweb_nodeport_proxy_paths_generated | default([]) }}"
+  loop_control:
+    label: "{{ item.object_suffix }}"
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_nodeport_proxy_paths_generated | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_server_policies_generated
+
+- name: Set desired FortiWeb proxy object lists
+  ansible.builtin.set_fact:
+    fortiweb_server_services_desired: "{{ (fortiweb_server_services_generated | default([])) + fortiweb_server_services_static }}"
+    fortiweb_virtual_servers_desired: "{{ (fortiweb_virtual_servers_generated | default([])) + fortiweb_virtual_servers_static }}"
+    fortiweb_virtual_server_vips_desired: "{{ (fortiweb_virtual_server_vips_generated | default([])) + fortiweb_virtual_server_vips_static }}"
+    fortiweb_server_pools_desired: "{{ (fortiweb_server_pools_generated | default([])) + fortiweb_server_pools_static }}"
+    fortiweb_server_pool_members_desired: "{{ (fortiweb_server_pool_members_generated | default([])) + fortiweb_server_pool_members_static }}"
+    fortiweb_server_policies_desired: "{{ (fortiweb_server_policies_generated | default([])) + fortiweb_server_policies_static }}"
+  when: fortiweb_config_enable_proxy_objects | bool
+  tags: [fortiweb_config, fortiweb_proxy]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Desired FortiWeb services: {{ fortiweb_server_services_desired | map(attribute='name') | list }}"
+  #       - "Desired FortiWeb server policies: {{ fortiweb_server_policies_desired | map(attribute='name') | list }}"
+
+- name: Gather FortiWeb server services
+  fortinet.fortiweb.fwebos_server_service:
+    action: get
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_server_services_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_server_service_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_services_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_services]
+
+- name: Configure FortiWeb server services
+  fortinet.fortiweb.fwebos_server_service:
+    action: "{{ 'add' if fortiweb_service_missing else 'edit' }}"
+    name: "{{ item.name }}"
+    port: "{{ item.port }}"
+    protocol: "{{ item.protocol | default('TCP') }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_service_current: "{{ fortiweb_server_service_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_service_current_text: "{{ fortiweb_service_current | string | lower }}"
+    fortiweb_service_missing: "{{ 'errcode' in fortiweb_service_current_text or 'not found' in fortiweb_service_current_text }}"
+    fortiweb_service_current_results: "{{ fortiweb_service_current.results | default({}) }}"
+    fortiweb_service_port_matches: "{{ (fortiweb_service_current_results.port | default('') | string | trim) == (item.port | string | trim) }}"
+    fortiweb_service_needs_update: "{{ fortiweb_service_missing or not fortiweb_service_port_matches }}"
+  loop: "{{ fortiweb_server_services_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_services_desired | default([]) | length > 0
+    - fortiweb_service_needs_update | bool
+  register: fortiweb_server_service_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_services]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_server_service_apply
+
+- name: Gather FortiWeb virtual servers
+  fortinet.fortiweb.fwebos_virtual_server:
+    action: get
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_virtual_servers_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_virtual_server_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_virtual_servers_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_virtual_servers]
+
+- name: Configure FortiWeb virtual servers
+  fortinet.fortiweb.fwebos_virtual_server:
+    action: "{{ 'add' if fortiweb_virtual_server_missing else 'edit' }}"
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_virtual_server_current: "{{ fortiweb_virtual_server_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_virtual_server_current_text: "{{ fortiweb_virtual_server_current | string | lower }}"
+    fortiweb_virtual_server_missing: "{{ 'errcode' in fortiweb_virtual_server_current_text or 'not found' in fortiweb_virtual_server_current_text }}"
+  loop: "{{ fortiweb_virtual_servers_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_virtual_servers_desired | default([]) | length > 0
+  register: fortiweb_virtual_server_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_virtual_servers]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_virtual_server_apply
+
+- name: Gather FortiWeb virtual server VIPs
+  fortinet.fortiweb.fwebos_virtual_server_vip:
+    action: get
+    table_name: "{{ item.table_name }}"
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_virtual_server_vips_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.table_name }}:{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_virtual_server_vip_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_virtual_server_vips_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_virtual_server_vips]
+
+- name: Configure FortiWeb virtual server VIPs
+  fortinet.fortiweb.fwebos_virtual_server_vip:
+    action: "{{ 'add' if fortiweb_virtual_server_vip_missing else 'edit' }}"
+    table_name: "{{ item.table_name }}"
+    name: "{{ item.name }}"
+    status: "{{ item.status | default('enable') }}"
+    use_interface_ip: "{{ item.use_interface_ip | default('enable') }}"
+    vip: "{{ item.vip | default(omit) }}"
+    interface: "{{ item.interface | default(omit) }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_virtual_server_vip_current: "{{ fortiweb_virtual_server_vip_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_virtual_server_vip_current_text: "{{ fortiweb_virtual_server_vip_current | string | lower }}"
+    fortiweb_virtual_server_vip_missing: "{{ 'errcode' in fortiweb_virtual_server_vip_current_text or 'not found' in fortiweb_virtual_server_vip_current_text }}"
+  loop: "{{ fortiweb_virtual_server_vips_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.table_name }}:{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_virtual_server_vips_desired | default([]) | length > 0
+  register: fortiweb_virtual_server_vip_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_virtual_server_vips]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_virtual_server_vip_apply
+
+- name: Gather FortiWeb server pools
+  fortinet.fortiweb.fwebos_server_pool:
+    action: get
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_server_pools_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_server_pool_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_pools_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_pools]
+
+- name: Configure FortiWeb server pools
+  fortinet.fortiweb.fwebos_server_pool:
+    action: "{{ 'add' if fortiweb_server_pool_missing else 'edit' }}"
+    name: "{{ item.name }}"
+    type: "{{ item.type | default('reverse-proxy') }}"
+    server_balance: "{{ item.server_balance | default('disable') }}"
+    lb_algo: "{{ item.lb_algo | default('round-robin') }}"
+    comment: "{{ item.comment | default(omit) }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_server_pool_current: "{{ fortiweb_server_pool_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_server_pool_current_text: "{{ fortiweb_server_pool_current | string | lower }}"
+    fortiweb_server_pool_missing: "{{ 'errcode' in fortiweb_server_pool_current_text or 'not found' in fortiweb_server_pool_current_text }}"
+  loop: "{{ fortiweb_server_pools_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_pools_desired | default([]) | length > 0
+  register: fortiweb_server_pool_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_pools]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_server_pool_apply
+
+- name: Gather FortiWeb server pool members
+  fortinet.fortiweb.fwebos_server_pool_rule:
+    action: get
+    table_name: "{{ item.table_name }}"
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_server_pool_members_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.table_name }}:{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_server_pool_member_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_pool_members_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_pool_members]
+
+- name: Configure FortiWeb server pool members
+  fortinet.fortiweb.fwebos_server_pool_rule:
+    action: "{{ 'add' if fortiweb_server_pool_member_missing else 'edit' }}"
+    table_name: "{{ item.table_name }}"
+    name: "{{ item.name }}"
+    ip: "{{ item.ip }}"
+    port: "{{ item.port | int }}"
+    server_type: "{{ item.server_type | default('physical') }}"
+    status: "{{ item.status | default('enable') }}"
+    ssl: "{{ item.ssl | default('disable') }}"
+    health_check_inherit: "{{ item.health_check_inherit | default('enable') }}"
+    backup_server: "{{ item.backup_server | default('disable') }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_server_pool_member_current: "{{ fortiweb_server_pool_member_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_server_pool_member_current_text: "{{ fortiweb_server_pool_member_current | string | lower }}"
+    fortiweb_server_pool_member_missing: "{{ 'errcode' in fortiweb_server_pool_member_current_text or 'not found' in fortiweb_server_pool_member_current_text }}"
+  loop: "{{ fortiweb_server_pool_members_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.table_name }}:{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_pool_members_desired | default([]) | length > 0
+  register: fortiweb_server_pool_member_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_pool_members]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_server_pool_member_apply
+
+- name: Gather FortiWeb server policies
+  fortinet.fortiweb.fwebos_server_policy:
+    action: get
+    name: "{{ item.name }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  loop: "{{ fortiweb_server_policies_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+  register: fortiweb_server_policy_get
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_policies_desired | default([]) | length > 0
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_policies]
+
+- name: Configure FortiWeb server policies
+  fortinet.fortiweb.fwebos_server_policy:
+    action: "{{ 'add' if fortiweb_server_policy_missing else 'edit' }}"
+    name: "{{ item.name }}"
+    deployment_mode: "{{ item.deployment_mode | default('server-pool') }}"
+    protocol: "{{ item.protocol | default('HTTP') }}"
+    service: "{{ item.service | default(omit) }}"
+    https_service: "{{ item.https_service | default(omit) }}"
+    vserver: "{{ item.vserver }}"
+    server_pool: "{{ item.server_pool }}"
+    ssl: "{{ item.ssl | default('disable') }}"
+    monitor_mode: "{{ item.monitor_mode | default(omit) }}"
+    client_real_ip: "{{ item.client_real_ip | default(omit) }}"
+    proxy_protocol: "{{ item.proxy_protocol | default(omit) }}"
+    web_cache: "{{ item.web_cache | default(omit) }}"
+    case_sensitive: "{{ item.case_sensitive | default(omit) }}"
+    tlog: "{{ item.tlog | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+    vdom: "{{ fortiweb_config_vdom }}"
+  vars:
+    fortiweb_server_policy_current: "{{ fortiweb_server_policy_get.results[ansible_loop.index0].res | default({}) }}"
+    fortiweb_server_policy_current_text: "{{ fortiweb_server_policy_current | string | lower }}"
+    fortiweb_server_policy_missing: "{{ 'errcode' in fortiweb_server_policy_current_text or 'not found' in fortiweb_server_policy_current_text }}"
+  loop: "{{ fortiweb_server_policies_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    extended: true
+  when:
+    - fortiweb_config_enable_proxy_objects | bool
+    - fortiweb_server_policies_desired | default([]) | length > 0
+  register: fortiweb_server_policy_apply
+  tags: [fortiweb_config, fortiweb_proxy, fortiweb_server_policies]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_server_policy_apply
+
+- name: Show FortiWeb config summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiWeb config target: {{ ansible_host | default(inventory_hostname) }}:{{ ansible_httpapi_port | default(fortiweb_admin_https_port | default(443)) }}"
+      - "System settings managed: {{ fortiweb_config_enable_system_settings | bool }}"
+      - "Admin user managed: {{ fortiweb_config_enable_admin_user | bool }}"
+      - "Logging managed: {{ fortiweb_config_enable_logging | bool }}"
+      - "Interfaces managed: {{ fortiweb_config_enable_interfaces | bool }}"
+      - "Static routes managed: {{ fortiweb_config_enable_static_routes | bool }}"
+      - "Admin force password change: {{ fortiweb_admin_user.force_password_change | default('unmanaged') }}"
+      - "Desired admin idle timeout: {{ fortiweb_system_settings.idle_timeout | default('unmanaged') }}"
+      - "NodePort proxy generated: {{ fortiweb_nodeport_proxy_enabled | bool }}"
+      - "Desired interfaces: {{ fortiweb_interfaces_desired | default([]) | length }}"
+      - "Desired static routes: {{ fortiweb_static_routes_desired | default([]) | length }}"
+      - "Generated NodePort proxy paths: {{ fortiweb_nodeport_proxy_paths_generated | default([]) | length }}"
+      - "Desired server services: {{ fortiweb_server_services_desired | default([]) | length }}"
+      - "Desired virtual servers: {{ fortiweb_virtual_servers_desired | default([]) | length }}"
+      - "Desired virtual server VIPs: {{ fortiweb_virtual_server_vips_desired | default([]) | length }}"
+      - "Desired server pools: {{ fortiweb_server_pools_desired | default([]) | length }}"
+      - "Desired server pool members: {{ fortiweb_server_pool_members_desired | default([]) | length }}"
+      - "Desired server policies: {{ fortiweb_server_policies_desired | default([]) | length }}"
+  tags: [fortiweb_config]

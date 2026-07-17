@@ -1,0 +1,443 @@
+---
+- name: Read FortiGate API key from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ fortigate_config_terraform_dir }}
+      - output
+      - -raw
+      - fortigate_api_key
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  no_log: "{{ fortigate_config_no_log | bool }}"
+  register: fortigate_config_api_key_raw
+  tags: [fortigate_config, fortigate_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate API key read from Terraform output: {{ fortigate_config_api_key_raw.stdout | length > 0 }}"
+
+- name: Set FortiGate API key fact
+  ansible.builtin.set_fact:
+    fortigate_access_token: "{{ fortigate_config_api_key_raw.stdout | trim }}"
+    ansible_httpapi_session_key:
+      access_token: "{{ fortigate_config_api_key_raw.stdout | trim }}"
+  no_log: "{{ fortigate_config_no_log | bool }}"
+  tags: [fortigate_config, fortigate_auth]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate access token present: {{ fortigate_access_token | length > 0 }}"
+
+- name: Fail when FortiGate API key is not available
+  ansible.builtin.fail:
+    msg: "FortiGate API key is empty. Confirm terraform/aws-fortigate was applied with fortigate_enable_api=true."
+  when: fortigate_access_token | length == 0
+  tags: [fortigate_config, fortigate_auth]
+
+- name: Gather current FortiGate address objects
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: firewall_address
+  register: fortigate_address_current_raw
+  check_mode: false
+  when: fortigate_config_enable_addresses | bool
+  tags: [fortigate_config, fortigate_addresses]
+  # - ansible.builtin.debug:
+  #     var: fortigate_address_current_raw
+
+- name: Gather current FortiGate custom services
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: firewall.service_custom
+  register: fortigate_service_current_raw
+  check_mode: false
+  when: fortigate_config_enable_services | bool
+  tags: [fortigate_config, fortigate_services]
+  # - ansible.builtin.debug:
+  #     var: fortigate_service_current_raw
+
+- name: Gather current FortiGate VIP objects
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: firewall_vip
+  register: fortigate_vip_current_raw
+  check_mode: false
+  when: fortigate_config_enable_vips | bool
+  tags: [fortigate_config, fortigate_vips]
+  # - ansible.builtin.debug:
+  #     var: fortigate_vip_current_raw
+
+- name: Gather current FortiGate firewall policies
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: firewall_policy
+  register: fortigate_policy_current_raw
+  check_mode: false
+  when: fortigate_config_enable_policies | bool
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_current_raw
+
+- name: Set current FortiGate maps
+  ansible.builtin.set_fact:
+    fortigate_address_current_by_name: >-
+      {{
+        dict(
+          (fortigate_address_current_raw.meta.results | default([]))
+          | map(attribute='name')
+          | zip(fortigate_address_current_raw.meta.results | default([]))
+        )
+      }}
+    fortigate_service_current_by_name: >-
+      {{
+        dict(
+          (fortigate_service_current_raw.meta.results | default([]))
+          | map(attribute='name')
+          | zip(fortigate_service_current_raw.meta.results | default([]))
+        )
+      }}
+    fortigate_vip_current_by_name: >-
+      {{
+        dict(
+          (fortigate_vip_current_raw.meta.results | default([]))
+          | map(attribute='name')
+          | zip(fortigate_vip_current_raw.meta.results | default([]))
+        )
+      }}
+    fortigate_policy_current_by_id: >-
+      {{
+        dict(
+          (fortigate_policy_current_raw.meta.results | default([]))
+          | map(attribute='policyid')
+          | map('string')
+          | zip(fortigate_policy_current_raw.meta.results | default([]))
+        )
+      }}
+    fortigate_policy_current_ids: "{{ (fortigate_policy_current_raw.meta.results | default([])) | map(attribute='policyid') | map('string') | list }}"
+  tags: [fortigate_config]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Address objects discovered: {{ fortigate_address_current_by_name | length }}"
+  #       - "Service objects discovered: {{ fortigate_service_current_by_name | length }}"
+  #       - "VIP objects discovered: {{ fortigate_vip_current_by_name | length }}"
+  #       - "Policies discovered: {{ fortigate_policy_current_by_id | length }}"
+
+- name: Build generated FortiGate address objects
+  ansible.builtin.set_fact:
+    fortigate_generated_address_objects: "{{ (fortigate_generated_address_objects | default([])) + [fortigate_generated_address_object] }}"
+  vars:
+    fortigate_generated_address_object:
+      name: "{{ item.name }}"
+      type: ipmask
+      subnet: "{{ item.ip }} 255.255.255.255"
+      comment: "{{ item.comment }}"
+      visibility: enable
+  loop: "{{ fortigate_repo_static_address_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_addresses | bool
+    - item.ip | default('') | string | length > 0
+    - item.ip | string != 'None'
+  tags: [fortigate_config, fortigate_addresses]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_address_objects
+
+- name: Build generated FortiGate custom services
+  ansible.builtin.set_fact:
+    fortigate_generated_service_objects: "{{ (fortigate_generated_service_objects | default([])) + [fortigate_generated_service_object] }}"
+  vars:
+    fortigate_generated_service_object:
+      name: "{{ item.name }}"
+      tcp_portrange: "{{ item.port | string }}"
+      comment: "{{ item.comment }}"
+  loop: "{{ fortigate_dynamic_service_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_services | bool
+    - item.port | default('') | string | length > 0
+    - item.port | string != 'None'
+  tags: [fortigate_config, fortigate_services]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_service_objects
+
+- name: Initialize FortiGate desired object maps
+  ansible.builtin.set_fact:
+    fortigate_address_objects_by_name: {}
+    fortigate_service_objects_by_name: {}
+    fortigate_vip_objects_by_name: {}
+  tags: [fortigate_config]
+
+- name: Merge generated FortiGate address objects
+  ansible.builtin.set_fact:
+    fortigate_address_objects_by_name: "{{ fortigate_address_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_generated_address_objects | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: fortigate_config_enable_addresses | bool
+  tags: [fortigate_config, fortigate_addresses]
+
+- name: Merge static FortiGate address objects
+  ansible.builtin.set_fact:
+    fortigate_address_objects_by_name: "{{ fortigate_address_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_address_objects_static }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  when: fortigate_config_enable_addresses | bool
+  tags: [fortigate_config, fortigate_addresses]
+
+- name: Merge generated FortiGate custom services
+  ansible.builtin.set_fact:
+    fortigate_service_objects_by_name: "{{ fortigate_service_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_generated_service_objects | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: fortigate_config_enable_services | bool
+  tags: [fortigate_config, fortigate_services]
+
+- name: Merge static FortiGate custom services
+  ansible.builtin.set_fact:
+    fortigate_service_objects_by_name: "{{ fortigate_service_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_service_objects_static }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  when: fortigate_config_enable_services | bool
+  tags: [fortigate_config, fortigate_services]
+
+- name: Merge static FortiGate VIP objects
+  ansible.builtin.set_fact:
+    fortigate_vip_objects_by_name: "{{ fortigate_vip_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_vip_objects_static }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  when: fortigate_config_enable_vips | bool
+  tags: [fortigate_config, fortigate_vips]
+
+- name: Set desired FortiGate object lists
+  ansible.builtin.set_fact:
+    fortigate_address_objects_desired: "{{ fortigate_address_objects_by_name | dict2items | map(attribute='value') | list }}"
+    fortigate_service_objects_desired: "{{ fortigate_service_objects_by_name | dict2items | map(attribute='value') | list }}"
+    fortigate_vip_objects_desired: "{{ fortigate_vip_objects_by_name | dict2items | map(attribute='value') | list }}"
+  tags: [fortigate_config]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Desired address objects: {{ fortigate_address_objects_desired | map(attribute='name') | list }}"
+  #       - "Desired service objects: {{ fortigate_service_objects_desired | map(attribute='name') | list }}"
+  #       - "Desired VIP objects: {{ fortigate_vip_objects_desired | map(attribute='name') | list }}"
+
+- name: Configure FortiGate global settings
+  fortinet.fortios.fortios_system_global:
+    vdom: "{{ fortigate_config_vdom }}"
+    system_global: "{{ fortigate_system_global }}"
+  when: fortigate_config_enable_system_global | bool
+  register: fortigate_system_global_apply
+  tags: [fortigate_config, fortigate_system]
+  # - ansible.builtin.debug:
+  #     var: fortigate_system_global_apply
+
+- name: Configure FortiGate system feature visibility settings
+  fortinet.fortios.fortios_system_settings:
+    vdom: "{{ fortigate_config_vdom }}"
+    system_settings: "{{ fortigate_system_settings }}"
+  when: fortigate_config_enable_system_settings | bool
+  register: fortigate_system_settings_apply
+  tags: [fortigate_config, fortigate_system]
+  # - ansible.builtin.debug:
+  #     var: fortigate_system_settings_apply
+
+- name: Configure FortiGate password policy
+  fortinet.fortios.fortios_system_password_policy:
+    vdom: "{{ fortigate_config_vdom }}"
+    system_password_policy: "{{ fortigate_system_password_policy }}"
+  when: fortigate_config_enable_password_policy | bool
+  register: fortigate_password_policy_apply
+  tags: [fortigate_config, fortigate_system]
+  # - ansible.builtin.debug:
+  #     var: fortigate_password_policy_apply
+
+- name: Configure FortiGate FortiGuard settings
+  fortinet.fortios.fortios_system_fortiguard:
+    vdom: "{{ fortigate_config_vdom }}"
+    system_fortiguard: "{{ fortigate_system_fortiguard }}"
+  when: fortigate_config_enable_fortiguard | bool
+  register: fortigate_system_fortiguard_apply
+  tags: [fortigate_config, fortigate_system]
+  # - ansible.builtin.debug:
+  #     var: fortigate_system_fortiguard_apply
+
+- name: Configure FortiGate address objects when different
+  fortinet.fortios.fortios_firewall_address:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    firewall_address: "{{ item }}"
+  vars:
+    fortigate_address_desired_compare: "{{ item | dict2items | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+    fortigate_address_current_compare: "{{ (fortigate_address_current_by_name[item.name] | default({})) | dict2items | selectattr('key', 'in', item.keys() | list) | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+  loop: "{{ fortigate_address_objects_desired }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_addresses | bool
+    - item.name is defined
+    - fortigate_config_force_apply | bool or item.name not in fortigate_address_current_by_name or fortigate_address_desired_compare != fortigate_address_current_compare
+  register: fortigate_address_apply
+  tags: [fortigate_config, fortigate_addresses]
+  # - ansible.builtin.debug:
+  #     var: fortigate_address_apply
+
+- name: Configure FortiGate custom services when different
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    firewall_service_custom: "{{ item }}"
+  vars:
+    fortigate_service_desired_compare: "{{ item | dict2items | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+    fortigate_service_current_compare: "{{ (fortigate_service_current_by_name[item.name] | default({})) | dict2items | selectattr('key', 'in', item.keys() | list) | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+  loop: "{{ fortigate_service_objects_desired }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_services | bool
+    - item.name is defined
+    - fortigate_config_force_apply | bool or item.name not in fortigate_service_current_by_name or fortigate_service_desired_compare != fortigate_service_current_compare
+  register: fortigate_service_apply
+  tags: [fortigate_config, fortigate_services]
+  # - ansible.builtin.debug:
+  #     var: fortigate_service_apply
+
+- name: Configure FortiGate VIP objects when different
+  fortinet.fortios.fortios_firewall_vip:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    firewall_vip: "{{ item }}"
+  vars:
+    fortigate_vip_desired_compare: "{{ item | dict2items | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+    fortigate_vip_current_compare: "{{ (fortigate_vip_current_by_name[item.name] | default({})) | dict2items | selectattr('key', 'in', item.keys() | list) | rejectattr('key', 'in', fortigate_config_compare_ignored_keys) | list | items2dict }}"
+  loop: "{{ fortigate_vip_objects_desired }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_vips | bool
+    - item.name is defined
+    - fortigate_config_force_apply | bool or item.name not in fortigate_vip_current_by_name or fortigate_vip_desired_compare != fortigate_vip_current_compare
+  register: fortigate_vip_apply
+  tags: [fortigate_config, fortigate_vips]
+  # - ansible.builtin.debug:
+  #     var: fortigate_vip_apply
+
+- name: Configure FortiGate firewall policies when different
+  fortinet.fortios.fortios_firewall_policy:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    firewall_policy: "{{ item | dict2items | rejectattr('key', 'in', ['move_after', 'move_before']) | list | items2dict }}"
+  vars:
+    fortigate_policy_key: "{{ item.policyid | string }}"
+    fortigate_policy_desired_compare: "{{ item | dict2items | rejectattr('key', 'in', fortigate_config_compare_ignored_keys + ['move_after', 'move_before']) | list | items2dict }}"
+    fortigate_policy_current_compare: "{{ (fortigate_policy_current_by_id[fortigate_policy_key] | default({})) | dict2items | selectattr('key', 'in', item.keys() | list) | rejectattr('key', 'in', fortigate_config_compare_ignored_keys + ['move_after', 'move_before']) | list | items2dict }}"
+  loop: "{{ fortigate_firewall_policies }}"
+  loop_control:
+    label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - item.policyid is defined
+    - fortigate_config_force_apply | bool or fortigate_policy_key not in fortigate_policy_current_by_id or fortigate_policy_desired_compare != fortigate_policy_current_compare
+  register: fortigate_policy_apply
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_apply
+
+- name: Re-gather FortiGate firewall policies after policy updates
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: firewall_policy
+  register: fortigate_policy_current_after_apply_raw
+  check_mode: false
+  when:
+    - fortigate_config_enable_policies | bool
+    - fortigate_policy_apply is changed
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_current_after_apply_raw
+
+- name: Refresh FortiGate policy order after policy updates
+  ansible.builtin.set_fact:
+    fortigate_policy_current_by_id: >-
+      {{
+        dict(
+          (fortigate_policy_current_after_apply_raw.meta.results | default([]))
+          | map(attribute='policyid')
+          | map('string')
+          | zip(fortigate_policy_current_after_apply_raw.meta.results | default([]))
+        )
+      }}
+    fortigate_policy_current_ids: "{{ (fortigate_policy_current_after_apply_raw.meta.results | default([])) | map(attribute='policyid') | map('string') | list }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - fortigate_policy_apply is changed
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_current_ids
+
+- name: Move FortiGate firewall policies after requested policy IDs
+  fortinet.fortios.fortios_firewall_policy:
+    vdom: "{{ fortigate_config_vdom }}"
+    action: move
+    self: "{{ item.policyid | string }}"
+    after: "{{ item.move_after | string }}"
+  vars:
+    fortigate_policy_current_index: "{{ fortigate_policy_current_ids.index(item.policyid | string) if (item.policyid | string) in fortigate_policy_current_ids else -1 }}"
+    fortigate_policy_after_index: "{{ fortigate_policy_current_ids.index(item.move_after | string) if (item.move_after | string) in fortigate_policy_current_ids else -1 }}"
+  loop: "{{ fortigate_firewall_policies }}"
+  loop_control:
+    label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - item.policyid is defined
+    - item.move_after is defined
+    - item.move_before is not defined
+    - item.policyid | string in fortigate_policy_current_ids
+    - item.move_after | string in fortigate_policy_current_ids
+    - fortigate_config_force_apply | bool or fortigate_policy_current_index | int != fortigate_policy_after_index | int + 1
+  register: fortigate_policy_move_after
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_move_after
+
+- name: Move FortiGate firewall policies before requested policy IDs
+  fortinet.fortios.fortios_firewall_policy:
+    vdom: "{{ fortigate_config_vdom }}"
+    action: move
+    self: "{{ item.policyid | string }}"
+    before: "{{ item.move_before | string }}"
+  vars:
+    fortigate_policy_current_index: "{{ fortigate_policy_current_ids.index(item.policyid | string) if (item.policyid | string) in fortigate_policy_current_ids else -1 }}"
+    fortigate_policy_before_index: "{{ fortigate_policy_current_ids.index(item.move_before | string) if (item.move_before | string) in fortigate_policy_current_ids else -1 }}"
+  loop: "{{ fortigate_firewall_policies }}"
+  loop_control:
+    label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - item.policyid is defined
+    - item.move_before is defined
+    - item.move_after is not defined
+    - item.policyid | string in fortigate_policy_current_ids
+    - item.move_before | string in fortigate_policy_current_ids
+    - fortigate_config_force_apply | bool or fortigate_policy_current_index | int + 1 != fortigate_policy_before_index | int
+  register: fortigate_policy_move_before
+  tags: [fortigate_config, fortigate_policies]
+  # - ansible.builtin.debug:
+  #     var: fortigate_policy_move_before
+
+- name: Show FortiGate config summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiGate config target: {{ ansible_host | default(inventory_hostname) }}:{{ ansible_httpapi_port | default(fortigate_admin_port | default(443)) }}"
+      - "Desired address objects: {{ fortigate_address_objects_desired | length }}"
+      - "Desired custom services: {{ fortigate_service_objects_desired | length }}"
+      - "Desired VIP objects: {{ fortigate_vip_objects_desired | length }}"
+      - "Desired firewall policies: {{ fortigate_firewall_policies | length }}"
+      - "System global managed: {{ fortigate_config_enable_system_global | bool }}"
+      - "System settings managed: {{ fortigate_config_enable_system_settings | bool }}"
+      - "Password policy managed: {{ fortigate_config_enable_password_policy | bool }}"
+      - "FortiGuard settings managed: {{ fortigate_config_enable_fortiguard | bool }}"
+  tags: [fortigate_config]

@@ -1,8 +1,8 @@
 # AWS FortiWeb Terraform Module
 
-This Phase 4 module deploys the optional FortiWeb appliance. It is separate
-from `terraform/aws-ec2-k3s` so appliance deployment does not become required
-for the default public k3s demo.
+This module deploys the FortiWeb appliance. It is separate from
+`terraform/aws-ec2-k3s` so appliance deployment can be disabled for a public
+k3s-only demo while remaining enabled by default for the full AWS demo.
 
 It creates:
 
@@ -12,6 +12,7 @@ It creates:
 - S3-backed FortiWeb cloud-init user-data
 - optional BYOL license object upload
 - FortiWeb management/API outputs
+- generated Ansible inventory and group vars for appliance status/configuration
 
 FortiWeb cloud-init reads its config and license from the S3 bucket created by
 `terraform/aws-prep` when `fortiweb_enabled = true` there. The EC2 instance
@@ -33,6 +34,12 @@ terms for the listed SKU and rerun `terraform apply`.
 
 The default AMI filter is FortiWeb `8.0`, which selects the latest matching
 8.0.x BYOL Marketplace image.
+
+By default, the module also opens the generated demo NodePorts on the FortiWeb
+public ENI from the prep-generated trusted public CIDRs and from the VPC CIDR:
+TCP `30080` through `30084` for HTTP and TCP `30443` through `30447` for the
+HTTPS gateway. Override `fortiweb_data_plane_tcp_ports` in ignored
+`99-local.auto.tfvars` when the generated listener ports change.
 
 The default instance type is `c5.xlarge`. FortiWeb Marketplace images support
 the `t3`, `m5`, `m4`, `c5`, and `c4` families; `c6i` is rejected by EC2 for
@@ -68,6 +75,34 @@ terraform output fortiweb_admin_url
 terraform output fortiweb_ssh_command
 terraform output fortiweb_instance_id
 ```
+
+This module also writes:
+
+```text
+../../ansible/inventory/fortiweb.generated.ini
+```
+
+From the repo root, poll FortiWeb with:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/status_fortiweb.yml
+```
+
+Configure the FortiWeb baseline with:
+
+```bash
+ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
+```
+
+The FortiWeb Ansible config role creates the no-inspection reverse-proxy chain
+when `fortiweb_mcp_proxy_enabled=true`, which is the repo system default. The
+generated policy set covers all demo HTTP NodePorts and the HTTPS NodePorts
+when the HTTPS gateway is enabled.
+
+The generated inventory contains appliance connection facts but not the admin
+password. The status playbook reads Terraform outputs at runtime and uses
+`fortiweb_admin_password` when `fortiweb_set_initial_password = true`, otherwise
+it uses the EC2 instance ID as the default admin password.
 
 Do not commit real `99-local.auto.tfvars`, license files, rendered user-data, or
 Terraform state.

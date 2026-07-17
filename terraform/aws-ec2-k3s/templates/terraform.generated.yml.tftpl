@@ -15,6 +15,18 @@ allowed_ingress_cidrs:
   - ${jsonencode(cidr)}
 %{ endfor ~}
 
+aws_vpc_cidr: ${jsonencode(aws_vpc_cidr)}
+aws_public_subnet_cidr: ${jsonencode(aws_public_subnet_cidr)}
+aws_k3s_private_subnet_cidr: ${jsonencode(aws_k3s_private_subnet_cidr)}
+aws_fortigate_public_subnet_cidr: ${jsonencode(aws_fortigate_public_subnet_cidr)}
+aws_fortigate_internal_subnet_cidr: ${jsonencode(aws_fortigate_internal_subnet_cidr)}
+aws_fortiweb_public_subnet_cidr: ${jsonencode(aws_fortiweb_public_subnet_cidr)}
+aws_fortiweb_internal_subnet_cidr: ${jsonencode(aws_fortiweb_internal_subnet_cidr)}
+aws_k3s_subnet_mode: ${jsonencode(aws_k3s_subnet_mode)}
+k3s_cluster_cidr: ${jsonencode(k3s_cluster_cidr)}
+k3s_service_cidr: ${jsonencode(k3s_service_cidr)}
+k3s_cluster_dns: ${jsonencode(k3s_cluster_dns)}
+
 k3s_instance_id: ${jsonencode(instance_id)}
 k3s_public_ip: ${jsonencode(public_ip)}
 k3s_private_ip: ${jsonencode(private_ip)}

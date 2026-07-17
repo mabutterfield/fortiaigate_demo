@@ -33,6 +33,11 @@ output "fortiweb_public_network_interface_id" {
   value       = try(aws_network_interface.public[0].id, null)
 }
 
+output "ansible_group_vars" {
+  description = "Generated FortiWeb Ansible group vars path."
+  value       = local_file.ansible_group_vars.filename
+}
+
 output "fortiweb_internal_network_interface_id" {
   description = "FortiWeb port2/internal ENI ID."
   value       = try(aws_network_interface.internal[0].id, null)
@@ -46,6 +51,16 @@ output "fortiweb_admin_url" {
 output "fortiweb_http_admin_url" {
   description = "FortiWeb HTTP admin URL."
   value       = local.fortiweb_eip_public_ip != null ? "http://${local.fortiweb_eip_public_ip}:${var.fortiweb_admin_http_port}" : null
+}
+
+output "fortiweb_data_plane_tcp_ports" {
+  description = "FortiWeb data-plane TCP listener ports allowed by this module."
+  value       = distinct(var.fortiweb_data_plane_tcp_ports)
+}
+
+output "fortiweb_data_plane_public_cidrs" {
+  description = "Public CIDRs allowed to FortiWeb data-plane listener ports."
+  value       = local.fortiweb_data_plane_public_cidrs
 }
 
 output "fortiweb_ssh_command" {

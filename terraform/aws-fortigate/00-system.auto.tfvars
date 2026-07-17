@@ -8,7 +8,7 @@ fortigate_enabled = true
 
 fortigate_instance_type         = "c6i.xlarge"
 fortigate_architecture          = "x86_64"
-fortigate_version               = "7.6"
+fortigate_version               = "8.0"
 fortigate_ami_name_override     = ""
 fortigate_license_type          = "byol"
 fortigate_license_mode          = "byol_file"

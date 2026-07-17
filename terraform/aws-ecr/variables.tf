@@ -25,6 +25,12 @@ variable "ssh_private_key_file" {
   default     = ""
 }
 
+variable "ec2_pull_github_keys" {
+  type        = list(string)
+  description = "Shared GitHub usernames for EC2 authorized_keys. Accepted for common config consistency; not used by ECR."
+  default     = []
+}
+
 variable "allowed_ingress_cidr" {
   type        = any
   description = "Shared trusted source CIDR or list of CIDRs from terraform/user.tfvars. Accepted for common config consistency; not used by ECR."

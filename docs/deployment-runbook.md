@@ -120,13 +120,13 @@ ansible/inventory/aws.generated.ini
 Minimum `99-local.auto.tfvars` values to review:
 
 - `aws_prep_state_path`
-- `ec2_pull_github_keys` only when importing GitHub public SSH keys on first boot
 - `instance_type` when changing from the default `g4dn.4xlarge`
 - VPC, subnet, k3s pod, and k3s service CIDRs
 
-Set `ssh_key_name` and `ssh_private_key_file` in `terraform/user.tfvars`. If the
-EC2 key pair uses a non-default local private key path, Terraform includes that
-key in the generated Ansible inventory and in the `ssh_command` output.
+Set `ssh_key_name`, `ssh_private_key_file`, and optional
+`ec2_pull_github_keys` in `terraform/user.tfvars`. If the EC2 key pair uses a
+non-default local private key path, Terraform includes that key in the generated
+Ansible inventory and in the `ssh_command` output.
 
 If `ec2_pull_github_keys` is set, cloud-init appends those public GitHub SSH
 keys to `/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty
@@ -448,13 +448,14 @@ The default generated HTTP ports are reserved consistently: Open WebUI uses
 `show_demo_outputs.yml` prints the matching HTTP/HTTPS URLs, LiteLLM UI
 credentials, and the Terraform-generated SSH command for the k3s host.
 
-## 12. Optional MCP Demo Tools
+## 12. MCP Demo Tools
 
 ```bash
 ansible-playbook playbooks/deploy_mcp.yml
 ```
 
-The MCP baseline deploys a small tool server in namespace `mcp`.
+The MCP baseline deploys a small tool server in namespace `mcp` and is enabled
+by default.
 It provides deterministic customer, ticket, policy, and echo tools for the
 later Python agent loop. It exposes a generated NodePort for direct testing,
 keeps an internal service endpoint for Kubernetes workloads, and does not

@@ -1,0 +1,48 @@
+---
+fortigate_api_accounts_vdom: "{{ fortigate_vdom | default('root') }}"
+fortigate_api_accounts_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
+fortigate_api_accounts_no_log: true
+fortigate_api_accounts_update_existing: true
+fortigate_api_accounts_secret_dir: "{{ (playbook_dir + '/../secrets') | realpath }}"
+fortigate_api_accounts_secret_file: "{{ fortigate_api_accounts_secret_dir }}/fortigate_api.generated.yml"
+fortigate_api_accounts_k3s_inventory_path: "{{ (playbook_dir + '/../inventory/aws.generated.ini') | realpath }}"
+fortigate_api_accounts_python: "{{ ansible_playbook_python | default('python3') }}"
+fortigate_bootstrap_api_account_manage_trusthost: true
+fortigate_bootstrap_api_account_name: "{{ fortigate_api_admin | default('apiadmin') }}"
+fortigate_bootstrap_api_account_trusthost_cidrs: "{{ allowed_ingress_cidrs | default([allowed_ingress_cidr | default('0.0.0.0/0')]) }}"
+fortigate_bootstrap_api_account_trusthost: []
+fortigate_readonly_accprofile_name: FAIG_READ_ONLY
+fortigate_readonly_api_account_enabled: true
+fortigate_readonly_api_account_name: faig-readonly-api
+fortigate_readonly_api_account_comments: "FAIG managed read-only API account"
+fortigate_readonly_api_account_rotate_token: false
+fortigate_readonly_api_account_trusthost_cidrs: "{{ allowed_ingress_cidrs | default([allowed_ingress_cidr | default('0.0.0.0/0')]) }}"
+fortigate_readonly_api_account_include_vpc_cidr: true
+fortigate_readonly_api_account_trusthost: []
+fortigate_readonly_api_account_vdom:
+  - name: "{{ fortigate_api_accounts_vdom }}"
+fortigate_readonly_accprofile:
+  name: "{{ fortigate_readonly_accprofile_name }}"
+  comments: "FAIG managed read-only API access profile"
+  scope: global
+  authgrp: read
+  ftviewgrp: read
+  fwgrp: read
+  loggrp: read
+  netgrp: read
+  secfabgrp: read
+  sysgrp: read
+  utmgrp: read
+  vpngrp: read
+  wanoptgrp: read
+  wifi: read
+  cli_get: enable
+  cli_show: enable
+  cli_config: disable
+  cli_exec: disable
+  cli_diagnose: disable
+  system_diagnostics: disable
+  system_execute_ssh: disable
+  system_execute_telnet: disable
+fortigate_api_accounts:
+  []

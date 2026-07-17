@@ -1,0 +1,480 @@
+---
+- name: Read FortiGate bootstrap API key from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - -chdir={{ fortigate_api_accounts_terraform_dir }}
+      - output
+      - -raw
+      - fortigate_api_key
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  register: fortigate_api_accounts_bootstrap_key_raw
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate bootstrap API key read: {{ fortigate_api_accounts_bootstrap_key_raw.stdout | length > 0 }}"
+
+- name: Set FortiGate bootstrap API key fact
+  ansible.builtin.set_fact:
+    fortigate_bootstrap_access_token: "{{ fortigate_api_accounts_bootstrap_key_raw.stdout | trim }}"
+    ansible_httpapi_session_key:
+      access_token: "{{ fortigate_api_accounts_bootstrap_key_raw.stdout | trim }}"
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate bootstrap access token present: {{ fortigate_bootstrap_access_token | length > 0 }}"
+
+- name: Fail when FortiGate bootstrap API key is not available
+  ansible.builtin.fail:
+    msg: "FortiGate API key is empty. Confirm terraform/aws-fortigate was applied with fortigate_enable_api=true."
+  when: fortigate_bootstrap_access_token | length == 0
+  tags: [fortigate_api_accounts]
+
+- name: Read existing generated FortiGate API secret file metadata
+  ansible.builtin.stat:
+    path: "{{ fortigate_api_accounts_secret_file }}"
+  delegate_to: localhost
+  become: false
+  register: fortigate_api_accounts_secret_stat
+  tags: [fortigate_api_accounts]
+
+- name: Read existing generated FortiGate API secrets
+  ansible.builtin.slurp:
+    src: "{{ fortigate_api_accounts_secret_file }}"
+  delegate_to: localhost
+  become: false
+  register: fortigate_api_accounts_secret_slurp
+  when: fortigate_api_accounts_secret_stat.stat.exists | default(false)
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Existing FortiGate generated API secret file loaded: {{ fortigate_api_accounts_secret_stat.stat.exists | default(false) }}"
+
+- name: Set existing generated FortiGate API secret facts
+  ansible.builtin.set_fact:
+    fortigate_api_accounts_secret_data: >-
+      {{
+        (
+          fortigate_api_accounts_secret_slurp.content
+          | default('')
+          | b64decode
+          | from_yaml
+        )
+        if fortigate_api_accounts_secret_stat.stat.exists | default(false)
+        else {}
+      }}
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Existing FortiGate generated API secret names: {{ (fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).keys() | list }}"
+
+- name: Set existing read-only FortiGate API token fact
+  ansible.builtin.set_fact:
+    fortigate_readonly_existing_api_token: "{{ ((fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).get(fortigate_readonly_api_account_name, {})).access_token | default('') }}"
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Existing read-only API token present: {{ fortigate_readonly_existing_api_token | length > 0 }}"
+
+- name: Read generated AWS inventory metadata
+  ansible.builtin.stat:
+    path: "{{ fortigate_api_accounts_k3s_inventory_path }}"
+  delegate_to: localhost
+  become: false
+  register: fortigate_api_accounts_k3s_inventory_stat
+  when: fortigate_readonly_api_account_include_vpc_cidr | bool
+  tags: [fortigate_api_accounts]
+
+- name: Read generated AWS inventory for VPC CIDR
+  ansible.builtin.slurp:
+    src: "{{ fortigate_api_accounts_k3s_inventory_path }}"
+  delegate_to: localhost
+  become: false
+  register: fortigate_api_accounts_k3s_inventory_slurp
+  when:
+    - fortigate_readonly_api_account_include_vpc_cidr | bool
+    - fortigate_api_accounts_k3s_inventory_stat.stat.exists | default(false)
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Generated AWS inventory loaded for VPC CIDR: {{ fortigate_api_accounts_k3s_inventory_stat.stat.exists | default(false) }}"
+
+- name: Set FortiGate API account trusthost CIDR facts
+  ansible.builtin.set_fact:
+    fortigate_api_accounts_inventory_vpc_cidr: >-
+      {{
+        (
+          (fortigate_api_accounts_k3s_inventory_slurp.content | default('') | b64decode).splitlines()
+          | select('match', '^aws_vpc_cidr=')
+          | map('regex_replace', '^aws_vpc_cidr=', '')
+          | first
+          | default('')
+          | string
+          | trim
+        )
+        if fortigate_api_accounts_k3s_inventory_stat.stat.exists | default(false)
+        else ''
+      }}
+    fortigate_api_accounts_effective_vpc_cidr: >-
+      {{
+        (aws_vpc_cidr | default('') | string | trim)
+        if (aws_vpc_cidr | default('') | string | trim) != ''
+        else (
+          (
+            (fortigate_api_accounts_k3s_inventory_slurp.content | default('') | b64decode).splitlines()
+            | select('match', '^aws_vpc_cidr=')
+            | map('regex_replace', '^aws_vpc_cidr=', '')
+            | first
+            | default('')
+            | string
+            | trim
+          )
+          if fortigate_api_accounts_k3s_inventory_stat.stat.exists | default(false)
+          else ''
+        )
+      }}
+    fortigate_bootstrap_api_account_effective_trusthost_cidrs: >-
+      {{
+        fortigate_bootstrap_api_account_trusthost_cidrs
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+    fortigate_readonly_api_account_effective_trusthost_cidrs: >-
+      {{
+        (
+          fortigate_readonly_api_account_trusthost_cidrs
+          + (
+            [(
+              (aws_vpc_cidr | default('') | string | trim)
+              if (aws_vpc_cidr | default('') | string | trim) != ''
+              else (
+                (
+                  (fortigate_api_accounts_k3s_inventory_slurp.content | default('') | b64decode).splitlines()
+                  | select('match', '^aws_vpc_cidr=')
+                  | map('regex_replace', '^aws_vpc_cidr=', '')
+                  | first
+                  | default('')
+                  | string
+                  | trim
+                )
+                if fortigate_api_accounts_k3s_inventory_stat.stat.exists | default(false)
+                else ''
+              )
+            )]
+            if fortigate_readonly_api_account_include_vpc_cidr | bool
+            else []
+          )
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "Bootstrap API trusthost CIDRs: {{ fortigate_bootstrap_api_account_effective_trusthost_cidrs }}"
+  #       - "Read-only API trusthost CIDRs: {{ fortigate_readonly_api_account_effective_trusthost_cidrs }}"
+
+- name: Convert bootstrap FortiGate API trusthost CIDRs
+  ansible.builtin.command:
+    argv:
+      - "{{ fortigate_api_accounts_python }}"
+      - -c
+      - |
+        import ipaddress, json, sys
+        cidrs = json.load(sys.stdin)
+        trusthosts = []
+        for index, cidr in enumerate(cidrs, start=1):
+            network = ipaddress.ip_network(str(cidr), strict=False)
+            trusthosts.append({
+                "id": index,
+                "type": "ipv4-trusthost",
+                "ipv4_trusthost": f"{network.network_address} {network.netmask}",
+            })
+        print(json.dumps(trusthosts))
+    stdin: "{{ fortigate_bootstrap_api_account_effective_trusthost_cidrs | to_json }}"
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  register: fortigate_bootstrap_trusthost_convert
+  when:
+    - fortigate_bootstrap_api_account_manage_trusthost | bool
+    - fortigate_bootstrap_api_account_trusthost | length == 0
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_bootstrap_trusthost_convert.stdout
+
+- name: Set bootstrap FortiGate API trusthost fact
+  ansible.builtin.set_fact:
+    fortigate_bootstrap_api_account_effective_trusthost: >-
+      {{
+        fortigate_bootstrap_api_account_trusthost
+        if fortigate_bootstrap_api_account_trusthost | length > 0
+        else fortigate_bootstrap_trusthost_convert.stdout | from_json
+      }}
+  when: fortigate_bootstrap_api_account_manage_trusthost | bool
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_bootstrap_api_account_effective_trusthost
+
+- name: Convert read-only FortiGate API trusthost CIDRs
+  ansible.builtin.command:
+    argv:
+      - "{{ fortigate_api_accounts_python }}"
+      - -c
+      - |
+        import ipaddress, json, sys
+        cidrs = json.load(sys.stdin)
+        trusthosts = []
+        for index, cidr in enumerate(cidrs, start=1):
+            network = ipaddress.ip_network(str(cidr), strict=False)
+            trusthosts.append({
+                "id": index,
+                "type": "ipv4-trusthost",
+                "ipv4_trusthost": f"{network.network_address} {network.netmask}",
+            })
+        print(json.dumps(trusthosts))
+    stdin: "{{ fortigate_readonly_api_account_effective_trusthost_cidrs | to_json }}"
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  changed_when: false
+  register: fortigate_readonly_trusthost_convert
+  when:
+    - fortigate_readonly_api_account_enabled | bool
+    - fortigate_readonly_api_account_trusthost | length == 0
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_readonly_trusthost_convert.stdout
+
+- name: Set read-only FortiGate API trusthost fact
+  ansible.builtin.set_fact:
+    fortigate_readonly_api_account_effective_trusthost: >-
+      {{
+        fortigate_readonly_api_account_trusthost
+        if fortigate_readonly_api_account_trusthost | length > 0
+        else fortigate_readonly_trusthost_convert.stdout | from_json
+      }}
+  when: fortigate_readonly_api_account_enabled | bool
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_readonly_api_account_effective_trusthost
+
+- name: Configure FortiGate read-only API access profile
+  fortinet.fortios.fortios_system_accprofile:
+    vdom: "{{ fortigate_api_accounts_vdom }}"
+    state: present
+    system_accprofile: "{{ fortigate_readonly_accprofile }}"
+  when: fortigate_readonly_api_account_enabled | bool
+  register: fortigate_readonly_accprofile_apply
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_readonly_accprofile_apply
+
+- name: Gather current FortiGate API users
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_api_accounts_vdom }}"
+    selector: system_api-user
+  register: fortigate_api_accounts_current_raw
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_api_accounts_current_raw
+
+- name: Set current FortiGate API user map
+  ansible.builtin.set_fact:
+    fortigate_api_accounts_current_by_name: >-
+      {{
+        dict(
+          (fortigate_api_accounts_current_raw.meta.results | default([]))
+          | map(attribute='name')
+          | zip(fortigate_api_accounts_current_raw.meta.results | default([]))
+        )
+      }}
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_api_accounts_current_by_name
+
+- name: Configure FortiGate bootstrap API user trusted hosts
+  fortinet.fortios.fortios_system_api_user:
+    vdom: "{{ fortigate_api_accounts_vdom }}"
+    state: present
+    system_api_user:
+      name: "{{ fortigate_bootstrap_api_account_name }}"
+      accprofile: super_admin
+      trusthost: "{{ fortigate_bootstrap_api_account_effective_trusthost }}"
+      vdom:
+        - name: "{{ fortigate_api_accounts_vdom }}"
+  when:
+    - fortigate_bootstrap_api_account_manage_trusthost | bool
+    - fortigate_bootstrap_api_account_effective_trusthost | length > 0
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  register: fortigate_bootstrap_api_user_apply
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_bootstrap_api_user_apply
+
+- name: Configure FortiGate read-only API user
+  fortinet.fortios.fortios_system_api_user:
+    vdom: "{{ fortigate_api_accounts_vdom }}"
+    state: present
+    system_api_user:
+      name: "{{ fortigate_readonly_api_account_name }}"
+      accprofile: "{{ fortigate_readonly_accprofile_name }}"
+      comments: "{{ fortigate_readonly_api_account_comments }}"
+      trusthost: "{{ fortigate_readonly_api_account_effective_trusthost }}"
+      vdom: "{{ fortigate_readonly_api_account_vdom }}"
+  when: fortigate_readonly_api_account_enabled | bool
+  register: fortigate_readonly_api_user_apply
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_readonly_api_user_apply
+
+- name: Generate read-only FortiGate API key when local copy is missing or rotation requested
+  ansible.builtin.uri:
+    url: "{{ fortigate_api_url }}/monitor/system/api-user/generate-key?vdom={{ fortigate_api_accounts_vdom }}"
+    method: POST
+    body_format: json
+    body:
+      api-user: "{{ fortigate_readonly_api_account_name }}"
+    headers:
+      Accept: application/json
+      Authorization: "Bearer {{ fortigate_bootstrap_access_token }}"
+      Content-Type: application/json
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  delegate_to: localhost
+  become: false
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  register: fortigate_readonly_api_key_generate
+  changed_when: >-
+    fortigate_readonly_api_key_generate.json is defined
+    and fortigate_readonly_api_key_generate.json.results is defined
+    and (fortigate_readonly_api_key_generate.json.results.access_token | default('') | length > 0)
+  when:
+    - fortigate_readonly_api_account_enabled | bool
+    - fortigate_readonly_api_account_rotate_token | bool or fortigate_readonly_existing_api_token | length == 0
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Read-only FortiGate API token generated: {{ fortigate_readonly_api_key_generate.changed | default(false) }}"
+
+- name: Set generated read-only FortiGate API token fact
+  ansible.builtin.set_fact:
+    fortigate_readonly_generated_api_token: "{{ ((fortigate_readonly_api_key_generate.json | default({})).results | default({})).access_token | default('') }}"
+  when:
+    - fortigate_readonly_api_key_generate is defined
+    - fortigate_readonly_api_key_generate.changed | default(false)
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Generated read-only FortiGate API token present: {{ fortigate_readonly_generated_api_token | default('') | length > 0 }}"
+
+- name: Ensure generated FortiGate API secret directory exists
+  ansible.builtin.file:
+    path: "{{ fortigate_api_accounts_secret_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  when:
+    - fortigate_readonly_generated_api_token | default('') | length > 0
+  tags: [fortigate_api_accounts]
+
+- name: Write generated read-only FortiGate API token locally
+  ansible.builtin.copy:
+    dest: "{{ fortigate_api_accounts_secret_file }}"
+    mode: "0600"
+    content: |
+      ---
+      fortigate_api_accounts_generated:
+      {{ (fortigate_api_accounts_generated_secret_payload.fortigate_api_accounts_generated | to_nice_yaml(indent=2, sort_keys=True)) | indent(2, true) }}
+  vars:
+    fortigate_api_accounts_generated_secret_payload: >-
+      {{
+        fortigate_api_accounts_secret_data
+        | default({})
+        | combine({
+            'fortigate_api_accounts_generated': (
+              (fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({}))
+              | combine({
+                  fortigate_readonly_api_account_name: {
+                    'name': fortigate_readonly_api_account_name,
+                    'accprofile': fortigate_readonly_accprofile_name,
+                    'access_token': fortigate_readonly_generated_api_token,
+                    'generated_at': now(utc=true).isoformat(),
+                    'fortigate_instance_id': fortigate_instance_id | default(''),
+                    'vdom': fortigate_api_accounts_vdom
+                  }
+                }, recursive=True)
+            )
+          }, recursive=True)
+      }}
+  delegate_to: localhost
+  become: false
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  when:
+    - fortigate_readonly_generated_api_token | default('') | length > 0
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Generated FortiGate API token stored locally at {{ fortigate_api_accounts_secret_file }}"
+
+- name: Validate requested FortiGate API accounts
+  ansible.builtin.assert:
+    that:
+      - item.name | default('') | length > 0
+      - item.api_key | default('') | length > 0
+      - item.trusthost | default([]) | length > 0
+    fail_msg: "Each fortigate_api_accounts entry must include name, api_key, and at least one trusthost entry."
+    quiet: true
+  loop: "{{ fortigate_api_accounts }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  when: fortigate_api_accounts | length > 0
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+
+- name: Configure requested FortiGate API users
+  fortinet.fortios.fortios_system_api_user:
+    vdom: "{{ fortigate_api_accounts_vdom }}"
+    state: present
+    system_api_user:
+      name: "{{ item.name }}"
+      accprofile: "{{ item.accprofile | default('super_admin') }}"
+      api_key: "{{ item.api_key }}"
+      comments: "{{ item.comments | default('FAIG managed application API account') }}"
+      cors_allow_origin: "{{ item.cors_allow_origin | default(omit) }}"
+      trusthost: "{{ item.trusthost }}"
+      vdom: "{{ item.vdom | default([{'name': fortigate_api_accounts_vdom}]) }}"
+  loop: "{{ fortigate_api_accounts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_api_accounts | length > 0
+    - item.name not in fortigate_api_accounts_current_by_name or fortigate_api_accounts_update_existing | bool
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  register: fortigate_api_accounts_apply
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     var: fortigate_api_accounts_apply
+
+- name: Show FortiGate API account summary
+  ansible.builtin.debug:
+    msg:
+      - "Read-only API profile managed: {{ fortigate_readonly_api_account_enabled | bool }}"
+      - "Read-only API account: {{ fortigate_readonly_api_account_name if fortigate_readonly_api_account_enabled | bool else 'disabled' }}"
+      - "Bootstrap API trusthost managed: {{ fortigate_bootstrap_api_account_manage_trusthost | bool }}"
+      - "Read-only API VPC trusthost included: {{ fortigate_readonly_api_account_include_vpc_cidr | bool and fortigate_api_accounts_effective_vpc_cidr | default('') | length > 0 }}"
+      - "Read-only API token local file: {{ fortigate_api_accounts_secret_file }}"
+      - "Read-only API token generated this run: {{ fortigate_readonly_generated_api_token | default('') | length > 0 }}"
+      - "Custom API accounts requested: {{ fortigate_api_accounts | map(attribute='name') | list | join(', ') if fortigate_api_accounts | length > 0 else 'none' }}"
+      - "Existing custom accounts updated: {{ fortigate_api_accounts_update_existing | bool }}"
+  tags: [fortigate_api_accounts]

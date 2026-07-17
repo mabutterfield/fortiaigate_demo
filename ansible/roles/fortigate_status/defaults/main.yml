@@ -1,0 +1,5 @@
+---
+fortigate_status_verbose: false
+fortigate_status_vdom: "{{ fortigate_vdom | default('root') }}"
+fortigate_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
+fortigate_no_log: true

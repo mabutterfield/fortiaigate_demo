@@ -1,0 +1,21 @@
+[fortigate]
+faig-fortigate ansible_host=${ansible_host}
+
+[fortigate:vars]
+ansible_connection=httpapi
+ansible_network_os=fortinet.fortios.fortios
+ansible_httpapi_use_ssl=true
+ansible_httpapi_validate_certs=false
+ansible_httpapi_port=${admin_port}
+fortigate_admin_port=${admin_port}
+fortigate_api_admin=${api_admin}
+fortigate_public_ip=${public_ip}
+fortigate_public_private_ip=${public_private_ip}
+fortigate_internal_ip=${internal_ip}
+fortigate_instance_id=${instance_id}
+fortigate_admin_url=${admin_url}
+fortigate_api_url=${api_url}
+fortigate_vdom=root
+
+[fortinet_appliances:children]
+fortigate

@@ -1,0 +1,130 @@
+---
+fortigate_config_vdom: "{{ fortigate_vdom | default('root') }}"
+fortigate_config_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
+fortigate_config_no_log: true
+fortigate_config_force_apply: false
+fortigate_config_enable_system_global: true
+fortigate_config_enable_system_settings: true
+fortigate_config_enable_password_policy: true
+fortigate_config_enable_fortiguard: true
+fortigate_config_enable_addresses: true
+fortigate_config_enable_services: true
+fortigate_config_enable_vips: true
+fortigate_config_enable_policies: true
+fortigate_config_public_interface: port1
+fortigate_config_internal_interface: port2
+fortigate_config_compare_ignored_keys:
+  - q_origin_key
+  - uuid
+
+# Global system defaults applied after cloud-init. Override this dictionary in
+# ansible/group_vars/user.yml for lab-specific timeout and GUI settings.
+fortigate_system_global:
+  admin_sport: "{{ fortigate_admin_port | default(8443) | int }}"
+  admintimeout: 60
+  pre_login_banner: disable
+  post_login_banner: disable
+  gui_allow_default_hostname: disable
+  gui_auto_upgrade_setup_warning: disable
+  gui_forticare_registration_setup_warning: disable
+  gui_firmware_upgrade_warning: disable
+  wireless_controller: disable
+
+fortigate_system_settings:
+  gui_advanced_wireless_features: disable
+  gui_wireless_controller: disable
+  gui_dos_policy: disable
+  gui_wan_load_balancing: disable
+  gui_videofilter: disable
+  gui_threat_weight: disable
+  gui_traffic_shaping: disable
+  gui_icap: enable
+  gui_multiple_interface_policy: enable
+
+fortigate_system_fortiguard:
+  auto_firmware_upgrade: disable
+
+# Lab-friendly admin password requirements. Tighten these in user.yml for any
+# shared or long-lived environment.
+fortigate_system_password_policy:
+  status: disable
+  apply_to:
+    - admin-password
+  minimum_length: 12
+  min_lower_case_letter: 1
+  min_upper_case_letter: 1
+  min_number: 1
+  min_non_alphanumeric: 0
+  expire_status: disable
+  reuse_password: enable
+
+fortigate_repo_static_address_sources:
+  - name: FAIG_K3S_EIP
+    ip: "{{ k3s_public_ip | default('') }}"
+    comment: "FAIG managed k3s public EIP"
+  - name: FAIG_K3S_INTERNAL
+    ip: "{{ k3s_private_ip | default('') }}"
+    comment: "FAIG managed k3s internal IP"
+  - name: FAIG_FORTIGATE_EIP
+    ip: "{{ fortigate_public_ip | default('') }}"
+    comment: "FAIG managed FortiGate public EIP"
+  - name: FAIG_FORTIGATE_PORT1
+    ip: "{{ fortigate_public_private_ip | default('') }}"
+    comment: "FAIG managed FortiGate port1 private IP"
+  - name: FAIG_FORTIGATE_PORT2
+    ip: "{{ fortigate_internal_ip | default('') }}"
+    comment: "FAIG managed FortiGate port2 internal IP"
+  - name: FAIG_FORTIWEB_EIP
+    ip: "{{ fortiweb_public_ip | default(fortiweb_eip_public_ip | default('')) }}"
+    comment: "FAIG managed FortiWeb public EIP"
+  - name: FAIG_FORTIWEB_PORT1
+    ip: "{{ fortiweb_public_private_ip | default('') }}"
+    comment: "FAIG managed FortiWeb port1 private IP"
+  - name: FAIG_FORTIWEB_PORT2
+    ip: "{{ fortiweb_internal_ip | default('') }}"
+    comment: "FAIG managed FortiWeb port2 internal IP"
+  - name: FAIG_FORTIWEB_INTERNAL
+    ip: "{{ fortiweb_internal_ip | default('') }}"
+    comment: "FAIG managed FortiWeb internal IP"
+
+fortigate_dynamic_service_sources:
+  - name: FAIG_OPENWEBUI_HTTP
+    port: "{{ demo_openwebui_http_port | default('') }}"
+    comment: "FAIG managed OpenWebUI HTTP NodePort"
+  - name: FAIG_CHATBOT_HTTP
+    port: "{{ demo_chatbot_http_port | default('') }}"
+    comment: "FAIG managed chatbot HTTP NodePort"
+  - name: FAIG_DEMO_HOME_HTTP
+    port: "{{ demo_home_http_port | default('') }}"
+    comment: "FAIG managed demo home HTTP NodePort"
+  - name: FAIG_LITELLM_HTTP
+    port: "{{ demo_litellm_http_port | default('') }}"
+    comment: "FAIG managed LiteLLM HTTP NodePort"
+  - name: FAIG_MCP_HTTP
+    port: "{{ demo_mcp_http_port | default('') }}"
+    comment: "FAIG managed MCP HTTP NodePort"
+  - name: FAIG_OPENWEBUI_HTTPS
+    port: "{{ demo_openwebui_https_port | default('') }}"
+    comment: "FAIG managed OpenWebUI HTTPS NodePort"
+  - name: FAIG_CHATBOT_HTTPS
+    port: "{{ demo_chatbot_https_port | default('') }}"
+    comment: "FAIG managed chatbot HTTPS NodePort"
+  - name: FAIG_DEMO_HOME_HTTPS
+    port: "{{ demo_home_https_port | default('') }}"
+    comment: "FAIG managed demo home HTTPS NodePort"
+  - name: FAIG_LITELLM_HTTPS
+    port: "{{ demo_litellm_https_port | default('') }}"
+    comment: "FAIG managed LiteLLM HTTPS NodePort"
+  - name: FAIG_MCP_HTTPS
+    port: "{{ demo_mcp_https_port | default('') }}"
+    comment: "FAIG managed MCP HTTPS NodePort"
+
+# Manual entries are merged by name after generated entries, so a static entry
+# can add a new object or replace a generated one with the same name.
+fortigate_address_objects_static: []
+fortigate_service_objects_static: []
+fortigate_vip_objects_static: []
+
+# Policies are intentionally empty by default. Add explicit policyid values in
+# user.yml when a FortiGate path should be active.
+fortigate_firewall_policies: []

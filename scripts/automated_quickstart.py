@@ -24,7 +24,7 @@ APPLIANCE_LOCAL_FILE_PAIRS = {
     "fortiweb": ("terraform/aws-fortiweb/99-local.auto.tfvars.example", "terraform/aws-fortiweb/99-local.auto.tfvars"),
 }
 
-REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook"]
+REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook", "ansible-galaxy"]
 TERRAFORM_MODULES = [
     ("ECR registry", "terraform/aws-ecr"),
     ("AWS prep", "terraform/aws-prep"),
@@ -33,6 +33,35 @@ TERRAFORM_MODULES = [
 APPLIANCE_TERRAFORM_MODULES = {
     "fortigate": ("FortiGate appliance", "terraform/aws-fortigate"),
     "fortiweb": ("FortiWeb appliance", "terraform/aws-fortiweb"),
+}
+APPLIANCE_ANSIBLE_PLANS = {
+    "fortigate": {
+        "label": "FortiGate appliance",
+        "inventory": "ansible/inventory/fortigate.generated.ini",
+        "status": "status_fortigate.yml",
+        "configure": [
+            ("FortiGate baseline configuration", "configure_fortigate.yml"),
+            ("FortiGate API accounts", "configure_fortigate_api_accounts.yml"),
+        ],
+    },
+    "fortiweb": {
+        "label": "FortiWeb appliance",
+        "inventory": "ansible/inventory/fortiweb.generated.ini",
+        "status": "status_fortiweb.yml",
+        "configure": [
+            ("FortiWeb baseline configuration", "configure_fortiweb.yml"),
+        ],
+    },
+}
+APPLIANCE_COLLECTION_REQUIREMENTS = {
+    "fortigate": {
+        "ansible.netcommon": "8.2.0",
+        "fortinet.fortios": "2.5.1",
+    },
+    "fortiweb": {
+        "ansible.netcommon": "8.2.0",
+        "fortinet.fortiweb": "1.3.2",
+    },
 }
 APPLIANCE_LICENSES = {
     "fortigate": {
@@ -56,9 +85,9 @@ APPLIANCE_LICENSES = {
 }
 APPLICATION_PLAYBOOKS = [
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
+    ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
     ("custom chatbot UI", "deploy_chatbots.yml", "status_chatbots.yml"),
-    ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("demo home page", "deploy_demo_home.yml", "status_demo_home.yml"),
 ]
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -71,11 +100,11 @@ SKIP_SSH_PRIVATE_KEY_NAMES = {
 ANSIBLE_VAR_LOAD_ORDER = [
     "ansible/group_vars/env.yml",
     "ansible/group_vars/images.yml",
-    "ansible/group_vars/all.yml",
     "ansible/group_vars/system.yml",
     "ansible/group_vars/terraform.generated.yml",
     "ansible/group_vars/ecr.generated.yml",
     "ansible/group_vars/ports.generated.yml",
+    "ansible/group_vars/fortiweb.generated.yml",
     "ansible/group_vars/user.yml",
 ]
 
@@ -181,6 +210,83 @@ def check_requirements() -> None:
             missing.append(command)
     if missing:
         raise SystemExit(f"Missing required commands: {', '.join(missing)}")
+
+
+def installed_ansible_collection_version(collection_name: str) -> str:
+    result = subprocess.run(
+        ["ansible-galaxy", "collection", "list", collection_name],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        return ""
+
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == collection_name:
+            return parts[1]
+    return ""
+
+
+def required_appliance_collections(appliance_keys: list[str]) -> dict[str, str]:
+    requirements: dict[str, str] = {}
+    for appliance_key in appliance_keys:
+        requirements.update(APPLIANCE_COLLECTION_REQUIREMENTS.get(appliance_key, {}))
+    return requirements
+
+
+def find_appliance_collection_problems(appliance_keys: list[str]) -> list[str]:
+    requirements = required_appliance_collections(appliance_keys)
+    if not requirements:
+        return []
+
+    problems: list[str] = []
+    for collection_name, required_version in sorted(requirements.items()):
+        installed_version = installed_ansible_collection_version(collection_name)
+        if not installed_version:
+            problems.append(f"{collection_name}: missing, required {required_version}")
+            print(f"{collection_name}: missing, required {required_version}")
+            continue
+        if installed_version != required_version:
+            problems.append(f"{collection_name}: installed {installed_version}, required {required_version}")
+            print(f"{collection_name}: installed {installed_version}, required {required_version}")
+            continue
+        print(f"{collection_name}: {installed_version}")
+    return problems
+
+
+def ensure_appliance_collections(appliance_keys: list[str]) -> None:
+    requirements = required_appliance_collections(appliance_keys)
+    if not requirements:
+        return
+
+    print_header("Checking Fortinet Ansible Collections")
+    problems = find_appliance_collection_problems(appliance_keys)
+    if not problems:
+        return
+
+    print("Installing pinned Fortinet Ansible collections from ansible/collections/requirements.yml.")
+    run_command(
+        [
+            "ansible-galaxy",
+            "collection",
+            "install",
+            "-r",
+            "ansible/collections/requirements.yml",
+            "--force-with-deps",
+        ]
+    )
+
+    print_header("Verifying Fortinet Ansible Collections")
+    problems = find_appliance_collection_problems(appliance_keys)
+    if problems:
+        raise SystemExit(
+            "Fortinet Ansible collection installation did not produce the required versions: "
+            + "; ".join(problems)
+        )
 
 
 def list_aws_profiles() -> list[str]:
@@ -1239,8 +1345,15 @@ def get_ec2_instance_id() -> str:
     return command_output(["terraform", "-chdir=terraform/aws-ec2-k3s", "output", "-raw", "instance_id"])
 
 
-def show_ec2_instance_status(profile: str, region: str, instance_id: str) -> bool:
-    print_header("EC2 Instance Status")
+def get_appliance_instance_id(appliance_key: str) -> str:
+    _label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
+    output_name = f"{appliance_key}_instance_id"
+    value = command_output(["terraform", "-chdir=" + module_path, "output", "-raw", output_name], check=False)
+    return "" if value == "null" else value
+
+
+def show_ec2_instance_status(profile: str, region: str, instance_id: str, label: str = "EC2 instance") -> bool:
+    print_header(f"{label} Status")
     output = command_output(
         [
             "aws",
@@ -1274,20 +1387,27 @@ def show_ec2_instance_status(profile: str, region: str, instance_id: str) -> boo
     return ready
 
 
-def wait_for_ec2_status_ready(profile: str, region: str, instance_id: str, delay_seconds: int, max_attempts: int) -> None:
+def wait_for_ec2_status_ready(
+    profile: str,
+    region: str,
+    instance_id: str,
+    delay_seconds: int,
+    max_attempts: int,
+    label: str = "EC2 instance",
+) -> None:
     attempts = max(1, max_attempts)
     delay = max(1, delay_seconds)
 
     for attempt in range(1, attempts + 1):
-        print(f"Checking EC2 readiness, attempt {attempt}/{attempts}.")
-        if show_ec2_instance_status(profile, region, instance_id):
-            print("EC2 instance status is READY.")
+        print(f"Checking {label} readiness, attempt {attempt}/{attempts}.")
+        if show_ec2_instance_status(profile, region, instance_id, label):
+            print(f"{label} status is READY.")
             return
 
         if attempt == attempts:
-            raise SystemExit("Stopped because EC2 instance status did not become READY.")
+            raise SystemExit(f"Stopped because {label} status did not become READY.")
 
-        print(f"EC2 instance is not ready yet. Waiting {delay} seconds before checking again.")
+        print(f"{label} is not ready yet. Waiting {delay} seconds before checking again.")
         time.sleep(delay)
 
 
@@ -1305,11 +1425,11 @@ def prompt_ec2_status(
         return
 
     if wait_until_ready:
-        wait_for_ec2_status_ready(profile, region, instance_id, delay_seconds, max_attempts)
+        wait_for_ec2_status_ready(profile, region, instance_id, delay_seconds, max_attempts, "k3s EC2 instance")
         return
 
     while True:
-        show_ec2_instance_status(profile, region, instance_id)
+        show_ec2_instance_status(profile, region, instance_id, "k3s EC2 instance")
         choice = prompt_text("Continue, recheck, or quit", "continue").strip().lower()
         if choice in {"", "c", "continue"}:
             return
@@ -1318,6 +1438,24 @@ def prompt_ec2_status(
         if choice in {"q", "quit", "exit", "stop"}:
             raise SystemExit("Stopped after EC2 status check.")
         print("Enter continue, recheck, or quit.")
+
+
+def show_appliance_ec2_statuses(
+    profile: str,
+    region: str,
+    appliance_keys: list[str],
+) -> None:
+    if not appliance_keys:
+        return
+
+    print_header("Appliance EC2 Status Snapshot")
+    print("Appliance API polling remains the readiness gate; AWS EC2 status can lag behind appliance login/API readiness.")
+    for appliance_key in appliance_keys:
+        label, _module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
+        instance_id = get_appliance_instance_id(appliance_key)
+        if not instance_id:
+            raise SystemExit(f"Could not read {appliance_key}_instance_id from Terraform outputs.")
+        show_ec2_instance_status(profile, region, instance_id, f"{label} EC2 instance")
 
 
 def choose_ecr_mode() -> str:
@@ -1339,11 +1477,16 @@ def choose_ecr_mode() -> str:
 def run_ansible_playbook(
     playbook: str,
     *,
+    inventory: str | None = None,
     check: bool = True,
     capture: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    argv = ["ansible-playbook"]
+    if inventory:
+        argv.extend(["-i", inventory])
+    argv.append(f"ansible/playbooks/{playbook}")
     result = run_command(
-        ["ansible-playbook", f"ansible/playbooks/{playbook}"],
+        argv,
         check=False if capture else check,
         capture=capture,
     )
@@ -1355,6 +1498,31 @@ def run_ansible_playbook(
         if check and result.returncode != 0:
             raise SystemExit(result.returncode)
     return result
+
+
+def run_ansible_playbook_until_success(
+    label: str,
+    playbook: str,
+    *,
+    inventory: str | None = None,
+    delay_seconds: int = 30,
+    max_attempts: int = 10,
+) -> None:
+    attempts = max(1, max_attempts)
+    delay = max(1, delay_seconds)
+
+    for attempt in range(1, attempts + 1):
+        print(f"Checking {label}, attempt {attempt}/{attempts}.")
+        result = run_ansible_playbook(playbook, inventory=inventory, check=False, capture=True)
+        if result.returncode == 0:
+            print(f"{label} is ready.")
+            return
+
+        if attempt == attempts:
+            raise SystemExit(f"Stopped because {label} did not become ready.")
+
+        print(f"{label} is not ready yet. Waiting {delay} seconds before checking again.")
+        time.sleep(delay)
 
 
 def run_image_publishing(args: argparse.Namespace) -> None:
@@ -1466,7 +1634,42 @@ def run_application_deployments(args: argparse.Namespace) -> None:
     run_ansible_playbook("show_demo_outputs.yml", check=False)
 
 
-def run_ansible_flow(args: argparse.Namespace) -> None:
+def run_appliance_ansible_deployments(args: argparse.Namespace, appliance_keys: list[str]) -> None:
+    if not appliance_keys:
+        return
+
+    print_header("Ansible: Appliance Configuration")
+    for appliance_key in appliance_keys:
+        plan = APPLIANCE_ANSIBLE_PLANS[appliance_key]
+        label = plan["label"]
+        inventory = plan["inventory"]
+        status_playbook = plan["status"]
+
+        run_ansible_playbook_until_success(
+            f"{label} API",
+            status_playbook,
+            inventory=inventory,
+            delay_seconds=args.appliance_status_delay,
+            max_attempts=args.appliance_status_retries,
+        )
+
+        for step_label, playbook in plan["configure"]:
+            print_header(f"Ansible: {step_label}")
+            run_ansible_playbook(playbook, inventory=inventory)
+
+        print_header(f"Ansible: Status {label}")
+        run_ansible_playbook(status_playbook, inventory=inventory, check=False)
+
+
+def run_post_application_validations(appliance_keys: list[str]) -> None:
+    if "fortiweb" not in appliance_keys:
+        return
+
+    print_header("Ansible: Validate Demo HTTP Paths")
+    run_ansible_playbook("validate_demo_http_paths.yml", check=False)
+
+
+def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str]) -> None:
     print_header("Ansible Deployment")
     if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
         raise SystemExit("Stopped before Ansible execution.")
@@ -1488,7 +1691,9 @@ def run_ansible_flow(args: argparse.Namespace) -> None:
     else:
         run_fortiaigate_status_once("Ansible: FortiAIGate Status After Deploy")
 
+    run_appliance_ansible_deployments(args, appliance_keys)
     run_application_deployments(args)
+    run_post_application_validations(appliance_keys)
     if faig_status_mode == "once":
         run_fortiaigate_status_once("Ansible: Final FortiAIGate Status")
 
@@ -1604,12 +1809,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-fortigate",
         action="store_true",
-        help="Ensure FortiGate local overrides are enabled and run terraform/aws-fortigate after the k3s foundation.",
+        help="Ensure FortiGate local overrides are enabled, run terraform/aws-fortigate, and apply FortiGate Ansible configuration.",
     )
     parser.add_argument(
         "--include-fortiweb",
         action="store_true",
-        help="Ensure FortiWeb local overrides are enabled and run terraform/aws-fortiweb after the k3s foundation.",
+        help="Ensure FortiWeb local overrides are enabled, run terraform/aws-fortiweb, and apply FortiWeb Ansible configuration.",
     )
     parser.add_argument(
         "--include-appliances",
@@ -1648,6 +1853,18 @@ def parse_args() -> argparse.Namespace:
             "FortiAIGate post-deploy status behavior. wait polls until READY; once checks once, "
             "continues with other charts, then checks again at the end. Default: once."
         ),
+    )
+    parser.add_argument(
+        "--appliance-status-delay",
+        type=int,
+        default=30,
+        help="Seconds to wait between FortiGate/FortiWeb API readiness checks. Default: 30.",
+    )
+    parser.add_argument(
+        "--appliance-status-retries",
+        type=int,
+        default=20,
+        help="Maximum FortiGate/FortiWeb API readiness checks before stopping. Default: 20.",
     )
     return parser.parse_args()
 
@@ -1722,6 +1939,7 @@ def main() -> None:
     elif appliance_keys:
         configure_appliance_tfvars(appliance_keys)
     ensure_appliance_prep_tfvars(appliance_keys)
+    ensure_appliance_collections(appliance_keys)
 
     configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
     if not args.skip_terraform:
@@ -1756,6 +1974,7 @@ def main() -> None:
         delay_seconds=args.ec2_status_delay,
         max_attempts=args.ec2_status_retries,
     )
+    show_appliance_ec2_statuses(profile, region, appliance_keys)
 
     print_header("Terraform Phase Complete")
     print("Generated files should now include:")
@@ -1763,12 +1982,17 @@ def main() -> None:
     print("- ansible/group_vars/ecr.generated.yml")
     print("- ansible/group_vars/ports.generated.yml")
     print("- ansible/inventory/aws.generated.ini")
+    if "fortigate" in appliance_keys:
+        print("- ansible/inventory/fortigate.generated.ini")
+    if "fortiweb" in appliance_keys:
+        print("- ansible/inventory/fortiweb.generated.ini")
+        print("- ansible/group_vars/fortiweb.generated.yml")
 
     if args.skip_ansible:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
-    run_ansible_flow(args)
+    run_ansible_flow(args, appliance_keys)
 
     print_header("Automated Quick Start Complete")
     print("Terraform and Ansible deployment steps completed.")

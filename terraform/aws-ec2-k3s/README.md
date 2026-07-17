@@ -27,9 +27,9 @@ Set `ssh_private_key_file` in `terraform/user.tfvars` when the EC2 key pair does
 not use your default SSH key. Terraform uses that value in both the generated
 Ansible inventory and the `ssh_command` output.
 
-Set `ec2_pull_github_keys = ["<github-user>"]` only when the instance should
-pull public GitHub SSH keys into `/home/ubuntu/.ssh/authorized_keys` during
-first boot. Leave it empty to skip.
+Set `ec2_pull_github_keys = ["<github-user>"]` in `../user.tfvars` only when
+the instance should pull public GitHub SSH keys into
+`/home/ubuntu/.ssh/authorized_keys` during first boot. Leave it empty to skip.
 
 Leave `availability_zone = ""` to let Terraform select the first sorted AZ that offers `instance_type`. Set it explicitly when AWS recommends a specific AZ.
 
@@ -66,7 +66,7 @@ magic_dns_zone           = "sslip.io"
 This module generates the standard demo port assignments, opens those ports in
 the EC2 security group, and writes `../../ansible/group_vars/ports.generated.yml`
 and `../../ansible/group_vars/terraform.generated.yml` for Ansible. The default
-HTTP ports are `30080` through `30084`; the optional HTTPS gateway uses matching
+HTTP ports are `30080` through `30084`; the HTTPS gateway uses matching
 offsets starting at `30443`.
 
 The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger production-like L4 validation target.

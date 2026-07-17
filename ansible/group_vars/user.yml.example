@@ -26,6 +26,173 @@ fortiaigate_licenses: {}
 # fortiaigate_licenses:
 #   ip-10-42-1-10.ec2.internal: License1.lic
 
+# Optional FortiGate application API accounts. Keep real API keys only in
+# ignored ansible/group_vars/user.yml or another private vars file.
+# fortigate_api_accounts:
+#   - name: faig-mcp-readonly
+#     accprofile: super_admin
+#     api_key: replace-with-private-token
+#     trusthost:
+#       - id: 1
+#         type: ipv4-trusthost
+#         ipv4_trusthost: "10.20.0.0 255.255.0.0"
+# fortigate_readonly_accprofile_name: FAIG_READ_ONLY
+# fortigate_readonly_api_account_enabled: true
+# fortigate_readonly_api_account_name: faig-readonly-api
+# fortigate_readonly_api_account_rotate_token: false
+# fortigate_bootstrap_api_account_manage_trusthost: true
+# fortigate_bootstrap_api_account_trusthost_cidrs:
+#   - "199.45.245.116/32"
+# fortigate_readonly_api_account_trusthost_cidrs:
+#   - "199.45.245.116/32"
+# fortigate_readonly_api_account_include_vpc_cidr: true
+# fortigate_api_accounts_secret_file: "{{ playbook_dir }}/../secrets/fortigate_api.generated.yml"
+
+# Optional FortiGate system/configuration overrides used by
+# ansible/playbooks/configure_fortigate.yml. Static firewall address objects
+# and service objects are built from Terraform output first; static manual
+# objects with the same name replace repo-generated objects.
+# fortigate_system_global:
+#   admin_sport: 8443
+#   admintimeout: 60
+#   pre_login_banner: disable
+#   post_login_banner: disable
+#   gui_allow_default_hostname: disable
+#   gui_auto_upgrade_setup_warning: disable
+#   gui_forticare_registration_setup_warning: disable
+#   gui_firmware_upgrade_warning: disable
+#   wireless_controller: disable
+# fortigate_system_settings:
+#   gui_advanced_wireless_features: disable
+#   gui_wireless_controller: disable
+#   gui_dos_policy: disable
+#   gui_wan_load_balancing: disable
+#   gui_videofilter: disable
+#   gui_threat_weight: disable
+#   gui_traffic_shaping: disable
+#   gui_icap: enable
+#   gui_multiple_interface_policy: enable
+# fortigate_system_password_policy:
+#   status: disable
+#   apply_to:
+#     - admin-password
+#   minimum_length: 12
+#   min_lower_case_letter: 1
+#   min_upper_case_letter: 1
+#   min_number: 1
+#   min_non_alphanumeric: 0
+#   expire_status: disable
+#   reuse_password: enable
+# fortigate_system_fortiguard:
+#   auto_firmware_upgrade: disable
+# fortigate_address_objects_static:
+#   - name: FAIG_MANUAL_APP_HOST
+#     type: ipmask
+#     subnet: "10.20.1.50 255.255.255.255"
+#     comment: "Manual FAIG app host"
+#     visibility: enable
+# fortigate_service_objects_static:
+#   - name: FAIG_APP_TCP_8080
+#     tcp_portrange: "8080"
+#     comment: "Manual FAIG app service"
+# fortigate_vip_objects_static:
+#   - name: VIP_FAIG_CHATBOT_HTTPS
+#     extintf: port1
+#     extip: "{{ fortigate_public_ip }}"
+#     mappedip:
+#       - range: "{{ k3s_private_ip }}"
+#     portforward: enable
+#     protocol: tcp
+#     extport: "{{ demo_chatbot_https_port | string }}"
+#     mappedport: "{{ demo_chatbot_https_port | string }}"
+#     comment: "Inbound chatbot HTTPS NodePort VIP"
+# fortigate_firewall_policies:
+#   - policyid: 100
+#     name: allow-chatbot-vip-from-fgt-public
+#     srcintf:
+#       - name: port1
+#     dstintf:
+#       - name: port2
+#     srcaddr:
+#       - name: all
+#     dstaddr:
+#       - name: VIP_FAIG_CHATBOT_HTTPS
+#     service:
+#       - name: FAIG_CHATBOT_HTTPS
+#     schedule: always
+#     action: accept
+#     logtraffic: all
+#     nat: disable
+#     status: enable
+#     # Optional reorder support. Target policy IDs must already exist.
+#     # move_after: 99
+
+# Optional Phase 6 appliance traffic-path source of truth. This is data only
+# until the FortiGate/FortiWeb config roles consume it.
+# fortinet_traffic_paths:
+#   - name: chatbot_to_fortigate_to_fortiaigate
+#     enabled: true
+#     ingress_appliance: fortigate
+#     source_service: chatbot
+#     target_service: fortiaigate
+#     mode: proxy_nat
+#   - name: chatbot_to_fortiweb_to_mcp
+#     enabled: true
+#     ingress_appliance: fortiweb
+#     source_service: chatbot
+#     target_service: mcp
+#     mode: proxy_nat
+
+# Optional FortiWeb system/configuration overrides used by
+# ansible/playbooks/configure_fortiweb.yml.
+# fortiweb_system_settings:
+#   hostname: "{{ fortiweb_hostname }}"
+#   idle_timeout: 60
+#   http_port: 8080
+#   https_port: 8443
+# fortiweb_admin_user:
+#   action: edit
+#   name: admin
+#   force_password_change: disable
+# fortiweb_internal_interface_name: port2
+# fortiweb_internal_interface_ip: "{{ fortiweb_internal_ip }}/24"
+# fortiweb_static_route_default_id: "1"
+# fortiweb_static_route_default_destination: 0.0.0.0/0
+# # Leave blank to use port1's DHCP dynamic_gateway.
+# fortiweb_static_route_default_gateway: ""
+# fortiweb_static_route_vpc_id: "2"
+# fortiweb_static_route_vpc_destination: "{{ aws_vpc_cidr }}"
+# fortiweb_static_route_vpc_gateway: "{{ aws_fortiweb_internal_subnet_cidr | regex_replace('\\.[0-9]+/.*$', '.1') }}"
+# fortiweb_mcp_proxy_listen_port: "{{ demo_mcp_http_port }}"
+# fortiweb_mcp_proxy_backend_ip: "{{ k3s_private_ip }}"
+# fortiweb_mcp_proxy_backend_port: "{{ demo_mcp_http_port }}"
+# # Listener and backend ports intentionally match by default. Use separate
+# # values only when publishing a public-friendly or shared listener port.
+# # When enabled, the generated FortiWeb proxy creates pass-through paths for
+# # all demo HTTP NodePorts and, when demo_https_gateway_enabled=true, all demo
+# # HTTPS NodePorts.
+# # Optional chatbot MCP controls. Direct uses the in-cluster MCP service.
+# # FortiWeb uses terraform/aws-fortiweb generated front-end port1 vars when present.
+# chatbot_mcp_enabled: true
+# chatbot_mcp_default_path: fortiweb
+# chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url }}"
+# fortiweb_virtual_server_vips_static:
+#   - table_name: FAIG_CUSTOM_MCP_VSERVER
+#     name: "1"
+#     interface: port1
+#     status: enable
+#     use_interface_ip: enable
+# fortiweb_server_policies_static:
+#   - name: FAIG_CUSTOM_MCP_POLICY
+#     deployment_mode: server-pool
+#     protocol: HTTP
+#     service: FAIG_MCP_HTTP
+#     vserver: FAIG_MCP_VSERVER
+#     server_pool: FAIG_MCP_POOL
+#     ssl: disable
+#     monitor_mode: enable
+#     comment: "Manual MCP reverse proxy policy without MCP inspection"
+
 # Demo credentials. Change these for any shared or long-lived environment.
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin

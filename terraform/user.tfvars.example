@@ -10,6 +10,10 @@ name_prefix          = "fortiaigate-demo"
 ssh_key_name         = "my-existing-keypair"
 ssh_private_key_file = "~/.ssh/my-existing-keypair.pem"
 
+# Optional GitHub usernames whose public SSH keys should be appended to
+# /home/ubuntu/.ssh/authorized_keys on the EC2 k3s host during first boot.
+ec2_pull_github_keys = []
+
 # Trusted public CIDRs allowed to reach lab management and demo endpoints.
 # Each entry must be a valid CIDR block. Use /32 for a single public IP.
 allowed_ingress_cidr = [

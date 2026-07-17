@@ -6,7 +6,7 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 - scoped ECR pull permissions from the ECR Terraform state when `registry_backend = "ecr"`
 - trusted source CIDR outputs
 - preallocated public EIPs for selected entry points
-- optional FortiWeb S3 cloud-init bucket and IAM instance profile
+- FortiWeb S3 cloud-init bucket and IAM instance profile when enabled
 - optional temporary Bedrock IAM credentials for FortiAIGate provider setup
 
 Run it after the registry module and before the EC2 k3s foundation module:
@@ -23,7 +23,7 @@ This module reads `terraform/aws-ecr` local state by default when
 `registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
 state by default.
 
-Phase 4 appliance prep is enabled by default for the full demo. Override these
+Appliance prep is enabled by default for the full demo. Override these
 values in `99-local.auto.tfvars` only when disabling appliance prep:
 
 ```hcl
