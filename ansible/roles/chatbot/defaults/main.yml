@@ -109,6 +109,11 @@ chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
+chatbot_context_mode: recent
+chatbot_context_window: 8
+chatbot_context_summary_max_chars: 1500
+chatbot_context_summary_model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+chatbot_show_context: false
 
 chatbot_instances:
   - name: chatbot
@@ -131,6 +136,11 @@ chatbot_instances:
     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
     mcp_default_path: "{{ chatbot_mcp_default_path }}"
     mcp_max_tool_rounds: "{{ chatbot_mcp_max_tool_rounds }}"
+    context_mode: "{{ chatbot_context_mode }}"
+    context_window: "{{ chatbot_context_window }}"
+    context_summary_max_chars: "{{ chatbot_context_summary_max_chars }}"
+    context_summary_model: "{{ chatbot_context_summary_model }}"
+    show_context: "{{ chatbot_show_context }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
     provider_label: Direct, FAIG Static, or FAIG Intelligent

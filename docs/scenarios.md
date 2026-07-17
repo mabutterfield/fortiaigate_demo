@@ -54,6 +54,8 @@ Recommended baseline settings:
 |---|---|
 | LLM path | Direct LiteLLM for first validation |
 | Model/profile | Match the installed slot, usually `demo-a` or `demo-b` |
+| Context mode | Recent conversation, or Consolidated context for stateful demos |
+| Context messages | Default `8` when using Recent conversation |
 | Use MCP tools | On |
 | MCP path | Direct MCP for first validation |
 | Max tool rounds | Default `3` |
@@ -61,6 +63,10 @@ Recommended baseline settings:
 After direct validation works, repeat the same scenario through FAIG Static,
 FAIG Intelligent, or FortiWeb MCP paths to demonstrate the network/security
 controls around the same agent workflow.
+
+Use `Reset context` between scenarios or after changing profiles. Enable
+`Show context sent to model` when demonstrating the difference between
+single-turn prompts, recent chat history, and compact working memory.
 
 ## Fast Food Ordering
 

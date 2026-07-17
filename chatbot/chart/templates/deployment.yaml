@@ -89,6 +89,16 @@ spec:
               value: {{ .Values.chatbot.mcpVerifyTls | quote }}
             - name: CHATBOT_MCP_MAX_TOOL_ROUNDS
               value: {{ .Values.chatbot.mcpMaxToolRounds | quote }}
+            - name: CHATBOT_CONTEXT_MODE
+              value: {{ .Values.chatbot.contextMode | quote }}
+            - name: CHATBOT_CONTEXT_WINDOW
+              value: {{ .Values.chatbot.contextWindow | quote }}
+            - name: CHATBOT_CONTEXT_SUMMARY_MAX_CHARS
+              value: {{ .Values.chatbot.contextSummaryMaxChars | quote }}
+            - name: CHATBOT_CONTEXT_SUMMARY_MODEL
+              value: {{ .Values.chatbot.contextSummaryModel | quote }}
+            - name: CHATBOT_SHOW_CONTEXT
+              value: {{ .Values.chatbot.showContext | quote }}
           readinessProbe:
             httpGet:
               path: /

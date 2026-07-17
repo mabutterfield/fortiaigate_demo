@@ -56,6 +56,11 @@ chatbot:
   mcpTimeoutSeconds: "{{ item.mcp_timeout_seconds | default(chatbot_mcp_timeout_seconds, true) }}"
   mcpVerifyTls: "{{ (item.mcp_verify_tls | default(chatbot_mcp_verify_tls) | bool) | ternary('true', 'false') }}"
   mcpMaxToolRounds: "{{ item.mcp_max_tool_rounds | default(chatbot_mcp_max_tool_rounds, true) }}"
+  contextMode: "{{ item.context_mode | default(chatbot_context_mode, true) }}"
+  contextWindow: "{{ item.context_window | default(chatbot_context_window, true) }}"
+  contextSummaryMaxChars: "{{ item.context_summary_max_chars | default(chatbot_context_summary_max_chars, true) }}"
+  contextSummaryModel: "{{ item.context_summary_model | default(chatbot_context_summary_model, true) }}"
+  showContext: "{{ (item.show_context | default(chatbot_show_context) | bool) | ternary('true', 'false') }}"
 
 instructions:
   content: ""

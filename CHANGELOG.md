@@ -38,6 +38,11 @@ a "what's new" guide rather than a raw commit log.
   boundary prompts, and expected behavior for each tracked scenario.
 - Added synthetic HR MCP tools and data for employee lookup/search, HR policy
   lookup, and redaction checks.
+- Fixed the chatbot MCP final-answer path so Bedrock/LiteLLM receives the tool
+  schema when summarizing after the configured maximum tool rounds.
+- Added chatbot context controls for current-turn, recent-conversation, and
+  consolidated-context modes, including reset and optional context visibility
+  for scenario demos.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so
