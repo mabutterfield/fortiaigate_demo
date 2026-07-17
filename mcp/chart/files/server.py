@@ -357,6 +357,44 @@ def fortigate_tool(tool_name, path, result_key="results", query=None):
     }
 
 
+def fortigate_system_status(tool_name):
+    status_code, payload = fortigate_api_get("/api/v2/monitor/system/status", query={}, disabled_name=tool_name)
+    if status_code is None and payload.get("status") == "disabled":
+        return True, payload
+    if not status_code or status_code >= 400:
+        return False, payload
+
+    results = payload.get("results", {})
+    if not isinstance(results, dict):
+        results = {"value": results}
+    status_fields = {
+        key: payload.get(key)
+        for key in (
+            "version",
+            "serial",
+            "build",
+            "status",
+            "http_status",
+            "vdom",
+            "path",
+            "name",
+            "action",
+        )
+        if payload.get(key) not in ("", None)
+    }
+    return True, {
+        "status": "ok",
+        "fortigate": {
+            "base_url": FORTIGATE_BASE_URL,
+            "vdom": FORTIGATE_VDOM,
+        },
+        "result": {
+            **status_fields,
+            **results,
+        },
+    }
+
+
 def run_tool(tool_name, arguments):
     if tool_name == "echo":
         return True, {"echo": arguments}
@@ -409,7 +447,7 @@ def run_tool(tool_name, arguments):
     if tool_name == "build_order_summary":
         return build_order_summary(arguments)
     if tool_name == "fortigate_system_status":
-        return fortigate_tool(tool_name, "/api/v2/monitor/system/status", result_key="results", query={})
+        return fortigate_system_status(tool_name)
     if tool_name == "fortigate_interface_status":
         return fortigate_tool(tool_name, "/api/v2/monitor/system/interface", result_key="results")
     if tool_name == "fortigate_route_list":

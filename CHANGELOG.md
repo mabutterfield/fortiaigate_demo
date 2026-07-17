@@ -64,6 +64,9 @@ a "what's new" guide rather than a raw commit log.
 - FortiGate read-only API token generation now treats a saved token from a
   different FortiGate EC2 instance ID as stale, so quickstart refreshes it
   before MCP is deployed after appliance rebuilds.
+- FortiGate MCP system-status responses now include top-level FortiGate fields
+  such as version, serial, and build, and the chatbot now sends assistant
+  tool-call messages with null content for better Bedrock/LiteLLM compatibility.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

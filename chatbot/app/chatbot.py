@@ -430,7 +430,7 @@ def agent_response(
         request_messages.append(
             {
                 "role": "assistant",
-                "content": message.content or "",
+                "content": message.content if message.content else None,
                 "tool_calls": [tool_call_to_message(tool_call) for tool_call in tool_calls],
             }
         )
