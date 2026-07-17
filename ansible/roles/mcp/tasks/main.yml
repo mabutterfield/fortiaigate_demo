@@ -87,6 +87,26 @@
   # - ansible.builtin.debug:
   #     var: mcp_fortigate_admin_url_raw.stdout_lines
 
+- name: Read FortiGate port1 private IP from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ mcp_fortigate_terraform_dir }}"
+      - output
+      - -raw
+      - fortigate_public_private_ip
+  changed_when: false
+  failed_when: false
+  register: mcp_fortigate_port1_private_ip_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+    - mcp_fortigate_base_url | default('') | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP port1 private IP discovered: {{ mcp_fortigate_port1_private_ip_raw.rc == 0 and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim | length > 0 }}"
+
 - name: Set FortiGate MCP runtime facts
   ansible.builtin.set_fact:
     mcp_fortigate_effective_base_url: >-
@@ -94,9 +114,26 @@
         mcp_fortigate_base_url
         if mcp_fortigate_base_url | default('') | length > 0
         else (
-          mcp_fortigate_admin_url_raw.stdout | default('') | trim
-          if mcp_fortigate_admin_url_raw is defined and mcp_fortigate_admin_url_raw.rc | default(1) == 0
-          else ''
+          (
+            'https://' ~ (mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim) ~ ':' ~ (mcp_fortigate_admin_port | string)
+          )
+          if (
+            mcp_fortigate_port1_private_ip_raw is defined
+            and mcp_fortigate_port1_private_ip_raw.rc | default(1) == 0
+            and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim | length > 0
+            and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim != 'null'
+          )
+          else (
+            (
+              'https://' ~ fortigate_public_private_ip ~ ':' ~ (mcp_fortigate_admin_port | string)
+            )
+            if fortigate_public_private_ip | default('') | string | trim | length > 0
+            else (
+              mcp_fortigate_admin_url_raw.stdout | default('') | trim
+              if mcp_fortigate_admin_url_raw is defined and mcp_fortigate_admin_url_raw.rc | default(1) == 0
+              else ''
+            )
+          )
         )
       }}
     mcp_fortigate_effective_api_token: >-

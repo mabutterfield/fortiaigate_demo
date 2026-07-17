@@ -152,6 +152,8 @@ mcp_node_port: "{{ demo_mcp_http_port | default(30084) }}"
 mcp_tools_data_local_path: "{{ mcp_chart_local_path }}/files/tools.json"
 mcp_fortigate_tools_enabled: true
 mcp_fortigate_api_account_name: faig-readonly-api
+mcp_fortigate_base_url: ""
+mcp_fortigate_admin_port: 8443
 mcp_fortigate_verify_tls: false
 ```
 
@@ -168,8 +170,12 @@ rebuilding an image.
 
 FortiGate MCP secrets are not committed. The role reads the generated API token
 from ignored local Ansible secret material and writes a Kubernetes secret named
-`fortigate-readonly-api` when both the token and admin URL are available. The
-server consumes these environment variables:
+`fortigate-readonly-api` when both the token and management URL are available.
+By default, `deploy_mcp.yml` targets the FortiGate port1 private IP from
+`terraform/aws-fortigate output fortigate_public_private_ip`, using
+`mcp_fortigate_admin_port` for the HTTPS admin port. Set
+`mcp_fortigate_base_url` only when the MCP server should target a different
+management URL. The server consumes these environment variables:
 
 ```text
 MCP_FORTIGATE_ENABLED

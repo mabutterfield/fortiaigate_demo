@@ -54,6 +54,9 @@ a "what's new" guide rather than a raw commit log.
 - `deploy_mcp.yml` now restarts the MCP deployment when the FortiGate MCP
   Kubernetes Secret changes, ensuring updated API tokens and admin URLs are
   loaded into the pod environment.
+- FortiGate MCP now targets the FortiGate port1 private IP by default instead
+  of the public admin URL. Override `mcp_fortigate_base_url` only for a custom
+  management destination.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

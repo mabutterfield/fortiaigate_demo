@@ -25,7 +25,10 @@ mcp_fortigate_tools_enabled: true
 mcp_fortigate_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
 mcp_fortigate_api_secret_file: "{{ (playbook_dir + '/../secrets/fortigate_api.generated.yml') | realpath }}"
 mcp_fortigate_api_account_name: "{{ fortigate_readonly_api_account_name | default('faig-readonly-api') }}"
-mcp_fortigate_base_url: "{{ fortigate_admin_url | default('') }}"
+# Leave empty to discover FortiGate port1 private IP from terraform/aws-fortigate.
+# Override when the MCP server should target a different management URL.
+mcp_fortigate_base_url: ""
+mcp_fortigate_admin_port: "{{ fortigate_admin_port | default(8443) }}"
 mcp_fortigate_api_token: ""
 mcp_fortigate_vdom: "{{ fortigate_vdom | default('root') }}"
 mcp_fortigate_verify_tls: false
