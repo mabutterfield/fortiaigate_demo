@@ -41,7 +41,7 @@ flowchart TD
     UI -->|"Direct LiteLLM"| RD
     UI -->|"FAIG Static Route"| RS
     UI -->|"FAIG Intelligent Route"| RI
-    UI ==>|"Use MCP tools"| MT
+    UI ==>|"Use MCP tools<br/>tool call / tool result"| MT
 
     RD --> LL
     RS --> FAIG
@@ -53,14 +53,12 @@ flowchart TD
     LL -.->|"demo-a-faig-be / demo-b-faig-be"| FB
     FB -.->|"guard litellm-pass-bedrock<br/>model pass-bedrock"| LP
     LP -.-> BR
-    LL ==>|"tool call request"| MT
     MT ==>|"MCP=Direct"| MD
     MT ==>|"MCP=FortiWeb"| MFW
     MD ==> MCP
     MFW ==> FWB
     FWB ==> MCP
     MCP ==>|"tool result"| MT
-    MT ==>|"final answer round"| LL
 ```
 
 ## 2. Collect Inputs And Test LiteLLM First

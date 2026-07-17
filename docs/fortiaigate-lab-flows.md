@@ -26,7 +26,7 @@ flowchart TD
     UI -->|"Path = Direct LiteLLM"| RD
     UI -->|"Path = FAIG Static"| RS
     UI -->|"Path = FAIG Intelligent"| RI
-    UI ==>|"Use MCP tools"| MT
+    UI ==>|"Use MCP tools<br/>tool call / tool result"| MT
 
     RD -->|"no inspection"| LL
     RS --> FAIG
@@ -38,14 +38,12 @@ flowchart TD
     LL -.->|"profile = *-faig-be"| FB
     FB -.->|"guard litellm-pass-bedrock<br/>model pass-bedrock"| LP
     LP -.-> BR
-    LL ==>|"tool call request"| MT
     MT ==>|"MCP=Direct"| MD
     MT ==>|"MCP=FortiWeb"| MFW
     MD ==> MCP
     MFW ==> FWB
     FWB ==> MCP
     MCP ==>|"tool result"| MT
-    MT ==>|"final answer round"| LL
 
     classDef ui fill:#d5e8d4,stroke:#82b366,color:#000
     classDef req fill:#ffffff,stroke:#666666,color:#000
@@ -77,8 +75,11 @@ Notes:
   the post-injection request. `/v1/passthrough/*` maps to `pass-bedrock` through
   the `litellm-pass-bedrock` guard/provider (never a `*-faig-be` alias, or the
   request loops).
-- MCP is a separate tool-call branch from the selected LLM path. `MCP=Direct`
-  calls the in-cluster MCP service. `MCP=FortiWeb` calls the FortiWeb port1
-  listener, then FortiWeb reverse proxies to the MCP NodePort through port2.
+- MCP is a separate agent-owned TCP flow from the selected LLM path. The model
+  can request a tool call in its response, but the chatbot/agent opens the MCP
+  connection, receives the tool result, and sends that result back through the
+  selected LLM path. `MCP=Direct` calls the in-cluster MCP service.
+  `MCP=FortiWeb` calls the FortiWeb port1 listener, then FortiWeb reverse
+  proxies to the MCP NodePort through port2.
 - FAIG is reached via the in-cluster nginx ingress service; LiteLLM appends
   `/chat/completions` to configured base paths.
