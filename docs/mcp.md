@@ -1,8 +1,7 @@
 # MCP Demo Tools
 
-The optional MCP demo tool server runs in the `mcp` namespace. It is intended
-to prove the tool-server side before the custom chatbot becomes a full agent
-client.
+The MCP demo tool server runs in the `mcp` namespace and is enabled by default.
+It provides the tool-server side for the custom chatbot agent client.
 
 The service is a small Python HTTP application with deterministic demo tools.
 It exposes OpenAI-compatible function schemas at `/tools` so the custom chatbot
@@ -70,7 +69,7 @@ ansible-playbook playbooks/test_mcp.yml \
   -e mcp_test_target_mode=remote_localhost
 ```
 
-To test the optional HTTPS gateway instead of HTTP:
+To test the HTTPS gateway instead of HTTP:
 
 ```bash
 ansible-playbook playbooks/test_mcp.yml \
@@ -147,8 +146,7 @@ curl -X POST http://127.0.0.1:8000/mcp \
 ```
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
-these tools today, and a future FortiWeb path can be placed in front of
-MCP/tool traffic.
+these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
 
 ## Chatbot Tool Toggle
 
@@ -157,7 +155,7 @@ sidebar exposes:
 
 - `Model`: LiteLLM model/profile alias, such as `pass-bedrock`, `demo-a`, or `demo-b`
 - `Use MCP tools`: simple on/off toggle
-- `MCP path`: direct MCP today, FortiWeb MCP when configured later
+- `MCP path`: direct MCP or FortiWeb-fronted MCP
 - `Max tool rounds`: limit for model-requested tool calls
 
 Current default path:
@@ -186,7 +184,7 @@ Config variables:
 ```yaml
 chatbot_mcp_enabled: false
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
-chatbot_mcp_fortiweb_base_url: ""
+chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct
 chatbot_mcp_max_tool_rounds: 3
 ```
@@ -200,8 +198,10 @@ chatbot_frontend_system_prompt: "Inline system prompt text"
 chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
 ```
 
-When FortiWeb fronts MCP, set `chatbot_mcp_fortiweb_base_url` and optionally
-`chatbot_mcp_default_path: fortiweb`.
+When FortiWeb Terraform has generated `fortiweb.generated.yml`,
+`chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the
+MCP HTTP NodePort. Set `chatbot_mcp_default_path: fortiweb` to make that the
+default chatbot path.
 
 Useful test prompts:
 

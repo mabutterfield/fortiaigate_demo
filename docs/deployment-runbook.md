@@ -448,13 +448,14 @@ The default generated HTTP ports are reserved consistently: Open WebUI uses
 `show_demo_outputs.yml` prints the matching HTTP/HTTPS URLs, LiteLLM UI
 credentials, and the Terraform-generated SSH command for the k3s host.
 
-## 12. Optional MCP Demo Tools
+## 12. MCP Demo Tools
 
 ```bash
 ansible-playbook playbooks/deploy_mcp.yml
 ```
 
-The MCP baseline deploys a small tool server in namespace `mcp`.
+The MCP baseline deploys a small tool server in namespace `mcp` and is enabled
+by default.
 It provides deterministic customer, ticket, policy, and echo tools for the
 later Python agent loop. It exposes a generated NodePort for direct testing,
 keeps an internal service endpoint for Kubernetes workloads, and does not

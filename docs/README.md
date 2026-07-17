@@ -19,12 +19,11 @@ Start with one quick start, then use the topic docs for details and recovery.
 | Architecture overview | [Architecture](architecture.md) |
 | AWS infrastructure and instance sizing | [AWS](aws.md) |
 | ECR repositories and image publishing | [ECR](ecr.md) |
-| Kubernetes and k3s operations | [Kubernetes](kubernetes.md) |
+| Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
-| Helm chart deployment and post-rendering | [Helm](helm.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
-| Optional FortiGate appliance | [FortiGate](fortigate.md) |
-| Optional FortiWeb appliance | [FortiWeb](fortiweb.md) |
+| FortiGate appliance | [FortiGate](fortigate.md) |
+| FortiWeb appliance | [FortiWeb](fortiweb.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
 | Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
 
@@ -48,8 +47,8 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready.
 - `deploy_litellm.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the default demo application layer.
 - `deploy_openwebui.yml`: optionally deploys Open WebUI when `openwebui_enabled=true`.
-- `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the optional MCP demo tool server.
-- `deploy_demo_https_gateway.yml`: optionally adds self-signed HTTPS listeners for HTTP-only demo services.
+- `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the MCP demo tool server.
+- `deploy_demo_https_gateway.yml`: adds self-signed HTTPS listeners for HTTP-only demo services when run and enabled.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
 - `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.

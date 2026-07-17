@@ -21,11 +21,16 @@ The visual reference is maintained in
 
 ```mermaid
 flowchart TD
-    UI["Chat UI (chatbot; Open WebUI optional)<br/><b>Path:</b> Direct LiteLLM | FAIG Static | FAIG Intelligent<br/><b>LLM profile:</b> pass-bedrock | demo-a | demo-b | demo-a-faig-be | demo-b-faig-be<br/><b>FAIG route:</b> passthrough | demo-a | demo-b | demo-a-faig-be | demo-b-faig-be"]
+    UI["Chat UI (chatbot)<br/><b>LLM path:</b> Direct LiteLLM | FAIG Static | FAIG Intelligent<br/><b>LLM profile:</b> pass-bedrock | demo-a | demo-b | demo-a-faig-be | demo-b-faig-be<br/><b>MCP:</b> off | Direct | FortiWeb"]
 
     RD["Direct request<br/>POST LiteLLM /v1/chat/completions<br/>body model = selected profile"]
     RS["Static request<br/>POST FAIG /v1/{profile}/chat/completions"]
     RI["Intelligent request<br/>POST FAIG /v1/intelligent/chat/completions<br/>no header = passthrough<br/>header selects demo-a or demo-b"]
+    MT["MCP tool loop<br/>LLM requests tool call<br/>chatbot executes tool and returns result"]
+    MD["MCP=Direct<br/>chatbot -> mcp-demo service"]
+    MFW["MCP=FortiWeb<br/>chatbot -> FortiWeb port1 listener"]
+    FWB["FortiWeb reverse proxy<br/>no-inspection policy"]
+    MCP["MCP demo tools"]
 
     FAIG["FortiAIGate front flow<br/>AI guard sees pre-injection request"]
     LL["LiteLLM selected alias<br/>optional backend instruction injection"]
@@ -36,6 +41,7 @@ flowchart TD
     UI -->|"Direct LiteLLM"| RD
     UI -->|"FAIG Static Route"| RS
     UI -->|"FAIG Intelligent Route"| RI
+    UI ==>|"Use MCP tools"| MT
 
     RD --> LL
     RS --> FAIG
@@ -47,6 +53,14 @@ flowchart TD
     LL -.->|"demo-a-faig-be / demo-b-faig-be"| FB
     FB -.->|"guard litellm-pass-bedrock<br/>model pass-bedrock"| LP
     LP -.-> BR
+    LL ==>|"tool call request"| MT
+    MT ==>|"MCP=Direct"| MD
+    MT ==>|"MCP=FortiWeb"| MFW
+    MD ==> MCP
+    MFW ==> FWB
+    FWB ==> MCP
+    MCP ==>|"tool result"| MT
+    MT ==>|"final answer round"| LL
 ```
 
 ## 2. Collect Inputs And Test LiteLLM First

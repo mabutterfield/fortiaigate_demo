@@ -1,13 +1,16 @@
 # FortiGate Appliance
 
-FortiGate is an optional Phase 4 appliance. The deployment lives in
-`terraform/aws-fortigate` so it does not affect the default public k3s demo.
+FortiGate is an appliance path enabled by default for the full AWS demo. The
+deployment lives in `terraform/aws-fortigate` so it can still be disabled with
+local overrides when the public k3s-only demo is desired.
 
-Phase 4 deployment status:
+Deployment status:
 
 - `terraform/aws-prep` can allocate the FortiGate EIP.
 - `terraform/aws-ec2-k3s` creates FortiGate public and internal subnets.
 - `terraform/aws-fortigate` deploys a FortiGate EC2 instance with two ENIs.
+- Ansible configures the FortiGate system baseline, generated address/service
+  objects, VIP support, policies when defined, and API accounts.
 
 FortiGate shape:
 

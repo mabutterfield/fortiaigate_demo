@@ -6,8 +6,8 @@ Terraform is split into user-facing steps that keep AWS setup in Terraform befor
 - `terraform/aws-ecr`: private ECR repositories and generated Ansible registry vars
 - `terraform/aws-prep`: IAM, ECR pull permissions, trusted source CIDRs, EIPs, and Bedrock IAM credentials
 - `terraform/aws-ec2-k3s`: VPC, subnets, GPU EC2 instance, EIP association, generated Ansible inventory, and generated demo port vars
-- `terraform/aws-fortigate`: optional FortiGate appliance deployment
-- `terraform/aws-fortiweb`: optional FortiWeb appliance deployment with S3-backed cloud-init
+- `terraform/aws-fortigate`: FortiGate appliance deployment, enabled by default for the full AWS demo
+- `terraform/aws-fortiweb`: FortiWeb appliance deployment with S3-backed cloud-init, enabled by default for the full AWS demo
 
 All modules use local Terraform state for now. Remote state is a future enhancement.
 
@@ -144,7 +144,7 @@ terraform output bedrock_model_ids
 
 The secret access key is stored in Terraform state. Do not commit state or real `99-local.auto.tfvars`.
 
-For Phase 4 appliance deployment, enable prep-owned appliance EIPs:
+For appliance deployment, enable prep-owned appliance EIPs:
 
 ```hcl
 allocate_eips = {

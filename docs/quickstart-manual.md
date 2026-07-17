@@ -525,18 +525,18 @@ Use the validation playbook when you want a failing gate:
 ansible-playbook ansible/playbooks/validate_chatbots.yml
 ```
 
-### Optional - Deploy MCP Demo Tools
+### Ansible 7 - Deploy MCP Demo Tools
 
-Deploy the optional MCP demo tool server:
+Deploy the MCP demo tool server:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
-The MCP baseline runs in namespace `mcp`. It provides deterministic customer,
+The MCP baseline runs in namespace `mcp` and is enabled by default. It provides deterministic customer,
 ticket, policy, and echo tools for the later Python agent loop. It exposes HTTP
-on the generated default NodePort `30084`; if the optional HTTPS gateway is
-enabled, it also exposes HTTPS on `30447`. It does not require ECR image
+on the generated default NodePort `30084`. After the HTTPS gateway playbook
+runs, it also exposes HTTPS on `30447`. It does not require ECR image
 publishing.
 
 Check readiness separately:
@@ -551,7 +551,7 @@ Use the validation playbook when you want a failing gate:
 ansible-playbook ansible/playbooks/validate_mcp.yml
 ```
 
-### Ansible 7 - Deploy Demo Home Page
+### Ansible 8 - Deploy Demo Home Page
 
 Deploy a small home page with links to FortiAIGate, LiteLLM Admin UI, Open
 WebUI, chatbot test pages, and MCP tools:
@@ -582,13 +582,12 @@ and opens the standard demo ports, then writes
 reserved consistently: Open WebUI uses `30080` when enabled, chatbot `30081`,
 demo home `30082`, LiteLLM Admin/API `30083`, and MCP demo tools `30084`.
 
-### Optional - Deploy HTTPS Gateway
+### Ansible 9 - Deploy HTTPS Gateway
 
-HTTP remains the primary demo access path. To add optional HTTPS listeners for
-the chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and
-Open WebUI when enabled, set
-`demo_https_gateway_enabled: true` in `ansible/group_vars/user.yml`, apply
-`terraform/aws-ec2-k3s` so the generated HTTPS ports are open, then run:
+HTTP remains available for direct demo access. The repo system default enables
+the HTTPS gateway variables; run this playbook to add HTTPS listeners for the
+chatbot front end, demo home, LiteLLM Admin/API, MCP demo tools, and Open WebUI
+when enabled:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_demo_https_gateway.yml

@@ -5,8 +5,8 @@ not want to run every Terraform and Ansible step manually.
 
 Status: the repo includes a guided setup script that prepares local
 configuration, runs Terraform through ECR, AWS prep, EC2 k3s foundation, and
-optional FortiGate/FortiWeb appliance modules when enabled, then runs the
-Ansible deployment flow when approved.
+FortiGate/FortiWeb appliance modules when enabled, then runs the Ansible
+deployment flow, including appliance configuration, when approved.
 
 Run from the repository root:
 
@@ -74,7 +74,7 @@ To stop after Terraform and EC2 status, without running Ansible:
 python3 scripts/automated_quickstart.py --skip-ansible
 ```
 
-Phase 4 appliance defaults are prepared by default. The tracked
+Appliance defaults are prepared by default. The tracked
 `00-system.auto.tfvars` files set `fortigate_enabled=true` and
 `fortiweb_enabled=true`, so automated quickstart runs those Terraform modules
 unless ignored `99-local.auto.tfvars` files set them to false.
@@ -138,7 +138,7 @@ The current setup script:
 - generate Terraform-owned Ansible values into
   `ansible/group_vars/terraform.generated.yml`
 - run Terraform in the expected order: ECR, AWS prep, EC2 k3s foundation,
-  optional FortiGate, optional FortiWeb
+  FortiGate when enabled, FortiWeb when enabled
 - inspect ECR Terraform state before apply and report whether configured
   repositories are tracked, partially missing, or absent from state
 - default to auto-discovering configured ECR repositories that exist in AWS but
@@ -154,9 +154,10 @@ The current setup script:
   - bootstrap k3s
   - deploy FortiAIGate
   - check `status_fortiaigate.yml` once after deploy
-  - deploy LiteLLM, chatbot UI, MCP demo tools, demo home, and optional Open WebUI when enabled
+  - poll and configure FortiGate/FortiWeb appliances when enabled
+  - deploy LiteLLM, MCP demo tools, chatbot UI, demo home, and optional Open WebUI when enabled
   - check `status_fortiaigate.yml` again at the end
-  - optionally deploy the HTTPS gateway
+  - offer to run the HTTPS gateway playbook; the role no-ops if disabled
   - print consolidated demo outputs
 
 ## Expected Prompted Values
@@ -222,7 +223,7 @@ values can be checked in local vars:
   release archives locally
 - whether to start Ansible deployment after Terraform
 - whether to deploy optional Open WebUI by setting `openwebui_enabled=true`
-- whether to deploy the optional HTTPS gateway
+- whether to run the HTTPS gateway playbook
 
 Before applying `terraform/aws-ecr`, the script compares the configured ECR
 repository list with Terraform state:
@@ -271,10 +272,9 @@ python3 scripts/automated_quickstart.py --ec2-status-delay 30 --ec2-status-retri
 
 During Ansible deployment, the script prints the output of each playbook. After
 FortiAIGate deploy, the default behavior is single-check mode. This checks
-FortiAIGate status once after Helm deploy, continues deploying LiteLLM,
-chatbot, MCP, demo home, and optional Open WebUI when enabled while
-FortiAIGate images continue pulling, then checks FortiAIGate status again at
-the end:
+FortiAIGate status once after Helm deploy, continues appliance configuration
+and app deployment while FortiAIGate images continue pulling, then checks
+FortiAIGate status again at the end:
 
 ```bash
 python3 scripts/automated_quickstart.py --faig-status-mode once

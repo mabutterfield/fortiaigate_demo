@@ -1,8 +1,8 @@
 # AWS FortiGate Terraform Module
 
-This Phase 4 module deploys the optional FortiGate appliance. It is separate
-from `terraform/aws-ec2-k3s` so appliance deployment does not become required
-for the default public k3s demo.
+This module deploys the FortiGate appliance. It is separate from
+`terraform/aws-ec2-k3s` so appliance deployment can be disabled for a public
+k3s-only demo while remaining enabled by default for the full AWS demo.
 
 This module creates:
 
@@ -12,6 +12,7 @@ This module creates:
 - FortiGate cloud-init bootstrap
 - optional BYOL license file injection
 - generated API key output marked sensitive
+- generated Ansible inventory for appliance status/configuration playbooks
 
 Run order:
 

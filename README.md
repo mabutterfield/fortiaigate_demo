@@ -10,7 +10,7 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - Support AWS EC2 GPU labs first, then local Ubuntu 24.04 GPU hosts
 - Keep FortiAIGate charts, release images, licenses, and generated credentials outside Git
 - Publish release images to private ECR with immutable tags
-- Preserve paths for Bedrock, Ollama, LiteLLM, OpenWebUI, custom chatbot demos, and future appliance-fronted routing
+- Preserve paths for Bedrock, Ollama, LiteLLM, OpenWebUI, custom chatbot demos, and appliance-fronted routing
 
 ## Current Status
 
@@ -18,11 +18,11 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - NVIDIA driver, container runtime, RuntimeClass, and device plugin are automated
 - Private ECR repository creation and image publishing are implemented
 - FortiAIGate Helm deployment uses external release charts and post-render patches
-- LiteLLM, custom chatbot, and demo home deployment roles are implemented for the agent demo path
+- LiteLLM, MCP demo tools, custom chatbot, HTTPS gateway, and demo home deployment roles are implemented for the agent demo path
 - Open WebUI is available as an optional secondary chat UI when enabled
-- Optional MCP demo tools and chatbot tool-loop support are implemented
-- FortiGate and FortiWeb Terraform appliance baselines are enabled by default
-  for the full AWS demo and can be disabled with local overrides
+- MCP demo tools and chatbot tool-loop support are implemented
+- FortiGate and FortiWeb Terraform plus Ansible appliance baselines are enabled
+  by default for the full AWS demo and can be disabled with local overrides
 - Automated quickstart and teardown scripts support repeat lab rebuilds
 - FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
 
@@ -32,13 +32,13 @@ See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
 
 ```text
 Operator workstation
-  -> Terraform: ECR, AWS prep IAM/EIPs, EC2 k3s foundation
-  -> Ansible: publish images, bootstrap k3s, deploy FortiAIGate and demo apps
-  -> k3s host: nginx ingress, FortiAIGate, LiteLLM, chatbot, demo home
-  -> optional k3s apps: Open WebUI, MCP demo tools, HTTPS gateway
+  -> Terraform: ECR, AWS prep IAM/EIPs, EC2 k3s foundation, appliance EC2s
+  -> Ansible: publish images, bootstrap k3s, configure appliances, deploy apps
+  -> k3s host: nginx ingress, FortiAIGate, LiteLLM, MCP, chatbot, HTTPS gateway, demo home
+  -> optional k3s apps: Open WebUI
   -> default provider path: Amazon Bedrock through LiteLLM
   -> future/manual provider path: Ollama
-  -> appliance baselines: FortiGate, FortiWeb
+  -> appliance paths: FortiGate baseline objects, FortiWeb reverse-proxy NodePorts
 ```
 
 ## Choose Your Path
@@ -52,7 +52,7 @@ Operator workstation
 ## Roadmap
 
 - Add a first-class local Ubuntu GPU host workflow
-- Add FortiGate/FortiWeb traffic-path automation after the appliance baseline
+- Expand FortiGate/FortiWeb traffic-path policies after the baseline
 - Move Terraform state to a remote backend when the workflow leaves local lab mode
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add cleanup and recovery runbooks for failed Helm releases and license resets

@@ -1,8 +1,8 @@
 # AWS FortiWeb Terraform Module
 
-This Phase 4 module deploys the optional FortiWeb appliance. It is separate
-from `terraform/aws-ec2-k3s` so appliance deployment does not become required
-for the default public k3s demo.
+This module deploys the FortiWeb appliance. It is separate from
+`terraform/aws-ec2-k3s` so appliance deployment can be disabled for a public
+k3s-only demo while remaining enabled by default for the full AWS demo.
 
 It creates:
 
@@ -12,6 +12,7 @@ It creates:
 - S3-backed FortiWeb cloud-init user-data
 - optional BYOL license object upload
 - FortiWeb management/API outputs
+- generated Ansible inventory and group vars for appliance status/configuration
 
 FortiWeb cloud-init reads its config and license from the S3 bucket created by
 `terraform/aws-prep` when `fortiweb_enabled = true` there. The EC2 instance
@@ -37,7 +38,7 @@ The default AMI filter is FortiWeb `8.0`, which selects the latest matching
 By default, the module also opens the generated demo NodePorts on the FortiWeb
 public ENI from the prep-generated trusted public CIDRs and from the VPC CIDR:
 TCP `30080` through `30084` for HTTP and TCP `30443` through `30447` for the
-optional HTTPS gateway. Override `fortiweb_data_plane_tcp_ports` in ignored
+HTTPS gateway. Override `fortiweb_data_plane_tcp_ports` in ignored
 `99-local.auto.tfvars` when the generated listener ports change.
 
 The default instance type is `c5.xlarge`. FortiWeb Marketplace images support
@@ -93,10 +94,10 @@ Configure the FortiWeb baseline with:
 ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
 ```
 
-The FortiWeb Ansible config role can also create an optional no-inspection MCP
-reverse-proxy chain. Enable `fortiweb_mcp_proxy_enabled` in ignored
-`ansible/group_vars/user.yml` after the desired data-plane listener path is
-confirmed.
+The FortiWeb Ansible config role creates the no-inspection reverse-proxy chain
+when `fortiweb_mcp_proxy_enabled=true`, which is the repo system default. The
+generated policy set covers all demo HTTP NodePorts and the HTTPS NodePorts
+when the HTTPS gateway is enabled.
 
 The generated inventory contains appliance connection facts but not the admin
 password. The status playbook reads Terraform outputs at runtime and uses

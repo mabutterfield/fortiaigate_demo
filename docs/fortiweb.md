@@ -1,9 +1,10 @@
 # FortiWeb Appliance
 
-FortiWeb is an optional Phase 4 appliance. The deployment lives in
-`terraform/aws-fortiweb` so it does not affect the default public k3s demo.
+FortiWeb is an appliance path enabled by default for the full AWS demo. The
+deployment lives in `terraform/aws-fortiweb` so it can still be disabled with
+local overrides when the public k3s-only demo is desired.
 
-Phase 4 deployment shape:
+Deployment shape:
 
 - `terraform/aws-prep` can allocate the FortiWeb EIP.
 - `terraform/aws-prep` can create a private encrypted S3 bucket for FortiWeb
@@ -14,6 +15,8 @@ Phase 4 deployment shape:
 - `terraform/aws-fortiweb` deploys FortiWeb EC2, public/internal ENIs,
   security groups, the prep-owned EIP association, S3 cloud-init objects, and
   management outputs.
+- Ansible configures management settings, port2, static routes, traffic
+  logging, and pass-through reverse-proxy policies for the generated NodePorts.
 
 FortiWeb user-data is S3-backed. The Fortinet cloud-init shape is:
 
@@ -110,7 +113,7 @@ The generated inventory does not contain the admin password.
 - port2 internal interface IP from the Terraform-created FortiWeb internal ENI
 - static route ID `1`: default route through port1's gateway
 - static route ID `2`: VPC route through port2's internal subnet gateway
-- optional generated reverse-proxy framework without MCP inspection: service,
+- generated reverse-proxy framework without MCP inspection: service,
   virtual server, server pool, pool member, and server policy for all demo HTTP
   NodePorts and, when `demo_https_gateway_enabled = true`, all demo HTTPS
   NodePorts
@@ -121,11 +124,13 @@ interactive first-login password change. Changing this template does not replace
 the current FortiWeb instance unless Terraform is applied in a way that
 recreates it.
 
-The generated FortiWeb NodePort proxy chain is disabled by default. Enable it in
-ignored `ansible/group_vars/user.yml` when the intended traffic path is ready:
+The generated FortiWeb NodePort proxy chain is enabled in repo system defaults
+with `fortiweb_mcp_proxy_enabled: true`. Override it in ignored
+`ansible/group_vars/user.yml` only when you want to skip FortiWeb listener and
+server-policy creation:
 
 ```yaml
-fortiweb_mcp_proxy_enabled: true
+fortiweb_mcp_proxy_enabled: false
 ```
 
 This creates no-inspection reverse proxies using the FortiWeb collection's

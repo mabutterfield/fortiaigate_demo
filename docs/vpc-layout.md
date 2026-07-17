@@ -13,9 +13,10 @@ The default deployment mode is `k3s_subnet_mode = "public"`:
   `allowed_ingress_cidr`
 - the instance does not request an auto-assigned ephemeral public IP
 
-FortiGate and FortiWeb are optional appliance deployments with public
-management EIPs and internal ENIs. Private k3s mode and appliance-fronted
-traffic paths remain planned expansion paths.
+FortiGate and FortiWeb are appliance deployments enabled by default for the
+full AWS demo, with public management EIPs and internal ENIs. FortiWeb currently
+fronts the generated demo NodePorts in reverse-proxy mode. Private k3s mode
+remains a planned validation path.
 
 ## VPC Network Topology
 
@@ -25,8 +26,8 @@ flowchart TB
     Internet["Internet"]
     AWSAPI["AWS public APIs<br/>ECR, Bedrock, SSM, GitHub as needed"]
     K3SEIP["k3s EIP<br/>from aws-prep"]
-    FGEIP["FortiGate EIP<br/>optional"]
-    FWEIP["FortiWeb EIP<br/>optional"]
+    FGEIP["FortiGate EIP"]
+    FWEIP["FortiWeb EIP"]
 
     subgraph VPC["VPC 10.20.0.0/16"]
         direction TB
@@ -37,14 +38,14 @@ flowchart TB
             direction TB
             K3SPubENI["k3s EC2 ENI<br/>public subnet 10.20.1.0/24"]
             SG["k3s security group<br/>trusted CIDRs only"]
-            NodePorts["NodePort demo services<br/>30080-30084 HTTP<br/>30443-30447 optional HTTPS"]
+            NodePorts["NodePort demo services<br/>30080-30084 HTTP<br/>30443-30447 HTTPS"]
             Ingress["ingress-nginx<br/>internal app routing"]
-            Apps["FortiAIGate, LiteLLM,<br/>chatbot, MCP,<br/>optional Open WebUI"]
+            Apps["FortiAIGate, LiteLLM,<br/>chatbot, MCP,<br/>Open WebUI when enabled"]
             Pods["Pod CIDR 10.60.0.0/16"]
             Services["Service CIDR 10.70.0.0/16<br/>DNS 10.70.0.10"]
         end
 
-        subgraph OptionalAppliances["Optional appliance deployments"]
+        subgraph AppliancesRuntime["Appliance deployments"]
             direction TB
             subgraph FortiGate["FortiGate"]
                 direction LR
@@ -53,8 +54,8 @@ flowchart TB
             end
             subgraph FortiWeb["FortiWeb"]
                 direction LR
-                FortiWebPub["port1 management<br/>public subnet 10.20.11.0/24"]
-                FortiWebInt["port2 internal<br/>internal subnet 10.20.21.0/24"]
+                FortiWebPub["port1 management + listeners<br/>public subnet 10.20.11.0/24"]
+                FortiWebInt["port2 back-end route<br/>internal subnet 10.20.21.0/24"]
             end
         end
 
@@ -79,13 +80,14 @@ flowchart TB
     K3SPubENI -->|"ECR pulls / Bedrock invoke"| AWSAPI
 
     FGEIP -->|"management EIP"| FortiGatePub
-    FWEIP -->|"management EIP"| FortiWebPub
+    FWEIP -->|"management + listener EIP"| FortiWebPub
     PublicRT --- FortiGatePub
     PublicRT --- FortiWebPub
     FortiGatePub --- FortiGateInt
-    FortiWebPub --- FortiWebInt
-    FortiGateInt -.->|"future private ingress / NAT / inspection"| K3SPrivENI
-    FortiWebInt -.->|"future HTTP/S publishing"| K3SPrivENI
+    FortiWebPub -->|"reverse-proxy policy"| FortiWebInt
+    FortiGateInt -.->|"planned private ingress / NAT / inspection"| K3SPrivENI
+    FortiWebInt -->|"reverse proxy to k3s NodePorts"| K3SPubENI
+    FortiWebInt -.->|"private k3s validation path"| K3SPrivENI
     K3SPrivENI -.->|"private k3s mode"| SG
 
     classDef current fill:#e8f3ff,stroke:#2b6cb0,color:#111;
@@ -107,8 +109,8 @@ flowchart TB
 
     subgraph Prep["terraform/aws-prep"]
         K3SEIP["k3s Elastic IP"]
-        FGEIP["FortiGate Elastic IP<br/>when enabled"]
-        FWEIP["FortiWeb Elastic IP<br/>when enabled"]
+        FGEIP["FortiGate Elastic IP"]
+        FWEIP["FortiWeb Elastic IP"]
         K3SIAM["k3s IAM role/profile<br/>ECR pull + optional Bedrock"]
         FWBIAM["FortiWeb IAM instance profile<br/>S3 cloud-init read"]
         FWBS3["FortiWeb S3 bucket<br/>config + license objects"]
@@ -117,12 +119,12 @@ flowchart TB
     subgraph Foundation["terraform/aws-ec2-k3s"]
         VPCModule["VPC, subnets, route tables"]
         K3SInstance["k3s EC2 instance"]
-        GeneratedFiles["generated inventory<br/>generated port vars"]
+        GeneratedFiles["generated inventory<br/>generated app vars"]
     end
 
-    subgraph Appliances["Optional Phase 4 appliances"]
-        FGTModule["terraform/aws-fortigate<br/>two ENIs + EIP"]
-        FWBModule["terraform/aws-fortiweb<br/>two ENIs + EIP + S3 user-data"]
+    subgraph Appliances["Appliance modules"]
+        FGTModule["terraform/aws-fortigate<br/>two ENIs + EIP<br/>FortiGate inventory"]
+        FWBModule["terraform/aws-fortiweb<br/>two ENIs + EIP + S3 user-data<br/>FortiWeb inventory + vars"]
     end
 
     Common --> Prep
@@ -154,11 +156,12 @@ flowchart TB
 | Mode | k3s placement | Public access | Default route |
 |---|---|---|---|
 | `public` | k3s public subnet | k3s Elastic IP from AWS Prep | public route table to IGW |
-| `private` | k3s private subnet | future FortiGate/FortiWeb path | future appliance/NAT path |
+| `private` | k3s private subnet | planned FortiGate/FortiWeb path | planned appliance/NAT path |
 
-Current public mode is intentionally simple for repeatable demos. Private mode
-should be used only after a management path and appliance-fronted ingress path
-are in place.
+Current public mode remains the repeatable default. FortiWeb reverse proxies to
+the k3s NodePorts through its back-end interface. Private mode should be used
+only after a management path and appliance-fronted ingress path have been
+validated.
 
 ## Related Values
 
