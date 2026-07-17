@@ -24,7 +24,7 @@ APPLIANCE_LOCAL_FILE_PAIRS = {
     "fortiweb": ("terraform/aws-fortiweb/99-local.auto.tfvars.example", "terraform/aws-fortiweb/99-local.auto.tfvars"),
 }
 
-REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook"]
+REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook", "ansible-galaxy"]
 TERRAFORM_MODULES = [
     ("ECR registry", "terraform/aws-ecr"),
     ("AWS prep", "terraform/aws-prep"),
@@ -55,9 +55,11 @@ APPLIANCE_ANSIBLE_PLANS = {
 }
 APPLIANCE_COLLECTION_REQUIREMENTS = {
     "fortigate": {
+        "ansible.netcommon": "8.2.0",
         "fortinet.fortios": "2.5.1",
     },
     "fortiweb": {
+        "ansible.netcommon": "8.2.0",
         "fortinet.fortiweb": "1.3.2",
     },
 }
@@ -237,12 +239,11 @@ def required_appliance_collections(appliance_keys: list[str]) -> dict[str, str]:
     return requirements
 
 
-def check_appliance_collections(appliance_keys: list[str]) -> None:
+def find_appliance_collection_problems(appliance_keys: list[str]) -> list[str]:
     requirements = required_appliance_collections(appliance_keys)
     if not requirements:
-        return
+        return []
 
-    print_header("Checking Fortinet Ansible Collections")
     problems: list[str] = []
     for collection_name, required_version in sorted(requirements.items()):
         installed_version = installed_ansible_collection_version(collection_name)
@@ -255,11 +256,37 @@ def check_appliance_collections(appliance_keys: list[str]) -> None:
             print(f"{collection_name}: installed {installed_version}, required {required_version}")
             continue
         print(f"{collection_name}: {installed_version}")
+    return problems
 
+
+def ensure_appliance_collections(appliance_keys: list[str]) -> None:
+    requirements = required_appliance_collections(appliance_keys)
+    if not requirements:
+        return
+
+    print_header("Checking Fortinet Ansible Collections")
+    problems = find_appliance_collection_problems(appliance_keys)
+    if not problems:
+        return
+
+    print("Installing pinned Fortinet Ansible collections from ansible/collections/requirements.yml.")
+    run_command(
+        [
+            "ansible-galaxy",
+            "collection",
+            "install",
+            "-r",
+            "ansible/collections/requirements.yml",
+            "--force-with-deps",
+        ]
+    )
+
+    print_header("Verifying Fortinet Ansible Collections")
+    problems = find_appliance_collection_problems(appliance_keys)
     if problems:
         raise SystemExit(
-            "Missing or mismatched Fortinet Ansible collections. Run: "
-            "ansible-galaxy collection install -r ansible/collections/requirements.yml"
+            "Fortinet Ansible collection installation did not produce the required versions: "
+            + "; ".join(problems)
         )
 
 
@@ -1319,8 +1346,15 @@ def get_ec2_instance_id() -> str:
     return command_output(["terraform", "-chdir=terraform/aws-ec2-k3s", "output", "-raw", "instance_id"])
 
 
-def show_ec2_instance_status(profile: str, region: str, instance_id: str) -> bool:
-    print_header("EC2 Instance Status")
+def get_appliance_instance_id(appliance_key: str) -> str:
+    _label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
+    output_name = f"{appliance_key}_instance_id"
+    value = command_output(["terraform", "-chdir=" + module_path, "output", "-raw", output_name], check=False)
+    return "" if value == "null" else value
+
+
+def show_ec2_instance_status(profile: str, region: str, instance_id: str, label: str = "EC2 instance") -> bool:
+    print_header(f"{label} Status")
     output = command_output(
         [
             "aws",
@@ -1354,20 +1388,27 @@ def show_ec2_instance_status(profile: str, region: str, instance_id: str) -> boo
     return ready
 
 
-def wait_for_ec2_status_ready(profile: str, region: str, instance_id: str, delay_seconds: int, max_attempts: int) -> None:
+def wait_for_ec2_status_ready(
+    profile: str,
+    region: str,
+    instance_id: str,
+    delay_seconds: int,
+    max_attempts: int,
+    label: str = "EC2 instance",
+) -> None:
     attempts = max(1, max_attempts)
     delay = max(1, delay_seconds)
 
     for attempt in range(1, attempts + 1):
-        print(f"Checking EC2 readiness, attempt {attempt}/{attempts}.")
-        if show_ec2_instance_status(profile, region, instance_id):
-            print("EC2 instance status is READY.")
+        print(f"Checking {label} readiness, attempt {attempt}/{attempts}.")
+        if show_ec2_instance_status(profile, region, instance_id, label):
+            print(f"{label} status is READY.")
             return
 
         if attempt == attempts:
-            raise SystemExit("Stopped because EC2 instance status did not become READY.")
+            raise SystemExit(f"Stopped because {label} status did not become READY.")
 
-        print(f"EC2 instance is not ready yet. Waiting {delay} seconds before checking again.")
+        print(f"{label} is not ready yet. Waiting {delay} seconds before checking again.")
         time.sleep(delay)
 
 
@@ -1385,11 +1426,11 @@ def prompt_ec2_status(
         return
 
     if wait_until_ready:
-        wait_for_ec2_status_ready(profile, region, instance_id, delay_seconds, max_attempts)
+        wait_for_ec2_status_ready(profile, region, instance_id, delay_seconds, max_attempts, "k3s EC2 instance")
         return
 
     while True:
-        show_ec2_instance_status(profile, region, instance_id)
+        show_ec2_instance_status(profile, region, instance_id, "k3s EC2 instance")
         choice = prompt_text("Continue, recheck, or quit", "continue").strip().lower()
         if choice in {"", "c", "continue"}:
             return
@@ -1398,6 +1439,24 @@ def prompt_ec2_status(
         if choice in {"q", "quit", "exit", "stop"}:
             raise SystemExit("Stopped after EC2 status check.")
         print("Enter continue, recheck, or quit.")
+
+
+def show_appliance_ec2_statuses(
+    profile: str,
+    region: str,
+    appliance_keys: list[str],
+) -> None:
+    if not appliance_keys:
+        return
+
+    print_header("Appliance EC2 Status Snapshot")
+    print("Appliance API polling remains the readiness gate; AWS EC2 status can lag behind appliance login/API readiness.")
+    for appliance_key in appliance_keys:
+        label, _module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
+        instance_id = get_appliance_instance_id(appliance_key)
+        if not instance_id:
+            raise SystemExit(f"Could not read {appliance_key}_instance_id from Terraform outputs.")
+        show_ec2_instance_status(profile, region, instance_id, f"{label} EC2 instance")
 
 
 def choose_ecr_mode() -> str:
@@ -1881,6 +1940,7 @@ def main() -> None:
     elif appliance_keys:
         configure_appliance_tfvars(appliance_keys)
     ensure_appliance_prep_tfvars(appliance_keys)
+    ensure_appliance_collections(appliance_keys)
 
     configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
     if not args.skip_terraform:
@@ -1915,6 +1975,7 @@ def main() -> None:
         delay_seconds=args.ec2_status_delay,
         max_attempts=args.ec2_status_retries,
     )
+    show_appliance_ec2_statuses(profile, region, appliance_keys)
 
     print_header("Terraform Phase Complete")
     print("Generated files should now include:")
@@ -1932,7 +1993,6 @@ def main() -> None:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
-    check_appliance_collections(appliance_keys)
     run_ansible_flow(args, appliance_keys)
 
     print_header("Automated Quick Start Complete")

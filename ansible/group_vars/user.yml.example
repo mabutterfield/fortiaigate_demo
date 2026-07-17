@@ -163,7 +163,6 @@ fortiaigate_licenses: {}
 # fortiweb_static_route_vpc_id: "2"
 # fortiweb_static_route_vpc_destination: "{{ aws_vpc_cidr }}"
 # fortiweb_static_route_vpc_gateway: "{{ aws_fortiweb_internal_subnet_cidr | regex_replace('\\.[0-9]+/.*$', '.1') }}"
-# fortiweb_mcp_proxy_enabled: true
 # fortiweb_mcp_proxy_listen_port: "{{ demo_mcp_http_port }}"
 # fortiweb_mcp_proxy_backend_ip: "{{ k3s_private_ip }}"
 # fortiweb_mcp_proxy_backend_port: "{{ demo_mcp_http_port }}"

@@ -417,6 +417,13 @@ demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(3044
 demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 
+# === FortiWeb reverse-proxy appliance configuration ===
+# Repo-owned Phase 6 default: build pass-through FortiWeb virtual servers,
+# VIPs, server pools, pool members, services, and server policies for the demo
+# NodePorts. Operators can set this false in ignored user.yml for direct-only
+# testing.
+fortiweb_mcp_proxy_enabled: true
+
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server
 nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml

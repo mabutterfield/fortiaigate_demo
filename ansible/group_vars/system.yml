@@ -418,6 +418,13 @@ demo_https_gateway_demo_home_https_port: "{{ demo_home_https_port | default(3044
 demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(30446) }}"
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 
+# === FortiWeb reverse-proxy appliance configuration ===
+# Repo-owned Phase 6 default: build pass-through FortiWeb virtual servers,
+# VIPs, server pools, pool members, services, and server policies for the demo
+# NodePorts. Operators can set this false in ignored user.yml for direct-only
+# testing.
+fortiweb_mcp_proxy_enabled: true
+
 # === Fortinet appliance traffic paths: Phase 6 desired-state input ===
 # Empty by default so the direct public k3s demo path remains unchanged.
 # User-specific path selections belong in ignored ansible/group_vars/user.yml.
