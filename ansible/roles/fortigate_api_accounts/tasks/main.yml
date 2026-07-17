@@ -71,13 +71,28 @@
   # - ansible.builtin.debug:
   #     msg: "Existing FortiGate generated API secret names: {{ (fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).keys() | list }}"
 
-- name: Set existing read-only FortiGate API token fact
+- name: Set existing read-only FortiGate API token facts
   ansible.builtin.set_fact:
+    fortigate_readonly_existing_api_entry: "{{ (fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).get(fortigate_readonly_api_account_name, {}) }}"
     fortigate_readonly_existing_api_token: "{{ ((fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).get(fortigate_readonly_api_account_name, {})).access_token | default('') }}"
+    fortigate_readonly_existing_api_instance_id: "{{ ((fortigate_api_accounts_secret_data.fortigate_api_accounts_generated | default({})).get(fortigate_readonly_api_account_name, {})).fortigate_instance_id | default('') }}"
   no_log: "{{ fortigate_api_accounts_no_log | bool }}"
   tags: [fortigate_api_accounts]
   # - ansible.builtin.debug:
   #     msg: "Existing read-only API token present: {{ fortigate_readonly_existing_api_token | length > 0 }}"
+
+- name: Set read-only FortiGate API token refresh fact
+  ansible.builtin.set_fact:
+    fortigate_readonly_api_account_token_stale: >-
+      {{
+        fortigate_readonly_existing_api_token | length > 0
+        and fortigate_instance_id | default('') | string | trim | length > 0
+        and fortigate_readonly_existing_api_instance_id | default('') | string | trim != fortigate_instance_id | string | trim
+      }}
+  no_log: "{{ fortigate_api_accounts_no_log | bool }}"
+  tags: [fortigate_api_accounts]
+  # - ansible.builtin.debug:
+  #     msg: "Existing read-only API token stale for current FortiGate instance: {{ fortigate_readonly_api_account_token_stale | bool }}"
 
 - name: Read generated AWS inventory metadata
   ansible.builtin.stat:
@@ -338,7 +353,7 @@
   # - ansible.builtin.debug:
   #     var: fortigate_readonly_api_user_apply
 
-- name: Generate read-only FortiGate API key when local copy is missing or rotation requested
+- name: Generate read-only FortiGate API key when local copy is missing, stale, or rotation requested
   ansible.builtin.uri:
     url: "{{ fortigate_api_url }}/monitor/system/api-user/generate-key?vdom={{ fortigate_api_accounts_vdom }}"
     method: POST
@@ -362,7 +377,7 @@
     and (fortigate_readonly_api_key_generate.json.results.access_token | default('') | length > 0)
   when:
     - fortigate_readonly_api_account_enabled | bool
-    - fortigate_readonly_api_account_rotate_token | bool or fortigate_readonly_existing_api_token | length == 0
+    - fortigate_readonly_api_account_rotate_token | bool or fortigate_readonly_existing_api_token | length == 0 or fortigate_readonly_api_account_token_stale | default(false) | bool
   tags: [fortigate_api_accounts]
   # - ansible.builtin.debug:
   #     msg: "Read-only FortiGate API token generated: {{ fortigate_readonly_api_key_generate.changed | default(false) }}"

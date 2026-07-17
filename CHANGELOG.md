@@ -57,6 +57,13 @@ a "what's new" guide rather than a raw commit log.
 - FortiGate MCP now targets the FortiGate port1 private IP by default instead
   of the public admin URL. Override `mcp_fortigate_base_url` only for a custom
   management destination.
+- `deploy_mcp.yml` now validates the saved read-only FortiGate API token before
+  writing it into the MCP Kubernetes Secret. When the saved token is stale or
+  rejected, the play leaves FortiGate MCP disabled for that deployment and
+  prints the rotate-token command.
+- FortiGate read-only API token generation now treats a saved token from a
+  different FortiGate EC2 instance ID as stale, so quickstart refreshes it
+  before MCP is deployed after appliance rebuilds.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

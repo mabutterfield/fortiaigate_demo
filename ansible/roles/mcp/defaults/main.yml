@@ -33,4 +33,5 @@ mcp_fortigate_api_token: ""
 mcp_fortigate_vdom: "{{ fortigate_vdom | default('root') }}"
 mcp_fortigate_verify_tls: false
 mcp_fortigate_timeout_seconds: 8
+mcp_fortigate_validate_token: true
 mcp_fortigate_k8s_secret_name: fortigate-readonly-api

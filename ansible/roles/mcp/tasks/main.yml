@@ -171,6 +171,58 @@
   when: mcp_enabled | bool
   no_log: true
 
+- name: Validate FortiGate MCP API token before publishing Kubernetes Secret
+  ansible.builtin.uri:
+    url: "{{ mcp_fortigate_effective_base_url }}/api/v2/monitor/system/status?vdom={{ mcp_fortigate_vdom }}"
+    method: GET
+    headers:
+      Accept: application/json
+      Authorization: "Bearer {{ mcp_fortigate_effective_api_token }}"
+    return_content: true
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 500
+    validate_certs: "{{ mcp_fortigate_verify_tls | bool }}"
+    timeout: "{{ mcp_fortigate_timeout_seconds | int }}"
+  changed_when: false
+  failed_when: false
+  register: mcp_fortigate_token_probe
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+    - mcp_fortigate_validate_token | bool
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP token validation status: {{ mcp_fortigate_token_probe.status | default('unreachable') }}"
+
+- name: Disable FortiGate MCP for this deploy when saved API token is not accepted
+  ansible.builtin.set_fact:
+    mcp_fortigate_runtime_enabled: false
+    mcp_fortigate_token_validation_failed: true
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+    - mcp_fortigate_validate_token | bool
+    - mcp_fortigate_token_probe.status | default(0) | int != 200
+
+- name: Show FortiGate MCP token recovery command
+  ansible.builtin.debug:
+    msg:
+      - "Saved FortiGate MCP API token was not accepted; FortiGate MCP will be disabled for this deploy."
+      - "The FortiGate MCP Kubernetes Secret was left unchanged; generic MCP tools will still deploy."
+      - "Tested URL: {{ mcp_fortigate_effective_base_url }}/api/v2/monitor/system/status?vdom={{ mcp_fortigate_vdom }}"
+      - "HTTP status: {{ mcp_fortigate_token_probe.status | default('unreachable') }}"
+      - "Run: ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/configure_fortigate_api_accounts.yml -e fortigate_readonly_api_account_rotate_token=true"
+      - "Then run: ansible-playbook ansible/playbooks/deploy_mcp.yml"
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_token_validation_failed | default(false) | bool
+    - mcp_fortigate_validate_token | bool
+
 - name: Ensure MCP namespace exists for FortiGate MCP Secret
   ansible.builtin.command:
     argv:

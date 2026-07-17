@@ -155,6 +155,7 @@ mcp_fortigate_api_account_name: faig-readonly-api
 mcp_fortigate_base_url: ""
 mcp_fortigate_admin_port: 8443
 mcp_fortigate_verify_tls: false
+mcp_fortigate_validate_token: true
 ```
 
 The default demo data file is:
@@ -171,11 +172,29 @@ rebuilding an image.
 FortiGate MCP secrets are not committed. The role reads the generated API token
 from ignored local Ansible secret material and writes a Kubernetes secret named
 `fortigate-readonly-api` when both the token and management URL are available.
+Automated quickstart runs `configure_fortigate_api_accounts.yml` before
+`deploy_mcp.yml`; that API-account play regenerates the read-only token when
+the local token file is missing, rotation is requested, or the saved token was
+generated for a different FortiGate EC2 instance ID.
 By default, `deploy_mcp.yml` targets the FortiGate port1 private IP from
 `terraform/aws-fortigate output fortigate_public_private_ip`, using
 `mcp_fortigate_admin_port` for the HTTPS admin port. Set
 `mcp_fortigate_base_url` only when the MCP server should target a different
-management URL. The server consumes these environment variables:
+management URL. Before publishing the Kubernetes secret, the role validates the
+saved token against `/api/v2/monitor/system/status` from the k3s host. If that
+probe fails, the play leaves the FortiGate MCP secret unchanged, deploys MCP
+with FortiGate tools disabled, and prints the recovery commands. Rotate the
+local read-only token and redeploy MCP:
+
+```bash
+ansible-playbook -i ansible/inventory/fortigate.generated.ini \
+  ansible/playbooks/configure_fortigate_api_accounts.yml \
+  -e fortigate_readonly_api_account_rotate_token=true
+
+ansible-playbook ansible/playbooks/deploy_mcp.yml
+```
+
+The server consumes these environment variables:
 
 ```text
 MCP_FORTIGATE_ENABLED
