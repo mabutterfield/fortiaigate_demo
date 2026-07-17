@@ -48,6 +48,12 @@ a "what's new" guide rather than a raw commit log.
   for scenario demos.
 - Added Kubernetes pod detail lines, including pod `AGE`, to app status
   summaries so redeploy completion is easier to confirm.
+- Improved FortiGate MCP troubleshooting: FortiGate API failures now include
+  non-secret target URL/detail fields, and `test_mcp.yml` prints 400 responses
+  before failing on `ok=false`.
+- `deploy_mcp.yml` now restarts the MCP deployment when the FortiGate MCP
+  Kubernetes Secret changes, ensuring updated API tokens and admin URLs are
+  loaded into the pod environment.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

@@ -326,9 +326,15 @@ def fortigate_api_get(path, query=None, disabled_name=None):
             return response.getcode(), json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        return exc.code, {"status": "error", "error": "fortigate http error", "detail": detail}
+        return exc.code, {
+            "status": "error",
+            "error": "fortigate http error",
+            "http_status": exc.code,
+            "url": url,
+            "detail": detail,
+        }
     except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-        return None, {"status": "error", "error": "fortigate request failed", "detail": str(exc)}
+        return None, {"status": "error", "error": "fortigate request failed", "url": url, "detail": str(exc)}
 
 
 def fortigate_tool(tool_name, path, result_key="results", query=None):

@@ -190,7 +190,19 @@ def validate_scenarios() -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Manage tracked demo scenario profiles.")
+    parser = argparse.ArgumentParser(
+        description="Manage tracked demo scenario profiles.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  python3 scripts/scenario_profiles.py list
+  python3 scripts/scenario_profiles.py show fastfood-ordering
+  python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
+  python3 scripts/scenario_profiles.py validate
+
+after install:
+  ansible-playbook ansible/playbooks/deploy_litellm.yml
+""",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("list", help="List tracked scenario profiles.")
@@ -198,7 +210,19 @@ def parse_args() -> argparse.Namespace:
     show_parser = subparsers.add_parser("show", help="Show one scenario profile.")
     show_parser.add_argument("scenario", help="Scenario ID.")
 
-    install_parser = subparsers.add_parser("install", help="Install a scenario into a local instruction slot.")
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Install a scenario into a local instruction slot.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
+  python3 scripts/scenario_profiles.py install fortigate-operator --slot demo-a --force
+  python3 scripts/scenario_profiles.py install hr-policy-risk --slot demo-a --force
+
+then deploy the prepared instructions:
+  ansible-playbook ansible/playbooks/deploy_litellm.yml
+""",
+    )
     install_parser.add_argument("scenario", help="Scenario ID.")
     install_parser.add_argument("--slot", required=True, help="Instruction slot to install into, such as demo-a or demo-b.")
     install_parser.add_argument("--force", action="store_true", help="Replace the target local slot if it exists.")

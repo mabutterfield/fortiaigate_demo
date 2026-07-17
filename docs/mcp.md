@@ -118,6 +118,18 @@ ansible-playbook playbooks/test_mcp.yml \
   -e '{"mcp_test_arguments":{"ticket_id":"TCK-2001"}}'
 ```
 
+Test the FortiGate system-status MCP tool:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=fortigate_system_status \
+  -e '{"mcp_test_arguments":{}}'
+```
+
+If that test fails, the playbook prints the MCP response body. FortiGate API
+failures include the target URL and FortiGate HTTP detail without printing the
+bearer token.
+
 Override the target URL when testing a different endpoint:
 
 ```bash

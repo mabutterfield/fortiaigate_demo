@@ -311,6 +311,26 @@
   # - ansible.builtin.debug:
   #     var: mcp_helm_wait_deploy.stdout_lines
 
+- name: Restart MCP deployment when FortiGate Secret changed
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - restart
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+  changed_when: "'restarted' in mcp_fortigate_secret_restart.stdout"
+  register: mcp_fortigate_secret_restart
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_secret_apply is defined
+    - mcp_fortigate_secret_apply.changed | default(false)
+  # - ansible.builtin.debug:
+  #     var: mcp_fortigate_secret_restart.stdout_lines
+
 - name: Wait for MCP deployment to become available
   ansible.builtin.command:
     argv:

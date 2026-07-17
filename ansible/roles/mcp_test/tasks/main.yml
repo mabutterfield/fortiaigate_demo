@@ -96,7 +96,9 @@
     body_format: json
     body: "{{ mcp_test_payload }}"
     return_content: true
-    status_code: 200
+    status_code:
+      - 200
+      - 400
     timeout: "{{ mcp_test_timeout_seconds }}"
     validate_certs: "{{ mcp_test_validate_certs | bool }}"
   register: mcp_test_response
