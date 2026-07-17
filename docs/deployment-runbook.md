@@ -366,14 +366,22 @@ The default deployment creates LiteLLM model aliases for direct and chained
 inspection paths:
 
 - `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
-- `demo-a`: default backend instructions from
-  `chatbot/instructions/default/instructions.txt`
-- `demo-b`: alternate backend instructions from
-  `chatbot/instructions/alternate/instructions.txt`
-- `demo-a-faig-be`: default backend instructions, then an
+- `demo-a`: backend instructions from ignored local slot
+  `chatbot/instructions/local/demo-a/instructions.txt`
+- `demo-b`: backend instructions from ignored local slot
+  `chatbot/instructions/local/demo-b/instructions.txt`
+- `demo-a-faig-be`: demo-a backend instructions, then an
   OpenAI-compatible call to the configured backend FortiAIGate URI
-- `demo-b-faig-be`: alternate backend instructions, then an
+- `demo-b-faig-be`: demo-b backend instructions, then an
   OpenAI-compatible call to the configured backend FortiAIGate URI
+
+Tracked examples live in `chatbot/instructions/examples/`. The LiteLLM role
+initializes missing local slot files without overwriting existing local edits.
+Use `python3 scripts/instruction_profiles.py edit demo-a` to open a local slot
+without hand-editing tracked repo files. Example metadata lives in
+`chatbot/instructions/examples/catalog.json`.
+Run `python3 scripts/instruction_profiles.py` with no subcommand to use the
+menu-driven slot wizard.
 
 To add another backend prompt, add an entry to `litellm_instruction_profiles`,
 add a matching `litellm_models` alias with `instruction_profile`, and rerun
@@ -455,11 +463,12 @@ ansible-playbook playbooks/deploy_mcp.yml
 ```
 
 The MCP baseline deploys a small tool server in namespace `mcp` and is enabled
-by default.
-It provides deterministic customer, ticket, policy, and echo tools for the
-later Python agent loop. It exposes a generated NodePort for direct testing,
-keeps an internal service endpoint for Kubernetes workloads, and does not
-require ECR image publishing.
+by default. It provides deterministic customer, ticket, policy, menu/order, and
+echo tools for the Python agent loop. It also advertises read-only FortiGate
+tool schemas; those return a disabled payload until the FortiGate admin URL and
+locally stored read-only API token are available. MCP exposes a generated
+NodePort for direct testing, keeps an internal service endpoint for Kubernetes
+workloads, and does not require ECR image publishing.
 
 Check MCP status separately:
 

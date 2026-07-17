@@ -37,6 +37,43 @@
   register: litellm_status_deployment
   when: litellm_enabled | bool
 
+- name: Check LiteLLM pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ litellm_namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ litellm_release_name }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: litellm_status_pods
+  when: litellm_enabled | bool
+
+- name: Check LiteLLM pod age table
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ litellm_namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ litellm_release_name }}"
+      - --no-headers
+  changed_when: false
+  failed_when: false
+  register: litellm_status_pod_table
+  when: litellm_enabled | bool
+
 - name: Check LiteLLM readiness endpoint
   ansible.builtin.command:
     argv:
@@ -94,10 +131,22 @@
         else (ansible_host | default(inventory_hostname))
       }}
     litellm_status_deployment_json: "{{ litellm_status_deployment.stdout | default('{}') | from_json if litellm_status_deployment.rc == 0 else {} }}"
+    litellm_status_pods_json: "{{ litellm_status_pods.stdout | default('{\"items\": []}') | from_json if litellm_status_pods.rc == 0 else {'items': []} }}"
+    litellm_status_pod_lines: "{{ litellm_status_pod_table.stdout_lines | default([]) }}"
   when: litellm_enabled | bool
 
 - name: Set LiteLLM status summary facts
   ansible.builtin.set_fact:
+    litellm_status_ready_pods: >-
+      {{
+        litellm_status_pods_json['items']
+        | selectattr('status.phase', 'equalto', 'Running')
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses.0.ready', 'equalto', true)
+        | list
+        | length
+      }}
+    litellm_status_pod_count: "{{ litellm_status_pods_json['items'] | length }}"
     litellm_status_ready: >-
       {{
         litellm_status_helm.rc == 0
@@ -128,6 +177,8 @@
     msg:
       - "LiteLLM status: {{ 'READY' if litellm_status_ready else 'NOT READY' }}"
       - "Helm release: {{ 'present' if litellm_status_helm.rc == 0 else 'missing' }}"
+      - "Pods ready: {{ litellm_status_ready_pods }}/{{ litellm_status_pod_count }}"
+      - "Pods (NAME READY STATUS RESTARTS AGE): {{ litellm_status_pod_lines | join('; ') if litellm_status_pod_lines | length > 0 else 'none' }}"
       - "Health HTTP status: {{ litellm_status_health.stdout | default('unknown') }}"
       - "Models HTTP status: {{ litellm_status_models.stdout | default('unknown') }}"
       - "Admin UI HTTP status: {{ litellm_status_ui.stdout | default('unknown') }}"

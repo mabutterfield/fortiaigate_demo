@@ -1,0 +1,62 @@
+{
+  "slots": {
+    "demo-a": {
+      "display_name": "Demo A",
+      "description": "Primary backend LiteLLM demo instruction slot.",
+      "default_example": "HR-bot.instructions.txt",
+      "local_path": "demo-a/instructions.txt"
+    },
+    "demo-b": {
+      "display_name": "Demo B",
+      "description": "Secondary backend LiteLLM demo instruction slot.",
+      "default_example": "fastfood-bot.instructions.txt",
+      "local_path": "demo-b/instructions.txt"
+    },
+    "frontend": {
+      "display_name": "Frontend",
+      "description": "Optional browser-layer chatbot instruction slot.",
+      "default_example": "chatbot-frontend.instructions.txt",
+      "local_path": "frontend/instructions.txt"
+    }
+  },
+  "aliases": {
+    "default": "demo-a",
+    "alternate": "demo-b",
+    "demo_a": "demo-a",
+    "demo_b": "demo-b"
+  },
+  "examples": {
+    "HR-bot.instructions.txt": {
+      "display_name": "HR Bot",
+      "description": "Restored vulnerable HR assistant prompt used by demo-a.",
+      "default_model": "auto",
+      "temperature": 0.0,
+      "max_tokens": 4096,
+      "source": "restored from chatbot/instructions/default/instructions.txt"
+    },
+    "Edwardo-vulnerable.instructions.txt": {
+      "display_name": "Edwardo Vulnerable Bot",
+      "description": "Restored vulnerable generic assistant prompt with redaction preservation behavior.",
+      "source": "restored from chatbot/instructions/default/instructions.txt.bak"
+    },
+    "HR-bot-safe.instructions.txt": {
+      "display_name": "HR Bot Safe Baseline",
+      "description": "Restored simple HR assistant prompt without the vulnerable demo rules.",
+      "source": "restored from chatbot/instructions/default/instructions_llama.txt"
+    },
+    "fortiaigate-demo.instructions.txt": {
+      "display_name": "FortiAIGate Demo Bot",
+      "description": "Restored concise alternate profile used for model-path testing.",
+      "source": "restored from chatbot/instructions/alternate/instructions.txt"
+    },
+    "fastfood-bot.instructions.txt": {
+      "display_name": "Fast Food Ordering Bot",
+      "description": "Ordering assistant prompt for the MCP menu-tool demo."
+    },
+    "chatbot-frontend.instructions.txt": {
+      "display_name": "Chatbot Frontend Prompt",
+      "description": "Restored optional browser-facing chatbot instruction prompt.",
+      "source": "restored from chatbot/instructions/frontend/instructions.txt"
+    }
+  }
+}

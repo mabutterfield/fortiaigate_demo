@@ -21,6 +21,36 @@ Search and join tools:
 - `policy_search`
 - `customer_ticket_summary`
 
+Synthetic HR demo tools:
+
+- `employee_lookup`
+- `employee_search`
+- `hr_policy_lookup`
+- `redaction_check`
+
+Fast food ordering demo tools:
+
+- `menu_search`
+- `nutrition_lookup`
+- `allergen_check`
+- `suggest_combo`
+- `build_order_summary`
+
+FortiGate read-only demo tools:
+
+- `fortigate_system_status`
+- `fortigate_interface_status`
+- `fortigate_route_list`
+- `fortigate_policy_list`
+- `fortigate_address_list`
+- `fortigate_service_list`
+
+The FortiGate tools are advertised even when the appliance connection is not
+available. In that case they return a successful `disabled` payload instead of
+failing the whole agent loop. On a deployed lab, the MCP Ansible role enables
+them only when it can find a FortiGate admin URL and the locally stored
+read-only API token created by the FortiGate account playbook.
+
 The service has both an internal Kubernetes endpoint and a generated public
 NodePort by default:
 
@@ -88,6 +118,18 @@ ansible-playbook playbooks/test_mcp.yml \
   -e '{"mcp_test_arguments":{"ticket_id":"TCK-2001"}}'
 ```
 
+Test the FortiGate system-status MCP tool:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=fortigate_system_status \
+  -e '{"mcp_test_arguments":{}}'
+```
+
+If that test fails, the playbook prints the MCP response body. FortiGate API
+failures include the target URL and FortiGate HTTP detail without printing the
+bearer token.
+
 Override the target URL when testing a different endpoint:
 
 ```bash
@@ -108,6 +150,12 @@ mcp_service_type: NodePort
 mcp_service_port: 8000
 mcp_node_port: "{{ demo_mcp_http_port | default(30084) }}"
 mcp_tools_data_local_path: "{{ mcp_chart_local_path }}/files/tools.json"
+mcp_fortigate_tools_enabled: true
+mcp_fortigate_api_account_name: faig-readonly-api
+mcp_fortigate_base_url: ""
+mcp_fortigate_admin_port: 8443
+mcp_fortigate_verify_tls: false
+mcp_fortigate_validate_token: true
 ```
 
 The default demo data file is:
@@ -117,9 +165,45 @@ fortiaigate_demo/mcp/chart/files/tools.json
 ```
 
 Set `mcp_tools_data_local_path` to another JSON file when testing alternate
-customers, tickets, or policies. The Ansible role copies that file into the
-staged Helm chart before deployment, so data changes do not require rebuilding
-an image.
+customers, tickets, policies, or menu data. The Ansible role copies that file
+into the staged Helm chart before deployment, so data changes do not require
+rebuilding an image.
+
+FortiGate MCP secrets are not committed. The role reads the generated API token
+from ignored local Ansible secret material and writes a Kubernetes secret named
+`fortigate-readonly-api` when both the token and management URL are available.
+Automated quickstart runs `configure_fortigate_api_accounts.yml` before
+`deploy_mcp.yml`; that API-account play regenerates the read-only token when
+the local token file is missing, rotation is requested, or the saved token was
+generated for a different FortiGate EC2 instance ID.
+By default, `deploy_mcp.yml` targets the FortiGate port1 private IP from
+`terraform/aws-fortigate output fortigate_public_private_ip`, using
+`mcp_fortigate_admin_port` for the HTTPS admin port. Set
+`mcp_fortigate_base_url` only when the MCP server should target a different
+management URL. Before publishing the Kubernetes secret, the role validates the
+saved token against `/api/v2/monitor/system/status` from the k3s host. If that
+probe fails, the play leaves the FortiGate MCP secret unchanged, deploys MCP
+with FortiGate tools disabled, and prints the recovery commands. Rotate the
+local read-only token and redeploy MCP:
+
+```bash
+ansible-playbook -i ansible/inventory/fortigate.generated.ini \
+  ansible/playbooks/configure_fortigate_api_accounts.yml \
+  -e fortigate_readonly_api_account_rotate_token=true
+
+ansible-playbook ansible/playbooks/deploy_mcp.yml
+```
+
+The server consumes these environment variables:
+
+```text
+MCP_FORTIGATE_ENABLED
+MCP_FORTIGATE_BASE_URL
+MCP_FORTIGATE_API_TOKEN
+MCP_FORTIGATE_VDOM
+MCP_FORTIGATE_VERIFY_TLS
+MCP_FORTIGATE_TIMEOUT_SECONDS
+```
 
 ## HTTPS Gateway
 
@@ -147,6 +231,11 @@ curl -X POST http://127.0.0.1:8000/mcp \
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
 these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
+The menu tools are deterministic and meant to show an ordering assistant flow
+without placing a real order. The FortiGate tools are read-only and intended to
+show the model using a real infrastructure data source. The HR tools use
+synthetic data and are intended to demonstrate safe lookup, redaction, and
+policy-boundary behavior.
 
 ## Chatbot Tool Toggle
 
@@ -195,8 +284,12 @@ browser/UI-layer system prompt, set one of:
 
 ```yaml
 chatbot_frontend_system_prompt: "Inline system prompt text"
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
+chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 ```
+
+Tracked examples live under `chatbot/instructions/examples/`. Active local
+instruction files live under ignored `chatbot/instructions/local/` and can be
+created or opened with `scripts/instruction_profiles.py`.
 
 When FortiWeb Terraform has generated `fortiweb.generated.yml`,
 `chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the
@@ -210,4 +303,7 @@ Show me all customers with open tickets.
 Which enterprise customers are in us-east?
 Find policies related to tool access.
 Lookup ticket TCK-2001 and summarize the customer impact.
+Find a chicken menu item under 600 calories.
+Build an order with MENU-1001, MENU-2002, and MENU-3001.
+Get the FortiGate system status.
 ```

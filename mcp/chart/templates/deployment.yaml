@@ -31,6 +31,40 @@ spec:
               value: /app/data/tools.json
             - name: MCP_LISTEN_PORT
               value: "{{ .Values.containerPort }}"
+            - name: MCP_FORTIGATE_ENABLED
+              value: "{{ .Values.fortigate.enabled }}"
+{{- if and .Values.fortigate.enabled .Values.fortigate.secretName }}
+            - name: MCP_FORTIGATE_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: base_url
+                  optional: true
+            - name: MCP_FORTIGATE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: api_token
+                  optional: true
+            - name: MCP_FORTIGATE_VDOM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: vdom
+                  optional: true
+            - name: MCP_FORTIGATE_VERIFY_TLS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: verify_tls
+                  optional: true
+            - name: MCP_FORTIGATE_TIMEOUT_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: timeout_seconds
+                  optional: true
+{{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.containerPort }}

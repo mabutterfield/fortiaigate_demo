@@ -68,6 +68,27 @@
   # - ansible.builtin.debug:
   #     var: chatbot_status_pods.results
 
+- name: Check chatbot pod age table
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ item.namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ item.release_name }}"
+      - --no-headers
+  loop: "{{ chatbot_instances }}"
+  changed_when: false
+  failed_when: false
+  register: chatbot_status_pod_tables
+  when: chatbots_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: chatbot_status_pod_tables.results
+
 - name: Check chatbot local health endpoints
   ansible.builtin.command:
     argv:
@@ -92,6 +113,7 @@
   vars:
     deployment_result: "{{ chatbot_status_deployments.results[index] }}"
     pod_result: "{{ chatbot_status_pods.results[index] }}"
+    pod_table_result: "{{ chatbot_status_pod_tables.results[index] }}"
     helm_result: "{{ chatbot_status_helm.results[index] }}"
     health_result: "{{ chatbot_status_health.results[index] }}"
     deployment_json: "{{ deployment_result.stdout | default('{}') | from_json if deployment_result.rc == 0 else {} }}"
@@ -133,6 +155,7 @@
       available_replicas: "{{ available_replicas }}"
       ready_pods: "{{ ready_pods }}"
       pod_count: "{{ pod_json['items'] | length }}"
+      pod_lines: "{{ pod_table_result.stdout_lines | default([]) }}"
       health_status: "{{ health_status }}"
       url: "{{ instance_url }}"
       ready: "{{ helm_result.rc == 0 and deployment_result.rc == 0 and available_replicas == desired_replicas and (health_status | int) >= 200 and (health_status | int) < 500 }}"
@@ -185,6 +208,7 @@
           ~ ', Provider=' ~ item.provider_label
           ~ ', Helm release=' ~ ('present' if item.helm_present else 'missing')
           ~ ', Pods ready=' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string)
+          ~ ', Pods (NAME READY STATUS RESTARTS AGE)=' ~ (item.pod_lines | join('; ') if item.pod_lines | length > 0 else 'none')
           ~ ', Health HTTP status=' ~ (item.health_status | string)
           ~ ', Problems=' ~ (item.problems | join(' | ') if item.problems | length > 0 else 'none')
         ]

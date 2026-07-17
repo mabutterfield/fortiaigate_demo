@@ -22,3 +22,7 @@ probes:
   initialDelaySeconds: 5
   periodSeconds: 10
   failureThreshold: 6
+
+fortigate:
+  enabled: {{ (mcp_fortigate_runtime_enabled | default(false) | bool) | ternary('true', 'false') }}
+  secretName: {{ (mcp_fortigate_k8s_secret_name if mcp_fortigate_runtime_enabled | default(false) | bool else '') | to_json }}

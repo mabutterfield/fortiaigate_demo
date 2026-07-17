@@ -18,3 +18,7 @@ probes:
   initialDelaySeconds: 5
   periodSeconds: 10
   failureThreshold: 6
+
+fortigate:
+  enabled: false
+  secretName: ""

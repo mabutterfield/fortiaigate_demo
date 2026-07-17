@@ -44,6 +44,246 @@
     fail_msg: "MCP chart or tool data file is missing. Check mcp_chart_local_path and mcp_tools_data_local_path."
   when: mcp_enabled | bool
 
+- name: Check local FortiGate MCP API token file
+  ansible.builtin.stat:
+    path: "{{ mcp_fortigate_api_secret_file }}"
+  delegate_to: localhost
+  become: false
+  register: mcp_fortigate_api_secret_stat
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP local secret exists: {{ mcp_fortigate_api_secret_stat.stat.exists | default(false) }}"
+
+- name: Load local FortiGate MCP API token file when present
+  ansible.builtin.include_vars:
+    file: "{{ mcp_fortigate_api_secret_file }}"
+    name: mcp_fortigate_api_secret_data
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+    - mcp_fortigate_api_secret_stat.stat.exists | default(false)
+  no_log: true
+
+- name: Read FortiGate admin URL from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ mcp_fortigate_terraform_dir }}"
+      - output
+      - -raw
+      - fortigate_admin_url
+  changed_when: false
+  failed_when: false
+  register: mcp_fortigate_admin_url_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+    - mcp_fortigate_base_url | default('') | length == 0
+  # - ansible.builtin.debug:
+  #     var: mcp_fortigate_admin_url_raw.stdout_lines
+
+- name: Read FortiGate port1 private IP from Terraform output
+  ansible.builtin.command:
+    argv:
+      - terraform
+      - "-chdir={{ mcp_fortigate_terraform_dir }}"
+      - output
+      - -raw
+      - fortigate_public_private_ip
+  changed_when: false
+  failed_when: false
+  register: mcp_fortigate_port1_private_ip_raw
+  delegate_to: localhost
+  become: false
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+    - mcp_fortigate_base_url | default('') | length == 0
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP port1 private IP discovered: {{ mcp_fortigate_port1_private_ip_raw.rc == 0 and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim | length > 0 }}"
+
+- name: Set FortiGate MCP runtime facts
+  ansible.builtin.set_fact:
+    mcp_fortigate_effective_base_url: >-
+      {{
+        mcp_fortigate_base_url
+        if mcp_fortigate_base_url | default('') | length > 0
+        else (
+          (
+            'https://' ~ (mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim) ~ ':' ~ (mcp_fortigate_admin_port | string)
+          )
+          if (
+            mcp_fortigate_port1_private_ip_raw is defined
+            and mcp_fortigate_port1_private_ip_raw.rc | default(1) == 0
+            and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim | length > 0
+            and mcp_fortigate_port1_private_ip_raw.stdout | default('') | trim != 'null'
+          )
+          else (
+            (
+              'https://' ~ fortigate_public_private_ip ~ ':' ~ (mcp_fortigate_admin_port | string)
+            )
+            if fortigate_public_private_ip | default('') | string | trim | length > 0
+            else (
+              mcp_fortigate_admin_url_raw.stdout | default('') | trim
+              if mcp_fortigate_admin_url_raw is defined and mcp_fortigate_admin_url_raw.rc | default(1) == 0
+              else ''
+            )
+          )
+        )
+      }}
+    mcp_fortigate_effective_api_token: >-
+      {{
+        mcp_fortigate_api_token
+        if mcp_fortigate_api_token | default('') | length > 0
+        else (
+          (
+            mcp_fortigate_api_secret_data.fortigate_api_accounts_generated[mcp_fortigate_api_account_name].access_token
+            | default('')
+          )
+          if (
+            mcp_fortigate_api_secret_data is defined
+            and mcp_fortigate_api_secret_data.fortigate_api_accounts_generated is defined
+            and mcp_fortigate_api_account_name in mcp_fortigate_api_secret_data.fortigate_api_accounts_generated
+          )
+          else ''
+        )
+      }}
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP base URL configured: {{ mcp_fortigate_effective_base_url | default('') | length > 0 }}"
+
+- name: Set FortiGate MCP runtime enabled fact
+  ansible.builtin.set_fact:
+    mcp_fortigate_runtime_enabled: >-
+      {{
+        mcp_fortigate_tools_enabled | bool
+        and mcp_fortigate_effective_base_url | default('') | length > 0
+        and mcp_fortigate_effective_api_token | default('') | length > 0
+      }}
+  when: mcp_enabled | bool
+  no_log: true
+
+- name: Validate FortiGate MCP API token before publishing Kubernetes Secret
+  ansible.builtin.uri:
+    url: "{{ mcp_fortigate_effective_base_url }}/api/v2/monitor/system/status?vdom={{ mcp_fortigate_vdom }}"
+    method: GET
+    headers:
+      Accept: application/json
+      Authorization: "Bearer {{ mcp_fortigate_effective_api_token }}"
+    return_content: true
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+      - 404
+      - 500
+    validate_certs: "{{ mcp_fortigate_verify_tls | bool }}"
+    timeout: "{{ mcp_fortigate_timeout_seconds | int }}"
+  changed_when: false
+  failed_when: false
+  register: mcp_fortigate_token_probe
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+    - mcp_fortigate_validate_token | bool
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "FortiGate MCP token validation status: {{ mcp_fortigate_token_probe.status | default('unreachable') }}"
+
+- name: Disable FortiGate MCP for this deploy when saved API token is not accepted
+  ansible.builtin.set_fact:
+    mcp_fortigate_runtime_enabled: false
+    mcp_fortigate_token_validation_failed: true
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+    - mcp_fortigate_validate_token | bool
+    - mcp_fortigate_token_probe.status | default(0) | int != 200
+
+- name: Ensure MCP namespace exists for FortiGate MCP Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - create
+      - namespace
+      - "{{ mcp_namespace }}"
+  register: mcp_namespace_create_for_secret
+  changed_when: "'created' in mcp_namespace_create_for_secret.stdout"
+  failed_when:
+    - mcp_namespace_create_for_secret.rc != 0
+    - "'AlreadyExists' not in mcp_namespace_create_for_secret.stderr"
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_namespace_create_for_secret.stdout_lines
+
+- name: Create or refresh FortiGate MCP Kubernetes Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ mcp_namespace }}"
+      - create
+      - secret
+      - generic
+      - "{{ mcp_fortigate_k8s_secret_name }}"
+      - "--from-literal=base_url={{ mcp_fortigate_effective_base_url }}"
+      - "--from-literal=api_token={{ mcp_fortigate_effective_api_token }}"
+      - "--from-literal=vdom={{ mcp_fortigate_vdom }}"
+      - "--from-literal=verify_tls={{ mcp_fortigate_verify_tls | bool | ternary('true', 'false') }}"
+      - "--from-literal=timeout_seconds={{ mcp_fortigate_timeout_seconds | string }}"
+      - --dry-run=client
+      - -o
+      - yaml
+  changed_when: false
+  register: mcp_fortigate_secret_render
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+  no_log: true
+
+- name: Apply FortiGate MCP Kubernetes Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - apply
+      - -f
+      - "-"
+  args:
+    stdin: "{{ mcp_fortigate_secret_render.stdout }}"
+  changed_when: "'created' in mcp_fortigate_secret_apply.stdout or 'configured' in mcp_fortigate_secret_apply.stdout"
+  register: mcp_fortigate_secret_apply
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_runtime_enabled | default(false) | bool
+  no_log: true
+  # - ansible.builtin.debug:
+  #     var: mcp_fortigate_secret_apply.stdout_lines
+
+- name: Show disabled FortiGate MCP tools notice
+  ansible.builtin.debug:
+    msg: "FortiGate MCP tools will be advertised but return disabled until the read-only API token and FortiGate URL are available."
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_tools_enabled | bool
+    - not (mcp_fortigate_runtime_enabled | default(false) | bool)
+
 - name: Install Helm when missing
   ansible.builtin.shell: |
     set -euo pipefail
@@ -146,6 +386,26 @@
   # - ansible.builtin.debug:
   #     var: mcp_helm_wait_deploy.stdout_lines
 
+- name: Restart MCP deployment when FortiGate Secret changed
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - restart
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+  changed_when: "'restarted' in mcp_fortigate_secret_restart.stdout"
+  register: mcp_fortigate_secret_restart
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_secret_apply is defined
+    - mcp_fortigate_secret_apply.changed | default(false)
+  # - ansible.builtin.debug:
+  #     var: mcp_fortigate_secret_restart.stdout_lines
+
 - name: Wait for MCP deployment to become available
   ansible.builtin.command:
     argv:
@@ -175,3 +435,17 @@
       - "MCP service type: {{ mcp_service_type }}"
       - "Helm accepted the install or upgrade; run status_mcp.yml to check READY/NOT READY."
   when: mcp_enabled | bool
+
+- name: Show FortiGate MCP token recovery command
+  ansible.builtin.debug:
+    msg:
+      - "Saved FortiGate MCP API token was not accepted; FortiGate MCP was disabled for this deploy."
+      - "The FortiGate MCP Kubernetes Secret was left unchanged; generic MCP tools still deployed."
+      - "Tested URL: {{ mcp_fortigate_effective_base_url }}/api/v2/monitor/system/status?vdom={{ mcp_fortigate_vdom }}"
+      - "HTTP status: {{ mcp_fortigate_token_probe.status | default('unreachable') }}"
+      - "Run: ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/configure_fortigate_api_accounts.yml -e fortigate_readonly_api_account_rotate_token=true"
+      - "Then run: ansible-playbook ansible/playbooks/deploy_mcp.yml"
+  when:
+    - mcp_enabled | bool
+    - mcp_fortigate_token_validation_failed | default(false) | bool
+    - mcp_fortigate_validate_token | bool

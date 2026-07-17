@@ -40,6 +40,11 @@ chatbot:
   mcpTimeoutSeconds: "10"
   mcpVerifyTls: "false"
   mcpMaxToolRounds: "3"
+  contextMode: recent
+  contextWindow: "8"
+  contextSummaryMaxChars: "1500"
+  contextSummaryModel: pass-bedrock
+  showContext: "false"
 
 instructions:
   content: "You are a helpful AI assistant."

@@ -32,7 +32,7 @@ Operator workstation
 - LiteLLM provides the shared OpenAI-compatible direct model proxy.
 - The custom chatbot is the primary consolidated demo UI.
 - Open WebUI is available as an optional secondary chat UI when `openwebui_enabled=true`.
-- The MCP demo server provides deterministic internal tool responses for the chatbot agent path.
+- The MCP demo server provides deterministic internal tool responses for the chatbot agent path, including customer/ticket examples, a fast-food ordering demo, and read-only FortiGate status/config queries.
 - The HTTPS gateway provides self-signed HTTPS listener ports for the demo services.
 - The demo home page links to direct, FortiWeb-fronted, HTTP, and HTTPS endpoints when available.
 - FortiGate is configured by Ansible for system baseline, generated address and service objects, VIP support, and application API accounts.
@@ -62,6 +62,8 @@ MCP baseline:
 
 ```text
 custom chatbot UI -> MCP demo tools
+  -> deterministic customer/ticket/policy/menu data
+  -> read-only FortiGate API when appliance credentials are available
 ```
 
 The MCP service keeps the internal Kubernetes endpoint

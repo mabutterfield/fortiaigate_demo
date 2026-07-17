@@ -5,6 +5,73 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added Phase 7 MCP tool expansion:
+  - deterministic fast-food menu/order tools for non-Fortinet tool-use demos
+  - read-only FortiGate MCP tool schemas for status, interfaces, routes,
+    firewall policies, address objects, and service objects
+  - graceful disabled/error responses when FortiGate credentials are absent
+- Added MCP FortiGate secret wiring so the MCP deployment can read the
+  Phase 6 read-only FortiGate API account token from a Kubernetes Secret
+  without exposing it through chatbot configuration.
+- Moved mutable chatbot/LiteLLM instruction prompts out of tracked active
+  paths. Tracked examples now live under `chatbot/instructions/examples/`,
+  while active `demo-a`, `demo-b`, and `frontend` instruction slots live under
+  ignored `chatbot/instructions/local/`.
+- Added `scripts/instruction_profiles.py` with both CLI commands and a
+  menu-driven wizard for installing tracked examples or local instruction files
+  into one active slot at a time. The helper prints the relevant Ansible deploy
+  command after preparing a slot.
+- Updated user profile and automated quickstart setup to initialize missing
+  local instruction slots alongside Terraform and Ansible user variables.
+- Updated MCP, architecture, quickstart, deployment, and flow documentation for
+  Phase 7: Bedrock requests tools and produces final answers, LiteLLM remains
+  the proxy/auth/instruction-injection layer, and the chatbot/agent owns MCP
+  TCP flows.
+- Added tracked scenario profiles for repeatable demos:
+  `fastfood-ordering`, `fortigate-operator`, and `hr-policy-risk`. The new
+  `scripts/scenario_profiles.py` helper installs scenario instructions into
+  local slots while keeping instruction profiles available for fine tuning.
+- Scenario profiles now use the single shared MCP server only. Their
+  `required_tools` lists document expected tool use and are validated against
+  the shared MCP catalog.
+- Removed scenario-profile recommended slots. Scenario installs now require an
+  explicit instruction slot, and instruction-profile status output clarifies
+  local source metadata.
+- Added a scenario runbook with chatbot settings, sample prompts, attack or
+  boundary prompts, and expected behavior for each tracked scenario.
+- Added synthetic HR MCP tools and data for employee lookup/search, HR policy
+  lookup, and redaction checks.
+- Fixed the chatbot MCP final-answer path so Bedrock/LiteLLM receives the tool
+  schema when summarizing after the configured maximum tool rounds.
+- Added chatbot context controls for current-turn, recent-conversation, and
+  consolidated-context modes, including reset and optional context visibility
+  for scenario demos.
+- Added Kubernetes pod detail lines, including pod `AGE`, to app status
+  summaries so redeploy completion is easier to confirm.
+- Improved FortiGate MCP troubleshooting: FortiGate API failures now include
+  non-secret target URL/detail fields, and `test_mcp.yml` prints 400 responses
+  before failing on `ok=false`.
+- `deploy_mcp.yml` now restarts the MCP deployment when the FortiGate MCP
+  Kubernetes Secret changes, ensuring updated API tokens and admin URLs are
+  loaded into the pod environment.
+- FortiGate MCP now targets the FortiGate port1 private IP by default instead
+  of the public admin URL. Override `mcp_fortigate_base_url` only for a custom
+  management destination.
+- `deploy_mcp.yml` now validates the saved read-only FortiGate API token before
+  writing it into the MCP Kubernetes Secret. When the saved token is stale or
+  rejected, the play leaves FortiGate MCP disabled for that deployment and
+  prints the rotate-token command.
+- FortiGate read-only API token generation now treats a saved token from a
+  different FortiGate EC2 instance ID as stale, so quickstart refreshes it
+  before MCP is deployed after appliance rebuilds.
+- FortiGate MCP system-status responses now include top-level FortiGate fields
+  such as version, serial, and build, and the chatbot now sends assistant
+  tool-call messages with null content for better Bedrock/LiteLLM compatibility.
+- The chatbot now uses a wide layout with MCP tool calls shown in a separate
+  right-side trace pane instead of inline inside the assistant response.
+- Added `llama3.2:1b` as a default selectable LiteLLM/Ollama backend alias and
+  documented commented model preference examples for `llama3.2:1b` and
+  Bedrock `gpt-oss:20b`.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

@@ -70,6 +70,23 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_status_pod_summary_raw.stdout
 
+- name: Get FortiAIGate pod age table
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ fortiaigate_namespace }}"
+      - --no-headers
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_status_pod_table
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_pod_table.stdout_lines
+
 - name: Get NVIDIA GPU status
   ansible.builtin.command:
     argv:
@@ -186,6 +203,7 @@
       - "FortiAIGate status: {{ fortiaigate_status_state }}"
       - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
       - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
+      - "Pods (NAME READY STATUS RESTARTS AGE): {{ fortiaigate_status_pod_table.stdout_lines | default([]) | join('; ') if fortiaigate_status_pod_table.stdout_lines | default([]) | length > 0 else 'none' }}"
       - "NVIDIA GPU: {{ fortiaigate_status_gpu_summary | join(' | ') }}"
       - "Login URL: {{ fortiaigate_status_login_url }}"
       - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"

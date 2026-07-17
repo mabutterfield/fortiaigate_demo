@@ -30,7 +30,7 @@ flowchart TD
     MD["MCP=Direct<br/>chatbot -> mcp-demo service"]
     MFW["MCP=FortiWeb<br/>chatbot -> FortiWeb port1 listener"]
     FWB["FortiWeb reverse proxy<br/>no-inspection policy"]
-    MCP["MCP demo tools"]
+    MCP["MCP demo tools<br/>customer / ticket / policy / menu<br/>read-only FortiGate when credentials exist"]
 
     FAIG["FortiAIGate front flow<br/>AI guard sees pre-injection request"]
     LL["LiteLLM selected alias<br/>optional backend instruction injection"]
@@ -203,10 +203,10 @@ endpoint, API key, and model before moving on.
 | Guard/provider name | Provider endpoint | Model/profile | Notes |
 |---|---|---|---|
 | `litellm-pass-bedrock` | `API endpoint/private` from `LiteLLM proxy provider` output | `pass-bedrock` | No instruction injection; use for fallback, passthrough, and the post-injection FAIG re-entry path. This may be created during first-login onboarding. |
-| `demo-a` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a` | Default demo backend instruction profile |
-| `demo-b` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b` | Alternate demo backend instruction profile |
-| `demo-a-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a-faig-be` | Injects default instructions, then sends back through FAIG `/v1/passthrough/*` |
-| `demo-b-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b-faig-be` | Injects alternate instructions, then sends back through FAIG `/v1/passthrough/*` |
+| `demo-a` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a` | Demo A backend instruction profile, defaulting to the HR bot example |
+| `demo-b` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b` | Demo B backend instruction profile, defaulting to the fast-food bot example |
+| `demo-a-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a-faig-be` | Injects demo-a instructions, then sends back through FAIG `/v1/passthrough/*` |
+| `demo-b-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b-faig-be` | Injects demo-b instructions, then sends back through FAIG `/v1/passthrough/*` |
 
 Use `API key` from the same `LiteLLM proxy provider` output block for each
 guard/provider.
@@ -236,7 +236,7 @@ the fallback `/v1/*` flow, make sure it is last.
 |---:|---|---|---|---|---|
 | 1 | Passthrough | `/v1/passthrough/*` | `litellm-pass-bedrock` | Explicit passthrough static route. This may be created during first-login onboarding. | `/v1/passthrough/chat/completions` |
 | 2 | Demo A | `/v1/demo-a/*` | `demo-a` | Static route with default demo backend instructions | `/v1/demo-a/chat/completions` |
-| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route with alternate backend instructions | `/v1/demo-b/chat/completions` |
+| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route with demo-b backend instructions | `/v1/demo-b/chat/completions` |
 | 4 | `demo-a_faig-backend` | `/v1/demo-a-faig-be/*` | `demo-a-faig-be` | Static route that chains back through FAIG after LiteLLM injection | `/v1/demo-a-faig-be/chat/completions` |
 | 5 | `demo-b_faig-backend` | `/v1/demo-b-faig-be/*` | `demo-b-faig-be` | Alternate post-injection inspection route | `/v1/demo-b-faig-be/chat/completions` |
 | 6 | Intelligent routing | `/v1/intelligent/*` | default `litellm-pass-bedrock`; header-selected `demo-a` or `demo-b` | One URI with optional header routing | `/v1/intelligent/chat/completions` |

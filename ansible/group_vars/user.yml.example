@@ -202,11 +202,11 @@ litellm_ui_password: litellm-demo-change-me
 # users can uncomment these manually when intentionally overriding the default
 # Bedrock path.
 # direct_model_provider: bedrock
-# direct_model_bedrock_model: ""
+# direct_model_bedrock_model: openai.gpt-oss-20b-1:0
 # direct_model_bedrock_region: ""
 
-# Ollama is not part of the default guided path yet. Leave these commented
-# unless manually building the future Ollama provider workflow.
+# Ollama is exposed as a selectable LiteLLM alias by default, but it still
+# requires a reachable Ollama server from the k3s cluster before requests work.
 # ollama_base_url: http://<ollama-host>:11434/v1
 # ollama_model: llama3.2:1b
 
@@ -220,7 +220,7 @@ openwebui_enabled: false
 # Advanced manual override for a UI-layer system prompt. Leave commented for
 # the default architecture where backend demo instructions are injected by
 # LiteLLM instead.
-# chatbot_frontend_system_prompt_source_path: /path/to/frontend/instructions.txt
+# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 
 # Advanced manual HTTPS gateway certificate paths.
 # demo_https_gateway_cert_local_path: /path/to/private/tls.crt

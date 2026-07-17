@@ -90,6 +90,9 @@ ansible/group_vars/ports.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
+# Operator-owned mutable instruction profiles
+chatbot/instructions/local/
+
 # Kubernetes and deployment generated files
 *.kubeconfig
 kubeconfig

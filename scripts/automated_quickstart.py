@@ -1731,6 +1731,7 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
 
     missing = missing_user_profile_files()
     if not missing:
+        profile_tool.ensure_instruction_slots()
         return action
 
     if args.yolo:
