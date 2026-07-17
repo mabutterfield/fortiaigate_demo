@@ -147,6 +147,40 @@ def summarize_tool_events(tool_events: list[dict[str, Any]], max_chars: int = 30
     return rendered
 
 
+def render_mcp_trace(trace: dict[str, Any]) -> None:
+    st.subheader("MCP Tool Trace")
+    if not trace:
+        st.write("No MCP tool trace yet.")
+        return
+
+    st.write(f"Path: {trace.get('path', 'unknown')}")
+    endpoint = trace.get("endpoint", "")
+    if endpoint:
+        st.write(f"Endpoint: `{endpoint}`")
+
+    tool_names = trace.get("tool_names") or []
+    if tool_names:
+        with st.expander("Available tools", expanded=False):
+            for tool_name in tool_names:
+                st.write(f"`{tool_name}`")
+
+    if trace.get("error"):
+        st.error(trace["error"])
+        return
+
+    tool_events = trace.get("tool_events") or []
+    if not tool_events:
+        st.write("The model did not request a tool call for the latest message.")
+        return
+
+    for index, event in enumerate(tool_events, start=1):
+        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=True):
+            st.write("Arguments")
+            st.json(event.get("arguments", {}))
+            st.write("Result")
+            st.json(event.get("result", {}))
+
+
 def update_consolidated_context(
     base_url: str,
     api_key: str,
@@ -513,13 +547,15 @@ def main() -> None:
     )
     faig_model_route_header_name = os.getenv("CHATBOT_FAIG_MODEL_ROUTE_HEADER_NAME", "X-FAIG-Model-Route").strip()
 
-    st.set_page_config(page_title=page_title, layout="centered")
+    st.set_page_config(page_title=page_title, layout="wide")
     st.title(header_title)
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "context_summary" not in st.session_state:
         st.session_state.context_summary = ""
+    if "mcp_tool_trace" not in st.session_state:
+        st.session_state.mcp_tool_trace = {}
 
     with st.sidebar:
         st.subheader("Backend")
@@ -643,19 +679,24 @@ def main() -> None:
         st.error(f"{mcp_path} base URL is not configured.")
         return
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"], unsafe_allow_html=True)
+    chat_col, trace_col = st.columns([5, 2], gap="large")
+    trace_placeholder = trace_col.empty()
 
-    left, right = st.columns([6, 1])
-    with right:
+    with chat_col:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"], unsafe_allow_html=True)
+
         if st.button("Clear"):
             st.session_state.messages = []
             st.session_state.context_summary = ""
+            st.session_state.mcp_tool_trace = {}
             st.rerun()
 
     user_input = st.chat_input("Say something...")
     if not user_input:
+        with trace_placeholder.container():
+            render_mcp_trace(st.session_state.mcp_tool_trace)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -666,50 +707,58 @@ def main() -> None:
         int(context_window),
         st.session_state.context_summary,
     )
-    with st.chat_message("user"):
-        st.markdown(user_input, unsafe_allow_html=True)
+    with chat_col:
+        with st.chat_message("user"):
+            st.markdown(user_input, unsafe_allow_html=True)
 
-    with st.chat_message("assistant"):
-        try:
-            if show_context:
-                with st.expander("Context sent to model", expanded=False):
-                    st.json(prompt_messages)
-            if mcp_enabled:
-                reply, tool_events, tools = agent_response(
-                    base_url,
-                    api_key,
-                    selected_model,
-                    prompt_messages,
-                    temperature,
-                    max_tokens,
-                    verify_tls,
-                    mcp_base_url,
-                    mcp_timeout_seconds,
-                    mcp_verify_tls,
-                    mcp_max_tool_rounds,
-                    route_headers,
-                )
-                tool_names = [
-                    tool.get("function", {}).get("name", "unknown")
-                    for tool in tools
-                    if isinstance(tool, dict)
-                ]
-                with st.expander("MCP tool loop", expanded=bool(tool_events)):
-                    st.write(f"Path: {mcp_path}")
-                    st.write(f"Available tools: {', '.join(tool_names)}")
-                    if tool_events:
-                        for index, event in enumerate(tool_events, start=1):
-                            st.write(f"Tool call {index}: `{event['tool']}`")
-                            st.write("Arguments")
-                            st.json(event["arguments"])
-                            st.write("Result")
-                            st.json(event["result"])
-                    else:
-                        st.write("The model did not request a tool call for this message.")
-                st.markdown(reply, unsafe_allow_html=True)
-            elif streaming:
-                reply = st.write_stream(
-                    stream_response(
+        with st.chat_message("assistant"):
+            try:
+                if show_context:
+                    with st.expander("Context sent to model", expanded=False):
+                        st.json(prompt_messages)
+                if mcp_enabled:
+                    reply, tool_events, tools = agent_response(
+                        base_url,
+                        api_key,
+                        selected_model,
+                        prompt_messages,
+                        temperature,
+                        max_tokens,
+                        verify_tls,
+                        mcp_base_url,
+                        mcp_timeout_seconds,
+                        mcp_verify_tls,
+                        mcp_max_tool_rounds,
+                        route_headers,
+                    )
+                    tool_names = [
+                        tool.get("function", {}).get("name", "unknown")
+                        for tool in tools
+                        if isinstance(tool, dict)
+                    ]
+                    st.session_state.mcp_tool_trace = {
+                        "path": mcp_path,
+                        "endpoint": mcp_base_url,
+                        "tool_names": tool_names,
+                        "tool_events": tool_events,
+                    }
+                    st.markdown(reply, unsafe_allow_html=True)
+                elif streaming:
+                    reply = st.write_stream(
+                        stream_response(
+                            base_url,
+                            api_key,
+                            selected_model,
+                            prompt_messages,
+                            temperature,
+                            max_tokens,
+                            verify_tls,
+                            route_headers,
+                        )
+                    )
+                    st.session_state.mcp_tool_trace = {}
+                else:
+                    reply = single_response(
                         base_url,
                         api_key,
                         selected_model,
@@ -719,22 +768,20 @@ def main() -> None:
                         verify_tls,
                         route_headers,
                     )
-                )
-            else:
-                reply = single_response(
-                    base_url,
-                    api_key,
-                    selected_model,
-                    prompt_messages,
-                    temperature,
-                    max_tokens,
-                    verify_tls,
-                    route_headers,
-                )
-                st.markdown(reply, unsafe_allow_html=True)
-        except Exception as error:
-            reply = f"Request failed: {error}"
-            st.error(reply)
+                    st.session_state.mcp_tool_trace = {}
+                    st.markdown(reply, unsafe_allow_html=True)
+            except Exception as error:
+                reply = f"Request failed: {error}"
+                if mcp_enabled:
+                    st.session_state.mcp_tool_trace = {
+                        "path": mcp_path,
+                        "endpoint": mcp_base_url,
+                        "error": reply,
+                    }
+                st.error(reply)
+
+    with trace_placeholder.container():
+        render_mcp_trace(st.session_state.mcp_tool_trace)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:
