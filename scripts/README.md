@@ -9,9 +9,16 @@ Current scripts:
 - `user_profile.py`: initializes, imports, exports, and checks the local user
   profile. The profile contains `terraform/user.tfvars`,
   `ansible/group_vars/user.yml`, and any existing module
-  `99-local.auto.tfvars` overrides. Use `python3 scripts/user_profile.py init`
-  for guided setup, `export ../user_profile.tgz` to save the user profile, and
-  `import ../user_profile.tgz` to restore it in a fresh clone.
+  `99-local.auto.tfvars` overrides. It also includes local instruction profiles
+  under `chatbot/instructions/local/` when they exist. Use
+  `python3 scripts/user_profile.py init` for guided setup, `export
+  ../user_profile.tgz` to save the user profile, and `import
+  ../user_profile.tgz` to restore it in a fresh clone.
+- `instruction_profiles.py`: initializes, validates, activates examples into,
+  and opens local operator-owned instruction slots under
+  `chatbot/instructions/local/`. Examples and their metadata remain tracked
+  under `chatbot/instructions/examples/`. Run it without a subcommand to open a
+  menu-driven wizard for changing one slot at a time.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

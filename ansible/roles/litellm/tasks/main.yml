@@ -137,6 +137,37 @@
   # - ansible.builtin.debug:
   #     var: litellm_configured_instruction_profiles
 
+- name: Ensure local instruction profile directories exist
+  ansible.builtin.file:
+    path: "{{ item.value.local_path | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - litellm_enabled | bool
+    - item.value.example_path is file
+
+- name: Initialize local instruction profile files from examples
+  ansible.builtin.copy:
+    src: "{{ item.value.example_path }}"
+    dest: "{{ item.value.local_path }}"
+    mode: "0644"
+    force: false
+  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - litellm_enabled | bool
+    - item.value.example_path is file
+  # - ansible.builtin.debug:
+  #     msg: "Initialized local instruction profile {{ item.key }} at {{ item.value.local_path }}"
+
 - name: Validate configured LiteLLM instruction profile specs
   ansible.builtin.assert:
     that:

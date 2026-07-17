@@ -61,5 +61,98 @@
       "version": "2026.07",
       "summary": "Agent tools should return least-privilege records and deterministic demo responses."
     }
+  },
+  "menu": {
+    "items": {
+      "MENU-1001": {
+        "item_id": "MENU-1001",
+        "name": "Spicy Crispy Chicken Sandwich",
+        "category": "main",
+        "description": "Crispy chicken filet with spicy sauce, pickles, and toasted bun.",
+        "calories": 620,
+        "protein_g": 31,
+        "sodium_mg": 1380,
+        "ingredients": ["chicken", "spicy sauce", "pickles", "bun"],
+        "allergens": ["gluten", "egg"]
+      },
+      "MENU-1002": {
+        "item_id": "MENU-1002",
+        "name": "Grilled Chicken Wrap",
+        "category": "main",
+        "description": "Grilled chicken, lettuce, tomato, and light ranch in a flour tortilla.",
+        "calories": 430,
+        "protein_g": 28,
+        "sodium_mg": 920,
+        "ingredients": ["chicken", "lettuce", "tomato", "ranch", "tortilla"],
+        "allergens": ["gluten", "dairy"]
+      },
+      "MENU-1003": {
+        "item_id": "MENU-1003",
+        "name": "Black Bean Veggie Burger",
+        "category": "main",
+        "description": "Black bean patty with lettuce, tomato, onion, and avocado spread.",
+        "calories": 510,
+        "protein_g": 19,
+        "sodium_mg": 870,
+        "ingredients": ["black beans", "lettuce", "tomato", "onion", "avocado spread", "bun"],
+        "tags": ["vegetarian"],
+        "allergens": ["gluten"]
+      },
+      "MENU-2001": {
+        "item_id": "MENU-2001",
+        "name": "Small Fries",
+        "category": "side",
+        "description": "Crispy salted fries.",
+        "calories": 320,
+        "protein_g": 4,
+        "sodium_mg": 260,
+        "ingredients": ["potatoes", "vegetable oil", "salt"],
+        "allergens": []
+      },
+      "MENU-2002": {
+        "item_id": "MENU-2002",
+        "name": "Apple Slices",
+        "category": "side",
+        "description": "Fresh sliced apples.",
+        "calories": 45,
+        "protein_g": 0,
+        "sodium_mg": 0,
+        "ingredients": ["apples"],
+        "allergens": []
+      },
+      "MENU-3001": {
+        "item_id": "MENU-3001",
+        "name": "Iced Tea",
+        "category": "drink",
+        "description": "Unsweetened iced tea.",
+        "calories": 5,
+        "protein_g": 0,
+        "sodium_mg": 10,
+        "ingredients": ["black tea", "ice"],
+        "allergens": []
+      },
+      "MENU-3002": {
+        "item_id": "MENU-3002",
+        "name": "Chocolate Shake",
+        "category": "drink",
+        "description": "Chocolate milkshake with whipped topping.",
+        "calories": 590,
+        "protein_g": 12,
+        "sodium_mg": 380,
+        "ingredients": ["milk", "chocolate syrup", "whipped topping"],
+        "allergens": ["dairy"]
+      },
+      "MENU-4001": {
+        "item_id": "MENU-4001",
+        "name": "Peanut Butter Cookie",
+        "category": "dessert",
+        "description": "Soft cookie with peanut butter chips.",
+        "calories": 260,
+        "protein_g": 6,
+        "sodium_mg": 210,
+        "ingredients": ["flour", "peanut butter", "sugar", "egg"],
+        "allergens": ["gluten", "peanuts", "egg"]
+      }
+    }
   }
 }

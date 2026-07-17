@@ -1,5 +1,0 @@
-display_name: Default Assistant
-description: General chatbot system instructions for direct versus FortiAIGate comparison.
-default_model: auto
-temperature: 0.0
-max_tokens: 4096

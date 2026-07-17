@@ -25,6 +25,7 @@ REQUIRED_PATHS = [
     "README.md",
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
+    "scripts/instruction_profiles.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -40,6 +41,7 @@ FORBIDDEN_TRACKED_PATTERNS = [
     "ansible/group_vars/all.yml",
     "ansible/group_vars/env.yml",
     "ansible/group_vars/images.yml",
+    "chatbot/instructions/local/*",
     "*.lic",
     ".env",
 ]
@@ -86,6 +88,7 @@ def check_python_compile() -> None:
 def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
+        "scripts/instruction_profiles.py",
         "scripts/automated_quickstart.py",
         "scripts/automated_teardown.py",
         "scripts/smoke_test.py",

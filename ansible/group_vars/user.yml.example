@@ -220,7 +220,7 @@ openwebui_enabled: false
 # Advanced manual override for a UI-layer system prompt. Leave commented for
 # the default architecture where backend demo instructions are injected by
 # LiteLLM instead.
-# chatbot_frontend_system_prompt_source_path: /path/to/frontend/instructions.txt
+# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 
 # Advanced manual HTTPS gateway certificate paths.
 # demo_https_gateway_cert_local_path: /path/to/private/tls.crt

@@ -5,6 +5,28 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added Phase 7 MCP tool expansion:
+  - deterministic fast-food menu/order tools for non-Fortinet tool-use demos
+  - read-only FortiGate MCP tool schemas for status, interfaces, routes,
+    firewall policies, address objects, and service objects
+  - graceful disabled/error responses when FortiGate credentials are absent
+- Added MCP FortiGate secret wiring so the MCP deployment can read the
+  Phase 6 read-only FortiGate API account token from a Kubernetes Secret
+  without exposing it through chatbot configuration.
+- Moved mutable chatbot/LiteLLM instruction prompts out of tracked active
+  paths. Tracked examples now live under `chatbot/instructions/examples/`,
+  while active `demo-a`, `demo-b`, and `frontend` instruction slots live under
+  ignored `chatbot/instructions/local/`.
+- Added `scripts/instruction_profiles.py` with both CLI commands and a
+  menu-driven wizard for installing tracked examples or local instruction files
+  into one active slot at a time. The helper prints the relevant Ansible deploy
+  command after preparing a slot.
+- Updated user profile and automated quickstart setup to initialize missing
+  local instruction slots alongside Terraform and Ansible user variables.
+- Updated MCP, architecture, quickstart, deployment, and flow documentation for
+  Phase 7: Bedrock requests tools and produces final answers, LiteLLM remains
+  the proxy/auth/instruction-injection layer, and the chatbot/agent owns MCP
+  TCP flows.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so

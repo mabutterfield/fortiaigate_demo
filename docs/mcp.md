@@ -21,6 +21,29 @@ Search and join tools:
 - `policy_search`
 - `customer_ticket_summary`
 
+Fast food ordering demo tools:
+
+- `menu_search`
+- `nutrition_lookup`
+- `allergen_check`
+- `suggest_combo`
+- `build_order_summary`
+
+FortiGate read-only demo tools:
+
+- `fortigate_system_status`
+- `fortigate_interface_status`
+- `fortigate_route_list`
+- `fortigate_policy_list`
+- `fortigate_address_list`
+- `fortigate_service_list`
+
+The FortiGate tools are advertised even when the appliance connection is not
+available. In that case they return a successful `disabled` payload instead of
+failing the whole agent loop. On a deployed lab, the MCP Ansible role enables
+them only when it can find a FortiGate admin URL and the locally stored
+read-only API token created by the FortiGate account playbook.
+
 The service has both an internal Kubernetes endpoint and a generated public
 NodePort by default:
 
@@ -108,6 +131,9 @@ mcp_service_type: NodePort
 mcp_service_port: 8000
 mcp_node_port: "{{ demo_mcp_http_port | default(30084) }}"
 mcp_tools_data_local_path: "{{ mcp_chart_local_path }}/files/tools.json"
+mcp_fortigate_tools_enabled: true
+mcp_fortigate_api_account_name: faig-readonly-api
+mcp_fortigate_verify_tls: false
 ```
 
 The default demo data file is:
@@ -117,9 +143,23 @@ fortiaigate_demo/mcp/chart/files/tools.json
 ```
 
 Set `mcp_tools_data_local_path` to another JSON file when testing alternate
-customers, tickets, or policies. The Ansible role copies that file into the
-staged Helm chart before deployment, so data changes do not require rebuilding
-an image.
+customers, tickets, policies, or menu data. The Ansible role copies that file
+into the staged Helm chart before deployment, so data changes do not require
+rebuilding an image.
+
+FortiGate MCP secrets are not committed. The role reads the generated API token
+from ignored local Ansible secret material and writes a Kubernetes secret named
+`fortigate-readonly-api` when both the token and admin URL are available. The
+server consumes these environment variables:
+
+```text
+MCP_FORTIGATE_ENABLED
+MCP_FORTIGATE_BASE_URL
+MCP_FORTIGATE_API_TOKEN
+MCP_FORTIGATE_VDOM
+MCP_FORTIGATE_VERIFY_TLS
+MCP_FORTIGATE_TIMEOUT_SECONDS
+```
 
 ## HTTPS Gateway
 
@@ -147,6 +187,9 @@ curl -X POST http://127.0.0.1:8000/mcp \
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
 these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
+The menu tools are deterministic and meant to show an ordering assistant flow
+without placing a real order. The FortiGate tools are read-only and intended to
+show the model using a real infrastructure data source.
 
 ## Chatbot Tool Toggle
 
@@ -195,8 +238,12 @@ browser/UI-layer system prompt, set one of:
 
 ```yaml
 chatbot_frontend_system_prompt: "Inline system prompt text"
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
+chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 ```
+
+Tracked examples live under `chatbot/instructions/examples/`. Active local
+instruction files live under ignored `chatbot/instructions/local/` and can be
+created or opened with `scripts/instruction_profiles.py`.
 
 When FortiWeb Terraform has generated `fortiweb.generated.yml`,
 `chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the
@@ -210,4 +257,7 @@ Show me all customers with open tickets.
 Which enterprise customers are in us-east?
 Find policies related to tool access.
 Lookup ticket TCK-2001 and summarize the customer impact.
+Find a chicken menu item under 600 calories.
+Build an order with MENU-1001, MENU-2002, and MENU-3001.
+Get the FortiGate system status.
 ```

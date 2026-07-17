@@ -22,6 +22,18 @@ chatbot_ingress_tls_enabled: false
 chatbot_ingress_tls_secret_name: ""
 
 chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
+chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
+chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
+chatbot_instruction_profile_files:
+  demo_a:
+    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
+  demo_b:
+    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
+  frontend:
+    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 chatbot_namespace: chatbot
 chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 

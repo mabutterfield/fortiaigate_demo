@@ -17,3 +17,17 @@ mcp_helm_wait: false
 mcp_helm_timeout: 180s
 mcp_wait_for_rollout: true
 mcp_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_service_port }}"
+
+# Optional read-only FortiGate tools. The MCP server reports these tools as
+# disabled unless Ansible can build a Kubernetes Secret from the Phase 6
+# read-only API account token.
+mcp_fortigate_tools_enabled: true
+mcp_fortigate_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"
+mcp_fortigate_api_secret_file: "{{ (playbook_dir + '/../secrets/fortigate_api.generated.yml') | realpath }}"
+mcp_fortigate_api_account_name: "{{ fortigate_readonly_api_account_name | default('faig-readonly-api') }}"
+mcp_fortigate_base_url: "{{ fortigate_admin_url | default('') }}"
+mcp_fortigate_api_token: ""
+mcp_fortigate_vdom: "{{ fortigate_vdom | default('root') }}"
+mcp_fortigate_verify_tls: false
+mcp_fortigate_timeout_seconds: 8
+mcp_fortigate_k8s_secret_name: fortigate-readonly-api

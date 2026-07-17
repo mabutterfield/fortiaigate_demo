@@ -159,7 +159,20 @@ litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
 litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
 litellm_bedrock_read_from_terraform: true
-litellm_instruction_profile_source_path: "{{ chatbot_instruction_root | default(faig_workspace_root ~ '/fortiaigate_demo/chatbot/instructions') }}/default/instructions.txt"
+chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
+chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
+chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
+chatbot_instruction_profile_files:
+  demo_a:
+    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
+  demo_b:
+    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
+  frontend:
+    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
+    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
+litellm_instruction_profile_source_path: "{{ chatbot_instruction_profile_files.demo_a.local_path }}"
 litellm_instruction_debug: false
 litellm_default_instruction_profile: passthrough
 litellm_instruction_profile_injection_position: prepend
@@ -175,7 +188,7 @@ litellm_instruction_profiles:
   - name: demo-b
     enabled: true
     position: "{{ litellm_instruction_profile_injection_position }}"
-    source_path: "{{ chatbot_instruction_root }}/alternate/instructions.txt"
+    source_path: "{{ chatbot_instruction_profile_files.demo_b.local_path }}"
 litellm_models:
   - name: "{{ litellm_passthrough_model_alias }}"
     provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(direct_model_bedrock_model | default(litellm_bedrock_fallback_model_id)) }}"
@@ -267,7 +280,6 @@ chatbot_publish_platform: linux/amd64
 # injected by LiteLLM, not by this frontend.
 chatbots_enabled: true
 chatbot_namespace: chatbot
-chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
 chatbot_service_type: NodePort
 chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
@@ -330,7 +342,7 @@ chatbot_frontend_system_prompt: ""
 # Optional UI-layer system prompt. Leave empty for the default architecture
 # where backend demo instructions are injected by LiteLLM instead.
 chatbot_frontend_system_prompt_source_path: ""
-# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_root }}/frontend/instructions.txt"
+# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
 # MCP tools are optional in the browser UI. The current default path is direct
 # chatbot -> MCP. When terraform/aws-fortiweb has generated
 # ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url

@@ -409,12 +409,24 @@ The default LiteLLM deployment exposes model aliases backed by the same Bedrock
 model, plus an optional chained FAIG inspection alias:
 
 - `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
-- `demo-a`: uses `chatbot/instructions/default/instructions.txt`
-- `demo-b`: uses `chatbot/instructions/alternate/instructions.txt`
-- `demo-a-faig-be`: uses default instructions, then calls the
+- `demo-a`: uses ignored local instructions at
+  `chatbot/instructions/local/demo-a/instructions.txt`
+- `demo-b`: uses ignored local instructions at
+  `chatbot/instructions/local/demo-b/instructions.txt`
+- `demo-a-faig-be`: uses demo-a instructions, then calls the
   configured backend FortiAIGate URI as an OpenAI-compatible upstream
-- `demo-b-faig-be`: uses alternate instructions, then calls the
+- `demo-b-faig-be`: uses demo-b instructions, then calls the
   configured backend FortiAIGate URI as an OpenAI-compatible upstream
+
+Tracked examples live in `chatbot/instructions/examples/`, with metadata in
+`chatbot/instructions/examples/catalog.json`. The LiteLLM role initializes
+missing local slots without overwriting edits. You can manage them locally with
+`python3 scripts/instruction_profiles.py list`, `examples`, `init`, `activate`,
+and `edit`.
+
+Run `python3 scripts/instruction_profiles.py` with no subcommand for a
+menu-driven slot wizard. Automated quickstart also initializes missing local
+instruction slots during user profile setup.
 
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
 in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.
@@ -511,7 +523,9 @@ OpenAI-compatible base URL, so `/v1/passthrough` receives
 When a frontend-layer prompt is intentionally needed, set either
 `chatbot_frontend_system_prompt` or
 `chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/user.yml`.
-The sample file is `chatbot/instructions/frontend/instructions.txt`.
+The tracked example file is
+`chatbot/instructions/examples/chatbot-frontend.instructions.txt`; active
+local prompt files belong under ignored `chatbot/instructions/local/`.
 
 Check readiness separately:
 
@@ -533,11 +547,12 @@ Deploy the MCP demo tool server:
 ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
-The MCP baseline runs in namespace `mcp` and is enabled by default. It provides deterministic customer,
-ticket, policy, and echo tools for the later Python agent loop. It exposes HTTP
-on the generated default NodePort `30084`. After the HTTPS gateway playbook
-runs, it also exposes HTTPS on `30447`. It does not require ECR image
-publishing.
+The MCP baseline runs in namespace `mcp` and is enabled by default. It provides
+deterministic customer, ticket, policy, menu/order, and echo tools for the
+Python agent loop, plus read-only FortiGate tool schemas when the local
+FortiGate API token is available. It exposes HTTP on the generated default
+NodePort `30084`. After the HTTPS gateway playbook runs, it also exposes HTTPS
+on `30447`. It does not require ECR image publishing.
 
 Check readiness separately:
 

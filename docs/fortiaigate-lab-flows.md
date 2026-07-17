@@ -15,7 +15,7 @@ flowchart TD
     MD["MCP=Direct<br/>chatbot -> mcp-demo service<br/>http://mcp-demo.mcp.svc.cluster.local:8000"]
     MFW["MCP=FortiWeb<br/>chatbot -> FortiWeb port1 listener<br/>reverse proxy to k3s MCP NodePort"]
     FWB["FortiWeb reverse proxy<br/>no-inspection server policy"]
-    MCP["MCP demo tools<br/>customer / ticket / policy / echo"]
+    MCP["MCP demo tools<br/>customer / ticket / policy / menu<br/>read-only FortiGate when credentials exist"]
 
     FAIG["FortiAIGate (front)<br/>AI guard inspects user request<br/>(pre-injection view)"]
     LL["LiteLLM - alias = {profile}<br/>pre-call hook injects backend instructions"]
