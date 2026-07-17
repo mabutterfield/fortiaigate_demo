@@ -65,6 +65,27 @@
   # - ansible.builtin.debug:
   #     var: openwebui_status_pods.results
 
+- name: Check Open WebUI pod age table
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ item.namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ item.release_name }}"
+      - --no-headers
+  loop: "{{ openwebui_instances }}"
+  changed_when: false
+  failed_when: false
+  register: openwebui_status_pod_tables
+  when: openwebui_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: openwebui_status_pod_tables.results
+
 - name: Check Open WebUI local health endpoints
   ansible.builtin.command:
     argv:
@@ -110,6 +131,7 @@
   vars:
     deployment_result: "{{ openwebui_status_deployments.results[index] }}"
     pod_result: "{{ openwebui_status_pods.results[index] }}"
+    pod_table_result: "{{ openwebui_status_pod_tables.results[index] }}"
     helm_result: "{{ openwebui_status_helm.results[index] }}"
     health_result: "{{ openwebui_status_health.results[index] }}"
     bedrock_proxy_result: "{{ openwebui_status_bedrock_proxy_deployments.results[index] }}"
@@ -153,6 +175,7 @@
       available_replicas: "{{ available_replicas }}"
       ready_pods: "{{ ready_pods }}"
       pod_count: "{{ pod_json['items'] | length }}"
+      pod_lines: "{{ pod_table_result.stdout_lines | default([]) }}"
       health_status: "{{ health_status }}"
       bedrock_proxy_enabled: "{{ bedrock_proxy_enabled }}"
       bedrock_proxy_ready: "{{ not bedrock_proxy_enabled or (bedrock_proxy_result.rc == 0 and bedrock_proxy_available_replicas >= 1) }}"
@@ -204,6 +227,7 @@
           ~ ('READY' if item.ready else 'NOT READY')
           ~ ', Helm release=' ~ ('present' if item.helm_present else 'missing')
           ~ ', Pods ready=' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string)
+          ~ ', Pods (NAME READY STATUS RESTARTS AGE)=' ~ (item.pod_lines | join('; ') if item.pod_lines | length > 0 else 'none')
           ~ ', Components=' ~ ('Open WebUI + local Bedrock proxy' if item.bedrock_proxy_enabled else 'Open WebUI')
           ~ ', Bedrock proxy=' ~ ('disabled' if not item.bedrock_proxy_enabled else 'ready' if item.bedrock_proxy_ready else 'not ready')
           ~ ', Health HTTP status=' ~ (item.health_status | string)

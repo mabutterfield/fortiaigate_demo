@@ -37,6 +37,43 @@
   register: demo_home_status_deployment
   when: demo_home_enabled | bool
 
+- name: Check demo home pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ demo_home_namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ demo_home_release_name }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: demo_home_status_pods
+  when: demo_home_enabled | bool
+
+- name: Check demo home pod age table
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ demo_home_namespace }}"
+      - -l
+      - "app.kubernetes.io/instance={{ demo_home_release_name }}"
+      - --no-headers
+  changed_when: false
+  failed_when: false
+  register: demo_home_status_pod_table
+  when: demo_home_enabled | bool
+
 - name: Check demo home local health endpoint
   ansible.builtin.command:
     argv:
@@ -61,10 +98,22 @@
         else (ansible_host | default(inventory_hostname))
       }}
     demo_home_status_deployment_json: "{{ demo_home_status_deployment.stdout | default('{}') | from_json if demo_home_status_deployment.rc == 0 else {} }}"
+    demo_home_status_pods_json: "{{ demo_home_status_pods.stdout | default('{\"items\": []}') | from_json if demo_home_status_pods.rc == 0 else {'items': []} }}"
+    demo_home_status_pod_lines: "{{ demo_home_status_pod_table.stdout_lines | default([]) }}"
   when: demo_home_enabled | bool
 
 - name: Set demo home status summary facts
   ansible.builtin.set_fact:
+    demo_home_status_ready_pods: >-
+      {{
+        demo_home_status_pods_json['items']
+        | selectattr('status.phase', 'equalto', 'Running')
+        | selectattr('status.containerStatuses', 'defined')
+        | selectattr('status.containerStatuses.0.ready', 'equalto', true)
+        | list
+        | length
+      }}
+    demo_home_status_pod_count: "{{ demo_home_status_pods_json['items'] | length }}"
     demo_home_status_ready: >-
       {{
         demo_home_status_helm.rc == 0
@@ -89,6 +138,8 @@
     msg:
       - "Demo home status: {{ 'READY' if demo_home_status_ready else 'NOT READY' }}"
       - "Helm release: {{ 'present' if demo_home_status_helm.rc == 0 else 'missing' }}"
+      - "Pods ready: {{ demo_home_status_ready_pods }}/{{ demo_home_status_pod_count }}"
+      - "Pods (NAME READY STATUS RESTARTS AGE): {{ demo_home_status_pod_lines | join('; ') if demo_home_status_pod_lines | length > 0 else 'none' }}"
       - "Health HTTP status: {{ demo_home_status_health.stdout | default('unknown') }}"
       - "URL: {{ demo_home_status_url }}"
       - "Problems: {{ demo_home_status_problems | join(' | ') if demo_home_status_problems | length > 0 else 'none' }}"

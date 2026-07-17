@@ -43,6 +43,8 @@ a "what's new" guide rather than a raw commit log.
 - Added chatbot context controls for current-turn, recent-conversation, and
   consolidated-context modes, including reset and optional context visibility
   for scenario demos.
+- Added Kubernetes pod detail lines, including pod `AGE`, to app status
+  summaries so redeploy completion is easier to confirm.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so
