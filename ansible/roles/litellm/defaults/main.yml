@@ -41,6 +41,9 @@ litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b
 litellm_demo_a_faig_be_model_alias: demo-a-faig-be
 litellm_demo_b_faig_be_model_alias: demo-b-faig-be
+litellm_ollama_model_alias: "{{ ollama_model | default('llama3.2:1b') }}"
+litellm_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
+litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
 faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 litellm_faig_backend_base_path: /v1/passthrough
@@ -70,6 +73,10 @@ litellm_models:
     api_base: "{{ litellm_faig_backend_base_url }}"
     api_key: "{{ litellm_faig_backend_api_key }}"
     instruction_profile: demo-b
+  - name: "{{ litellm_ollama_model_alias }}"
+    provider_model: "ollama_chat/{{ litellm_ollama_model }}"
+    api_base: "{{ litellm_ollama_base_url }}"
+    instruction_profile: passthrough
 
 chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
 chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"

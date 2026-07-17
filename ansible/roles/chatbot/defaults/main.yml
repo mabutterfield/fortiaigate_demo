@@ -89,6 +89,7 @@ chatbot_model_options:
   - "{{ litellm_demo_b_model_alias | default('demo-b') }}"
   - "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
   - "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
+  - "{{ litellm_ollama_model_alias | default('llama3.2:1b') }}"
 chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
 chatbot_mcp_enabled: false

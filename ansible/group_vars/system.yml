@@ -155,6 +155,9 @@ litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b
 litellm_demo_a_faig_be_model_alias: demo-a-faig-be
 litellm_demo_b_faig_be_model_alias: demo-b-faig-be
+litellm_ollama_model_alias: "{{ ollama_model | default('llama3.2:1b') }}"
+litellm_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
+litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
 litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
@@ -212,6 +215,10 @@ litellm_models:
     api_base: "{{ litellm_faig_backend_base_url }}"
     api_key: "{{ litellm_faig_backend_api_key }}"
     instruction_profile: demo-b
+  - name: "{{ litellm_ollama_model_alias }}"
+    provider_model: "ollama_chat/{{ litellm_ollama_model }}"
+    api_base: "{{ litellm_ollama_base_url }}"
+    instruction_profile: passthrough
 # Optional explicit map override. Leave empty to use instruction_profile on each litellm_models entry.
 litellm_model_instruction_profiles: {}
 litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:4000/v1"
@@ -338,6 +345,7 @@ chatbot_model_options:
   - "{{ litellm_demo_b_model_alias }}"
   - "{{ litellm_demo_a_faig_be_model_alias }}"
   - "{{ litellm_demo_b_faig_be_model_alias }}"
+  - "{{ litellm_ollama_model_alias }}"
 chatbot_frontend_system_prompt: ""
 # Optional UI-layer system prompt. Leave empty for the default architecture
 # where backend demo instructions are injected by LiteLLM instead.

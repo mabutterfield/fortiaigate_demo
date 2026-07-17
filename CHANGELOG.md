@@ -69,6 +69,9 @@ a "what's new" guide rather than a raw commit log.
   tool-call messages with null content for better Bedrock/LiteLLM compatibility.
 - The chatbot now uses a wide layout with MCP tool calls shown in a separate
   right-side trace pane instead of inline inside the assistant response.
+- Added `llama3.2:1b` as a default selectable LiteLLM/Ollama backend alias and
+  documented commented model preference examples for `llama3.2:1b` and
+  Bedrock `gpt-oss:20b`.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so
