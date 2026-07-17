@@ -437,7 +437,7 @@ python3 scripts/scenario_profiles.py show fastfood-ordering
 python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
 ```
 
-After installing a scenario, run the Ansible command(s) printed by the helper.
+After installing a scenario, run the LiteLLM deploy command printed by the helper.
 
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
 in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.

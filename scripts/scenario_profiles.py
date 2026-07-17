@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import sys
@@ -20,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_ROOT = REPO_ROOT / "chatbot" / "scenarios"
 EXAMPLES_ROOT = SCENARIO_ROOT / "examples"
 CATALOG_PATH = EXAMPLES_ROOT / "catalog.json"
+MCP_SERVER_PATH = REPO_ROOT / "mcp" / "chart" / "files" / "server.py"
 
 
 def print_header(message: str) -> None:
@@ -144,24 +146,39 @@ def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: b
 
     print(f"installed: {scenario_id} -> {instruction_profiles.resolve_slot(target_slot)} -> {destination}")
     instruction_profiles.print_deploy_hint(scenario_id, target_slot, destination)
-    for command in profile.get("deploy", []):
-        if "deploy_litellm.yml" in command:
-            continue
-        print(f"also run: '{command}'")
     return destination
+
+
+def shared_mcp_tool_names() -> set[str]:
+    spec = importlib.util.spec_from_file_location("faig_mcp_server", MCP_SERVER_PATH)
+    if not spec or not spec.loader:
+        raise ValueError(f"Unable to load MCP server module: {MCP_SERVER_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    names = set()
+    for tool in getattr(module, "TOOLS", []):
+        function = tool.get("function", {})
+        if "name" in function:
+            names.add(function["name"])
+    return names
 
 
 def validate_scenarios() -> None:
     print_header("Validate Scenario Profiles")
     failed = False
+    available_tools = shared_mcp_tool_names()
     for scenario_id in scenario_ids():
         try:
             profile_path, profile = load_scenario(scenario_id)
             instruction = instruction_path(profile_path, profile)
             if not instruction.read_text(encoding="utf-8").strip():
                 raise ValueError("instruction file is empty")
-            if not profile.get("mcp", {}).get("required_tools"):
+            required_tools = profile.get("mcp", {}).get("required_tools", [])
+            if not required_tools:
                 raise ValueError("required MCP tools are missing")
+            missing_tools = sorted(set(required_tools) - available_tools)
+            if missing_tools:
+                raise ValueError(f"required MCP tools are not in shared MCP server: {', '.join(missing_tools)}")
             if not profile.get("clean_prompts"):
                 raise ValueError("clean prompts are missing")
             print(f"- {scenario_id}: ok")

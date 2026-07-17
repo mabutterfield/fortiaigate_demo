@@ -30,9 +30,5 @@
     "Bedrock requests menu or order tool calls.",
     "The chatbot executes MCP menu tools directly or through FortiWeb.",
     "The final answer summarizes only draft order information and does not place an order."
-  ],
-  "deploy": [
-    "ansible-playbook ansible/playbooks/deploy_litellm.yml",
-    "ansible-playbook ansible/playbooks/deploy_mcp.yml"
   ]
 }

@@ -5,6 +5,10 @@ and prompt examples. They sit above instruction profiles: a scenario installs a
 known instruction set into `demo-a`, `demo-b`, or `frontend`, and the local
 instruction profile can still be edited afterward for tone or wording.
 
+All scenarios use the same shared MCP server. The `required_tools` metadata in
+each profile documents which tools the scenario should use; it does not deploy
+a scenario-specific MCP service.
+
 ## Prepare A Scenario
 
 List the available tracked scenarios:
@@ -25,17 +29,16 @@ Install one scenario into a local instruction slot:
 python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
 ```
 
-Then deploy the prepared instructions and MCP server:
+Then deploy the prepared instructions:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_litellm.yml
-ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
-`deploy_litellm.yml` applies the instruction slot to LiteLLM. Run
-`deploy_mcp.yml` after new MCP tool code, tool data, or FortiGate secret wiring
-changes. If only instruction text changed, redeploying LiteLLM is usually
-enough.
+`deploy_litellm.yml` applies the instruction slot to LiteLLM. The shared MCP
+server is deployed by the normal quickstart or manual deployment flow. Run
+`deploy_mcp.yml` only after MCP tool code, tool data, or FortiGate secret wiring
+changes.
 
 ## Common Chatbot Settings
 
@@ -66,7 +69,6 @@ Install:
 ```bash
 python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
-ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 Chatbot settings:
@@ -108,7 +110,6 @@ Install:
 ```bash
 python3 scripts/scenario_profiles.py install fortigate-operator --slot demo-a --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
-ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 Chatbot settings:
@@ -150,7 +151,6 @@ Install:
 ```bash
 python3 scripts/scenario_profiles.py install hr-policy-risk --slot demo-a --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
-ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 Chatbot settings:

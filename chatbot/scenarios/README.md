@@ -1,7 +1,8 @@
 # Scenario Profiles
 
 Scenario profiles package repeatable demo content without replacing instruction
-profiles.
+profiles. They do not deploy separate MCP servers; every scenario uses the
+same shared MCP service and declares its expected tools in `required_tools`.
 
 Tracked scenario examples live under `examples/`. Installing a scenario copies
 its recommended instruction text into an ignored local instruction slot such as

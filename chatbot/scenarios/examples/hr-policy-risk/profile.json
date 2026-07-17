@@ -31,9 +31,5 @@
     "Bedrock requests employee or policy tools for HR facts.",
     "The chatbot executes MCP tools and receives safe synthetic metadata.",
     "The final answer refuses sensitive identifiers and offers safe alternatives."
-  ],
-  "deploy": [
-    "ansible-playbook ansible/playbooks/deploy_litellm.yml",
-    "ansible-playbook ansible/playbooks/deploy_mcp.yml"
   ]
 }

@@ -31,6 +31,9 @@ a "what's new" guide rather than a raw commit log.
   `fastfood-ordering`, `fortigate-operator`, and `hr-policy-risk`. The new
   `scripts/scenario_profiles.py` helper installs scenario instructions into
   local slots while keeping instruction profiles available for fine tuning.
+- Scenario profiles now use the single shared MCP server only. Their
+  `required_tools` lists document expected tool use and are validated against
+  the shared MCP catalog.
 - Added a scenario runbook with chatbot settings, sample prompts, attack or
   boundary prompts, and expected behavior for each tracked scenario.
 - Added synthetic HR MCP tools and data for employee lookup/search, HR policy

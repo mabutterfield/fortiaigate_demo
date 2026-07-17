@@ -31,9 +31,5 @@
     "Bedrock requests one of the read-only FortiGate tools.",
     "The chatbot executes the MCP call.",
     "If the FortiGate secret is missing, MCP returns a disabled payload and the final answer reports that live data is unavailable."
-  ],
-  "deploy": [
-    "ansible-playbook ansible/playbooks/deploy_litellm.yml",
-    "ansible-playbook ansible/playbooks/deploy_mcp.yml"
   ]
 }
