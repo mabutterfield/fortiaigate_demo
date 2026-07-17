@@ -86,9 +86,9 @@ chatbot_mcp_fortiweb_base_url: >-
     fortiweb_mcp_http_base_url
     | default(
       (
-        'http://' ~ fortiweb_internal_ip ~ ':' ~ (demo_mcp_http_port | default(30084) | string)
+        'http://' ~ fortiweb_public_private_ip ~ ':' ~ (demo_mcp_http_port | default(30084) | string)
       )
-      if fortiweb_internal_ip | default('') | string | length > 0
+      if fortiweb_public_private_ip | default('') | string | length > 0
       else '',
       true
     )

@@ -48,8 +48,9 @@ fortiweb_static_route_default_gateway: ""
 fortiweb_static_route_default_id: "1"
 fortiweb_static_routes_static: []
 
-# Optional generated NodePort reverse-proxy chains. Disabled by default until
-# the intended traffic path and AWS security group listener ports are confirmed.
+# Optional generated NodePort reverse-proxy chains. Repo system vars enable
+# these by default for appliance builds. FortiWeb listens on front-end port1
+# and proxies to k3s through back-end port2.
 fortiweb_mcp_proxy_enabled: false
 fortiweb_mcp_proxy_name_prefix: FAIG_MCP
 fortiweb_mcp_proxy_listen_port: "{{ demo_mcp_http_port | default(30084) | int }}"
@@ -63,10 +64,6 @@ fortiweb_mcp_proxy_server_pool_member_name: "1"
 fortiweb_mcp_proxy_virtual_server_vips:
   - name: "1"
     interface: port1
-    status: enable
-    use_interface_ip: enable
-  - name: "2"
-    interface: port2
     status: enable
     use_interface_ip: enable
 fortiweb_nodeport_proxy_enabled: "{{ fortiweb_mcp_proxy_enabled | bool }}"

@@ -14,5 +14,5 @@ fortiweb_admin_url: ${jsonencode(admin_url)}
 fortiweb_http_admin_url: ${jsonencode(http_admin_url)}
 fortiweb_api_url: ${jsonencode(api_url)}
 
-fortiweb_mcp_http_base_url: ${jsonencode(internal_ip != "" ? "http://${internal_ip}:${mcp_http_port}" : "")}
-fortiweb_mcp_https_base_url: ${jsonencode(internal_ip != "" ? "https://${internal_ip}:${mcp_https_port}" : "")}
+fortiweb_mcp_http_base_url: ${jsonencode(public_private_ip != "" ? "http://${public_private_ip}:${mcp_http_port}" : "")}
+fortiweb_mcp_https_base_url: ${jsonencode(public_private_ip != "" ? "https://${public_private_ip}:${mcp_https_port}" : "")}
