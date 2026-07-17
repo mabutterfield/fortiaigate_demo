@@ -36,7 +36,7 @@ flowchart TD
     LL["LiteLLM selected alias<br/>optional backend instruction injection"]
     FB["FortiAIGate passthrough flow<br/>/v1/passthrough/*<br/>AI guard sees post-injection request"]
     LP["LiteLLM pass-bedrock<br/>proxies to Bedrock"]
-    BR["Amazon Bedrock"]
+    BR["Amazon Bedrock model<br/>requests tool calls<br/>generates final answer"]
 
     UI -->|"Direct LiteLLM"| RD
     UI -->|"FAIG Static Route"| RS

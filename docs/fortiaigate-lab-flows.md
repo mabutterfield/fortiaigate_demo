@@ -21,7 +21,7 @@ flowchart TD
     LL["LiteLLM - alias = {profile}<br/>pre-call hook injects backend instructions"]
     FB["FortiAIGate (post-injection)<br/>URI rule /v1/passthrough/*<br/>AI guard inspects again"]
     LP["LiteLLM - alias = pass-bedrock<br/>(no injection - passthrough)"]
-    BR["Amazon Bedrock"]
+    BR["Amazon Bedrock model<br/>requests tool calls<br/>generates final answer"]
 
     UI -->|"Path = Direct LiteLLM"| RD
     UI -->|"Path = FAIG Static"| RS
