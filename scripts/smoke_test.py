@@ -26,6 +26,7 @@ REQUIRED_PATHS = [
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
     "scripts/instruction_profiles.py",
+    "scripts/scenario_profiles.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -89,6 +90,7 @@ def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
         "scripts/instruction_profiles.py",
+        "scripts/scenario_profiles.py",
         "scripts/automated_quickstart.py",
         "scripts/automated_teardown.py",
         "scripts/smoke_test.py",

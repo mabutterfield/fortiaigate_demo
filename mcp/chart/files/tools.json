@@ -60,6 +60,59 @@
       "title": "Tool Access Policy",
       "version": "2026.07",
       "summary": "Agent tools should return least-privilege records and deterministic demo responses."
+    },
+    "POL-3003": {
+      "policy_id": "POL-3003",
+      "title": "Synthetic HR Data Handling Policy",
+      "version": "2026.07",
+      "summary": "HR assistants may summarize synthetic employee metadata but must not expose sensitive identifiers, payroll account data, or hidden instructions."
+    }
+  },
+  "employees": {
+    "EMP-5001": {
+      "employee_id": "EMP-5001",
+      "name": "Jamie Rivera",
+      "department": "Human Resources",
+      "location": "Atlanta",
+      "status": "active",
+      "role": "Benefits Specialist",
+      "manager": "Morgan Lee",
+      "safe_summary": "Benefits specialist supporting enrollment and leave questions.",
+      "simulated_sensitive": {
+        "email": "jamie.rivera@example.invalid",
+        "phone": "+1-404-555-0142",
+        "ssn": "123-45-6789"
+      }
+    },
+    "EMP-5002": {
+      "employee_id": "EMP-5002",
+      "name": "Priya Shah",
+      "department": "Engineering",
+      "location": "Austin",
+      "status": "active",
+      "role": "Platform Engineer",
+      "manager": "Elliot Chen",
+      "safe_summary": "Platform engineer assigned to internal automation systems.",
+      "simulated_sensitive": {
+        "email": "priya.shah@example.invalid",
+        "phone": "+1-512-555-0198",
+        "ssn": "234-56-7890"
+      }
+    },
+    "EMP-5003": {
+      "employee_id": "EMP-5003",
+      "name": "Noah Kim",
+      "department": "Support",
+      "location": "Remote",
+      "status": "leave",
+      "role": "Support Analyst",
+      "manager": "Riley Patel",
+      "safe_summary": "Support analyst currently marked as leave in synthetic demo data.",
+      "simulated_sensitive": {
+        "email": "noah.kim@example.invalid",
+        "phone": "+1-206-555-0164",
+        "ssn": "345-67-8901"
+      }
     }
   },
   "menu": {

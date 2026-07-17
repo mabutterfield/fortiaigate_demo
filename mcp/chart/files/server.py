@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
@@ -75,6 +76,62 @@ def policy_search(arguments):
         if query in haystack:
             items.append(policy)
     return True, {"count": len(items), "items": items}
+
+
+def employee_search(arguments):
+    employees = load_data().get("employees", {})
+    filters = {
+        "employee_id": arguments.get("employee_id", ""),
+        "department": arguments.get("department", ""),
+        "location": arguments.get("location", ""),
+        "status": arguments.get("status", ""),
+    }
+    query = normalized(arguments.get("query"))
+    items = []
+    for employee in employees.values():
+        if not matches_filters(employee, filters):
+            continue
+        safe_employee = dict(employee)
+        safe_employee.pop("simulated_sensitive", None)
+        if query and not contains_text(safe_employee, query):
+            continue
+        items.append(safe_employee)
+    return True, {"count": len(items), "items": items}
+
+
+def employee_lookup(arguments):
+    employee_id = arguments.get("employee_id")
+    if not employee_id:
+        return False, {"error": "missing required argument: employee_id"}
+    employee = load_data().get("employees", {}).get(employee_id)
+    if not employee:
+        return False, {"error": "employees entry not found", "employee_id": employee_id}
+    safe_employee = dict(employee)
+    safe_employee.pop("simulated_sensitive", None)
+    return True, safe_employee
+
+
+def redaction_check(arguments):
+    text = str(arguments.get("text", ""))
+    if not text:
+        return False, {"error": "missing required argument: text"}
+
+    patterns = {
+        "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+        "credit_card": r"\b(?:\d[ -]*?){13,16}\b",
+        "phone": r"\b(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}\b",
+    }
+    findings = {}
+    for name, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+        findings[name] = len(matches)
+    total = sum(findings.values())
+    return True, {
+        "contains_sensitive_patterns": total > 0,
+        "finding_counts": findings,
+        "recommendation": "redact before sharing externally" if total else "no common sensitive patterns detected",
+    }
 
 
 def contains_text(value, query):
@@ -303,6 +360,8 @@ def run_tool(tool_name, arguments):
         return lookup("tickets", "ticket_id", arguments)
     if tool_name == "policy_lookup":
         return lookup("policies", "policy_id", arguments)
+    if tool_name == "employee_lookup":
+        return employee_lookup(arguments)
     if tool_name == "customer_search":
         return search_collection(
             "customers",
@@ -325,6 +384,12 @@ def run_tool(tool_name, arguments):
         )
     if tool_name == "policy_search":
         return policy_search(arguments)
+    if tool_name == "hr_policy_lookup":
+        return lookup("policies", "policy_id", arguments)
+    if tool_name == "employee_search":
+        return employee_search(arguments)
+    if tool_name == "redaction_check":
+        return redaction_check(arguments)
     if tool_name == "customer_ticket_summary":
         return customer_ticket_summary(arguments)
     if tool_name == "menu_search":
@@ -395,6 +460,19 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "employee_lookup",
+            "description": "Return deterministic synthetic employee metadata by employee_id for HR demo scenarios.",
+            "parameters": {
+                "type": "object",
+                "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
+                "required": ["employee_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "customer_search",
             "description": "Search demo customers by optional customer_id, status, tier, or region filters.",
             "parameters": {
@@ -434,6 +512,50 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string", "description": "Text to search in policy titles and summaries."}},
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "hr_policy_lookup",
+            "description": "Return deterministic HR policy metadata by policy_id.",
+            "parameters": {
+                "type": "object",
+                "properties": {"policy_id": {"type": "string", "description": "Policy ID such as POL-3001."}},
+                "required": ["policy_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_search",
+            "description": "Search deterministic synthetic employees by department, location, status, employee_id, or text query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "employee_id": {"type": "string"},
+                    "department": {"type": "string", "description": "Department such as Human Resources, Engineering, or Support."},
+                    "location": {"type": "string", "description": "Office location such as Atlanta, Austin, or Remote."},
+                    "status": {"type": "string", "description": "Employment status such as active or leave."},
+                    "query": {"type": "string", "description": "Optional text search across employee fields."},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "redaction_check",
+            "description": "Check text for common sensitive-data patterns before a response is shared.",
+            "parameters": {
+                "type": "object",
+                "properties": {"text": {"type": "string", "description": "Text to scan for common sensitive patterns."}},
+                "required": ["text"],
                 "additionalProperties": False,
             },
         },
@@ -589,7 +711,7 @@ TOOLS = [
 
 
 class McpDemoHandler(BaseHTTPRequestHandler):
-    server_version = "mcp-demo/0.2.0"
+    server_version = "mcp-demo/0.3.0"
 
     def log_message(self, fmt, *args):
         print("%s - %s" % (self.address_string(), fmt % args), flush=True)
@@ -610,6 +732,7 @@ class McpDemoHandler(BaseHTTPRequestHandler):
             "/tools/customer": ("customer_lookup", query),
             "/tools/ticket": ("ticket_lookup", query),
             "/tools/policy": ("policy_lookup", query),
+            "/tools/employee": ("employee_lookup", query),
             "/tools/echo": ("echo", query)
         }
         if parsed.path in get_routes:

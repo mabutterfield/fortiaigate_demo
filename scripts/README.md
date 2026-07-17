@@ -19,6 +19,11 @@ Current scripts:
   `chatbot/instructions/local/`. Examples and their metadata remain tracked
   under `chatbot/instructions/examples/`. Run it without a subcommand to open a
   menu-driven wizard for changing one slot at a time.
+- `scenario_profiles.py`: lists, validates, shows, and installs tracked demo
+  scenario profiles from `chatbot/scenarios/examples/` into local instruction
+  slots. Scenario profiles package repeatable demo instructions, MCP tool
+  expectations, clean prompts, attack prompts, and deploy guidance while still
+  leaving local instruction slots editable.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

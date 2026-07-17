@@ -21,6 +21,7 @@ Start with one quick start, then use the topic docs for details and recovery.
 | ECR repositories and image publishing | [ECR](ecr.md) |
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
+| Scenario demo prompts and settings | [Scenarios](scenarios.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
 | FortiGate appliance | [FortiGate](fortigate.md) |
 | FortiWeb appliance | [FortiWeb](fortiweb.md) |

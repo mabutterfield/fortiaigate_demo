@@ -20,7 +20,8 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 - FortiAIGate Helm deployment uses external release charts and post-render patches
 - LiteLLM, MCP demo tools, custom chatbot, HTTPS gateway, and demo home deployment roles are implemented for the agent demo path
 - Open WebUI is available as an optional secondary chat UI when enabled
-- MCP demo tools and chatbot tool-loop support are implemented, including deterministic ordering-demo tools and read-only FortiGate tool schemas
+- MCP demo tools and chatbot tool-loop support are implemented, including deterministic ordering-demo tools, synthetic HR tools, and read-only FortiGate tool schemas
+- Scenario profiles package repeatable demo instructions, MCP tool expectations, and prompt examples while keeping local instruction slots editable
 - FortiGate and FortiWeb Terraform plus Ansible appliance baselines are enabled
   by default for the full AWS demo and can be disabled with local overrides
 - Automated quickstart and teardown scripts support repeat lab rebuilds

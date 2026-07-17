@@ -428,6 +428,17 @@ Run `python3 scripts/instruction_profiles.py` with no subcommand for a
 menu-driven slot wizard. Automated quickstart also initializes missing local
 instruction slots during user profile setup.
 
+For repeatable demos, scenario profiles package instructions with MCP tool
+expectations and prompt examples. List and install them from the repo root:
+
+```bash
+python3 scripts/scenario_profiles.py list
+python3 scripts/scenario_profiles.py show fastfood-ordering
+python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
+```
+
+After installing a scenario, run the Ansible command(s) printed by the helper.
+
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
 in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.
 

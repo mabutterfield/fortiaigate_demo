@@ -21,6 +21,13 @@ Search and join tools:
 - `policy_search`
 - `customer_ticket_summary`
 
+Synthetic HR demo tools:
+
+- `employee_lookup`
+- `employee_search`
+- `hr_policy_lookup`
+- `redaction_check`
+
 Fast food ordering demo tools:
 
 - `menu_search`
@@ -189,7 +196,9 @@ This baseline is intentionally simple. The Python chatbot agent loop can use
 these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
 The menu tools are deterministic and meant to show an ordering assistant flow
 without placing a real order. The FortiGate tools are read-only and intended to
-show the model using a real infrastructure data source.
+show the model using a real infrastructure data source. The HR tools use
+synthetic data and are intended to demonstrate safe lookup, redaction, and
+policy-boundary behavior.
 
 ## Chatbot Tool Toggle
 

@@ -27,6 +27,14 @@ a "what's new" guide rather than a raw commit log.
   Phase 7: Bedrock requests tools and produces final answers, LiteLLM remains
   the proxy/auth/instruction-injection layer, and the chatbot/agent owns MCP
   TCP flows.
+- Added tracked scenario profiles for repeatable demos:
+  `fastfood-ordering`, `fortigate-operator`, and `hr-policy-risk`. The new
+  `scripts/scenario_profiles.py` helper installs scenario instructions into
+  local slots while keeping instruction profiles available for fine tuning.
+- Added a scenario runbook with chatbot settings, sample prompts, attack or
+  boundary prompts, and expected behavior for each tracked scenario.
+- Added synthetic HR MCP tools and data for employee lookup/search, HR policy
+  lookup, and redaction checks.
 - Made `terraform/aws-prep` tolerate missing ECR repository outputs during
   teardown after ECR repositories have been removed from Terraform state.
 - Moved automated teardown ECR state protection to the end of teardown so
