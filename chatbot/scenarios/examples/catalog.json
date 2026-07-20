@@ -24,6 +24,14 @@
       "path": "resume-cloud-tool-pivot/profile.json",
       "display_name": "Resume Cloud Tool Pivot"
     },
+    "resume-cloud-tool-pivot-safe": {
+      "path": "resume-cloud-tool-pivot-safe/profile.json",
+      "display_name": "Resume Cloud Tool Pivot Safe"
+    },
+    "resume-cloud-tool-pivot-vulnerable": {
+      "path": "resume-cloud-tool-pivot-vulnerable/profile.json",
+      "display_name": "Resume Cloud Tool Pivot Vulnerable"
+    },
     "hr-policy-rag-risk": {
       "path": "hr-policy-rag-risk/profile.json",
       "display_name": "HR Policy RAG Risk"

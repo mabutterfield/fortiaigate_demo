@@ -99,6 +99,16 @@ Run a single sample tool call:
 ansible-playbook playbooks/test_mcp.yml
 ```
 
+Run deterministic Phase 8 document retrieval checks:
+
+```bash
+ansible-playbook playbooks/validate_phase8_documents.yml
+```
+
+This calls clean document listing, poisoned resume upload simulation, poisoned
+resume read, prompt-injection detection, and the synthetic cloud inventory
+tool.
+
 The test playbook runs on the Ansible controller and calls the public HTTP
 NodePort by default. It reads the k3s public IP from
 `terraform/aws-ec2-k3s output public_ip`.

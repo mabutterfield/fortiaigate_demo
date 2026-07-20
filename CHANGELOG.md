@@ -16,6 +16,14 @@ a "what's new" guide rather than a raw commit log.
     tool-pivot demos
   - scenario profiles for clean resume screening, resume prompt injection,
     resume cloud-tool pivot, HR policy RAG risk, and menu poisoning
+- Added natural safe/vulnerable resume cloud-tool pivot scenario profiles so
+  demos can start from normal uploaded-resume screening prompts while still
+  using deterministic poisoned fixtures behind the scenes.
+- Updated MCP status output to report the live `/tools` catalog instead of the
+  older hardcoded baseline tool list.
+- Added `validate_phase8_documents.yml` for deterministic live checks of the
+  Phase 8 MCP document, upload-simulation, prompt-injection, and synthetic
+  cloud-inventory tools.
 - Improved chatbot MCP trace handling for tool-heavy demos:
   - MCP tool errors now remain visible as tool results instead of becoming
     generic HTTP failures

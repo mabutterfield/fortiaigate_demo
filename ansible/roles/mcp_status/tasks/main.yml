@@ -122,6 +122,39 @@
   # - ansible.builtin.debug:
   #     var: mcp_status_nodeport_health.stdout_lines
 
+- name: List MCP tools from inside deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - "deployment/{{ mcp_release_name }}"
+      - -n
+      - "{{ mcp_namespace }}"
+      - --
+      - python
+      - -c
+      - |
+        import json
+        import sys
+        import urllib.request
+
+        payload = json.load(urllib.request.urlopen("http://127.0.0.1:{{ mcp_container_port }}/tools", timeout=5))
+        names = []
+        for tool in payload.get("tools", []):
+            function = tool.get("function", {})
+            if "name" in function:
+                names.append(function["name"])
+        print(json.dumps(sorted(names)))
+        sys.exit(0 if names else 1)
+  changed_when: false
+  failed_when: false
+  register: mcp_status_tool_names_raw
+  when: mcp_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: mcp_status_tool_names_raw.stdout_lines
+
 - name: Check MCP demo tools from inside deployment
   ansible.builtin.command:
     argv:
@@ -178,9 +211,10 @@
     mcp_status_deployment_json: "{{ mcp_status_deployment.stdout | default('{}') | from_json if mcp_status_deployment.rc == 0 else {} }}"
     mcp_status_pods_json: "{{ mcp_status_pods.stdout | default('{\"items\": []}') | from_json if mcp_status_pods.rc == 0 else {'items': []} }}"
     mcp_status_tools_json: "{{ mcp_status_tools.stdout | default('{\"ok\": false, \"problems\": []}') | from_json if (mcp_status_tools is defined and mcp_status_tools.stdout | default('') | length > 0) else {'ok': false, 'problems': []} }}"
+    mcp_status_tool_names: "{{ mcp_status_tool_names_raw.stdout | default('[]') | from_json if (mcp_status_tool_names_raw is defined and mcp_status_tool_names_raw.rc == 0 and mcp_status_tool_names_raw.stdout | default('') | length > 0) else [] }}"
   when: mcp_enabled | bool
   # - ansible.builtin.debug:
-  #     var: mcp_status_tools_json
+  #     var: mcp_status_tool_names
 
 - name: Set MCP status summary facts
   ansible.builtin.set_fact:
@@ -249,7 +283,7 @@
       - "NodePort health HTTP status: {{ mcp_status_nodeport_health_code }}"
       - "Internal endpoint: {{ mcp_internal_base_url }}"
       - "NodePort URL: {{ mcp_status_nodeport_url if mcp_status_nodeport_url | length > 0 else 'disabled' }}"
-      - "Tools: customer_lookup, ticket_lookup, policy_lookup, customer_search, ticket_search, policy_search, customer_ticket_summary, echo"
+      - "Tools: {{ mcp_status_tool_names | join(', ') if mcp_status_tool_names | length > 0 else 'unknown' }}"
       - "Problems: {{ mcp_status_problems | join(' | ') if mcp_status_problems | length > 0 else 'none' }}"
   when: mcp_enabled | bool
 

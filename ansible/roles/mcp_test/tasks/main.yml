@@ -29,14 +29,16 @@
   ansible.builtin.set_fact:
     mcp_test_host: >-
       {{
-        mcp_test_host_override
+        ''
+        if mcp_test_base_url_override | length > 0
+        else mcp_test_host_override
         if mcp_test_host_override | length > 0
         else (
           '127.0.0.1'
           if mcp_test_target_mode == 'remote_localhost'
           else (
             mcp_test_public_ip_raw.stdout | default('') | trim
-            if mcp_test_public_ip_raw is defined and mcp_test_public_ip_raw.rc == 0
+            if mcp_test_public_ip_raw is defined and (mcp_test_public_ip_raw.rc | default(1)) == 0
             else ''
           )
         )

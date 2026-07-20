@@ -1,0 +1,64 @@
+---
+- name: Validate Phase 8 document retrieval MCP tools
+  hosts: fortiaigate
+  gather_facts: false
+  become: false
+  pre_tasks:
+    - name: Load environment, generated, and local group vars when present
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: >-
+        {{
+          query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
+        }}
+  vars:
+    phase8_document_validation_tests:
+      - name: list clean documents
+        tool: document_list
+        arguments:
+          document_type: resume
+      - name: list attack documents
+        tool: document_list
+        arguments:
+          include_attack: true
+      - name: summarize clean resume
+        tool: resume_summary
+        arguments:
+          document_id: RESUME-1001
+      - name: simulate poisoned resume upload
+        tool: document_upload_simulation
+        arguments:
+          document_id: RESUME-9001
+          include_attack: true
+      - name: read poisoned resume
+        tool: document_read
+        arguments:
+          document_id: RESUME-9001
+          include_attack: true
+          max_chars: 2000
+      - name: check poisoned resume injection
+        tool: document_injection_check
+        arguments:
+          document_id: RESUME-9001
+          include_attack: true
+      - name: list synthetic cloud inventory
+        tool: cloud_bucket_list_demo
+        arguments:
+          query: faig-demo
+  tasks:
+    - name: Run Phase 8 document MCP validation
+      ansible.builtin.include_role:
+        name: mcp_test
+      vars:
+        mcp_test_target_mode: remote_localhost
+        mcp_test_tool: "{{ item.tool }}"
+        mcp_test_arguments: "{{ item.arguments }}"
+      loop: "{{ phase8_document_validation_tests }}"
+      loop_control:
+        label: "{{ item.name }}"
