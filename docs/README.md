@@ -53,6 +53,7 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
 - `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
+- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes: passthrough, demo-a, and demo-b.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

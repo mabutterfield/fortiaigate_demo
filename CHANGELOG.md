@@ -19,6 +19,8 @@ a "what's new" guide rather than a raw commit log.
 - Added natural safe/vulnerable resume cloud-tool pivot scenario profiles so
   demos can start from normal uploaded-resume screening prompts while still
   using deterministic poisoned fixtures behind the scenes.
+- Added optional chatbot/FAIG lite mode and `test_fortiaigate_lite.yml` for a
+  minimal static route surface: passthrough, demo-a, and demo-b.
 - Updated MCP status output to report the live `/tools` catalog instead of the
   older hardcoded baseline tool list.
 - Added `validate_phase8_documents.yml` for deterministic live checks of the

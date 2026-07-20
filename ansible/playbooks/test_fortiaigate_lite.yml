@@ -1,0 +1,24 @@
+---
+- name: Test baseline FortiAIGate static routes
+  hosts: fortiaigate
+  gather_facts: true
+  pre_tasks:
+    - name: Load environment, generated, and local group vars when present
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../group_vars/system.yml"
+        - "{{ playbook_dir }}/../group_vars/terraform.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/ecr.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/ports.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/user.yml"
+      when: item is file
+
+    - name: Enable baseline FortiAIGate static route test mode
+      ansible.builtin.set_fact:
+        fortiaigate_test_poll_all_endpoints: true
+        fortiaigate_test_lite_mode: true
+        chatbot_faig_lite_mode: true
+
+  roles:
+    - fortiaigate_chat_test

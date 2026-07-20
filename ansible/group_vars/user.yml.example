@@ -15,6 +15,10 @@
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
 
+# Optional smaller chatbot/FAIG demo surface. When enabled and chatbots are
+# redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
+# chatbot_faig_lite_mode: true
+
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
 fortiaigate_license_files:

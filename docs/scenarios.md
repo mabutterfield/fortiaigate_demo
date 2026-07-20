@@ -64,6 +64,15 @@ After direct validation works, repeat the same scenario through FAIG Static,
 FAIG Intelligent, or FortiWeb MCP paths to demonstrate the network/security
 controls around the same agent workflow.
 
+For a smaller FAIG demo surface, set `chatbot_faig_lite_mode: true` in
+`ansible/group_vars/user.yml` and redeploy the chatbot. Lite mode leaves the
+full backend lab available but limits the chatbot's FAIG static route choices
+and model picker to passthrough, demo-a, and demo-b. Use this quick route check:
+
+```bash
+ansible-playbook ansible/playbooks/test_fortiaigate_lite.yml
+```
+
 Use `Reset context` between scenarios or after changing profiles. Enable
 `Show context sent to model` when demonstrating the difference between
 single-turn prompts, recent chat history, and compact working memory.

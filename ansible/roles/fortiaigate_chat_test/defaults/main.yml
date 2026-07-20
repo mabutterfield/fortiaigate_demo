@@ -4,12 +4,13 @@ fortiaigate_test_bedrock_module_path: "{{ playbook_dir }}/../../terraform/aws-pr
 fortiaigate_test_endpoint_path: /v1/chat/completions
 poll_all_endpoints: false
 fortiaigate_test_poll_all_endpoints: false
+fortiaigate_test_lite_mode: false
 fortiaigate_test_include_static_endpoints: true
-fortiaigate_test_include_header_endpoints: true
+fortiaigate_test_include_header_endpoints: "{{ not fortiaigate_test_lite_mode | bool }}"
 fortiaigate_test_include_all_header_route_profiles: false
 fortiaigate_test_include_openwebui_endpoint: false
 fortiaigate_test_include_backend_endpoint: false
-fortiaigate_test_include_test_endpoint: true
+fortiaigate_test_include_test_endpoint: "{{ not fortiaigate_test_lite_mode | bool }}"
 fortiaigate_test_include_ollama_endpoint: false
 faig_model_route_header_name: X-FAIG-Model-Route
 fortiaigate_test_openwebui_model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
