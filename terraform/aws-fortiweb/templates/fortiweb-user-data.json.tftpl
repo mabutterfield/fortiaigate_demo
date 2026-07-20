@@ -8,5 +8,8 @@
 %{ if license_key != "" ~}
   "license": "${license_key}",
 %{ endif ~}
+%{ if flex_token != "" ~}
+  "Flex_token": "${flex_token}",
+%{ endif ~}
   "config": "${config_key}"
 }

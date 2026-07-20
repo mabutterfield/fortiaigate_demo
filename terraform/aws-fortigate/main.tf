@@ -144,6 +144,18 @@ data "cloudinit_config" "fortigate" {
       content      = sensitive(file(part.value))
     }
   }
+
+  dynamic "part" {
+    for_each = var.fortigate_license_mode == "fortiflex_token" ? [1] : []
+
+    content {
+      filename     = "license.txt"
+      content_type = "text/plain"
+      content = sensitive(
+        "LICENSE-TOKEN: ${var.fortigate_fortiflex_token} INTERVAL: ${var.fortigate_fortiflex_token_activation_interval_seconds} COUNT: ${var.fortigate_fortiflex_token_activation_count}"
+      )
+    }
+  }
 }
 
 resource "aws_security_group" "fortigate_mgmt" {
@@ -263,10 +275,17 @@ resource "aws_instance" "this" {
   key_name      = var.ssh_key_name
   user_data     = data.cloudinit_config.fortigate[0].rendered
 
+  user_data_replace_on_change = true
+
   lifecycle {
     precondition {
-      condition     = var.fortigate_license_mode != "fortiflex_future"
-      error_message = "fortigate_license_mode=fortiflex_future is a Phase 5 placeholder and is not implemented in Phase 4."
+      condition     = var.fortigate_license_mode != "fortiflex_token" || nonsensitive(var.fortigate_fortiflex_token) != ""
+      error_message = "fortigate_fortiflex_token must be set when fortigate_license_mode is fortiflex_token."
+    }
+
+    precondition {
+      condition     = var.fortigate_license_mode != "fortiflex_token" || var.fortigate_license_type == "byol"
+      error_message = "fortigate_license_type must be byol when fortigate_license_mode is fortiflex_token."
     }
 
     precondition {

@@ -10,6 +10,10 @@
 # }
 #
 # fortiweb_enabled = true
+# phase8_documents_bucket_enabled = false
+# phase8_documents_bucket_name = ""
+# phase8_documents_bucket_force_destroy = false
+# phase8_documents_prefix = "phase8-fixtures"
 # bedrock_model_ids = [
 #   "openai.gpt-oss-20b-1:0",
 # ]

@@ -10,3 +10,11 @@ data:
 {{ .Files.Get "files/server.py" | indent 4 }}
   tools.json: |
 {{ .Files.Get "files/tools.json" | indent 4 }}
+  documents.json: |
+{{ .Files.Get "files/documents/documents.json" | indent 4 }}
+{{- range $path, $_ := .Files.Glob "files/documents/*" }}
+{{- if ne (base $path) "documents.json" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

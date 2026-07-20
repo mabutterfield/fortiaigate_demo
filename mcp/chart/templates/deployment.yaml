@@ -29,6 +29,10 @@ spec:
           env:
             - name: MCP_DATA_PATH
               value: /app/data/tools.json
+            - name: MCP_DOCUMENT_INDEX_PATH
+              value: /app/documents/documents.json
+            - name: MCP_DOCUMENT_ROOT
+              value: /app/documents
             - name: MCP_LISTEN_PORT
               value: "{{ .Values.containerPort }}"
             - name: MCP_FORTIGATE_ENABLED
@@ -92,6 +96,9 @@ spec:
             - name: mcp-config
               mountPath: /app/data/tools.json
               subPath: tools.json
+              readOnly: true
+            - name: mcp-config
+              mountPath: /app/documents
               readOnly: true
       volumes:
         - name: mcp-config

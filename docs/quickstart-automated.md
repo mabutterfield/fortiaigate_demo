@@ -212,6 +212,15 @@ Terraform starts. Use `fortigate_license_mode = "none"` or
 `fortiweb_license_mode = "none"` only for an intentional unlicensed boot test.
 The legacy `*_license_file` full-path setting remains available as an override.
 
+When `fortigate_license_mode = "fortiflex_token"` or
+`fortiweb_license_mode = "fortiflex_token"`, interactive quickstart prompts for
+the corresponding FortiFlex token if it is not already set in ignored local
+tfvars. `--yolo` mode fails fast when token mode is enabled and the token is
+empty. FortiFlex tokens are rendered into instance user-data and therefore into
+local Terraform state; do not commit local tfvars or state. Before tainting and
+rebuilding a FortiFlex-licensed appliance, clear or replace the token in local
+tfvars so the next build consumes a fresh token.
+
 The script pauses for manual review before Terraform and Ansible so these
 values can be checked in local vars:
 

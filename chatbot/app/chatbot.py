@@ -174,11 +174,20 @@ def render_mcp_trace(trace: dict[str, Any]) -> None:
         return
 
     for index, event in enumerate(tool_events, start=1):
-        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=True):
+        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=False):
+            if "ok" in event:
+                st.write(f"OK: `{event.get('ok')}`")
+            if event.get("http_status"):
+                st.write(f"HTTP status: `{event.get('http_status')}`")
             st.write("Arguments")
             st.json(event.get("arguments", {}))
             st.write("Result")
             st.json(event.get("result", {}))
+
+
+def render_mcp_trace_panel(placeholder: Any, trace: dict[str, Any], height: int) -> None:
+    with placeholder.container(height=height, border=False):
+        render_mcp_trace(trace)
 
 
 def update_consolidated_context(
@@ -385,11 +394,19 @@ def call_mcp_tool(
     payload = {"tool": tool_name, "arguments": arguments}
     with httpx.Client(verify=verify_tls, timeout=timeout_seconds) as client:
         response = client.post(url, json=payload)
-        response.raise_for_status()
+    try:
         data = response.json()
-    if not data.get("ok"):
-        raise RuntimeError(data.get("result", {}).get("error", "MCP tool returned ok=false"))
-    return data.get("result", {})
+    except json.JSONDecodeError as exc:
+        response.raise_for_status()
+        raise RuntimeError(f"MCP tool returned non-JSON response: {exc}") from exc
+    if not isinstance(data, dict):
+        response.raise_for_status()
+        raise RuntimeError("MCP tool response was not a JSON object")
+    if "ok" not in data:
+        response.raise_for_status()
+        raise RuntimeError("MCP tool response did not include ok status")
+    data["_http_status"] = response.status_code
+    return data
 
 
 def tool_call_to_message(tool_call: Any) -> dict[str, Any]:
@@ -472,13 +489,23 @@ def agent_response(
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = parse_tool_arguments(tool_call.function.arguments or "{}")
-            result = call_mcp_tool(mcp_base_url, tool_name, arguments, mcp_timeout_seconds, mcp_verify_tls)
-            tool_events.append({"tool": tool_name, "arguments": arguments, "result": result})
+            tool_response = call_mcp_tool(mcp_base_url, tool_name, arguments, mcp_timeout_seconds, mcp_verify_tls)
+            result = tool_response.get("result", {})
+            ok = bool(tool_response.get("ok"))
+            tool_events.append(
+                {
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "ok": ok,
+                    "http_status": tool_response.get("_http_status"),
+                    "result": result,
+                }
+            )
             request_messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": json.dumps(result, sort_keys=True),
+                    "content": json.dumps({"ok": ok, "result": result}, sort_keys=True),
                 }
             )
 
@@ -528,6 +555,7 @@ def main() -> None:
     mcp_timeout_seconds = env_int("CHATBOT_MCP_TIMEOUT_SECONDS", 10)
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)
+    mcp_trace_height = max(240, env_int("CHATBOT_MCP_TRACE_HEIGHT", 720))
     context_default_mode = normalize_context_mode(os.getenv("CHATBOT_CONTEXT_MODE", "recent"))
     context_window_default = max(1, env_int("CHATBOT_CONTEXT_WINDOW", 8))
     context_summary_max_chars = max(250, env_int("CHATBOT_CONTEXT_SUMMARY_MAX_CHARS", 1500))
@@ -695,8 +723,7 @@ def main() -> None:
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        with trace_placeholder.container():
-            render_mcp_trace(st.session_state.mcp_tool_trace)
+        render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -780,8 +807,7 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    with trace_placeholder.container():
-        render_mcp_trace(st.session_state.mcp_tool_trace)
+    render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:

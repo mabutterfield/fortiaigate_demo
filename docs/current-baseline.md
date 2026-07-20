@@ -10,7 +10,7 @@ and request paths, see [Architecture](architecture.md).
 | FortiAIGate | working | `fortiaigate` | `https://<k3s-ip>/ui/` for 8.0.1 |
 | LiteLLM | working | `litellm` | `http://<k3s-ip>:30083/ui/` |
 | custom chatbot UI | working | `chatbot` | `http://<k3s-ip>:30081` and `https://<k3s-ip>:30444` after HTTPS gateway deploy |
-| MCP demo tools | enabled by default, includes customer/ticket/menu/HR and read-only FortiGate tool schemas | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
+| MCP demo tools | enabled by default, includes customer/ticket/menu/HR/document and read-only FortiGate tool schemas | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` and `https://<k3s-ip>:30445` after HTTPS gateway deploy |
 | HTTPS gateway | enabled in system defaults | `demo-https-gateway` | generated HTTPS ports after the playbook runs |
 | Open WebUI | optional, disabled by default | `openwebui` | `http://<k3s-ip>:30080` when enabled |

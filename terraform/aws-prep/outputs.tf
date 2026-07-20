@@ -124,6 +124,26 @@ output "fortiweb_cloudinit_role_arn" {
   value       = var.fortiweb_enabled ? aws_iam_role.fortiweb_cloudinit[0].arn : null
 }
 
+output "phase8_documents_bucket_name" {
+  description = "Optional private S3 bucket for pre-staged synthetic Phase 8 document fixtures."
+  value       = var.phase8_documents_bucket_enabled ? aws_s3_bucket.phase8_documents[0].bucket : null
+}
+
+output "phase8_documents_bucket_arn" {
+  description = "Optional private S3 bucket ARN for pre-staged synthetic Phase 8 document fixtures."
+  value       = var.phase8_documents_bucket_enabled ? aws_s3_bucket.phase8_documents[0].arn : null
+}
+
+output "phase8_documents_prefix" {
+  description = "Allow-listed S3 prefix for synthetic Phase 8 document fixtures."
+  value       = var.phase8_documents_bucket_enabled ? local.phase8_documents_prefix : null
+}
+
+output "phase8_documents_ec2_read_policy_arn" {
+  description = "Optional IAM policy ARN attached to the k3s EC2 role for read-only Phase 8 document fixture access."
+  value       = var.phase8_documents_bucket_enabled ? aws_iam_policy.ec2_phase8_documents_read[0].arn : null
+}
+
 output "bedrock_iam_user_name" {
   description = "IAM user created for FortiAIGate Bedrock integration."
   value       = var.enable_bedrock_iam ? aws_iam_user.bedrock[0].name : null

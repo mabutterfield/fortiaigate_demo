@@ -5,6 +5,32 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added Phase 8 document-ingestion demo foundations:
+  - tracked synthetic document fixtures for clean resume/policy retrieval and
+    opt-in poisoned document tests
+  - read-only MCP document and resume tools with explicit `include_attack`
+    handling for attack fixtures
+  - a simulated upload tool that reports pre-staged fixture availability
+    without faking exploit success
+  - a narrow synthetic cloud bucket inventory tool for prompt-injection
+    tool-pivot demos
+  - scenario profiles for clean resume screening, resume prompt injection,
+    resume cloud-tool pivot, HR policy RAG risk, and menu poisoning
+- Improved chatbot MCP trace handling for tool-heavy demos:
+  - MCP tool errors now remain visible as tool results instead of becoming
+    generic HTTP failures
+  - tool trace entries default collapsed and render in a fixed-height
+    right-side pane to avoid long tool results driving page scroll
+- Added FortiFlex token bootstrap support for optional FortiGate and FortiWeb
+  Terraform modules while keeping BYOL license files as the default path.
+- Hardened FortiWeb rebuild/configuration behavior by supporting a generated
+  initial admin password, fixing the FortiWeb admin timeout bootstrap command,
+  disabling FortiWeb password-policy enforcement during cloud-init bootstrap,
+  and keeping the risky full-object admin-user Ansible update disabled by
+  default.
+- Moved FortiWeb HTTPAPI persistent connection sockets under `/tmp` and reset
+  them around FortiWeb status/configuration playbooks to reduce stale local
+  socket failures across rebuilds.
 - Added Phase 7 MCP tool expansion:
   - deterministic fast-food menu/order tools for non-Fortinet tool-use demos
   - read-only FortiGate MCP tool schemas for status, interfaces, routes,

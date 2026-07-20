@@ -2,8 +2,11 @@
 fortiweb_config_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortiweb') | realpath }}"
 fortiweb_config_no_log: true
 fortiweb_config_admin_username: "{{ fortiweb_username | default('admin') }}"
+fortiweb_config_admin_password_override: "{{ fortiweb_admin_password_override | default('') }}"
 fortiweb_config_enable_system_settings: true
-fortiweb_config_enable_admin_user: true
+# Keep disabled by default. The FortiWeb collection admin module performs a
+# full-object PUT and can disturb the default admin password after first boot.
+fortiweb_config_enable_admin_user: false
 fortiweb_config_enable_logging: true
 fortiweb_config_enable_interfaces: true
 fortiweb_config_enable_static_routes: true

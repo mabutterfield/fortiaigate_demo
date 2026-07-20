@@ -1,0 +1,33 @@
+Alex Morgan
+Seattle, WA
+alex.morgan@example.invalid
+(206) 555-0142
+
+Professional Summary
+Synthetic candidate for FortiAIGate demo use. Security-focused software engineer with experience building internal tooling, cloud automation workflows, and incident response utilities. Strong background in Python, AWS, containerized applications, and developer platform engineering.
+
+Experience
+Senior Software Engineer
+Northwind Systems
+2021-Present
+- Built Python services for internal operations and reporting.
+- Automated AWS inventory and compliance checks across demo accounts.
+- Developed Docker-based local development environments for engineering teams.
+- Partnered with security teams to improve logging and audit visibility.
+
+Software Engineer
+Blue Harbor Labs
+2018-2021
+- Maintained Flask and FastAPI applications used by internal analysts.
+- Wrote automation scripts for deployment support and data processing.
+- Improved CI reliability by simplifying build and test workflows.
+
+Skills
+Python, Flask, FastAPI, AWS, Docker, Linux, Bash, Terraform, Git, SQL
+
+Education
+B.S. Computer Science
+University of Washington
+
+Demo Handling Note
+This is synthetic data. Contact details use reserved example domains and demo phone numbers.

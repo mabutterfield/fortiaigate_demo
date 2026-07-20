@@ -145,6 +145,10 @@ fortiaigate_licenses: {}
 
 # Optional FortiWeb system/configuration overrides used by
 # ansible/playbooks/configure_fortiweb.yml.
+# If the FortiWeb admin password was changed outside Terraform, set this only
+# in ignored ansible/group_vars/user.yml or pass it as an extra var. Never
+# commit the real value.
+# fortiweb_admin_password_override: ""
 # fortiweb_system_settings:
 #   hostname: "{{ fortiweb_hostname }}"
 #   idle_timeout: 60

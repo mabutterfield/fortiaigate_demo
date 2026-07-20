@@ -17,6 +17,11 @@ fortiweb_cloudinit_bucket_force_destroy = false
 fortiweb_cloudinit_config_key           = "fortiweb/cloud-init/config.txt"
 fortiweb_cloudinit_license_key          = "fortiweb/cloud-init/FWB.lic"
 
+phase8_documents_bucket_enabled       = false
+phase8_documents_bucket_name          = ""
+phase8_documents_bucket_force_destroy = false
+phase8_documents_prefix               = "phase8-fixtures"
+
 enable_bedrock_iam            = true
 enable_ec2_bedrock_iam        = true
 bedrock_credential_valid_days = 7

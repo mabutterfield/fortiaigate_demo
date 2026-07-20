@@ -5,6 +5,8 @@
 
 # fortiweb_instance_type = "c5.xlarge"
 # fortiweb_version = "8.0"
+# fortiweb_license_mode = "fortiflex_token"
+# fortiweb_fortiflex_token = ""
 # fortiweb_license_file_name = "FWBVMSTM00000000.lic"
 # fortiweb_admin_force_password_change = "disable"
 # fortiweb_data_plane_tcp_ports = [30080, 30081, 30082, 30083, 30084, 30443, 30444, 30445, 30446, 30447]

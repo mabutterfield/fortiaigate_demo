@@ -34,10 +34,10 @@ FortiWeb user-data is S3-backed. The Fortinet cloud-init shape is:
 Default command-file behavior:
 
 - `fortiweb_config_file = ""` uploads a generated command file.
-- The generated command file sets hostname, `admin-sport`, and
-  `admin-console-timeout`.
+- The generated command file sets hostname, `admin-sport`, `admintimeout`, and
+  disables the FortiWeb admin password policy.
 - `fortiweb_admin_console_timeout_seconds = 3600` is the default 60-minute
-  timeout.
+  timeout and renders as `set admintimeout 60`.
 - `fortiweb_set_initial_password = false` omits `initial_passwd` from user-data
   and uses the EC2 instance ID as the initial admin password.
 - Set `fortiweb_set_initial_password = true` to pass an explicit generated or
@@ -50,6 +50,13 @@ The committed placeholder file name is `FWBVMSTM00000000.lic`. Terraform uploads
 the license by source path, not by embedding the license text in Terraform
 configuration. Set `fortiweb_license_mode = "none"` for an unlicensed boot test.
 `fortiweb_license_file` remains available as a full-path compatibility override.
+
+Set `fortiweb_license_mode = "fortiflex_token"` and
+`fortiweb_fortiflex_token` in ignored `terraform/aws-fortiweb/99-local.auto.tfvars`
+to inject a FortiFlex token through JSON cloud-init as `Flex_token`. Token
+changes replace the FortiWeb EC2 instance. Before tainting/rebuilding a
+FortiFlex-licensed instance, clear or replace the token so the next build
+consumes a fresh token.
 
 The tracked `00-system.auto.tfvars` sets `fortiweb_enabled = true`. Set it to
 false in ignored `99-local.auto.tfvars` only when you want to keep the module
@@ -105,11 +112,23 @@ The status playbook reads Terraform outputs at runtime. It uses
 otherwise it uses the FortiWeb EC2 instance ID as the default admin password.
 The generated inventory does not contain the admin password.
 
+If the `admin` password was changed manually or by a previous GUI first-login
+flow, set an ignored Ansible override instead of retrying with stale
+credentials:
+
+```yaml
+fortiweb_admin_password_override: "<current-admin-password>"
+```
+
+Put that only in ignored `ansible/group_vars/user.yml` or pass it with
+`-e @/path/to/local-secret.yml`. Repeated failed API logins can trigger the
+FortiWeb lockout message `Too many bad login attempts or reached max number of
+logins`; wait for the lockout window to clear before rerunning Ansible.
+
 `configure_fortiweb.yml` currently manages the narrow baseline:
 
 - system admin settings: hostname, HTTP/HTTPS management ports, and admin idle
   timeout
-- default `admin` account `force-password-change disable`
 - port2 internal interface IP from the Terraform-created FortiWeb internal ENI
 - static route ID `1`: default route through port1's gateway
 - static route ID `2`: VPC route through port2's internal subnet gateway
@@ -118,11 +137,20 @@ The generated inventory does not contain the admin password.
   NodePorts and, when `demo_https_gateway_enabled = true`, all demo HTTPS
   NodePorts
 
-The generated FortiWeb command file sets `force-password-change disable` for
-the default `admin` account so future builds can be automated without an
-interactive first-login password change. Changing this template does not replace
+The generated FortiWeb command file disables `system password-policy` and sets
+`force-password-change disable` for the default `admin` account so future builds
+can be automated without an interactive first-login password change. FortiWeb
+cloud images can enable password policy by default; when enabled, admins whose
+passwords do not meet policy are prompted to change password on login even if
+the per-admin force flag is disabled. Changing this template does not replace
 the current FortiWeb instance unless Terraform is applied in a way that
 recreates it.
+
+The Ansible `fwebos_admin` task is disabled by default through
+`fortiweb_config_enable_admin_user=false`. The FortiWeb collection module reads
+the admin object and sends a full-object update back to FortiWeb. On first-boot
+default-admin accounts this can disturb the default instance-ID password even
+when the playbook does not explicitly set a password.
 
 The generated FortiWeb NodePort proxy chain is enabled in repo system defaults
 with `fortiweb_mcp_proxy_enabled: true`. Override it in ignored
@@ -145,6 +173,6 @@ currently expose a module for that object. When the full REST schema is known,
 add it as an explicit gather/compare/apply object rather than relying on
 collection-side defaults.
 
-Do not commit license files, rendered user-data, real `99-local.auto.tfvars`, S3
-object copies containing license data, FortiWeb admin passwords, or Terraform
-state.
+Do not commit FortiFlex tokens, license files, rendered user-data, real
+`99-local.auto.tfvars`, S3 object copies containing license data, FortiWeb admin
+passwords, or Terraform state.

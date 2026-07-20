@@ -83,3 +83,8 @@ output "fortigate_license_mode" {
   description = "FortiGate license bootstrap mode."
   value       = var.fortigate_license_mode
 }
+
+output "fortigate_fortiflex_token_configured" {
+  description = "Whether a FortiFlex token was provided to the FortiGate module."
+  value       = var.fortigate_license_mode == "fortiflex_token" && nonsensitive(var.fortigate_fortiflex_token) != ""
+}

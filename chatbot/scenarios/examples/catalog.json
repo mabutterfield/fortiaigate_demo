@@ -11,6 +11,26 @@
     "hr-policy-risk": {
       "path": "hr-policy-risk/profile.json",
       "display_name": "HR Policy Risk Assistant"
+    },
+    "resume-screening-clean": {
+      "path": "resume-screening-clean/profile.json",
+      "display_name": "Resume Screening Clean Retrieval"
+    },
+    "resume-prompt-injection": {
+      "path": "resume-prompt-injection/profile.json",
+      "display_name": "Resume Prompt Injection"
+    },
+    "resume-cloud-tool-pivot": {
+      "path": "resume-cloud-tool-pivot/profile.json",
+      "display_name": "Resume Cloud Tool Pivot"
+    },
+    "hr-policy-rag-risk": {
+      "path": "hr-policy-rag-risk/profile.json",
+      "display_name": "HR Policy RAG Risk"
+    },
+    "menu-poisoning": {
+      "path": "menu-poisoning/profile.json",
+      "display_name": "Menu Document Poisoning"
     }
   }
 }

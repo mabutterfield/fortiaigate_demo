@@ -136,6 +136,40 @@ variable "fortiweb_cloudinit_license_key" {
   default     = "fortiweb/cloud-init/FWB.lic"
 }
 
+variable "phase8_documents_bucket_enabled" {
+  type        = bool
+  description = "Create an optional private S3 bucket for pre-staged synthetic Phase 8 document fixtures."
+  default     = false
+}
+
+variable "phase8_documents_bucket_name" {
+  type        = string
+  description = "Optional S3 bucket name for Phase 8 document fixtures. Leave empty to derive a name from name_prefix, account ID, and region."
+  default     = ""
+
+  validation {
+    condition     = var.phase8_documents_bucket_name == "" || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.phase8_documents_bucket_name))
+    error_message = "phase8_documents_bucket_name must be empty or a valid S3 bucket name."
+  }
+}
+
+variable "phase8_documents_bucket_force_destroy" {
+  type        = bool
+  description = "Allow Terraform destroy to delete the Phase 8 document fixture bucket even when it contains objects. Leave false unless this is a disposable lab bucket."
+  default     = false
+}
+
+variable "phase8_documents_prefix" {
+  type        = string
+  description = "Allow-listed S3 prefix for synthetic Phase 8 document fixtures."
+  default     = "phase8-fixtures"
+
+  validation {
+    condition     = var.phase8_documents_prefix != "" && !startswith(var.phase8_documents_prefix, "/")
+    error_message = "phase8_documents_prefix must be a non-empty relative S3 prefix."
+  }
+}
+
 variable "enable_bedrock_iam" {
   type        = bool
   description = "Create temporary IAM user credentials for FortiAIGate Bedrock provider setup."

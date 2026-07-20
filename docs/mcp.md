@@ -28,6 +28,17 @@ Synthetic HR demo tools:
 - `hr_policy_lookup`
 - `redaction_check`
 
+Document and resume retrieval demo tools:
+
+- `document_list`
+- `document_search`
+- `document_read`
+- `resume_search`
+- `resume_summary`
+- `document_injection_check`
+- `document_upload_simulation`
+- `cloud_bucket_list_demo`
+
 Fast food ordering demo tools:
 
 - `menu_search`
@@ -126,6 +137,39 @@ ansible-playbook playbooks/test_mcp.yml \
   -e '{"mcp_test_arguments":{}}'
 ```
 
+Test clean document search:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=document_search \
+  -e '{"mcp_test_arguments":{"query":"Python","document_type":"resume"}}'
+```
+
+Test that attack fixtures are blocked by default:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=document_read \
+  -e '{"mcp_test_arguments":{"document_id":"RESUME-9001"}}'
+```
+
+That call should return `ok=false` because `RESUME-9001` is an attack fixture.
+Run the explicit attack-fixture read only for a planned demo:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=document_read \
+  -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
+```
+
+Check the same poisoned resume for prompt-injection indicators:
+
+```bash
+ansible-playbook playbooks/test_mcp.yml \
+  -e mcp_test_tool=document_injection_check \
+  -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
+```
+
 If that test fails, the playbook prints the MCP response body. FortiGate API
 failures include the target URL and FortiGate HTTP detail without printing the
 bearer token.
@@ -163,6 +207,28 @@ The default demo data file is:
 ```text
 fortiaigate_demo/mcp/chart/files/tools.json
 ```
+
+The Phase 8 document library is mounted from:
+
+```text
+fortiaigate_demo/mcp/chart/files/documents/
+```
+
+The document index is:
+
+```text
+fortiaigate_demo/mcp/chart/files/documents/documents.json
+```
+
+Tracked documents are plain text or Markdown fixtures. They include clean
+synthetic resumes and policies plus clearly labeled attack fixtures for prompt
+injection and document poisoning. The fixture metadata uses S3-shaped
+`source_uri` values so the same tool contracts can later support a real
+read-only S3 backend.
+
+Attack fixtures are opt-in. Document tools hide them unless
+`include_attack=true` is passed. This keeps normal validation on clean data
+while allowing explicit attack demos to retrieve the poisoned content.
 
 Set `mcp_tools_data_local_path` to another JSON file when testing alternate
 customers, tickets, policies, or menu data. The Ansible role copies that file
