@@ -86,6 +86,7 @@ APPLIANCE_LICENSES = {
     },
 }
 APPLICATION_PLAYBOOKS = [
+    ("FortiAIGate syslog collector", "deploy_fortiaigate_syslog_collector.yml", "status_fortiaigate_syslog_collector.yml"),
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
     ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),

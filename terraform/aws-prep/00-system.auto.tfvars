@@ -22,6 +22,12 @@ phase8_documents_bucket_name          = ""
 phase8_documents_bucket_force_destroy = false
 phase8_documents_prefix               = "phase8-fixtures"
 
+fortiaigate_syslog_bucket_enabled       = false
+fortiaigate_syslog_bucket_name          = ""
+fortiaigate_syslog_bucket_force_destroy = false
+fortiaigate_syslog_prefix               = "fortiaigate/syslog"
+fortiaigate_syslog_lifecycle_days       = 30
+
 enable_bedrock_iam            = true
 enable_ec2_bedrock_iam        = true
 bedrock_credential_valid_days = 7

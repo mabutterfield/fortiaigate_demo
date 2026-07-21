@@ -1,0 +1,90 @@
+---
+- name: Skip FortiAIGate syslog collector status when disabled
+  ansible.builtin.debug:
+    msg: "fortiaigate_syslog_collector_enabled=false or no fortiaigate_syslog_bucket_name is available; skipping syslog collector status."
+  when: not fortiaigate_syslog_collector_enabled | bool
+
+- name: Check FortiAIGate syslog collector deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - deployment
+      - "{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_status_deployment
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_status_deployment.stdout_lines
+
+- name: Check FortiAIGate syslog collector service
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - service
+      - "{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_status_service
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_status_service.stdout_lines
+
+- name: Check FortiAIGate syslog collector pods
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - pods
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - -l
+      - "app.kubernetes.io/name={{ fortiaigate_syslog_release_name }}"
+      - --no-headers
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_status_pods
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_status_pods.stdout_lines
+
+- name: Build FortiAIGate syslog collector status facts
+  ansible.builtin.set_fact:
+    fortiaigate_syslog_status_deployment_json: "{{ fortiaigate_syslog_status_deployment.stdout | from_json if fortiaigate_syslog_status_deployment.rc == 0 else {} }}"
+    fortiaigate_syslog_status_service_json: "{{ fortiaigate_syslog_status_service.stdout | from_json if fortiaigate_syslog_status_service.rc == 0 else {} }}"
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Show FortiAIGate syslog collector status summary
+  ansible.builtin.debug:
+    msg:
+      - "FortiAIGate syslog collector: {{ 'READY' if ((fortiaigate_syslog_status_deployment_json.status.readyReplicas | default(0) | int) >= 1) else 'NOT READY' }}"
+      - "Namespace: {{ fortiaigate_syslog_namespace }}"
+      - "Service: {{ fortiaigate_syslog_release_name }}.{{ fortiaigate_syslog_namespace }}.svc.cluster.local:{{ fortiaigate_syslog_service_port }}/udp"
+      - "Service ClusterIP: {{ fortiaigate_syslog_status_service_json.spec.clusterIP | default('unavailable') }}"
+      - "S3 target: s3://{{ fortiaigate_syslog_bucket_name | default('unavailable') }}/{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog') }}/"
+      - "Pods: {{ (fortiaigate_syslog_status_pods.stdout_lines | default([])) | join('; ') if (fortiaigate_syslog_status_pods.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Fail when FortiAIGate syslog collector is not ready
+  ansible.builtin.fail:
+    msg: "FortiAIGate syslog collector is not ready."
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_status_fail_on_not_ready | bool
+    - (fortiaigate_syslog_status_deployment_json.status.readyReplicas | default(0) | int) < 1

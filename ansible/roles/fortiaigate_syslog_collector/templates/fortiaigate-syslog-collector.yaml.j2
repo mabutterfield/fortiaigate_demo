@@ -1,0 +1,136 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ fortiaigate_syslog_namespace }}
+  labels:
+    app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+    app.kubernetes.io/part-of: fortiaigate-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ fortiaigate_syslog_release_name }}-config
+  namespace: {{ fortiaigate_syslog_namespace }}
+  labels:
+    app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+    app.kubernetes.io/part-of: fortiaigate-demo
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Daemon        Off
+        Log_Level     info
+        Parsers_File  parsers.conf
+
+    [INPUT]
+        Name          syslog
+        Mode          udp
+        Listen        0.0.0.0
+        Port          {{ fortiaigate_syslog_container_port }}
+        Parser        raw-syslog-line
+        Tag           fortiaigate.syslog
+
+    [FILTER]
+        Name          record_modifier
+        Match         fortiaigate.syslog
+        Record        deployment_id ${SYSLOG_DEPLOYMENT_ID}
+        Record        source_product FortiAIGate
+
+    [OUTPUT]
+        Name                  s3
+        Match                 fortiaigate.syslog
+        bucket                ${SYSLOG_S3_BUCKET}
+        region                ${AWS_REGION}
+        total_file_size       ${SYSLOG_S3_TOTAL_FILE_SIZE}
+        upload_timeout        ${SYSLOG_S3_UPLOAD_TIMEOUT}
+        store_dir             /buffers/s3
+        s3_key_format         /${SYSLOG_S3_PREFIX}/%Y/%m/%d/%H/%M/%S-$UUID.gz
+        compression           gzip
+        use_put_object        On
+  parsers.conf: |
+    [PARSER]
+        Name        raw-syslog-line
+        Format      regex
+        Regex       ^(?<message>.*)$
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ fortiaigate_syslog_release_name }}
+  namespace: {{ fortiaigate_syslog_namespace }}
+  labels:
+    app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+    app.kubernetes.io/part-of: fortiaigate-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+        app.kubernetes.io/part-of: fortiaigate-demo
+    spec:
+      containers:
+        - name: fluent-bit
+          image: "{{ fortiaigate_syslog_image_repository }}:{{ fortiaigate_syslog_image_tag }}"
+          imagePullPolicy: {{ fortiaigate_syslog_image_pull_policy }}
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - -c
+            - /fluent-bit/etc/fluent-bit.conf
+          env:
+            - name: AWS_REGION
+              value: {{ aws_region | quote }}
+            - name: SYSLOG_DEPLOYMENT_ID
+              value: {{ fortiaigate_syslog_deployment_id | quote }}
+            - name: SYSLOG_S3_BUCKET
+              value: {{ fortiaigate_syslog_s3_bucket | quote }}
+            - name: SYSLOG_S3_PREFIX
+              value: {{ fortiaigate_syslog_s3_prefix | regex_replace('^/+|/+$', '') | quote }}
+            - name: SYSLOG_S3_TOTAL_FILE_SIZE
+              value: {{ fortiaigate_syslog_s3_total_file_size | quote }}
+            - name: SYSLOG_S3_UPLOAD_TIMEOUT
+              value: {{ fortiaigate_syslog_s3_upload_timeout | quote }}
+          ports:
+            - name: syslog-udp
+              containerPort: {{ fortiaigate_syslog_container_port }}
+              protocol: UDP
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/fluent-bit.conf
+              subPath: fluent-bit.conf
+              readOnly: true
+            - name: config
+              mountPath: /fluent-bit/etc/parsers.conf
+              subPath: parsers.conf
+              readOnly: true
+            - name: s3-buffer
+              mountPath: /buffers/s3
+      volumes:
+        - name: config
+          configMap:
+            name: {{ fortiaigate_syslog_release_name }}-config
+        - name: s3-buffer
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ fortiaigate_syslog_release_name }}
+  namespace: {{ fortiaigate_syslog_namespace }}
+  labels:
+    app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+    app.kubernetes.io/part-of: fortiaigate-demo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
+  ports:
+    - name: syslog-udp
+      protocol: UDP
+      port: {{ fortiaigate_syslog_service_port }}
+      targetPort: {{ fortiaigate_syslog_container_port }}

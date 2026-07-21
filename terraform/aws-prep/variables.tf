@@ -170,6 +170,51 @@ variable "phase8_documents_prefix" {
   }
 }
 
+variable "fortiaigate_syslog_bucket_enabled" {
+  type        = bool
+  description = "Create an optional private S3 bucket for FortiAIGate syslog preservation."
+  default     = false
+}
+
+variable "fortiaigate_syslog_bucket_name" {
+  type        = string
+  description = "Optional S3 bucket name for FortiAIGate syslog objects. Leave empty to derive a name from name_prefix, account ID, and region."
+  default     = ""
+
+  validation {
+    condition     = var.fortiaigate_syslog_bucket_name == "" || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.fortiaigate_syslog_bucket_name))
+    error_message = "fortiaigate_syslog_bucket_name must be empty or a valid S3 bucket name."
+  }
+}
+
+variable "fortiaigate_syslog_bucket_force_destroy" {
+  type        = bool
+  description = "Allow Terraform destroy to delete the FortiAIGate syslog bucket even when it contains objects. Leave false unless teardown has exported or discarded the logs."
+  default     = false
+}
+
+variable "fortiaigate_syslog_prefix" {
+  type        = string
+  description = "S3 prefix where the in-cluster syslog collector writes FortiAIGate syslog objects."
+  default     = "fortiaigate/syslog"
+
+  validation {
+    condition     = var.fortiaigate_syslog_prefix != "" && !startswith(var.fortiaigate_syslog_prefix, "/")
+    error_message = "fortiaigate_syslog_prefix must be a non-empty relative S3 prefix."
+  }
+}
+
+variable "fortiaigate_syslog_lifecycle_days" {
+  type        = number
+  description = "Number of days before FortiAIGate syslog objects expire. Set to 0 to disable lifecycle expiration."
+  default     = 30
+
+  validation {
+    condition     = var.fortiaigate_syslog_lifecycle_days >= 0
+    error_message = "fortiaigate_syslog_lifecycle_days must be 0 or greater."
+  }
+}
+
 variable "enable_bedrock_iam" {
   type        = bool
   description = "Create temporary IAM user credentials for FortiAIGate Bedrock provider setup."
