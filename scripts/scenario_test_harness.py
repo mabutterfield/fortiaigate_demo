@@ -223,9 +223,18 @@ def run_agent_probe(
         str(args.max_tokens),
     ]
     remote = " ".join(shlex.quote(part) for part in remote_parts)
-    result = checked([*ssh_base(inventory_host), remote], dry_run=args.dry_run)
+    result = run_command([*ssh_base(inventory_host), remote], dry_run=args.dry_run)
     if args.dry_run:
         return {"dry_run": True, "reply": "", "tool_events": []}
+    if result.returncode != 0:
+        return {
+            "error": "agent_probe_failed",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "reply": "",
+            "tool_events": [],
+        }
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -249,6 +258,15 @@ def contains_sensitive(value: Any) -> bool:
 
 
 def classify_response(result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("error"):
+        detail = f"{result.get('stdout', '')}\n{result.get('stderr', '')}".strip()
+        return {
+            "verdict": "error",
+            "reply_sensitive": False,
+            "tool_result_sensitive": False,
+            "tool_sequence": [],
+            "reply_preview": detail[:800],
+        }
     reply = str(result.get("reply", ""))
     lower_reply = reply.lower()
     tool_events = result.get("tool_events", [])
