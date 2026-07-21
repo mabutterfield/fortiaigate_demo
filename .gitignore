@@ -96,6 +96,9 @@ chatbot/instructions/local/
 # Operator-owned local document fixtures
 mcp/documents/local/
 
+# Local test captures
+docs/raw-output/
+
 # Kubernetes and deployment generated files
 *.kubeconfig
 kubeconfig

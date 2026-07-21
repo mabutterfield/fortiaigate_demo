@@ -29,6 +29,9 @@ bedrock_credential_generation = "20260610"
 
 bedrock_model_ids = [
   "openai.gpt-oss-20b-1:0",
+  "openai.gpt-oss-120b-1:0",
+  "google.gemma-3-4b-it",
+  "mistral.ministral-3-3b-instruct",
 ]
 
 bedrock_allowed_regions = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]

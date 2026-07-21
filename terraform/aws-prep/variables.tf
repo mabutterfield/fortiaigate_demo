@@ -201,7 +201,12 @@ variable "bedrock_credential_generation" {
 variable "bedrock_model_ids" {
   type        = list(string)
   description = "Allowed Bedrock foundation model IDs."
-  default     = ["openai.gpt-oss-20b-1:0"]
+  default = [
+    "openai.gpt-oss-20b-1:0",
+    "openai.gpt-oss-120b-1:0",
+    "google.gemma-3-4b-it",
+    "mistral.ministral-3-3b-instruct",
+  ]
 
   validation {
     condition     = length(var.bedrock_model_ids) > 0
