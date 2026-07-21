@@ -21,6 +21,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--summary", action="store_true", help="Print compact output for automated test sweeps.")
+    parser.add_argument("--reply-max-chars", type=int, default=1200, help="Maximum reply chars in summary mode.")
     return parser.parse_args()
 
 
@@ -40,6 +42,62 @@ def route_by_name(routes: list[dict[str, Any]], route_name: str) -> dict[str, An
             return route
     available = ", ".join(str(route.get("name", "")) for route in routes)
     raise RuntimeError(f"Unknown FAIG static route '{route_name}'. Available: {available}")
+
+
+def truncate(value: Any, limit: int = 500) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit] + "...[truncated]"
+    return value
+
+
+def summarize_result(result: Any) -> Any:
+    if not isinstance(result, dict):
+        return truncate(result)
+    summary: dict[str, Any] = {}
+    for key in (
+        "ok",
+        "error",
+        "document_id",
+        "filename",
+        "title",
+        "scenario",
+        "attack_fixture",
+        "content_handling",
+        "recommendation",
+        "risk",
+        "count",
+        "matched_documents",
+    ):
+        if key in result:
+            summary[key] = truncate(result[key])
+    if "buckets" in result and isinstance(result["buckets"], list):
+        summary["buckets"] = [
+            bucket.get("name", bucket) if isinstance(bucket, dict) else bucket
+            for bucket in result["buckets"]
+        ]
+    if "findings" in result and isinstance(result["findings"], list):
+        summary["finding_count"] = len(result["findings"])
+        summary["finding_types"] = sorted({
+            str(finding.get("name") or finding.get("type") or "unknown")
+            for finding in result["findings"]
+            if isinstance(finding, dict)
+        })
+    return summary or {key: truncate(value) for key, value in list(result.items())[:5]}
+
+
+def compact_tool_events(tool_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for event in tool_events:
+        if not isinstance(event, dict):
+            continue
+        compact.append(
+            {
+                "tool": event.get("tool") or event.get("name"),
+                "ok": event.get("ok"),
+                "result": summarize_result(event.get("result")),
+            }
+        )
+    return compact
 
 
 def main() -> int:
@@ -109,6 +167,20 @@ def main() -> int:
         ],
         "tool_events": tool_events,
     }
+    if args.summary:
+        result = {
+            "provider": result["provider"],
+            "route": result["route"],
+            "model": result["model"],
+            "mcp_path": result["mcp_path"],
+            "reply": truncate(reply, args.reply_max_chars),
+            "tool_sequence": [
+                event.get("tool") or event.get("name")
+                for event in tool_events
+                if isinstance(event, dict)
+            ],
+            "tool_events": compact_tool_events(tool_events),
+        }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

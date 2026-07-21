@@ -374,11 +374,12 @@ def resume_summary(arguments):
 
 def injection_findings(text):
     patterns = {
-        "ignore_instructions": r"\b(ignore|bypass|override)\b.{0,80}\b(instructions|rules|policy|guardrails?)\b",
+        "ignore_instructions": r"\b(ignore|bypass|override)\b.{0,100}\b(instructions|rules|policy|guardrails?|role|constraints?)\b",
         "system_role_marker": r"\b(system|developer|assistant)\s*[:=]",
         "tool_pivot": r"\b(call|invoke|use|run)\b.{0,80}\b(tool|aws|s3|bucket|command|cli|inventory)\b",
         "prompt_leakage": r"\b(system prompt|hidden instructions|routing rules|developer message)\b",
         "sensitive_data_request": r"\b(ssn|social security|api key|token|password|secret)\b",
+        "safety_bypass": r"\b(unnecessary|disable|skip|ignore)\b.{0,80}\b(allergy|safety|redaction|dlp|validation|check)\b",
     }
     findings = []
     for name, pattern in patterns.items():

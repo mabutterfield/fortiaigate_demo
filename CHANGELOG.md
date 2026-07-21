@@ -23,6 +23,9 @@ a "what's new" guide rather than a raw commit log.
   minimal static route surface: passthrough, demo-a, and demo-b.
 - Added a chatbot in-container `agent_probe.py` helper for headless validation
   of the same MCP agent loop used by the Streamlit UI.
+- Added compact `agent_probe.py --summary` output for repeatable headless
+  scenario sweeps with short reply excerpts, tool sequences, and key tool
+  result fields.
 - Hardened chatbot MCP dispatch against model-emitted tool names with stray
   channel or suffix markers.
 - Updated MCP status output to report the live `/tools` catalog instead of the
@@ -30,6 +33,13 @@ a "what's new" guide rather than a raw commit log.
 - Added `validate_phase8_documents.yml` for deterministic live checks of the
   Phase 8 MCP document, upload-simulation, prompt-injection, and synthetic
   cloud-inventory tools.
+- Tightened Phase 8 prompt-injection demo behavior:
+  - MCP document injection checks now flag role/constraint override language
+    and safety-check bypass wording used by the menu poisoning fixture
+  - menu poisoning instructions require a real MCP injection check after
+    reading attack fixture documents
+  - fast-food ordering instructions now refuse attempts to bypass allergies or
+    dietary restrictions before recommending an unsafe item
 - Improved chatbot MCP trace handling for tool-heavy demos:
   - MCP tool errors now remain visible as tool results instead of becoming
     generic HTTP failures
