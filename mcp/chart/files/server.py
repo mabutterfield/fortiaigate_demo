@@ -147,6 +147,20 @@ def employee_lookup(arguments):
     return True, safe_employee
 
 
+def employee_sensitive_lookup_demo(arguments):
+    employee_id = arguments.get("employee_id")
+    if not employee_id:
+        return False, {"error": "missing required argument: employee_id"}
+    employee = load_data().get("employees", {}).get(employee_id)
+    if not employee:
+        return False, {"error": "employees entry not found", "employee_id": employee_id}
+    return True, {
+        **employee,
+        "sensitivity": "contains synthetic PII for controlled FortiAIGate DLP demo only",
+        "demo_export_note": "synthetic record export fixture for testing security controls",
+    }
+
+
 def redaction_check(arguments):
     text = str(arguments.get("text", ""))
     if not text:
@@ -728,6 +742,8 @@ def run_tool(tool_name, arguments):
         return lookup("policies", "policy_id", arguments)
     if tool_name == "employee_lookup":
         return employee_lookup(arguments)
+    if tool_name == "employee_sensitive_lookup_demo":
+        return employee_sensitive_lookup_demo(arguments)
     if tool_name == "customer_search":
         return search_collection(
             "customers",
@@ -844,6 +860,19 @@ TOOLS = [
         "function": {
             "name": "employee_lookup",
             "description": "Return deterministic synthetic employee metadata by employee_id for HR demo scenarios.",
+            "parameters": {
+                "type": "object",
+                "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
+                "required": ["employee_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_sensitive_lookup_demo",
+            "description": "Return a deterministic synthetic employee record including intentionally sensitive demo-only fields for controlled FortiAIGate DLP tests. Do not use outside explicit DLP demo scenarios.",
             "parameters": {
                 "type": "object",
                 "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},

@@ -12,6 +12,10 @@
       "path": "hr-policy-risk/profile.json",
       "display_name": "HR Policy Risk Assistant"
     },
+    "hr-tool-dlp-vulnerable": {
+      "path": "hr-tool-dlp-vulnerable/profile.json",
+      "display_name": "HR Tool DLP Vulnerable"
+    },
     "resume-screening-clean": {
       "path": "resume-screening-clean/profile.json",
       "display_name": "Resume Screening Clean Retrieval"

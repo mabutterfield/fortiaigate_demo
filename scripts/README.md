@@ -24,6 +24,11 @@ Current scripts:
   slots. Scenario profiles package repeatable demo instructions, MCP tool
   expectations, clean prompts, and attack prompts while still leaving local
   instruction slots editable.
+- `scenario_test_harness.py`: runs Phase 8 scenario prompts through the
+  deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
+  and FAIG protect paths. It can optionally install a scenario profile,
+  redeploy MCP, redeploy LiteLLM per Bedrock model, and saves raw request and
+  response JSON under ignored `docs/raw-output/phase8/`.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the
