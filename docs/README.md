@@ -23,6 +23,7 @@ Start with one quick start, then use the topic docs for details and recovery.
 | MCP demo tools | [MCP](mcp.md) |
 | Scenario demo prompts and settings | [Scenarios](scenarios.md) |
 | Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
+| FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
 | FortiGate appliance | [FortiGate](fortigate.md) |
 | FortiWeb appliance | [FortiWeb](fortiweb.md) |
