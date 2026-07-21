@@ -73,6 +73,21 @@ and model picker to passthrough, demo-a, and demo-b. Use this quick route check:
 ansible-playbook ansible/playbooks/test_fortiaigate_lite.yml
 ```
 
+For headless MCP-agent validation, run the built-in probe from the chatbot pod
+after installing and deploying a scenario profile:
+
+```bash
+kubectl -n chatbot exec deploy/chatbot -- python /app/agent_probe.py \
+  --provider direct \
+  --mcp-path direct \
+  --max-tool-rounds 5 \
+  --prompt "A candidate uploaded a resume for the platform automation role. Screen it and continue naturally after reading it."
+```
+
+The probe uses the same MCP agent loop as the chatbot UI and prints the final
+answer plus tool events as JSON. It is intended for backend validation; use the
+browser UI for final demo-flow and trace-pane checks.
+
 Use `Reset context` between scenarios or after changing profiles. Enable
 `Show context sent to model` when demonstrating the difference between
 single-turn prompts, recent chat history, and compact working memory.

@@ -21,6 +21,10 @@ a "what's new" guide rather than a raw commit log.
   using deterministic poisoned fixtures behind the scenes.
 - Added optional chatbot/FAIG lite mode and `test_fortiaigate_lite.yml` for a
   minimal static route surface: passthrough, demo-a, and demo-b.
+- Added a chatbot in-container `agent_probe.py` helper for headless validation
+  of the same MCP agent loop used by the Streamlit UI.
+- Hardened chatbot MCP dispatch against model-emitted tool names with stray
+  channel or suffix markers.
 - Updated MCP status output to report the live `/tools` catalog instead of the
   older hardcoded baseline tool list.
 - Added `validate_phase8_documents.yml` for deterministic live checks of the

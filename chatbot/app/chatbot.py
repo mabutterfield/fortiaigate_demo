@@ -432,6 +432,23 @@ def parse_tool_arguments(raw_arguments: str) -> dict[str, Any]:
     return arguments
 
 
+def normalize_tool_name(raw_tool_name: str, available_tool_names: list[str]) -> str:
+    tool_name = str(raw_tool_name or "").strip()
+    if tool_name in available_tool_names:
+        return tool_name
+
+    for separator in ("<|", "\n", "\r", " "):
+        if separator in tool_name:
+            candidate = tool_name.split(separator, 1)[0].strip()
+            if candidate in available_tool_names:
+                return candidate
+
+    for candidate in available_tool_names:
+        if tool_name.startswith(candidate):
+            return candidate
+    return tool_name
+
+
 def agent_response(
     base_url: str,
     api_key: str,
@@ -487,7 +504,7 @@ def agent_response(
         )
 
         for tool_call in tool_calls:
-            tool_name = tool_call.function.name
+            tool_name = normalize_tool_name(tool_call.function.name, tool_names)
             arguments = parse_tool_arguments(tool_call.function.arguments or "{}")
             tool_response = call_mcp_tool(mcp_base_url, tool_name, arguments, mcp_timeout_seconds, mcp_verify_tls)
             result = tool_response.get("result", {})

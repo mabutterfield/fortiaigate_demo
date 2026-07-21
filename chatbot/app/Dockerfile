@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY chatbot.py .
+COPY agent_probe.py .
 
 EXPOSE 8501
 
