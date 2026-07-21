@@ -28,7 +28,9 @@ Current scripts:
   deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
   and FAIG protect paths. It can optionally install a scenario profile,
   redeploy MCP, redeploy LiteLLM per Bedrock model, and saves raw request and
-  response JSON under ignored `docs/raw-output/phase8/`.
+  response JSON under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
+  Use `--run-label` to name a repeatable sweep; existing non-empty output
+  directories are not overwritten unless `--overwrite-output` is supplied.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

@@ -48,6 +48,10 @@ def now_iso() -> str:
     return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def timestamp_label() -> str:
+    return dt.datetime.now(dt.UTC).strftime("run-%Y%m%dT%H%M%SZ")
+
+
 def slugify(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[^a-z0-9]+", "-", value)
@@ -305,6 +309,17 @@ def run_tests(args: argparse.Namespace) -> None:
     models = parse_models(args.models)
     if models and not args.deploy_models:
         raise SystemExit("--models requires --deploy-models so output labels match the live backend model")
+    scenario_output_root = args.output_root / args.scenario / args.run_label
+    if (
+        not args.dry_run
+        and scenario_output_root.exists()
+        and any(scenario_output_root.iterdir())
+        and not args.overwrite_output
+    ):
+        raise SystemExit(
+            f"Output run already exists: {scenario_output_root}. "
+            "Choose a new --run-label or pass --overwrite-output."
+        )
 
     inventory_host = parse_inventory(args.inventory, args.host_alias)
 
@@ -335,10 +350,11 @@ def run_tests(args: argparse.Namespace) -> None:
                 for run_index in range(1, args.runs + 1):
                     result = run_agent_probe(args, inventory_host, prompt, path_name)
                     captured_at = now_iso()
-                    output_dir = args.output_root / args.scenario / label / prompt_slug / path_name / f"run-{run_index:02d}"
+                    output_dir = scenario_output_root / label / prompt_slug / path_name / f"run-{run_index:02d}"
                     request = {
                         "captured_at": captured_at,
                         "scenario": args.scenario,
+                        "run_label": args.run_label,
                         "scenario_profile": str(profile_path.relative_to(REPO_ROOT)),
                         "destination": PATH_CONFIGS[path_name]["destination"],
                         "path": path_name,
@@ -351,6 +367,7 @@ def run_tests(args: argparse.Namespace) -> None:
                     response = {
                         "captured_at": captured_at,
                         "scenario": args.scenario,
+                        "run_label": args.run_label,
                         "destination": PATH_CONFIGS[path_name]["destination"],
                         "path": path_name,
                         "model_label": label,
@@ -361,6 +378,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         **classification,
                         "captured_at": captured_at,
                         "scenario": args.scenario,
+                        "run_label": args.run_label,
                         "model_label": label,
                         "bedrock_model_id": model_id,
                         "prompt_index": prompt_index,
@@ -379,13 +397,14 @@ def run_tests(args: argparse.Namespace) -> None:
                         flush=True,
                     )
 
-    summary_path = args.output_root / args.scenario / "summary.json"
+    summary_path = scenario_output_root / "summary.json"
     if not args.dry_run:
         write_json(
             summary_path,
             {
                 "captured_at": now_iso(),
                 "scenario": args.scenario,
+                "run_label": args.run_label,
                 "prompts": prompts,
                 "paths": args.paths,
                 "runs": args.runs,
@@ -430,9 +449,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--litellm-namespace", default="litellm")
     parser.add_argument("--litellm-deployment", default="litellm")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--run-label", default="", help="Output run label. Defaults to a UTC timestamp.")
+    parser.add_argument("--overwrite-output", action="store_true", help="Allow writing into an existing non-empty run output directory.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     args.output_root = args.output_root if args.output_root.is_absolute() else REPO_ROOT / args.output_root
+    args.run_label = slugify(args.run_label) if args.run_label else timestamp_label()
     if args.runs < 1:
         raise SystemExit("--runs must be at least 1")
     return args

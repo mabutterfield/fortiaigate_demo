@@ -203,11 +203,12 @@ python3 scripts/scenario_test_harness.py \
   --install-profile \
   --deploy-profile \
   --deploy-mcp \
-  --current-model-label gpt-oss-20b
+  --current-model-label gpt-oss-20b \
+  --run-label gpt-oss-20b-baseline
 ```
 
 Use `--models ... --deploy-models` to iterate Bedrock models. Raw outputs are
-written under ignored `docs/raw-output/phase8/`.
+written under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
 
 Recommended model labels:
 
