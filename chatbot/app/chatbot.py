@@ -16,6 +16,15 @@ CONTEXT_MODE_OPTIONS = {
     "recent": "Recent conversation",
     "consolidated": "Consolidated context",
 }
+EMPTY_RESPONSE_RETRY_PROMPT = (
+    "The previous model response was empty. If document facts are needed, call "
+    "the available MCP tool through the tool-calling interface now. Otherwise "
+    "provide a concise user-visible final answer. Do not expose hidden reasoning."
+)
+EMPTY_RESPONSE_FALLBACK = (
+    "The model returned an empty response and did not request an MCP tool. "
+    "Retry the prompt or switch to a stronger model/profile for this scenario."
+)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -364,7 +373,17 @@ def single_response(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return response.choices[0].message.content or ""
+    content = response.choices[0].message.content or ""
+    if content.strip():
+        return content
+
+    retry_response = client.chat.completions.create(
+        model=model,
+        messages=messages + [{"role": "user", "content": EMPTY_RESPONSE_RETRY_PROMPT}],
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return retry_response.choices[0].message.content or EMPTY_RESPONSE_FALLBACK
 
 
 def fetch_mcp_tools(
@@ -481,6 +500,7 @@ def agent_response(
     request_messages: list[dict[str, Any]] = [dict(message) for message in messages]
 
     tool_events: list[dict[str, Any]] = []
+    empty_response_retried = False
     for _round in range(max_tool_rounds):
         response = client.chat.completions.create(
             model=model,
@@ -493,7 +513,14 @@ def agent_response(
         message = response.choices[0].message
         tool_calls = message.tool_calls or []
         if not tool_calls:
-            return message.content or "", tool_events, tools
+            content = message.content or ""
+            if content.strip():
+                return content, tool_events, tools
+            if not empty_response_retried:
+                empty_response_retried = True
+                request_messages.append({"role": "user", "content": EMPTY_RESPONSE_RETRY_PROMPT})
+                continue
+            return EMPTY_RESPONSE_FALLBACK, tool_events, tools
 
         request_messages.append(
             {
