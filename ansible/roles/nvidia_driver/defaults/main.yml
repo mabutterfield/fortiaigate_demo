@@ -1,3 +1,5 @@
 ---
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server
+nvidia_driver_install_retries: 4
+nvidia_driver_install_retry_delay: 60
