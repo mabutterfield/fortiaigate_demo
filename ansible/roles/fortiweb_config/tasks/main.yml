@@ -40,14 +40,16 @@
     ansible_user: "{{ fortiweb_config_admin_username }}"
     ansible_password: >-
       {{
-        fortiweb_config_admin_password_from_output
+        fortiweb_config_admin_password_override
+        if fortiweb_config_admin_password_override | length > 0
+        else fortiweb_config_admin_password_from_output
         if fortiweb_config_admin_password_from_output | length > 0
         else fortiweb_config_instance_id
       }}
   no_log: "{{ fortiweb_config_no_log | bool }}"
   tags: [fortiweb_config, fortiweb_auth]
   # - ansible.builtin.debug:
-  #     msg: "FortiWeb HTTPAPI password selected from {{ 'terraform password output' if fortiweb_config_admin_password_from_output | length > 0 else 'instance id' }}"
+  #     msg: "FortiWeb HTTPAPI password selected from {{ 'override' if fortiweb_config_admin_password_override | length > 0 else ('terraform password output' if fortiweb_config_admin_password_from_output | length > 0 else 'instance id') }}"
 
 - name: Fail when FortiWeb admin password is not available
   ansible.builtin.fail:

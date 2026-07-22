@@ -16,6 +16,15 @@ CONTEXT_MODE_OPTIONS = {
     "recent": "Recent conversation",
     "consolidated": "Consolidated context",
 }
+EMPTY_RESPONSE_RETRY_PROMPT = (
+    "The previous model response was empty. If document facts are needed, call "
+    "the available MCP tool through the tool-calling interface now. Otherwise "
+    "provide a concise user-visible final answer. Do not expose hidden reasoning."
+)
+EMPTY_RESPONSE_FALLBACK = (
+    "The model returned an empty response and did not request an MCP tool. "
+    "Retry the prompt or switch to a stronger model/profile for this scenario."
+)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -174,11 +183,20 @@ def render_mcp_trace(trace: dict[str, Any]) -> None:
         return
 
     for index, event in enumerate(tool_events, start=1):
-        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=True):
+        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=False):
+            if "ok" in event:
+                st.write(f"OK: `{event.get('ok')}`")
+            if event.get("http_status"):
+                st.write(f"HTTP status: `{event.get('http_status')}`")
             st.write("Arguments")
             st.json(event.get("arguments", {}))
             st.write("Result")
             st.json(event.get("result", {}))
+
+
+def render_mcp_trace_panel(placeholder: Any, trace: dict[str, Any], height: int) -> None:
+    with placeholder.container(height=height, border=False):
+        render_mcp_trace(trace)
 
 
 def update_consolidated_context(
@@ -355,7 +373,17 @@ def single_response(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return response.choices[0].message.content or ""
+    content = response.choices[0].message.content or ""
+    if content.strip():
+        return content
+
+    retry_response = client.chat.completions.create(
+        model=model,
+        messages=messages + [{"role": "user", "content": EMPTY_RESPONSE_RETRY_PROMPT}],
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return retry_response.choices[0].message.content or EMPTY_RESPONSE_FALLBACK
 
 
 def fetch_mcp_tools(
@@ -385,11 +413,19 @@ def call_mcp_tool(
     payload = {"tool": tool_name, "arguments": arguments}
     with httpx.Client(verify=verify_tls, timeout=timeout_seconds) as client:
         response = client.post(url, json=payload)
-        response.raise_for_status()
+    try:
         data = response.json()
-    if not data.get("ok"):
-        raise RuntimeError(data.get("result", {}).get("error", "MCP tool returned ok=false"))
-    return data.get("result", {})
+    except json.JSONDecodeError as exc:
+        response.raise_for_status()
+        raise RuntimeError(f"MCP tool returned non-JSON response: {exc}") from exc
+    if not isinstance(data, dict):
+        response.raise_for_status()
+        raise RuntimeError("MCP tool response was not a JSON object")
+    if "ok" not in data:
+        response.raise_for_status()
+        raise RuntimeError("MCP tool response did not include ok status")
+    data["_http_status"] = response.status_code
+    return data
 
 
 def tool_call_to_message(tool_call: Any) -> dict[str, Any]:
@@ -413,6 +449,23 @@ def parse_tool_arguments(raw_arguments: str) -> dict[str, Any]:
     if not isinstance(arguments, dict):
         raise RuntimeError("LLM returned tool arguments that were not a JSON object")
     return arguments
+
+
+def normalize_tool_name(raw_tool_name: str, available_tool_names: list[str]) -> str:
+    tool_name = str(raw_tool_name or "").strip()
+    if tool_name in available_tool_names:
+        return tool_name
+
+    for separator in ("<|", "\n", "\r", " "):
+        if separator in tool_name:
+            candidate = tool_name.split(separator, 1)[0].strip()
+            if candidate in available_tool_names:
+                return candidate
+
+    for candidate in available_tool_names:
+        if tool_name.startswith(candidate):
+            return candidate
+    return tool_name
 
 
 def agent_response(
@@ -447,6 +500,7 @@ def agent_response(
     request_messages: list[dict[str, Any]] = [dict(message) for message in messages]
 
     tool_events: list[dict[str, Any]] = []
+    empty_response_retried = False
     for _round in range(max_tool_rounds):
         response = client.chat.completions.create(
             model=model,
@@ -459,7 +513,14 @@ def agent_response(
         message = response.choices[0].message
         tool_calls = message.tool_calls or []
         if not tool_calls:
-            return message.content or "", tool_events, tools
+            content = message.content or ""
+            if content.strip():
+                return content, tool_events, tools
+            if not empty_response_retried:
+                empty_response_retried = True
+                request_messages.append({"role": "user", "content": EMPTY_RESPONSE_RETRY_PROMPT})
+                continue
+            return EMPTY_RESPONSE_FALLBACK, tool_events, tools
 
         request_messages.append(
             {
@@ -470,15 +531,25 @@ def agent_response(
         )
 
         for tool_call in tool_calls:
-            tool_name = tool_call.function.name
+            tool_name = normalize_tool_name(tool_call.function.name, tool_names)
             arguments = parse_tool_arguments(tool_call.function.arguments or "{}")
-            result = call_mcp_tool(mcp_base_url, tool_name, arguments, mcp_timeout_seconds, mcp_verify_tls)
-            tool_events.append({"tool": tool_name, "arguments": arguments, "result": result})
+            tool_response = call_mcp_tool(mcp_base_url, tool_name, arguments, mcp_timeout_seconds, mcp_verify_tls)
+            result = tool_response.get("result", {})
+            ok = bool(tool_response.get("ok"))
+            tool_events.append(
+                {
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "ok": ok,
+                    "http_status": tool_response.get("_http_status"),
+                    "result": result,
+                }
+            )
             request_messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": json.dumps(result, sort_keys=True),
+                    "content": json.dumps({"ok": ok, "result": result}, sort_keys=True),
                 }
             )
 
@@ -528,6 +599,7 @@ def main() -> None:
     mcp_timeout_seconds = env_int("CHATBOT_MCP_TIMEOUT_SECONDS", 10)
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)
+    mcp_trace_height = max(240, env_int("CHATBOT_MCP_TRACE_HEIGHT", 720))
     context_default_mode = normalize_context_mode(os.getenv("CHATBOT_CONTEXT_MODE", "recent"))
     context_window_default = max(1, env_int("CHATBOT_CONTEXT_WINDOW", 8))
     context_summary_max_chars = max(250, env_int("CHATBOT_CONTEXT_SUMMARY_MAX_CHARS", 1500))
@@ -695,8 +767,7 @@ def main() -> None:
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        with trace_placeholder.container():
-            render_mcp_trace(st.session_state.mcp_tool_trace)
+        render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -780,8 +851,7 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    with trace_placeholder.container():
-        render_mcp_trace(st.session_state.mcp_tool_trace)
+    render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:

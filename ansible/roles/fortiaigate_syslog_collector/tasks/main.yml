@@ -1,0 +1,62 @@
+---
+- name: Skip FortiAIGate syslog collector deployment when disabled
+  ansible.builtin.debug:
+    msg: "fortiaigate_syslog_collector_enabled=false or no fortiaigate_syslog_bucket_name is available; skipping syslog collector deployment."
+  when: not fortiaigate_syslog_collector_enabled | bool
+
+- name: Validate FortiAIGate syslog collector variables
+  ansible.builtin.assert:
+    that:
+      - fortiaigate_syslog_namespace | length > 0
+      - fortiaigate_syslog_release_name | length > 0
+      - fortiaigate_syslog_service_port | int == 514
+      - fortiaigate_syslog_container_port | int > 1024
+      - fortiaigate_syslog_s3_bucket | length > 0
+      - fortiaigate_syslog_s3_prefix | length > 0
+      - aws_region | default('', true) | length > 0
+    fail_msg: "FortiAIGate syslog collector needs namespace, release name, UDP/514 service, unprivileged container port, S3 bucket/prefix, and aws_region."
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Render FortiAIGate syslog collector manifest
+  ansible.builtin.template:
+    src: fortiaigate-syslog-collector.yaml.j2
+    dest: "{{ fortiaigate_syslog_manifest_remote_path }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  when: fortiaigate_syslog_collector_enabled | bool
+  register: fortiaigate_syslog_manifest_render
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_manifest_render
+
+- name: Apply FortiAIGate syslog collector manifest
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - apply
+      - -f
+      - "{{ fortiaigate_syslog_manifest_remote_path }}"
+  changed_when: "'configured' in fortiaigate_syslog_apply.stdout or 'created' in fortiaigate_syslog_apply.stdout"
+  register: fortiaigate_syslog_apply
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_apply.stdout_lines
+
+- name: Wait for FortiAIGate syslog collector rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - "deployment/{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - "--timeout={{ fortiaigate_syslog_rollout_timeout }}"
+  changed_when: false
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_wait_for_rollout | bool

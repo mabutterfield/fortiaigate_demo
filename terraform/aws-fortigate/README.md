@@ -10,7 +10,7 @@ This module creates:
 - public and internal ENIs
 - prep-owned EIP association
 - FortiGate cloud-init bootstrap
-- optional BYOL license file injection
+- optional BYOL license file or FortiFlex token injection
 - generated API key output marked sensitive
 - generated Ansible inventory for appliance status/configuration playbooks
 
@@ -43,11 +43,24 @@ ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes. Override it with
 `fortigate_admin_timeout_minutes` when needed.
 
-For BYOL testing, set `fortigate_license_source_dir` and
+For BYOL file testing, set `fortigate_license_source_dir` and
 `fortigate_license_file_name` in ignored `99-local.auto.tfvars` to a real FortiGate
 license under the parent workspace `licenses/` directory. The committed
 placeholder file name is `FGVMSLTM00000000.lic`. `fortigate_license_file`
 remains available as a full-path compatibility override.
+
+For FortiFlex testing, set this only in ignored `99-local.auto.tfvars`:
+
+```hcl
+fortigate_license_mode    = "fortiflex_token"
+fortigate_fortiflex_token = "<token>"
+```
+
+The token is rendered into FortiGate MIME cloud-init as `LICENSE-TOKEN`.
+Terraform state contains the rendered user-data. Token changes replace the EC2
+instance because `user_data_replace_on_change` is enabled. Before intentionally
+tainting/rebuilding a FortiFlex-licensed instance, clear or replace the token in
+local tfvars so the rebuild consumes a fresh token.
 
 Useful outputs:
 
@@ -57,5 +70,5 @@ terraform output fortigate_instance_id
 terraform output -raw fortigate_api_key
 ```
 
-Do not commit real `99-local.auto.tfvars`, license files, rendered user-data, or
-Terraform state.
+Do not commit real `99-local.auto.tfvars`, FortiFlex tokens, license files,
+rendered user-data, or Terraform state.

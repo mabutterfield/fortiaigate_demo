@@ -1,0 +1,99 @@
+---
+- name: Skip FortiAIGate syslog collector test when disabled
+  ansible.builtin.debug:
+    msg: "fortiaigate_syslog_collector_enabled=false or no fortiaigate_syslog_bucket_name is available; skipping syslog collector test."
+  when: not fortiaigate_syslog_collector_enabled | bool
+
+- name: Read FortiAIGate syslog collector service
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - service
+      - "{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - -o
+      - json
+  changed_when: false
+  register: fortiaigate_syslog_test_service
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_test_service.stdout_lines
+
+- name: Build FortiAIGate syslog collector test facts
+  ansible.builtin.set_fact:
+    fortiaigate_syslog_test_service_json: "{{ fortiaigate_syslog_test_service.stdout | from_json }}"
+    fortiaigate_syslog_test_payload: "<134>{{ ansible_facts.date_time.month }} {{ ansible_facts.date_time.day }} {{ ansible_facts.date_time.time }} {{ inventory_hostname }} fortiaigate-syslog-test: {{ fortiaigate_syslog_test_message }}"
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Send UDP syslog test message to collector service
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >-
+        import socket;
+        payload={{ fortiaigate_syslog_test_payload | to_json }}.encode("utf-8");
+        sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
+        sock.sendto(payload, ("{{ fortiaigate_syslog_test_service_json.spec.clusterIP }}", {{ fortiaigate_syslog_service_port | int }}));
+        print(payload.decode("utf-8"))
+  changed_when: true
+  register: fortiaigate_syslog_test_send
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_test_send.stdout_lines
+
+- name: Wait for Fluent Bit S3 upload interval
+  ansible.builtin.pause:
+    seconds: "{{ fortiaigate_syslog_test_wait_seconds | int }}"
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Check FortiAIGate syslog collector pod logs
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - logs
+      - "deployment/{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - --tail=80
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_test_logs
+  when: fortiaigate_syslog_collector_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_test_logs.stdout_lines
+
+- name: Check S3 for FortiAIGate syslog objects from k3s host
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3
+      - ls
+      - "s3://{{ fortiaigate_syslog_bucket_name }}/{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog') | regex_replace('^/+|/+$', '') }}/"
+      - --recursive
+      - --summarize
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_test_s3
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_test_check_s3 | bool
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_test_s3.stdout_lines
+
+- name: Show FortiAIGate syslog collector test summary
+  ansible.builtin.debug:
+    msg:
+      - "Sent UDP payload: {{ fortiaigate_syslog_test_send.stdout | default('not sent') }}"
+      - "Collector service: {{ fortiaigate_syslog_release_name }}.{{ fortiaigate_syslog_namespace }}.svc.cluster.local:{{ fortiaigate_syslog_service_port }}/udp"
+      - "S3 target: s3://{{ fortiaigate_syslog_bucket_name | default('unavailable') }}/{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog') }}/"
+      - "S3 check rc: {{ fortiaigate_syslog_test_s3.rc | default('skipped') }}"
+      - "S3 summary: {{ (fortiaigate_syslog_test_s3.stdout_lines | default([]))[-3:] | join('; ') if (fortiaigate_syslog_test_s3.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
+      - "Recent collector log lines: {{ (fortiaigate_syslog_test_logs.stdout_lines | default([]))[-5:] | join('; ') if (fortiaigate_syslog_test_logs.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
+  when: fortiaigate_syslog_collector_enabled | bool

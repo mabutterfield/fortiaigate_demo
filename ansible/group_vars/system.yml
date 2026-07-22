@@ -128,6 +128,22 @@ fortiaigate_test_include_all_header_route_profiles: false
 fortiaigate_test_include_openwebui_endpoint: false
 fortiaigate_test_include_ollama_endpoint: false
 
+# === FortiAIGate syslog collector: ansible/playbooks/deploy_fortiaigate_syslog_collector.yml ===
+# The quickstart invokes this playbook automatically. The role no-ops unless
+# terraform/aws-prep has created fortiaigate_syslog_bucket_name and
+# terraform/aws-ec2-k3s has regenerated ansible/group_vars/terraform.generated.yml.
+fortiaigate_syslog_namespace: fortiaigate-logging
+fortiaigate_syslog_release_name: fortiaigate-syslog
+fortiaigate_syslog_service_port: 514
+fortiaigate_syslog_service_cluster_ip: ""
+fortiaigate_syslog_container_port: 5514
+fortiaigate_syslog_image_repository: fluent/fluent-bit
+fortiaigate_syslog_image_tag: "3.2"
+fortiaigate_syslog_s3_prefix: "{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) }}"
+fortiaigate_syslog_s3_total_file_size: 1M
+fortiaigate_syslog_s3_upload_timeout: 5m
+fortiaigate_syslog_test_wait_seconds: 35
+
 # Optional direct provider smoke test before FortiAIGate guard setup.
 direct_model_provider: bedrock
 direct_model_message: "Hello, is this thing on? Reply in one short sentence and include the name of the model answering."
@@ -295,9 +311,25 @@ chatbot_direct_api_key: "{{ litellm_master_key }}"
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
 faig_model_route_header_name: X-FAIG-Model-Route
+# Lite mode narrows the visible/tested FAIG surface to the three baseline static
+# routes that are normally configured first: passthrough, demo-a, and demo-b.
+chatbot_faig_lite_mode: false
 # Static FAIG routes use different URI paths for backend/model selection.
 chatbot_faig_static_route: demo-a
-chatbot_faig_static_routes:
+chatbot_faig_static_routes_lite:
+  - name: passthrough
+    label: Passthrough
+    base_path: /v1/passthrough
+    model: "{{ litellm_passthrough_model_alias }}"
+  - name: demo-a
+    label: Demo A
+    base_path: /v1/demo-a
+    model: "{{ litellm_demo_a_model_alias }}"
+  - name: demo-b
+    label: Demo B
+    base_path: /v1/demo-b
+    model: "{{ litellm_demo_b_model_alias }}"
+chatbot_faig_static_routes_full:
   - name: passthrough
     label: Passthrough
     base_path: /v1/passthrough
@@ -318,6 +350,7 @@ chatbot_faig_static_routes:
     label: Demo B -> FAIG Re-entry
     base_path: /v1/demo-b-faig-be
     model: "{{ litellm_demo_b_faig_be_model_alias }}"
+chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
 # Header routes use one URI and send the model selection in a configurable
 # header. Omit header_value to default to the model; set header_value: "" to
 # test intelligent routing without sending the header.
@@ -339,13 +372,18 @@ chatbot_faig_header_routes:
     model: "{{ litellm_demo_b_model_alias }}"
     header_value: "{{ litellm_demo_b_model_alias }}"
 chatbot_model: "{{ litellm_demo_a_model_alias }}"
-chatbot_model_options:
+chatbot_model_options_lite:
+  - "{{ litellm_passthrough_model_alias }}"
+  - "{{ litellm_demo_a_model_alias }}"
+  - "{{ litellm_demo_b_model_alias }}"
+chatbot_model_options_full:
   - "{{ litellm_passthrough_model_alias }}"
   - "{{ litellm_demo_a_model_alias }}"
   - "{{ litellm_demo_b_model_alias }}"
   - "{{ litellm_demo_a_faig_be_model_alias }}"
   - "{{ litellm_demo_b_faig_be_model_alias }}"
   - "{{ litellm_ollama_model_alias }}"
+chatbot_model_options: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
 chatbot_frontend_system_prompt: ""
 # Optional UI-layer system prompt. Leave empty for the default architecture
 # where backend demo instructions are injected by LiteLLM instead.

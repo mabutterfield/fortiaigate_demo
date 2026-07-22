@@ -1,0 +1,33 @@
+Jordan Lee
+Austin, TX
+jordan.lee@example.invalid
+(512) 555-0198
+
+Professional Summary
+Synthetic candidate for FortiAIGate demo use. Platform engineer with experience in cloud operations, developer tooling, and infrastructure support. Comfortable working across Linux systems, container runtimes, application deployment pipelines, and scripting for automation.
+
+Experience
+Platform Engineer
+Red Cedar Technologies
+2022-Present
+- Supported internal developer platforms running on AWS and Kubernetes.
+- Created scripts to streamline environment setup and system diagnostics.
+- Managed application configuration and deployment documentation.
+- Worked with engineering teams to troubleshoot service reliability issues.
+
+Systems Engineer
+Evergreen Data Services
+2019-2022
+- Monitored Linux workloads and resolved production support tickets.
+- Maintained shell scripts for log collection and system reporting.
+- Assisted with onboarding services into centralized observability systems.
+
+Skills
+Linux, AWS, Docker, Kubernetes, Python, Shell Scripting, Monitoring, Networking, Git
+
+Education
+B.S. Information Systems
+Texas State University
+
+Demo Handling Note
+This is synthetic data. Contact details use reserved example domains and demo phone numbers.

@@ -11,11 +11,18 @@
     executable: /bin/bash
     creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
   register: nvidia_container_toolkit_repo
+  retries: "{{ nvidia_container_runtime_repo_retries | int }}"
+  delay: "{{ nvidia_container_runtime_repo_retry_delay | int }}"
+  until: nvidia_container_toolkit_repo is succeeded
 
 - name: Refresh apt cache after NVIDIA toolkit repository
   ansible.builtin.apt:
     update_cache: true
   when: nvidia_container_toolkit_repo.changed
+  register: nvidia_container_runtime_cache_update
+  retries: "{{ nvidia_container_runtime_apt_retries | int }}"
+  delay: "{{ nvidia_container_runtime_apt_retry_delay | int }}"
+  until: nvidia_container_runtime_cache_update is succeeded
 
 - name: Install NVIDIA container runtime packages
   ansible.builtin.apt:
@@ -26,6 +33,10 @@
       # - nvidia-container-runtime
     state: present
     update_cache: true
+  register: nvidia_container_runtime_install
+  retries: "{{ nvidia_container_runtime_apt_retries | int }}"
+  delay: "{{ nvidia_container_runtime_apt_retry_delay | int }}"
+  until: nvidia_container_runtime_install is succeeded
 
 - name: Check NVIDIA containerd runtime snippet
   ansible.builtin.stat:

@@ -15,6 +15,10 @@
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
 
+# Optional smaller chatbot/FAIG demo surface. When enabled and chatbots are
+# redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
+# chatbot_faig_lite_mode: true
+
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
 fortiaigate_license_files:
@@ -145,6 +149,10 @@ fortiaigate_licenses: {}
 
 # Optional FortiWeb system/configuration overrides used by
 # ansible/playbooks/configure_fortiweb.yml.
+# If the FortiWeb admin password was changed outside Terraform, set this only
+# in ignored ansible/group_vars/user.yml or pass it as an extra var. Never
+# commit the real value.
+# fortiweb_admin_password_override: ""
 # fortiweb_system_settings:
 #   hostname: "{{ fortiweb_hostname }}"
 #   idle_timeout: 60

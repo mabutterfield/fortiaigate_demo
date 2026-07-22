@@ -19,5 +19,12 @@
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
       tags: [always]
+    - name: Reset FortiWeb persistent HTTPAPI connection before status
+      ansible.builtin.meta: reset_connection
+      tags: [always]
   roles:
     - fortiweb_status
+  post_tasks:
+    - name: Reset FortiWeb persistent HTTPAPI connection after status
+      ansible.builtin.meta: reset_connection
+      tags: [always]

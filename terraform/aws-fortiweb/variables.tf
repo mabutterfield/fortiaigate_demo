@@ -129,9 +129,16 @@ variable "fortiweb_license_mode" {
   default     = "byol_file"
 
   validation {
-    condition     = contains(["none", "byol_file", "fortiflex_future"], var.fortiweb_license_mode)
-    error_message = "fortiweb_license_mode must be none, byol_file, or fortiflex_future."
+    condition     = contains(["none", "byol_file", "fortiflex_token"], var.fortiweb_license_mode)
+    error_message = "fortiweb_license_mode must be none, byol_file, or fortiflex_token."
   }
+}
+
+variable "fortiweb_fortiflex_token" {
+  type        = string
+  description = "FortiFlex license token injected into FortiWeb cloud-init when fortiweb_license_mode is fortiflex_token. Keep this only in ignored local tfvars."
+  default     = ""
+  sensitive   = true
 }
 
 variable "fortiweb_license_file" {
@@ -182,7 +189,7 @@ variable "fortiweb_admin_http_port" {
 
 variable "fortiweb_admin_console_timeout_seconds" {
   type        = number
-  description = "FortiWeb GUI/CLI admin idle timeout in seconds."
+  description = "FortiWeb GUI/CLI admin idle timeout in seconds. Rendered to FortiWeb CLI admintimeout in minutes."
   default     = 3600
 
   validation {

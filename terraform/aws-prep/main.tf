@@ -55,6 +55,17 @@ locals {
     "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_config_key}",
     "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_license_key}",
   ] : []
+  phase8_documents_bucket_name = var.phase8_documents_bucket_name != "" ? var.phase8_documents_bucket_name : "${local.fortiweb_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}-docs"
+  phase8_documents_prefix      = trim(var.phase8_documents_prefix, "/")
+  phase8_documents_object_arn  = var.phase8_documents_bucket_enabled ? "${aws_s3_bucket.phase8_documents[0].arn}/${local.phase8_documents_prefix}/*" : null
+  fortiaigate_syslog_bucket_prefix = local.fortiweb_bucket_prefix_raw != "" ? substr(
+    local.fortiweb_bucket_prefix_raw,
+    0,
+    min(length(local.fortiweb_bucket_prefix_raw), 20)
+  ) : "fortiaigate"
+  fortiaigate_syslog_bucket_name = var.fortiaigate_syslog_bucket_name != "" ? var.fortiaigate_syslog_bucket_name : "${local.fortiaigate_syslog_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}-syslog"
+  fortiaigate_syslog_prefix      = trim(var.fortiaigate_syslog_prefix, "/")
+  fortiaigate_syslog_object_arn  = var.fortiaigate_syslog_bucket_enabled ? "${aws_s3_bucket.fortiaigate_syslog[0].arn}/${local.fortiaigate_syslog_prefix}/*" : null
 
   bedrock_effective_allowed_source_cidrs = var.bedrock_no_ip_restriction ? [] : distinct(compact(concat(
     local.allowed_ingress_cidrs,
@@ -229,6 +240,106 @@ resource "aws_iam_role_policy_attachment" "ec2_bedrock_invoke" {
   policy_arn = aws_iam_policy.ec2_bedrock_invoke[0].arn
 }
 
+resource "aws_iam_policy" "ec2_phase8_documents_read" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  name        = "${var.name_prefix}-ec2-phase8-documents-read"
+  description = "Allow the FortiAIGate k3s host to read pre-staged synthetic Phase 8 document fixtures."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ListPhase8DocumentPrefix"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+        ]
+        Resource = aws_s3_bucket.phase8_documents[0].arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [
+              local.phase8_documents_prefix,
+              "${local.phase8_documents_prefix}/*",
+            ]
+          }
+        }
+      },
+      {
+        Sid    = "ReadPhase8DocumentObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+        ]
+        Resource = local.phase8_documents_object_arn
+      },
+    ]
+  })
+
+  tags = merge(local.tags, {
+    Name      = "${var.name_prefix}-ec2-phase8-documents-read"
+    Component = "Phase8Documents"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_phase8_documents_read" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  role       = aws_iam_role.ec2.name
+  policy_arn = aws_iam_policy.ec2_phase8_documents_read[0].arn
+}
+
+resource "aws_iam_policy" "ec2_fortiaigate_syslog_write" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  name        = "${var.name_prefix}-ec2-fortiaigate-syslog-write"
+  description = "Allow the FortiAIGate k3s host to write preserved syslog objects."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ListFortiAIGateSyslogPrefix"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+        ]
+        Resource = aws_s3_bucket.fortiaigate_syslog[0].arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [
+              local.fortiaigate_syslog_prefix,
+              "${local.fortiaigate_syslog_prefix}/*",
+            ]
+          }
+        }
+      },
+      {
+        Sid    = "WriteFortiAIGateSyslogObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:AbortMultipartUpload",
+          "s3:ListMultipartUploadParts",
+          "s3:PutObject",
+        ]
+        Resource = local.fortiaigate_syslog_object_arn
+      },
+    ]
+  })
+
+  tags = merge(local.tags, {
+    Name      = "${var.name_prefix}-ec2-fortiaigate-syslog-write"
+    Component = "FortiAIGateSyslog"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_fortiaigate_syslog_write" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  role       = aws_iam_role.ec2.name
+  policy_arn = aws_iam_policy.ec2_fortiaigate_syslog_write[0].arn
+}
+
 resource "aws_eip" "public" {
   for_each = local.eip_allocations
 
@@ -331,6 +442,193 @@ resource "aws_s3_bucket_policy" "fortiweb_cloudinit" {
 
   depends_on = [
     aws_s3_bucket_public_access_block.fortiweb_cloudinit,
+  ]
+}
+
+resource "aws_s3_bucket" "phase8_documents" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  bucket        = local.phase8_documents_bucket_name
+  force_destroy = var.phase8_documents_bucket_force_destroy
+
+  tags = merge(local.tags, {
+    Name      = local.phase8_documents_bucket_name
+    Component = "Phase8Documents"
+    Purpose   = "Synthetic Phase 8 document fixtures"
+  })
+}
+
+resource "aws_s3_bucket_public_access_block" "phase8_documents" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.phase8_documents[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "phase8_documents" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.phase8_documents[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "phase8_documents" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.phase8_documents[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_policy" "phase8_documents" {
+  count = var.phase8_documents_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.phase8_documents[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.phase8_documents[0].arn,
+          "${aws_s3_bucket.phase8_documents[0].arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      },
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.phase8_documents,
+  ]
+}
+
+resource "aws_s3_bucket" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket        = local.fortiaigate_syslog_bucket_name
+  force_destroy = var.fortiaigate_syslog_bucket_force_destroy
+
+  tags = merge(local.tags, {
+    Name      = local.fortiaigate_syslog_bucket_name
+    Component = "FortiAIGateSyslog"
+    Purpose   = "FortiAIGate syslog preservation"
+  })
+}
+
+resource "aws_s3_bucket_public_access_block" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled && var.fortiaigate_syslog_lifecycle_days > 0 ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  rule {
+    id     = "expire-fortiaigate-syslog"
+    status = "Enabled"
+
+    filter {
+      prefix = "${local.fortiaigate_syslog_prefix}/"
+    }
+
+    expiration {
+      days = var.fortiaigate_syslog_lifecycle_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.fortiaigate_syslog_lifecycle_days
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "fortiaigate_syslog" {
+  count = var.fortiaigate_syslog_bucket_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.fortiaigate_syslog[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.fortiaigate_syslog[0].arn,
+          "${aws_s3_bucket.fortiaigate_syslog[0].arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      },
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.fortiaigate_syslog,
   ]
 }
 

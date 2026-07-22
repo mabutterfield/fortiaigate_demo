@@ -10,7 +10,8 @@ and request paths, see [Architecture](architecture.md).
 | FortiAIGate | working | `fortiaigate` | `https://<k3s-ip>/ui/` for 8.0.1 |
 | LiteLLM | working | `litellm` | `http://<k3s-ip>:30083/ui/` |
 | custom chatbot UI | working | `chatbot` | `http://<k3s-ip>:30081` and `https://<k3s-ip>:30444` after HTTPS gateway deploy |
-| MCP demo tools | enabled by default, includes customer/ticket/menu/HR and read-only FortiGate tool schemas | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
+| MCP demo tools | enabled by default, includes customer/ticket/menu/HR/document and read-only FortiGate tool schemas | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
+| FortiAIGate syslog collector | optional log preservation path when the AWS prep syslog bucket exists | `fortiaigate-logging` | internal UDP/514 ClusterIP service |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` and `https://<k3s-ip>:30445` after HTTPS gateway deploy |
 | HTTPS gateway | enabled in system defaults | `demo-https-gateway` | generated HTTPS ports after the playbook runs |
 | Open WebUI | optional, disabled by default | `openwebui` | `http://<k3s-ip>:30080` when enabled |
@@ -53,12 +54,13 @@ Automated quickstart and manual deployment use this order:
 13. FortiWeb status poll and baseline reverse-proxy configuration when enabled
 14. LiteLLM deploy
 15. MCP demo tools deploy
-16. Open WebUI deploy when `openwebui_enabled=true`
-17. custom chatbot UI deploy
-18. demo home deploy
-19. HTTPS gateway deploy when run
-20. FortiWeb/direct HTTP path validation when FortiWeb is enabled
-21. final FortiAIGate status check and consolidated output display
+16. FortiAIGate syslog collector deploy/status when the syslog bucket exists
+17. Open WebUI deploy when `openwebui_enabled=true`
+18. custom chatbot UI deploy
+19. demo home deploy
+20. HTTPS gateway deploy when run
+21. FortiWeb/direct HTTP path validation when FortiWeb is enabled
+22. final FortiAIGate status check and consolidated output display
 
 Automated quickstart checks FortiAIGate once after Helm deploy, continues with
 the remaining app deployments, then checks FortiAIGate status again at the end.
@@ -75,6 +77,7 @@ READY before deploying the remaining demo apps.
 | FortiWeb | `status_fortiweb.yml` | `validate_demo_http_paths.yml` checks direct and FortiWeb paths |
 | LiteLLM | `status_litellm.yml` | `validate_litellm.yml` |
 | MCP demo tools | `status_mcp.yml` | `validate_mcp.yml` |
+| FortiAIGate syslog collector | `status_fortiaigate_syslog_collector.yml` | `test_fortiaigate_syslog_collector.yml` |
 | Open WebUI, when enabled | `status_openwebui.yml` | `validate_openwebui.yml` |
 | custom chatbot UI | `status_chatbots.yml` | `validate_chatbots.yml` |
 | demo home | `status_demo_home.yml` | `validate_demo_home.yml` |

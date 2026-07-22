@@ -7,6 +7,8 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 - trusted source CIDR outputs
 - preallocated public EIPs for selected entry points
 - FortiWeb S3 cloud-init bucket and IAM instance profile when enabled
+- optional private S3 bucket for pre-staged synthetic Phase 8 document fixtures
+- optional private S3 bucket for FortiAIGate syslog preservation
 - optional temporary Bedrock IAM credentials for FortiAIGate provider setup
 
 Run it after the registry module and before the EC2 k3s foundation module:
@@ -47,6 +49,31 @@ fortiweb/cloud-init/FWB.lic
 
 License objects are sensitive. Do not commit license files, rendered user-data,
 or Terraform state.
+
+Phase 8 document fixture S3 prep is disabled by default. Enable it only when
+you are ready to test S3-backed document retrieval through MCP:
+
+```hcl
+phase8_documents_bucket_enabled = true
+phase8_documents_prefix         = "phase8-fixtures"
+```
+
+When enabled, this module creates a private encrypted bucket, blocks public
+access, and attaches a read/list policy for the configured prefix to the k3s
+EC2 IAM role. The chatbot does not receive AWS credentials.
+
+FortiAIGate syslog S3 prep is disabled by default. Enable it before deploying
+the in-cluster syslog collector:
+
+```hcl
+fortiaigate_syslog_bucket_enabled = true
+fortiaigate_syslog_prefix         = "fortiaigate/syslog"
+```
+
+When enabled, this module creates a private encrypted bucket, blocks public
+access, and attaches a write/list policy for the configured prefix to the k3s
+EC2 IAM role. The Fluent Bit collector uses the EC2 instance role through the
+normal AWS credential chain; no static AWS keys are stored in Kubernetes.
 
 Retrieve Bedrock GUI values when `enable_bedrock_iam = true`:
 

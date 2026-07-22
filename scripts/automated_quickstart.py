@@ -68,6 +68,7 @@ APPLIANCE_LICENSES = {
         "label": "FortiGate",
         "module_path": "terraform/aws-fortigate",
         "mode_key": "fortigate_license_mode",
+        "token_key": "fortigate_fortiflex_token",
         "file_key": "fortigate_license_file",
         "source_dir_key": "fortigate_license_source_dir",
         "file_name_key": "fortigate_license_file_name",
@@ -77,6 +78,7 @@ APPLIANCE_LICENSES = {
         "label": "FortiWeb",
         "module_path": "terraform/aws-fortiweb",
         "mode_key": "fortiweb_license_mode",
+        "token_key": "fortiweb_fortiflex_token",
         "file_key": "fortiweb_license_file",
         "source_dir_key": "fortiweb_license_source_dir",
         "file_name_key": "fortiweb_license_file_name",
@@ -84,6 +86,7 @@ APPLIANCE_LICENSES = {
     },
 }
 APPLICATION_PLAYBOOKS = [
+    ("FortiAIGate syslog collector", "deploy_fortiaigate_syslog_collector.yml", "status_fortiaigate_syslog_collector.yml"),
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
     ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
@@ -781,6 +784,14 @@ def choose_appliance_license_file(label: str, source_dir: Path, default_license:
         print(f"Selected {label} license file does not exist: {selected_path}")
 
 
+def prompt_appliance_fortiflex_token(label: str) -> str:
+    while True:
+        token = prompt_text(f"{label} FortiFlex token", "").strip()
+        if token:
+            return token
+        print(f"Enter a {label} FortiFlex token, or set license mode to none/byol_file before running quickstart.")
+
+
 def configure_appliance_license_preflight(appliance_keys: list[str], *, noninteractive: bool = False) -> None:
     if not appliance_keys:
         return
@@ -796,6 +807,25 @@ def configure_appliance_license_preflight(appliance_keys: list[str], *, noninter
         effective_content = read_effective_module_tfvars(module_path)
         local_content = read_existing_file(tfvars_path)
         license_mode = get_tf_string(effective_content, config["mode_key"], "byol_file")
+
+        if license_mode == "fortiflex_token":
+            token = get_tf_string(effective_content, config["token_key"])
+            if token:
+                print(f"{label}: FortiFlex token is configured in local tfvars.")
+                continue
+            if noninteractive:
+                raise SystemExit(
+                    f"{label} license preflight failed: {config['token_key']} is empty. "
+                    f"Set {config['token_key']} in ignored {tfvars_path.relative_to(REPO_ROOT)}, "
+                    f"or use {config['mode_key']}=\"none\"."
+                )
+            print(f"{label}: FortiFlex token mode is enabled but no token is configured.")
+            token = prompt_appliance_fortiflex_token(label)
+            local_content = set_tf_string(local_content, config["token_key"], token)
+            write_file(tfvars_path, local_content)
+            print(f"updated: {tfvars_path.relative_to(REPO_ROOT)}")
+            print(f"{label}: FortiFlex token configured in ignored local tfvars.")
+            continue
 
         if license_mode != "byol_file":
             print(f"{label}: {config['mode_key']}={license_mode}; no local BYOL license file stat needed.")

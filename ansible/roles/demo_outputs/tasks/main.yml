@@ -400,6 +400,18 @@
         if demo_outputs_access_host | default('', true) | length > 0
         else 'unavailable'
       }}
+    demo_outputs_syslog_target: >-
+      {{
+        (fortiaigate_syslog_release_name | default('fortiaigate-syslog')) ~ '.' ~ (fortiaigate_syslog_namespace | default('fortiaigate-logging')) ~ '.svc.cluster.local:' ~ (fortiaigate_syslog_service_port | default(514) | string) ~ '/udp'
+        if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+        else 'disabled (enable fortiaigate_syslog_bucket_enabled=true in terraform/aws-prep)'
+      }}
+    demo_outputs_syslog_s3_target: >-
+      {{
+        's3://' ~ fortiaigate_syslog_bucket_name ~ '/' ~ (fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) | regex_replace('^/+|/+$', '')) ~ '/'
+        if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+        else 'disabled'
+      }}
   # - ansible.builtin.debug:
   #     msg:
   #       - "{{ demo_outputs_demo_home_url }}"
@@ -465,6 +477,8 @@
           'Demo Home: ' ~ demo_outputs_demo_home_url,
           'LiteLLM Admin: ' ~ demo_outputs_litellm_admin_url,
           'MCP Tools: ' ~ demo_outputs_mcp_tools_url,
+          'FAIG Syslog target: ' ~ demo_outputs_syslog_target,
+          'FAIG Syslog S3: ' ~ demo_outputs_syslog_s3_target,
         ]
         + demo_outputs_appliance_lines
         + [

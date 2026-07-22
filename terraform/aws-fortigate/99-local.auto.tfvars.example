@@ -5,5 +5,7 @@
 
 # fortigate_instance_type = "c6i.large"
 # fortigate_version = "8.0"
+# fortigate_license_mode = "fortiflex_token"
+# fortigate_fortiflex_token = ""
 # fortigate_license_file_name = "FGVMSLTM00000000.lic"
 # fortigate_admin_port = 443

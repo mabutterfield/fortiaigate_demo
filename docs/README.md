@@ -22,6 +22,8 @@ Start with one quick start, then use the topic docs for details and recovery.
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
 | Scenario demo prompts and settings | [Scenarios](scenarios.md) |
+| Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
+| FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
 | FortiGate appliance | [FortiGate](fortigate.md) |
 | FortiWeb appliance | [FortiWeb](fortiweb.md) |
@@ -49,10 +51,14 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `deploy_litellm.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the default demo application layer.
 - `deploy_openwebui.yml`: optionally deploys Open WebUI when `openwebui_enabled=true`.
 - `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the MCP demo tool server.
+- `deploy_fortiaigate_syslog_collector.yml`, `status_fortiaigate_syslog_collector.yml`, and `test_fortiaigate_syslog_collector.yml`: deploy, inspect, and send a synthetic UDP test message to the FortiAIGate syslog preservation collector.
 - `deploy_demo_https_gateway.yml`: adds self-signed HTTPS listeners for HTTP-only demo services when run and enabled.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
 - `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
+- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes: passthrough, demo-a, and demo-b.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
+- `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
+- `scripts/export_fortiaigate_syslog.py`: syncs FortiAIGate syslog S3 objects into `FAIG/backups/` and reconstructs a combined JSONL archive.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

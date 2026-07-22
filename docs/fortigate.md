@@ -141,5 +141,11 @@ ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes through
 `fortigate_admin_timeout_minutes`.
 
-Do not commit license files, rendered user-data, real `99-local.auto.tfvars`, or
-Terraform state.
+Set `fortigate_license_mode = "fortiflex_token"` and
+`fortigate_fortiflex_token` in ignored `terraform/aws-fortigate/99-local.auto.tfvars`
+to inject a FortiFlex token through cloud-init. Token changes replace the
+FortiGate EC2 instance. Before tainting/rebuilding a FortiFlex-licensed
+instance, clear or replace the token so the next build consumes a fresh token.
+
+Do not commit FortiFlex tokens, license files, rendered user-data, real
+`99-local.auto.tfvars`, or Terraform state.

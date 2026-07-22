@@ -204,7 +204,7 @@ endpoint, API key, and model before moving on.
 |---|---|---|---|
 | `litellm-pass-bedrock` | `API endpoint/private` from `LiteLLM proxy provider` output | `pass-bedrock` | No instruction injection; use for fallback, passthrough, and the post-injection FAIG re-entry path. This may be created during first-login onboarding. |
 | `demo-a` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a` | Demo A backend instruction profile, defaulting to the HR bot example |
-| `demo-b` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b` | Demo B backend instruction profile, defaulting to the fast-food bot example |
+| `demo-b` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b` normally; `demo-a` for the Phase 8 protect/redact comparison loop | Demo B can be a separate backend instruction profile for older demos. For Phase 8 scenario testing, configure the `demo-b` guard with protect/redact settings but point its LiteLLM model/profile to `demo-a` so `/v1/demo-a/*` and `/v1/demo-b/*` compare the same backend model under different FAIG policy actions. |
 | `demo-a-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a-faig-be` | Injects demo-a instructions, then sends back through FAIG `/v1/passthrough/*` |
 | `demo-b-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b-faig-be` | Injects demo-b instructions, then sends back through FAIG `/v1/passthrough/*` |
 
@@ -236,7 +236,7 @@ the fallback `/v1/*` flow, make sure it is last.
 |---:|---|---|---|---|---|
 | 1 | Passthrough | `/v1/passthrough/*` | `litellm-pass-bedrock` | Explicit passthrough static route. This may be created during first-login onboarding. | `/v1/passthrough/chat/completions` |
 | 2 | Demo A | `/v1/demo-a/*` | `demo-a` | Static route with default demo backend instructions | `/v1/demo-a/chat/completions` |
-| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route with demo-b backend instructions | `/v1/demo-b/chat/completions` |
+| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route for the Demo B guard. In the Phase 8 test loop this guard should use protect/redact settings while its provider model/profile targets LiteLLM `demo-a`, not `demo-b`, so the backend stays constant and only FAIG policy changes. | `/v1/demo-b/chat/completions` |
 | 4 | `demo-a_faig-backend` | `/v1/demo-a-faig-be/*` | `demo-a-faig-be` | Static route that chains back through FAIG after LiteLLM injection | `/v1/demo-a-faig-be/chat/completions` |
 | 5 | `demo-b_faig-backend` | `/v1/demo-b-faig-be/*` | `demo-b-faig-be` | Alternate post-injection inspection route | `/v1/demo-b-faig-be/chat/completions` |
 | 6 | Intelligent routing | `/v1/intelligent/*` | default `litellm-pass-bedrock`; header-selected `demo-a` or `demo-b` | One URI with optional header routing | `/v1/intelligent/chat/completions` |

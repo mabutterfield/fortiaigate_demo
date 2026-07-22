@@ -1,0 +1,5 @@
+---
+nvidia_container_runtime_repo_retries: 4
+nvidia_container_runtime_repo_retry_delay: 30
+nvidia_container_runtime_apt_retries: 4
+nvidia_container_runtime_apt_retry_delay: 60

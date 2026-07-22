@@ -44,6 +44,9 @@ bedrock_credential_generation = "20260610"
 
 bedrock_model_ids = [
   "openai.gpt-oss-20b-1:0",
+  "openai.gpt-oss-120b-1:0",
+  "google.gemma-3-4b-it",
+  "mistral.ministral-3-3b-instruct",
 ]
 
 # Allow selected model IDs in major commercial US regions.

@@ -66,7 +66,20 @@ terraform apply
 
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
 overriding the tracked defaults in `00-system.auto.tfvars`, such as license
-file names or instance size.
+mode, license file names, FortiFlex token, or instance size.
+
+For FortiFlex testing, set this only in ignored `99-local.auto.tfvars`:
+
+```hcl
+fortiweb_license_mode    = "fortiflex_token"
+fortiweb_fortiflex_token = "<token>"
+```
+
+The token is rendered into FortiWeb JSON user-data as `Flex_token`. Terraform
+state contains the rendered user-data. Token changes replace the EC2 instance
+because `user_data_replace_on_change` is enabled. Before intentionally
+tainting/rebuilding a FortiFlex-licensed instance, clear or replace the token in
+local tfvars so the rebuild consumes a fresh token.
 
 Useful outputs:
 
@@ -104,5 +117,5 @@ password. The status playbook reads Terraform outputs at runtime and uses
 `fortiweb_admin_password` when `fortiweb_set_initial_password = true`, otherwise
 it uses the EC2 instance ID as the default admin password.
 
-Do not commit real `99-local.auto.tfvars`, license files, rendered user-data, or
-Terraform state.
+Do not commit real `99-local.auto.tfvars`, FortiFlex tokens, license files,
+rendered user-data, or Terraform state.

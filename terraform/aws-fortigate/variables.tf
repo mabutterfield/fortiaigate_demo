@@ -100,8 +100,37 @@ variable "fortigate_license_mode" {
   default     = "byol_file"
 
   validation {
-    condition     = contains(["none", "byol_file", "fortiflex_future"], var.fortigate_license_mode)
-    error_message = "fortigate_license_mode must be none, byol_file, or fortiflex_future."
+    condition     = contains(["none", "byol_file", "fortiflex_token"], var.fortigate_license_mode)
+    error_message = "fortigate_license_mode must be none, byol_file, or fortiflex_token."
+  }
+}
+
+variable "fortigate_fortiflex_token" {
+  type        = string
+  description = "FortiFlex license token injected into FortiGate cloud-init when fortigate_license_mode is fortiflex_token. Keep this only in ignored local tfvars."
+  default     = ""
+  sensitive   = true
+}
+
+variable "fortigate_fortiflex_token_activation_count" {
+  type        = number
+  description = "FortiGate FortiFlex token activation retry count rendered into the cloud-init license token part."
+  default     = 4
+
+  validation {
+    condition     = var.fortigate_fortiflex_token_activation_count >= 0
+    error_message = "fortigate_fortiflex_token_activation_count must be 0 or greater."
+  }
+}
+
+variable "fortigate_fortiflex_token_activation_interval_seconds" {
+  type        = number
+  description = "FortiGate FortiFlex token activation retry interval in seconds rendered into the cloud-init license token part."
+  default     = 15
+
+  validation {
+    condition     = var.fortigate_fortiflex_token_activation_interval_seconds >= 1
+    error_message = "fortigate_fortiflex_token_activation_interval_seconds must be 1 or greater."
   }
 }
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import re
 import shutil
 import subprocess
@@ -144,12 +145,12 @@ def aws_profile_from_user_tfvars() -> str:
     return profile
 
 
-def ensure_aws_login() -> None:
+def ensure_aws_login() -> str:
     print_header("Checking AWS Login")
     profile = aws_profile_from_user_tfvars()
     result = run_command(["aws", "sts", "get-caller-identity", "--profile", profile], check=False)
     if result.returncode == 0:
-        return
+        return profile
 
     print(f"AWS caller identity check failed for profile {profile}.")
     method = choose_aws_login_method(profile)
@@ -167,6 +168,7 @@ def ensure_aws_login() -> None:
 
     run_command(argv)
     run_command(["aws", "sts", "get-caller-identity", "--profile", profile])
+    return profile
 
 
 def terraform_init(module_path: str) -> None:
@@ -198,6 +200,112 @@ def terraform_destroy(module_path: str, *, auto_approve: bool) -> None:
     if auto_approve:
         argv.append("-auto-approve")
     run_command(argv)
+
+
+def terraform_output_raw(module_path: str, output_name: str) -> str:
+    result = run_command(
+        ["terraform", "-chdir=" + module_path, "output", "-raw", output_name],
+        check=False,
+        capture=True,
+    )
+    if result.returncode != 0:
+        return ""
+    value = (result.stdout or "").strip()
+    return "" if value == "null" else value
+
+
+def s3_uri(bucket: str, prefix: str = "") -> str:
+    clean_prefix = prefix.strip("/")
+    if clean_prefix:
+        return f"s3://{bucket}/{clean_prefix}/"
+    return f"s3://{bucket}/"
+
+
+def s3_prefix_has_objects(profile: str, bucket: str, prefix: str) -> bool:
+    result = run_command(
+        [
+            "aws",
+            "s3",
+            "ls",
+            s3_uri(bucket, prefix),
+            "--recursive",
+            "--summarize",
+            "--profile",
+            profile,
+        ],
+        check=False,
+        capture=True,
+    )
+    output = (result.stdout or "") + "\n" + (result.stderr or "")
+    if result.returncode != 0:
+        print("Could not list FortiAIGate syslog S3 objects. Continuing without export.")
+        print(output.strip())
+        return False
+    match = re.search(r"Total Objects:\s*(\d+)", output)
+    return int(match.group(1)) > 0 if match else bool((result.stdout or "").strip())
+
+
+def export_fortiaigate_syslog(profile: str, bucket: str, prefix: str, export_root: Path) -> Path:
+    timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
+    label = f"fortiaigate-syslog-{timestamp}"
+    export_dir = export_root / label
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    run_command(
+        [
+            "aws",
+            "s3",
+            "sync",
+            s3_uri(bucket, prefix),
+            str(export_dir),
+            "--profile",
+            profile,
+        ]
+    )
+    archive_path = shutil.make_archive(str(export_dir), "gztar", root_dir=export_root, base_dir=label)
+    print(f"Exported FortiAIGate syslog archive: {archive_path}")
+    return Path(archive_path)
+
+
+def empty_fortiaigate_syslog_bucket(profile: str, bucket: str) -> None:
+    run_command(
+        [
+            "aws",
+            "s3",
+            "rm",
+            f"s3://{bucket}/",
+            "--recursive",
+            "--profile",
+            profile,
+        ]
+    )
+
+
+def preserve_fortiaigate_syslog(args: argparse.Namespace, profile: str) -> None:
+    print_header("FortiAIGate Syslog S3 Preservation")
+    bucket = terraform_output_raw(TERRAFORM_MODULES["prep"], "fortiaigate_syslog_bucket_name")
+    prefix = terraform_output_raw(TERRAFORM_MODULES["prep"], "fortiaigate_syslog_prefix") or "fortiaigate/syslog"
+
+    if not bucket:
+        print("No FortiAIGate syslog bucket output found. Skipping syslog export.")
+        return
+
+    print(f"Detected syslog bucket: {s3_uri(bucket, prefix)}")
+    if not s3_prefix_has_objects(profile, bucket, prefix):
+        print("No FortiAIGate syslog objects found under the configured prefix.")
+        return
+
+    exported = False
+    if args.skip_syslog_export:
+        print("Skipping syslog export because --skip-syslog-export was set.")
+    elif args.yes or prompt_yes_no("Export FortiAIGate syslog objects before teardown?", True):
+        export_fortiaigate_syslog(profile, bucket, prefix, args.syslog_export_dir)
+        exported = True
+
+    if args.yes or exported or prompt_yes_no("Empty the dedicated FortiAIGate syslog bucket so Terraform can destroy it?", False):
+        empty_fortiaigate_syslog_bucket(profile, bucket)
+    else:
+        print("Leaving syslog objects in place. terraform/aws-prep destroy may fail unless force_destroy is enabled.")
 
 
 def remove_ecr_repository_state(module_path: str) -> None:
@@ -285,6 +393,17 @@ def parse_args() -> argparse.Namespace:
         help="Skip terraform/aws-prep destroy.",
     )
     parser.add_argument(
+        "--skip-syslog-export",
+        action="store_true",
+        help="Do not offer/export FortiAIGate syslog S3 objects before prep destroy.",
+    )
+    parser.add_argument(
+        "--syslog-export-dir",
+        type=Path,
+        default=REPO_ROOT.parent / "backups",
+        help="Local directory for FortiAIGate syslog exports before teardown.",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Skip the script-level destructive action confirmation prompt.",
@@ -303,14 +422,14 @@ def main() -> None:
     print("1. Destroy terraform/aws-fortiweb if state exists.")
     print("2. Destroy terraform/aws-fortigate if state exists.")
     print("3. Destroy terraform/aws-ec2-k3s.")
-    print("4. Destroy terraform/aws-prep.")
+    print("4. Offer/export FortiAIGate syslog S3 objects, then destroy terraform/aws-prep.")
     print("5. Remove ECR repository resources from Terraform state so repositories are not deleted.")
     print("6. Destroy ECR lifecycle policy and generated local output resources only.")
 
     if not args.yes and not prompt_yes_no("Proceed with teardown?", False):
         raise SystemExit("Stopped before teardown.")
 
-    ensure_aws_login()
+    aws_profile = ensure_aws_login()
 
     if args.skip_appliances or args.skip_fortiweb:
         print_header("Terraform: FortiWeb Appliance")
@@ -338,6 +457,7 @@ def main() -> None:
         print("Skipped by --skip-prep.")
     else:
         terraform_init(TERRAFORM_MODULES["prep"])
+        preserve_fortiaigate_syslog(args, aws_profile)
         destroy_module("AWS Prep", TERRAFORM_MODULES["prep"], args.auto_approve)
 
     if args.skip_ecr:

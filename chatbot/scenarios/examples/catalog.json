@@ -11,6 +11,38 @@
     "hr-policy-risk": {
       "path": "hr-policy-risk/profile.json",
       "display_name": "HR Policy Risk Assistant"
+    },
+    "hr-tool-dlp-vulnerable": {
+      "path": "hr-tool-dlp-vulnerable/profile.json",
+      "display_name": "HR Tool DLP Vulnerable"
+    },
+    "resume-screening-clean": {
+      "path": "resume-screening-clean/profile.json",
+      "display_name": "Resume Screening Clean Retrieval"
+    },
+    "resume-prompt-injection": {
+      "path": "resume-prompt-injection/profile.json",
+      "display_name": "Resume Prompt Injection"
+    },
+    "resume-cloud-tool-pivot": {
+      "path": "resume-cloud-tool-pivot/profile.json",
+      "display_name": "Resume Cloud Tool Pivot"
+    },
+    "resume-cloud-tool-pivot-safe": {
+      "path": "resume-cloud-tool-pivot-safe/profile.json",
+      "display_name": "Resume Cloud Tool Pivot Safe"
+    },
+    "resume-cloud-tool-pivot-vulnerable": {
+      "path": "resume-cloud-tool-pivot-vulnerable/profile.json",
+      "display_name": "Resume Cloud Tool Pivot Vulnerable"
+    },
+    "hr-policy-rag-risk": {
+      "path": "hr-policy-rag-risk/profile.json",
+      "display_name": "HR Policy RAG Risk"
+    },
+    "menu-poisoning": {
+      "path": "menu-poisoning/profile.json",
+      "display_name": "Menu Document Poisoning"
     }
   }
 }

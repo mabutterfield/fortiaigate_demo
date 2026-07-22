@@ -538,6 +538,8 @@ resource "local_file" "ansible_terraform_vars" {
   content = templatefile("${path.module}/templates/terraform.generated.yml.tftpl", {
     aws_profile                        = var.aws_profile
     aws_region                         = var.aws_region
+    fortiaigate_syslog_bucket_name     = try(local.prep_outputs.fortiaigate_syslog_bucket_name, null)
+    fortiaigate_syslog_prefix          = try(local.prep_outputs.fortiaigate_syslog_prefix, null)
     name_prefix                        = var.name_prefix
     ssh_key_name                       = var.ssh_key_name
     ssh_private_key_file               = var.ssh_private_key_file

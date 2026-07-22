@@ -55,13 +55,14 @@ locals {
     "*FortiWeb-AWS-*${var.fortiweb_version}*${local.fortiweb_license_pay_type}*",
   ]
   fortiweb_generated_config = templatefile("${path.module}/templates/fortiweb-config.conf.tftpl", {
-    hostname                      = local.fortiweb_name
-    admin_https_port              = var.fortiweb_admin_https_port
-    admin_console_timeout_seconds = var.fortiweb_admin_console_timeout_seconds
-    admin_force_password_change   = var.fortiweb_admin_force_password_change
+    hostname                    = local.fortiweb_name
+    admin_https_port            = var.fortiweb_admin_https_port
+    admin_timeout_minutes       = ceil(var.fortiweb_admin_console_timeout_seconds / 60)
+    admin_force_password_change = var.fortiweb_admin_force_password_change
   })
   fortiweb_admin_password = var.fortiweb_set_initial_password ? (var.fortiweb_admin_password != "" ? var.fortiweb_admin_password : random_password.fortiweb_admin[0].result) : ""
   fortiweb_license_key    = var.fortiweb_license_mode == "byol_file" ? local.fortiweb_cloudinit_license_key : ""
+  fortiweb_flex_token     = var.fortiweb_license_mode == "fortiflex_token" ? var.fortiweb_fortiflex_token : ""
   fortiweb_management_tcp_ports = {
     for port in distinct(concat(
       [var.fortiweb_admin_https_port, var.fortiweb_admin_http_port],
@@ -90,6 +91,7 @@ locals {
     bucket                 = coalesce(local.fortiweb_cloudinit_bucket_name, "")
     region                 = var.aws_region
     license_key            = local.fortiweb_license_key
+    flex_token             = local.fortiweb_flex_token
     config_key             = coalesce(local.fortiweb_cloudinit_config_key, "")
     include_initial_passwd = var.fortiweb_set_initial_password
     initial_passwd         = var.fortiweb_set_initial_password ? base64encode(local.fortiweb_admin_password) : ""
@@ -336,10 +338,17 @@ resource "aws_instance" "this" {
   iam_instance_profile = local.fortiweb_instance_profile_name
   user_data            = sensitive(local.fortiweb_user_data)
 
+  user_data_replace_on_change = true
+
   lifecycle {
     precondition {
-      condition     = var.fortiweb_license_mode != "fortiflex_future"
-      error_message = "fortiweb_license_mode=fortiflex_future is a Phase 5 placeholder and is not implemented in Phase 4."
+      condition     = var.fortiweb_license_mode != "fortiflex_token" || nonsensitive(var.fortiweb_fortiflex_token) != ""
+      error_message = "fortiweb_fortiflex_token must be set when fortiweb_license_mode is fortiflex_token."
+    }
+
+    precondition {
+      condition     = var.fortiweb_license_mode != "fortiflex_token" || var.fortiweb_license_type == "byol"
+      error_message = "fortiweb_license_type must be byol when fortiweb_license_mode is fortiflex_token."
     }
 
     precondition {

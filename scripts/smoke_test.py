@@ -133,7 +133,23 @@ def check_terraform_fmt(strict_tools: bool) -> None:
             raise SmokeFailure(message)
         print(f"skip {message}")
         return
-    run(["terraform", "fmt", "-check", *TERRAFORM_MODULES])
+    result = run(["git", "ls-files"], check=True, show_stdout=False)
+    terraform_files = []
+    for line in result.stdout.splitlines():
+        path = Path(line.strip())
+        if not path.parts or path.parts[0] != "terraform":
+            continue
+        if not any(str(path).startswith(f"{module}/") for module in TERRAFORM_MODULES):
+            continue
+        if path.suffix not in {".tf", ".tfvars"} and not str(path).endswith(".tftest.hcl"):
+            continue
+        if (REPO_ROOT / path).is_symlink():
+            continue
+        terraform_files.append(str(path))
+    if not terraform_files:
+        print("skip no tracked Terraform files found for fmt check")
+        return
+    run(["terraform", "fmt", "-check", *terraform_files])
 
 
 def check_ansible_syntax(strict_tools: bool, playbooks: list[Path]) -> None:

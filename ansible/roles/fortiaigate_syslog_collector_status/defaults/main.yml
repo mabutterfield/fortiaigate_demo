@@ -1,0 +1,6 @@
+---
+fortiaigate_syslog_collector_enabled: "{{ fortiaigate_syslog_bucket_name | default('', true) | string | length > 0 }}"
+fortiaigate_syslog_namespace: fortiaigate-logging
+fortiaigate_syslog_release_name: fortiaigate-syslog
+fortiaigate_syslog_service_port: 514
+fortiaigate_syslog_status_fail_on_not_ready: false
