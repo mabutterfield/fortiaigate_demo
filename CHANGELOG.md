@@ -33,6 +33,19 @@ a "what's new" guide rather than a raw commit log.
 - Added `validate_phase8_documents.yml` for deterministic live checks of the
   Phase 8 MCP document, upload-simulation, prompt-injection, and synthetic
   cloud-inventory tools.
+- Added a Phase 8 reference matrix for OWASP LLM/MCP/ASI mapping, route
+  comparison, model behavior, expected prompts, raw-output conventions, and
+  policy-tuning observations.
+- Added `scripts/scenario_test_harness.py` for repeatable chatbot/MCP scenario
+  sweeps through Direct LiteLLM, FAIG scan, and FAIG protect paths, with
+  run-label safeguards and ignored raw JSON output under `docs/raw-output/`.
+- Added FortiAIGate syslog preservation:
+  - optional dedicated S3 archive bucket in `terraform/aws-prep`
+  - Fluent Bit collector on UDP/514 via a k3s service
+  - deploy, status, and test playbooks for the collector
+  - automated teardown export support before bucket destruction
+  - `scripts/export_fortiaigate_syslog.py` to sync gzip objects and reconstruct
+    a combined JSONL archive
 - Tightened Phase 8 prompt-injection demo behavior:
   - MCP document injection checks now flag role/constraint override language
     and safety-check bypass wording used by the menu poisoning fixture
@@ -45,6 +58,10 @@ a "what's new" guide rather than a raw commit log.
     generic HTTP failures
   - tool trace entries default collapsed and render in a fixed-height
     right-side pane to avoid long tool results driving page scroll
+- Added Bedrock model comparison coverage for Phase 8 demo testing across
+  GPT-OSS 20B, GPT-OSS 120B, Gemma 3 4B, and Ministral 3B. GPT-OSS models
+  support the current chatbot MCP tool-calling path; Gemma and Ministral
+  currently preserve useful unsupported-tool-call/provider error traces.
 - Added FortiFlex token bootstrap support for optional FortiGate and FortiWeb
   Terraform modules while keeping BYOL license files as the default path.
 - Hardened FortiWeb rebuild/configuration behavior by supporting a generated
