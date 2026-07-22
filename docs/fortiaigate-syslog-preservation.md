@@ -110,6 +110,31 @@ scripts/export_fortiaigate_syslog.py \
   --download-dir ../backups/phase8-syslog-current/raw
 ```
 
+Pretty-print the reconstructed JSONL with `jq`:
+
+```bash
+LOG_FILE="../backups/phase8-syslog-current/fortiaigate-syslog-combined.jsonl"
+
+jq -r '
+  . as $r
+  | ($r.message | capture("^<(?<pri>[0-9]+)>(?<body>.*)$")) as $m
+  | "---\nreceived=\($r.date) deployment=\($r.deployment_id) pri=\($m.pri)\n  \($m.body | gsub(" (?=[A-Za-z_][A-Za-z0-9_]*=)"; "\n  "))"
+' "$LOG_FILE"
+```
+
+The same formatter can be used in a pipeline:
+
+```bash
+cat "$LOG_FILE" | jq -r '
+  . as $r
+  | ($r.message | capture("^<(?<pri>[0-9]+)>(?<body>.*)$")) as $m
+  | "---\nreceived=\($r.date) deployment=\($r.deployment_id) pri=\($m.pri)\n  \($m.body | gsub(" (?=[A-Za-z_][A-Za-z0-9_]*=)"; "\n  "))"
+'
+```
+
+This is a readability formatter rather than a full parser. It preserves the
+original `message` content and inserts line breaks before `key=value` fields.
+
 ## Teardown
 
 Automated teardown checks the log bucket before destroying AWS prep resources
