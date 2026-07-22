@@ -78,10 +78,42 @@ Suggested prefix:
 s3://<bucket>/fortiaigate/syslog/YYYY/MM/DD/HH/
 ```
 
+## Archive Export
+
+Syslog files are for archive preservation, not live demo viewing. The collector
+uses a five-minute S3 upload timeout by default, so low-volume environments
+will produce small gzip objects periodically. Reconstruct them from a local
+backup with:
+
+```bash
+scripts/export_fortiaigate_syslog.py --label phase8-syslog-current
+```
+
+The script first syncs S3 objects to:
+
+```text
+/Users/mbutterfield/code/FAIG/backups/<label>/raw/
+```
+
+Then it writes:
+
+```text
+/Users/mbutterfield/code/FAIG/backups/<label>/fortiaigate-syslog-combined.jsonl
+/Users/mbutterfield/code/FAIG/backups/<label>/manifest.json
+```
+
+To reconstruct from an existing backup without re-syncing:
+
+```bash
+scripts/export_fortiaigate_syslog.py \
+  --skip-sync \
+  --download-dir ../backups/phase8-syslog-current/raw
+```
+
 ## Teardown
 
-Automated teardown should check the log bucket before destroying AWS prep
-resources, offer to export logs to:
+Automated teardown checks the log bucket before destroying AWS prep resources
+and offers to export logs to:
 
 ```text
 /Users/mbutterfield/code/FAIG/backups/
