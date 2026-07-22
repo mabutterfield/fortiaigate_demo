@@ -6,6 +6,7 @@ fortiaigate_syslog_image_repository: fluent/fluent-bit
 fortiaigate_syslog_image_tag: "3.2"
 fortiaigate_syslog_image_pull_policy: IfNotPresent
 fortiaigate_syslog_service_port: 514
+fortiaigate_syslog_service_cluster_ip: ""
 fortiaigate_syslog_container_port: 5514
 fortiaigate_syslog_s3_bucket: "{{ fortiaigate_syslog_bucket_name | default('', true) }}"
 fortiaigate_syslog_s3_prefix: "{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) }}"

@@ -27,16 +27,30 @@ The quickstart invokes the collector playbook automatically. The role no-ops
 unless `terraform/aws-prep` created `fortiaigate_syslog_bucket_name` and
 `terraform/aws-ec2-k3s` regenerated `ansible/group_vars/terraform.generated.yml`.
 
-Configure FortiAIGate syslog to target the status output:
+Current FortiAIGate builds accept an IP address, not an FQDN, for this syslog
+target. Configure FortiAIGate syslog to target the service ClusterIP shown by
+the status output:
+
+```text
+10.70.38.54:514/udp
+```
+
+The collector role supports reserving that ClusterIP with:
+
+```yaml
+fortiaigate_syslog_service_cluster_ip: "10.70.38.54"
+```
+
+The service FQDN is still useful for in-cluster diagnostics, but should not be
+used in the FortiAIGate GUI unless that UI later supports FQDN targets:
 
 ```text
 fortiaigate-syslog.fortiaigate-logging.svc.cluster.local:514/udp
 ```
 
-If FortiAIGate cannot resolve the service DNS name, use the service ClusterIP
-shown by the status playbook. If FortiAIGate must send to the k3s node IP on
-UDP/514 instead of an internal service IP, future options are `hostNetwork`,
-`hostPort`, or a host-level UDP redirect.
+If FortiAIGate must send to the k3s node IP on UDP/514 instead of an internal
+service IP, future options are `hostNetwork`, `hostPort`, or a host-level UDP
+redirect.
 
 ## AWS Prep
 

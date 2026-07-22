@@ -127,6 +127,9 @@ metadata:
     app.kubernetes.io/part-of: fortiaigate-demo
 spec:
   type: ClusterIP
+{% if fortiaigate_syslog_service_cluster_ip | default('', true) | string | length > 0 %}
+  clusterIP: {{ fortiaigate_syslog_service_cluster_ip }}
+{% endif %}
   selector:
     app.kubernetes.io/name: {{ fortiaigate_syslog_release_name }}
   ports:
