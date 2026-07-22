@@ -9,7 +9,7 @@ fortiaigate_syslog_service_port: 514
 fortiaigate_syslog_container_port: 5514
 fortiaigate_syslog_s3_bucket: "{{ fortiaigate_syslog_bucket_name | default('', true) }}"
 fortiaigate_syslog_s3_prefix: "{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) }}"
-fortiaigate_syslog_s3_total_file_size: 256K
+fortiaigate_syslog_s3_total_file_size: 1M
 fortiaigate_syslog_s3_upload_timeout: 30s
 fortiaigate_syslog_deployment_id: "{{ name_prefix | default('fortiaigate-demo') }}"
 fortiaigate_syslog_manifest_remote_path: "/home/{{ ansible_user }}/tmp/fortiaigate-syslog-collector.yaml"

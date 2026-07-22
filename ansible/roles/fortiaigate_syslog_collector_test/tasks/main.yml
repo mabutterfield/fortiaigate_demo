@@ -26,7 +26,7 @@
 - name: Build FortiAIGate syslog collector test facts
   ansible.builtin.set_fact:
     fortiaigate_syslog_test_service_json: "{{ fortiaigate_syslog_test_service.stdout | from_json }}"
-    fortiaigate_syslog_test_payload: "<134>{{ ansible_date_time.month }} {{ ansible_date_time.day }} {{ ansible_date_time.time }} {{ inventory_hostname }} fortiaigate-syslog-test: {{ fortiaigate_syslog_test_message }}"
+    fortiaigate_syslog_test_payload: "<134>{{ ansible_facts.date_time.month }} {{ ansible_facts.date_time.day }} {{ ansible_facts.date_time.time }} {{ inventory_hostname }} fortiaigate-syslog-test: {{ fortiaigate_syslog_test_message }}"
   when: fortiaigate_syslog_collector_enabled | bool
 
 - name: Send UDP syslog test message to collector service
