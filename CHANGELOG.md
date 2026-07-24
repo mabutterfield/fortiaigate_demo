@@ -5,6 +5,9 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Suspended versioning on the optional FortiAIGate syslog S3 bucket so exported
+  demo logs do not leave noncurrent object versions/delete markers that block
+  Terraform teardown.
 - Added Phase 8 document-ingestion demo foundations:
   - tracked synthetic document fixtures for clean resume/policy retrieval and
     opt-in poisoned document tests
