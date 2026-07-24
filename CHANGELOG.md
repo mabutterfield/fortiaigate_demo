@@ -5,6 +5,15 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Updated the HR MCP/DLP demo:
+  - promoted the working HR Bot with MCP `demo-a` instructions into the
+    tracked instruction examples
+  - replaced the employee fixture set with five simulated dlptest.com-sourced
+    records containing DOB, email, SSN, credit-card, salary, and source fields
+  - kept normal employee lookup/search tools returning safe metadata while the
+    explicit sensitive lookup demo tool returns full simulated records
+  - refreshed the HR tool-DLP scenario prompt, reference matrix, and test
+    harness sensitive-data matching for the new fixture shape
 - Suspended versioning on the optional FortiAIGate syslog S3 bucket so exported
   demo logs do not leave noncurrent object versions/delete markers that block
   Terraform teardown.

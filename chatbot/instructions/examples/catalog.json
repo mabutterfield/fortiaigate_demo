@@ -27,12 +27,12 @@
   },
   "examples": {
     "HR-bot.instructions.txt": {
-      "display_name": "HR Bot",
-      "description": "Restored vulnerable HR assistant prompt used by demo-a.",
+      "display_name": "HR Bot with MCP",
+      "description": "HR support demo prompt for demo-a with explicit MCP tool selection for routine and sensitive synthetic employee lookups.",
       "default_model": "auto",
       "temperature": 0.0,
       "max_tokens": 4096,
-      "source": "restored from chatbot/instructions/default/instructions.txt"
+      "source": "promoted from chatbot/instructions/local/demo-a/instructions.txt"
     },
     "Edwardo-vulnerable.instructions.txt": {
       "display_name": "Edwardo Vulnerable Bot",
