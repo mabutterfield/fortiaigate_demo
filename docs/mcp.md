@@ -347,7 +347,7 @@ Expected flow:
 Config variables:
 
 ```yaml
-chatbot_mcp_enabled: false
+chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct

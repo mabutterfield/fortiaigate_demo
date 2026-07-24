@@ -38,10 +38,11 @@ Default command-file behavior:
   disables the FortiWeb admin password policy.
 - `fortiweb_admin_console_timeout_seconds = 3600` is the default 60-minute
   timeout and renders as `set admintimeout 60`.
-- `fortiweb_set_initial_password = false` omits `initial_passwd` from user-data
-  and uses the EC2 instance ID as the initial admin password.
-- Set `fortiweb_set_initial_password = true` to pass an explicit generated or
-  operator-provided initial admin password.
+- `fortiweb_set_initial_password = true` includes `initial_passwd` in user-data
+  with a generated or operator-provided initial admin password.
+- Set `fortiweb_set_initial_password = false` only when intentionally using the
+  AWS Marketplace default behavior where the EC2 instance ID is the initial
+  admin password.
 
 For BYOL testing, set `fortiweb_license_source_dir` and
 `fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/99-local.auto.tfvars`

@@ -223,8 +223,8 @@ variable "fortiweb_enable_api" {
 
 variable "fortiweb_set_initial_password" {
   type        = bool
-  description = "Include initial_passwd in FortiWeb user-data. Leave false to use the AWS Marketplace default admin password behavior: the EC2 instance ID."
-  default     = false
+  description = "Include initial_passwd in FortiWeb user-data. Leave true for automated builds with a generated or operator-provided initial admin password. Set false to use the AWS Marketplace default admin password behavior: the EC2 instance ID."
+  default     = true
 }
 
 variable "fortiweb_enable_icmp" {
