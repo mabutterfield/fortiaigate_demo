@@ -49,10 +49,11 @@ When `fortiweb_config_file = ""`, this module uploads a generated command file
 that sets the hostname, HTTPS admin port, and admin console timeout. Provide a
 local command file path only when you want to override that generated baseline.
 
-By default, `fortiweb_set_initial_password = false`, so the FortiWeb user-data
-does not include `initial_passwd`. In this mode, the initial admin password is
-the FortiWeb EC2 instance ID. Set `fortiweb_set_initial_password = true` to
-pass an explicit generated or operator-provided initial password.
+By default, `fortiweb_set_initial_password = true`, so the FortiWeb user-data
+includes `initial_passwd` with a generated or operator-provided initial admin
+password. Set `fortiweb_set_initial_password = false` only when intentionally
+using the AWS Marketplace default admin password behavior, where the initial
+admin password is the FortiWeb EC2 instance ID.
 
 Run order:
 
@@ -114,8 +115,8 @@ when the HTTPS gateway is enabled.
 
 The generated inventory contains appliance connection facts but not the admin
 password. The status playbook reads Terraform outputs at runtime and uses
-`fortiweb_admin_password` when `fortiweb_set_initial_password = true`, otherwise
-it uses the EC2 instance ID as the default admin password.
+`fortiweb_admin_password` when `fortiweb_set_initial_password = true`;
+otherwise, it uses the EC2 instance ID as the default admin password.
 
 Do not commit real `99-local.auto.tfvars`, FortiFlex tokens, license files,
 rendered user-data, or Terraform state.

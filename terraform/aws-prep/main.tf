@@ -574,7 +574,7 @@ resource "aws_s3_bucket_versioning" "fortiaigate_syslog" {
   bucket = aws_s3_bucket.fortiaigate_syslog[0].id
 
   versioning_configuration {
-    status = "Enabled"
+    status = "Suspended"
   }
 }
 
@@ -593,10 +593,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "fortiaigate_syslog" {
 
     expiration {
       days = var.fortiaigate_syslog_lifecycle_days
-    }
-
-    noncurrent_version_expiration {
-      noncurrent_days = var.fortiaigate_syslog_lifecycle_days
     }
   }
 }

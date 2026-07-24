@@ -389,11 +389,11 @@ chatbot_frontend_system_prompt: ""
 # where backend demo instructions are injected by LiteLLM instead.
 chatbot_frontend_system_prompt_source_path: ""
 # chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-# MCP tools are optional in the browser UI. The current default path is direct
-# chatbot -> MCP. When terraform/aws-fortiweb has generated
+# MCP tools are enabled in the browser UI by default. The current default path
+# is direct chatbot -> MCP. When terraform/aws-fortiweb has generated
 # ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
 # defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
-chatbot_mcp_enabled: false
+chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct

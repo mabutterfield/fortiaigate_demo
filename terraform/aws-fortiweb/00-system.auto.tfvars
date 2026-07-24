@@ -22,6 +22,6 @@ fortiweb_admin_http_port               = 8080
 fortiweb_admin_console_timeout_seconds = 3600
 fortiweb_enable_ssh                    = true
 fortiweb_enable_api                    = true
-fortiweb_set_initial_password          = false
+fortiweb_set_initial_password          = true
 fortiweb_enable_icmp                   = true
 fortiweb_admin_password                = ""
