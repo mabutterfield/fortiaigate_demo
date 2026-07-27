@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -245,6 +247,73 @@ def s3_prefix_has_objects(profile: str, bucket: str, prefix: str) -> bool:
     return int(match.group(1)) > 0 if match else bool((result.stdout or "").strip())
 
 
+def s3_bucket_has_current_objects(profile: str, bucket: str) -> bool:
+    return s3_prefix_has_objects(profile, bucket, "")
+
+
+def aws_json(argv: list[str]) -> dict:
+    result = run_command(argv, check=False, capture=True)
+    if result.returncode != 0:
+        output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
+        raise SystemExit(output or f"Command failed: {' '.join(argv)}")
+    if not (result.stdout or "").strip():
+        return {}
+    return json.loads(result.stdout)
+
+
+def s3_bucket_version_entries(profile: str, bucket: str) -> list[dict[str, str]]:
+    output = aws_json(
+        [
+            "aws",
+            "s3api",
+            "list-object-versions",
+            "--bucket",
+            bucket,
+            "--profile",
+            profile,
+            "--output",
+            "json",
+        ]
+    )
+    entries: list[dict[str, str]] = []
+    for section in ("Versions", "DeleteMarkers"):
+        for item in output.get(section, []):
+            key = item.get("Key")
+            version_id = item.get("VersionId")
+            if key and version_id:
+                entries.append({"Key": key, "VersionId": version_id})
+    return entries
+
+
+def s3_bucket_has_version_entries(profile: str, bucket: str) -> bool:
+    return len(s3_bucket_version_entries(profile, bucket)) > 0
+
+
+def delete_s3_version_entries(profile: str, bucket: str, entries: list[dict[str, str]]) -> None:
+    for start in range(0, len(entries), 1000):
+        chunk = entries[start : start + 1000]
+        payload = {"Objects": chunk, "Quiet": True}
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+            json.dump(payload, handle)
+            payload_path = Path(handle.name)
+        try:
+            run_command(
+                [
+                    "aws",
+                    "s3api",
+                    "delete-objects",
+                    "--bucket",
+                    bucket,
+                    "--delete",
+                    f"file://{payload_path}",
+                    "--profile",
+                    profile,
+                ]
+            )
+        finally:
+            payload_path.unlink(missing_ok=True)
+
+
 def export_fortiaigate_syslog(profile: str, bucket: str, prefix: str, export_root: Path) -> Path:
     timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
     label = f"fortiaigate-syslog-{timestamp}"
@@ -268,6 +337,15 @@ def export_fortiaigate_syslog(profile: str, bucket: str, prefix: str, export_roo
 
 
 def empty_fortiaigate_syslog_bucket(profile: str, bucket: str) -> None:
+    total_deleted = 0
+    while True:
+        entries = s3_bucket_version_entries(profile, bucket)
+        if not entries:
+            break
+        print(f"Deleting {len(entries)} versioned S3 object entries/delete markers from s3://{bucket}/.")
+        delete_s3_version_entries(profile, bucket, entries)
+        total_deleted += len(entries)
+    print(f"Deleted {total_deleted} versioned S3 object entries/delete markers from s3://{bucket}/.")
     run_command(
         [
             "aws",
@@ -291,18 +369,32 @@ def preserve_fortiaigate_syslog(args: argparse.Namespace, profile: str) -> None:
         return
 
     print(f"Detected syslog bucket: {s3_uri(bucket, prefix)}")
-    if not s3_prefix_has_objects(profile, bucket, prefix):
-        print("No FortiAIGate syslog objects found under the configured prefix.")
+    has_current_syslog_objects = s3_prefix_has_objects(profile, bucket, prefix)
+    has_bucket_current_objects = s3_bucket_has_current_objects(profile, bucket)
+    has_version_entries = s3_bucket_has_version_entries(profile, bucket)
+    if not has_current_syslog_objects and not has_bucket_current_objects and not has_version_entries:
+        print("No FortiAIGate syslog objects or bucket object entries found.")
         return
+    if not has_current_syslog_objects and has_version_entries:
+        print("No current syslog objects found under the configured prefix, but versioned objects or delete markers remain in the bucket.")
+    if not has_current_syslog_objects and has_bucket_current_objects:
+        print("No current syslog objects found under the configured prefix, but current objects remain elsewhere in the dedicated bucket.")
 
     exported = False
     if args.skip_syslog_export:
         print("Skipping syslog export because --skip-syslog-export was set.")
-    elif args.yes or prompt_yes_no("Export FortiAIGate syslog objects before teardown?", True):
+    elif args.yes and has_current_syslog_objects:
+        print("Non-interactive teardown: exporting FortiAIGate syslog objects before teardown.")
+        export_fortiaigate_syslog(profile, bucket, prefix, args.syslog_export_dir)
+        exported = True
+    elif has_current_syslog_objects and prompt_yes_no("Export FortiAIGate syslog objects before teardown?", True):
         export_fortiaigate_syslog(profile, bucket, prefix, args.syslog_export_dir)
         exported = True
 
-    if args.yes or exported or prompt_yes_no("Empty the dedicated FortiAIGate syslog bucket so Terraform can destroy it?", False):
+    if args.yes:
+        print("Non-interactive teardown: emptying the dedicated FortiAIGate syslog bucket so Terraform can destroy it.")
+        empty_fortiaigate_syslog_bucket(profile, bucket)
+    elif exported or prompt_yes_no("Empty the dedicated FortiAIGate syslog bucket so Terraform can destroy it?", False):
         empty_fortiaigate_syslog_bucket(profile, bucket)
     else:
         print("Leaving syslog objects in place. terraform/aws-prep destroy may fail unless force_destroy is enabled.")
@@ -408,11 +500,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip the script-level destructive action confirmation prompt.",
     )
+    parser.add_argument(
+        "--yolo",
+        action="store_true",
+        help="Shortcut for repeat teardown: --auto-approve --yes. Automatically exports FortiAIGate syslog S3 objects and empties the dedicated bucket before prep destroy.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.yolo:
+        args.auto_approve = True
+        args.yes = True
+
     check_repo_root()
     check_required_commands()
 
@@ -422,7 +523,7 @@ def main() -> None:
     print("1. Destroy terraform/aws-fortiweb if state exists.")
     print("2. Destroy terraform/aws-fortigate if state exists.")
     print("3. Destroy terraform/aws-ec2-k3s.")
-    print("4. Offer/export FortiAIGate syslog S3 objects, then destroy terraform/aws-prep.")
+    print("4. Offer/export FortiAIGate syslog S3 objects, empty the dedicated bucket when confirmed, then destroy terraform/aws-prep.")
     print("5. Remove ECR repository resources from Terraform state so repositories are not deleted.")
     print("6. Destroy ECR lifecycle policy and generated local output resources only.")
 

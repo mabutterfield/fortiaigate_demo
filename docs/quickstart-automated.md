@@ -340,12 +340,26 @@ To skip the script-level confirmation prompt as well:
 python3 scripts/automated_teardown.py --auto-approve --yes
 ```
 
+For repeat teardown runs with no prompts:
+
+```bash
+python3 scripts/automated_teardown.py --yolo
+```
+
+`--yolo` is equivalent to `--auto-approve --yes`. When the FortiAIGate syslog
+S3 bucket exists and contains objects under the configured prefix, it exports a
+local backup under `../backups`, then empties the dedicated syslog bucket so
+`terraform/aws-prep` can destroy cleanly. If the export fails, teardown stops
+instead of deleting unbacked-up logs.
+
 The teardown order is:
 
 1. Destroy `terraform/aws-fortiweb` when state exists.
 2. Destroy `terraform/aws-fortigate` when state exists.
 3. Destroy `terraform/aws-ec2-k3s`.
-4. Destroy `terraform/aws-prep`.
+4. Export FortiAIGate syslog S3 objects when present, empty the dedicated
+   syslog bucket when confirmed or when running non-interactively, then destroy
+   `terraform/aws-prep`.
 5. Remove `aws_ecr_repository.this[...]` resources from
    `terraform/aws-ecr` state so repositories are not deleted.
 6. Run `terraform/aws-ecr` destroy to remove tracked lifecycle policy resources
