@@ -1,0 +1,162 @@
+---
+- name: Skip Ollama deployment when disabled
+  ansible.builtin.debug:
+    msg: "ollama_enabled=false; skipping Ollama deployment."
+  when: not ollama_enabled | bool
+
+- name: Validate Ollama deployment variables
+  ansible.builtin.assert:
+    that:
+      - ollama_namespace | length > 0
+      - ollama_release_name | length > 0
+      - ollama_image_repository | length > 0
+      - ollama_image_tag | length > 0
+      - ollama_service_port | int > 0
+      - ollama_container_port | int > 0
+      - ollama_service_type != "NodePort" or (ollama_node_port | int >= 30000 and ollama_node_port | int <= 32767)
+      - ollama_models is sequence
+      - ollama_models is not string
+      - ollama_models | length > 0
+      - not (ollama_gpu_enabled | bool) or (ollama_gpu_count | int > 0)
+    fail_msg: "Ollama requires namespace/release/image, service ports, at least one model, a valid NodePort when service_type=NodePort, and a positive GPU count when GPU mode is enabled."
+  when: ollama_enabled | bool
+
+- name: Allow Ollama NodePort through UFW for local access
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - from
+      - "{{ item }}"
+      - to
+      - any
+      - port
+      - "{{ ollama_node_port | string }}"
+      - proto
+      - tcp
+      - comment
+      - "FortiAIGate local Ollama"
+  loop: "{{ ollama_node_port_allowed_cidrs }}"
+  changed_when: "'Rules updated' in ollama_ufw_allow.stdout"
+  register: ollama_ufw_allow
+  when:
+    - ollama_enabled | bool
+    - ollama_firewall_manage_node_port | bool
+    - ollama_service_type == "NodePort"
+  # - ansible.builtin.debug:
+  #     var: ollama_ufw_allow.results
+
+- name: Capture host GPU UUIDs for Ollama preflight
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+      - --query-gpu=uuid
+      - --format=csv,noheader
+  changed_when: false
+  register: ollama_host_gpu_uuids_raw
+  when:
+    - ollama_enabled | bool
+    - ollama_gpu_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: ollama_host_gpu_uuids_raw.stdout_lines
+
+- name: Validate selected Ollama GPU UUIDs are visible on the host
+  ansible.builtin.assert:
+    that:
+      - (ollama_gpu_uuids | difference(ollama_host_gpu_uuids_raw.stdout_lines | default([]))) | length == 0
+    fail_msg: >-
+      Selected Ollama GPU UUIDs are not visible to nvidia-smi:
+      {{ ollama_gpu_uuids | difference(ollama_host_gpu_uuids_raw.stdout_lines | default([])) | join(', ') }}.
+      Rerun scripts/local_setup.py after fixing host drivers, or set local_ollama_gpu_uuids: [] for CPU-only.
+  when:
+    - ollama_enabled | bool
+    - ollama_gpu_enabled | bool
+
+- name: Render Ollama manifest
+  ansible.builtin.template:
+    src: ollama.yaml.j2
+    dest: "{{ ollama_manifest_remote_path }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  register: ollama_manifest_render
+  when: ollama_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: ollama_manifest_render
+
+- name: Remove previous Ollama model pull job
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - delete
+      - job
+      - "{{ ollama_model_pull_job_name }}"
+      - -n
+      - "{{ ollama_namespace }}"
+      - --ignore-not-found=true
+  changed_when: "'deleted' in ollama_model_pull_job_delete.stdout"
+  register: ollama_model_pull_job_delete
+  when: ollama_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: ollama_model_pull_job_delete.stdout_lines
+
+- name: Apply Ollama manifest
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - apply
+      - -f
+      - "{{ ollama_manifest_remote_path }}"
+  changed_when: "'configured' in ollama_apply.stdout or 'created' in ollama_apply.stdout"
+  register: ollama_apply
+  when: ollama_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: ollama_apply.stdout_lines
+
+- name: Wait for Ollama deployment rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - rollout
+      - status
+      - "deployment/{{ ollama_release_name }}"
+      - -n
+      - "{{ ollama_namespace }}"
+      - "--timeout={{ ollama_rollout_timeout }}"
+  changed_when: false
+  when: ollama_enabled | bool
+
+- name: Wait for Ollama model pull job
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - wait
+      - --for=condition=complete
+      - "job/{{ ollama_model_pull_job_name }}"
+      - -n
+      - "{{ ollama_namespace }}"
+      - "--timeout={{ ollama_model_pull_wait_timeout }}"
+  changed_when: false
+  register: ollama_model_pull_job_wait
+  when:
+    - ollama_enabled | bool
+    - ollama_model_pull_wait | bool
+  # - ansible.builtin.debug:
+  #     var: ollama_model_pull_job_wait.stdout_lines
+
+- name: Show Ollama deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "Ollama release: {{ ollama_release_name }}"
+      - "Ollama internal URL: http://{{ ollama_release_name }}.{{ ollama_namespace }}.svc.cluster.local:{{ ollama_service_port }}"
+      - "Ollama models: {{ ollama_models | join(', ') }}"
+      - "Ollama GPU mode: {{ 'enabled for ' ~ (ollama_gpu_uuids | join(', ')) if ollama_gpu_enabled | bool else 'disabled' }}"
+  when: ollama_enabled | bool

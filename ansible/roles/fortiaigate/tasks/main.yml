@@ -10,13 +10,15 @@
 - name: Validate FortiAIGate deployment variables
   ansible.builtin.assert:
     that:
-      - aws_profile is defined
-      - aws_profile | default('', true) | length > 0
-      - aws_region is defined
-      - aws_region | default('', true) | length > 0
-      - fortiaigate_ecr_token_source in ['instance_role', 'controller_profile']
-      - ecr_registry is defined
-      - ecr_registry | default('', true) | length > 0
+      - registry_type | default('ecr') in ['ecr', 'local']
+      - fortiaigate_ecr_token_source in ['instance_role', 'controller_profile', 'none']
+      - registry_type | default('ecr') != 'ecr' or aws_profile is defined
+      - registry_type | default('ecr') != 'ecr' or aws_profile | default('', true) | length > 0
+      - registry_type | default('ecr') != 'ecr' or aws_region is defined
+      - registry_type | default('ecr') != 'ecr' or aws_region | default('', true) | length > 0
+      - registry_type | default('ecr') != 'ecr' or fortiaigate_ecr_token_source in ['instance_role', 'controller_profile']
+      - registry_type | default('ecr') != 'ecr' or ecr_registry is defined
+      - registry_type | default('ecr') != 'ecr' or ecr_registry | default('', true) | length > 0
       - fortiaigate_image_repository is defined
       - fortiaigate_image_repository | default('', true) | length > 0
       - fortiaigate_image_tag is defined
@@ -164,7 +166,9 @@
   register: ecr_instance_role_pull_token
   changed_when: false
   failed_when: false
-  when: fortiaigate_ecr_token_source == "instance_role"
+  when:
+    - fortiaigate_image_pull_secrets | default([], true) | length > 0
+    - fortiaigate_ecr_token_source == "instance_role"
   # - ansible.builtin.debug:
   #     var: ecr_instance_role_pull_token.rc
 
@@ -180,7 +184,9 @@
   register: ecr_controller_profile_pull_token
   changed_when: false
   failed_when: false
-  when: fortiaigate_ecr_token_source == "controller_profile"
+  when:
+    - fortiaigate_image_pull_secrets | default([], true) | length > 0
+    - fortiaigate_ecr_token_source == "controller_profile"
   # - ansible.builtin.debug:
   #     var: ecr_controller_profile_pull_token.rc
 
@@ -193,6 +199,7 @@
         else ecr_controller_profile_pull_token
       }}
   no_log: true
+  when: fortiaigate_image_pull_secrets | default([], true) | length > 0
   # - ansible.builtin.debug:
   #     var: ecr_pull_token_result.rc
 
@@ -205,7 +212,9 @@
       when registry_backend=ecr. For controller_profile, run
       `aws sso login --profile {{ aws_profile }}` when using SSO and verify
       `aws sts get-caller-identity --profile {{ aws_profile }}`.
-  when: ecr_pull_token_result.rc != 0
+  when:
+    - fortiaigate_image_pull_secrets | default([], true) | length > 0
+    - ecr_pull_token_result.rc != 0
 
 - name: Create or refresh ECR pull secret
   ansible.builtin.shell: |
@@ -223,6 +232,7 @@
   register: ecr_secret_apply
   changed_when: "'created' in ecr_secret_apply.stdout or 'configured' in ecr_secret_apply.stdout"
   failed_when: false
+  when: fortiaigate_image_pull_secrets | default([], true) | length > 0
   # - ansible.builtin.debug:
   #     var: ecr_secret_apply.stdout_lines
 
@@ -233,7 +243,9 @@
       {{ fortiaigate_namespace }}. Error: {{
         ecr_secret_apply.stderr | default(ecr_secret_apply.stdout | default('unknown error'))
       }}
-  when: ecr_secret_apply.rc != 0
+  when:
+    - fortiaigate_image_pull_secrets | default([], true) | length > 0
+    - ecr_secret_apply.rc != 0
 
 - name: Remove previous remote FortiAIGate chart staging directory
   ansible.builtin.file:
@@ -408,6 +420,7 @@
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
     FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
     FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
+    FORTIAIGATE_GPU_UUIDS: "{{ fortiaigate_gpu_uuids | default([]) | join(',') }}"
   register: fortiaigate_rendered
   changed_when: false
   no_log: true
@@ -438,6 +451,7 @@
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
     FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
     FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
+    FORTIAIGATE_GPU_UUIDS: "{{ fortiaigate_gpu_uuids | default([]) | join(',') }}"
   register: fortiaigate_helm_deploy
   changed_when: "'deployed' in fortiaigate_helm_deploy.stdout or 'upgraded' in fortiaigate_helm_deploy.stdout"
   when: not fortiaigate_helm_wait
@@ -469,6 +483,7 @@
     FORTIAIGATE_TRITON_IMAGE_TAG: "{{ fortiaigate_triton_image_tag }}"
     FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS: "{{ fortiaigate_triton_probe_initial_delay_seconds | string }}"
     FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD: "{{ fortiaigate_triton_probe_failure_threshold | string }}"
+    FORTIAIGATE_GPU_UUIDS: "{{ fortiaigate_gpu_uuids | default([]) | join(',') }}"
   register: fortiaigate_helm_wait_deploy
   changed_when: "'deployed' in fortiaigate_helm_wait_deploy.stdout or 'upgraded' in fortiaigate_helm_wait_deploy.stdout"
   when: fortiaigate_helm_wait

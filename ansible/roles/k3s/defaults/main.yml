@@ -9,6 +9,12 @@ k3s_service_cidr: 10.70.0.0/16
 k3s_cluster_dns: 10.70.0.10
 aws_vpc_cidr: ""
 aws_public_subnet_cidr: ""
+k3s_private_registry_enabled: "{{ registry_type | default('ecr') == 'local' }}"
+k3s_private_registry_host: "{{ local_registry | default('') }}"
+k3s_private_registry_scheme: "{{ local_registry_scheme | default('http') }}"
+k3s_private_registry_insecure_skip_verify: "{{ local_registry_insecure_skip_verify | default(false) }}"
+k3s_private_registry_username: "{{ local_registry_username | default('') }}"
+k3s_private_registry_password: "{{ local_registry_password | default('') }}"
 k3s_system_rollout_timeout: 180s
 k3s_wait_for_flannel: true
 k3s_flannel_wait_retries: 60

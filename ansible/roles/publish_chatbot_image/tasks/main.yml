@@ -7,17 +7,17 @@
 - name: Validate chatbot image publish settings
   ansible.builtin.assert:
     that:
-      - registry_type | default('ecr') == 'ecr'
-      - aws_region is defined
-      - aws_region | length > 0
-      - aws_profile is defined
-      - aws_profile | length > 0
+      - registry_type | default('ecr') in ['ecr', 'local']
+      - registry_type | default('ecr') != 'ecr' or aws_region is defined
+      - registry_type | default('ecr') != 'ecr' or aws_region | length > 0
+      - registry_type | default('ecr') != 'ecr' or aws_profile is defined
+      - registry_type | default('ecr') != 'ecr' or aws_profile | length > 0
       - chatbot_image_repository is defined
       - chatbot_image_repository | length > 0
       - chatbot_image_tag is defined
       - chatbot_image_tag | length > 0
       - lookup('ansible.builtin.fileglob', chatbot_image_source_dir + '/Dockerfile') | length > 0
-    fail_msg: "Chatbot image publishing requires ECR registry settings, aws_profile/aws_region, a chatbot image repository, tag, and app Dockerfile."
+    fail_msg: "Chatbot image publishing requires registry settings, a chatbot image repository, tag, and app Dockerfile. ECR mode also requires aws_profile/aws_region."
   when: chatbot_publish_enabled | bool
 
 - name: Set chatbot ECR registry fact
@@ -48,7 +48,9 @@
     - chatbot_publish_ecr_describe_image.rc != 0
     - "'ImageNotFoundException' not in chatbot_publish_ecr_describe_image.stderr"
   register: chatbot_publish_ecr_describe_image
-  when: chatbot_publish_enabled | bool
+  when:
+    - chatbot_publish_enabled | bool
+    - registry_type | default('ecr') == 'ecr'
   # - ansible.builtin.debug:
   #     var: chatbot_publish_ecr_describe_image.stdout
 
@@ -59,12 +61,13 @@
       - "chatbot_publish_overwrite_existing_tag=false; bump chatbot_image_tag to publish changed chatbot code."
   when:
     - chatbot_publish_enabled | bool
+    - registry_type | default('ecr') == 'ecr'
     - chatbot_publish_ecr_describe_image.rc == 0
     - not (chatbot_publish_overwrite_existing_tag | bool)
 
 - name: Set chatbot publish decision
   ansible.builtin.set_fact:
-    chatbot_publish_should_push: "{{ (chatbot_publish_ecr_describe_image.rc != 0) or (chatbot_publish_overwrite_existing_tag | bool) }}"
+    chatbot_publish_should_push: "{{ registry_type | default('ecr') == 'local' or (chatbot_publish_ecr_describe_image.rc != 0) or (chatbot_publish_overwrite_existing_tag | bool) }}"
   when: chatbot_publish_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_publish_should_push
@@ -74,6 +77,7 @@
     msg: "chatbot_publish_overwrite_existing_tag=true; rebuilding and pushing existing mutable ECR tag."
   when:
     - chatbot_publish_enabled | bool
+    - registry_type | default('ecr') == 'ecr'
     - chatbot_publish_ecr_describe_image.rc == 0
     - chatbot_publish_overwrite_existing_tag | bool
 
@@ -88,6 +92,27 @@
   when:
     - chatbot_publish_enabled | bool
     - chatbot_publish_should_push | bool
+    - registry_type | default('ecr') == 'ecr'
+
+- name: Log in Docker to local registry for chatbot image publish when credentials are configured
+  ansible.builtin.command:
+    argv:
+      - docker
+      - login
+      - "{{ local_registry }}"
+      - --username
+      - "{{ local_registry_username }}"
+      - --password-stdin
+    stdin: "{{ local_registry_password }}"
+  no_log: true
+  register: chatbot_publish_local_registry_login
+  changed_when: "'Login Succeeded' in chatbot_publish_local_registry_login.stdout"
+  when:
+    - chatbot_publish_enabled | bool
+    - chatbot_publish_should_push | bool
+    - registry_type | default('ecr') == 'local'
+    - local_registry_username | default('', true) | length > 0
+    - local_registry_password | default('', true) | length > 0
 
 - name: Build chatbot image {{ chatbot_image_repository }}:{{ chatbot_image_tag }}
   ansible.builtin.command:

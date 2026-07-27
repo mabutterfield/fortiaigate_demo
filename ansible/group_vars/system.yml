@@ -12,6 +12,8 @@ ansible_user: ubuntu
 faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
 registry_type: ecr
 local_registry: localhost:5000
+local_registry_scheme: http
+local_registry_insecure_skip_verify: true
 ecr_pull_secret_name: ecr-secret
 
 fortiaigate_namespace: fortiaigate
@@ -96,6 +98,14 @@ fortiaigate_licenses: {}
 # Ollama is not part of the default guided path yet. Advanced users can set
 # these manually in ansible/group_vars/user.yml or with -e when testing a local
 # Ollama provider workflow.
+ollama_enabled: false
+ollama_service_type: ClusterIP
+ollama_node_port: "{{ demo_ollama_http_port | default((demo_http_base_port | default(30080) | int) + 5) }}"
+ollama_models:
+  - llama3.1:8b
+  - gpt-oss:20b
+ollama_model: "{{ ollama_models[0] }}"
+ollama_base_url: http://ollama.ollama.svc.cluster.local:11434/v1
 # ollama_base_url: http://<ollama-host>:11434/v1
 # ollama_model: llama3.2:1b
 # FortiAIGate 8.0.1 serves the UI under /ui/. 8.0.0 used /.
@@ -174,9 +184,12 @@ litellm_demo_b_faig_be_model_alias: demo-b-faig-be
 litellm_ollama_model_alias: "{{ ollama_model | default('llama3.2:1b') }}"
 litellm_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
+litellm_use_ollama_model_list: false
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
+litellm_bedrock_enabled: true
 litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
+litellm_bedrock_use_terraform_output: true
 litellm_bedrock_read_from_terraform: true
 chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
 chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
@@ -500,6 +513,9 @@ fortinet_traffic_paths: []
 
 nvidia_driver_package: nvidia-driver-595-server
 nvidia_utils_package: nvidia-utils-595-server
+nvidia_driver_manage_branch_switch: true
+nvidia_driver_extra_packages: []
+nvidia_driver_expected_gpu_uuids: []
 nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
 nvidia_runtime_class_name: nvidia
 

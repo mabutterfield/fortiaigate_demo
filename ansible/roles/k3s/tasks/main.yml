@@ -154,6 +154,38 @@
   # - ansible.builtin.debug:
   #     var: k3s_server_config
 
+- name: Install k3s private registry config
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/registries.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      mirrors:
+        "{{ k3s_private_registry_host }}":
+          endpoint:
+            - "{{ k3s_private_registry_scheme }}://{{ k3s_private_registry_host }}"
+      {% if (k3s_private_registry_username | length > 0 and k3s_private_registry_password | length > 0) or (k3s_private_registry_scheme == 'https' and k3s_private_registry_insecure_skip_verify | bool) %}
+      configs:
+        "{{ k3s_private_registry_host }}":
+      {% if k3s_private_registry_username | length > 0 and k3s_private_registry_password | length > 0 %}
+          auth:
+            username: "{{ k3s_private_registry_username }}"
+            password: "{{ k3s_private_registry_password }}"
+      {% endif %}
+      {% if k3s_private_registry_scheme == 'https' and k3s_private_registry_insecure_skip_verify | bool %}
+          tls:
+            insecure_skip_verify: true
+      {% endif %}
+      {% endif %}
+  register: k3s_private_registry_config
+  no_log: "{{ k3s_private_registry_password | length > 0 }}"
+  when:
+    - k3s_private_registry_enabled | bool
+    - k3s_private_registry_host | length > 0
+  # - ansible.builtin.debug:
+  #     var: k3s_private_registry_config
+
 - name: Install k3s
   ansible.builtin.shell: |
     set -euo pipefail
@@ -174,7 +206,7 @@
     name: k3s
     state: restarted
   when:
-    - k3s_server_config.changed
+    - k3s_server_config.changed or (k3s_private_registry_config.changed | default(false))
     - not k3s_install.changed
 
 - name: Wait for k3s node readiness

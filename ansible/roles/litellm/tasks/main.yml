@@ -4,6 +4,79 @@
     msg: "litellm_enabled=false; skipping LiteLLM deployment."
   when: not litellm_enabled | bool
 
+- name: Set LiteLLM Ollama model list facts
+  ansible.builtin.set_fact:
+    litellm_primary_ollama_model: "{{ ollama_model | default((ollama_models | first), true) }}"
+    litellm_configured_ollama_models: "{{ ollama_models | default([ollama_model], true) }}"
+  when:
+    - litellm_enabled | bool
+    - litellm_use_ollama_model_list | bool
+  # - ansible.builtin.debug:
+  #     msg:
+  #       primary: "{{ litellm_primary_ollama_model }}"
+  #       models: "{{ litellm_configured_ollama_models }}"
+
+- name: Build LiteLLM Ollama demo aliases
+  ansible.builtin.set_fact:
+    litellm_ollama_model_entries:
+      - name: "{{ litellm_passthrough_model_alias }}"
+        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
+        api_base: "{{ litellm_ollama_base_url }}"
+        instruction_profile: passthrough
+      - name: "{{ litellm_demo_a_model_alias }}"
+        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
+        api_base: "{{ litellm_ollama_base_url }}"
+        instruction_profile: demo-a
+      - name: "{{ litellm_demo_b_model_alias }}"
+        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
+        api_base: "{{ litellm_ollama_base_url }}"
+        instruction_profile: demo-b
+      - name: "{{ litellm_demo_a_faig_be_model_alias }}"
+        provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
+        api_base: "{{ litellm_faig_backend_base_url }}"
+        api_key: "{{ litellm_faig_backend_api_key }}"
+        instruction_profile: demo-a
+      - name: "{{ litellm_demo_b_faig_be_model_alias }}"
+        provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
+        api_base: "{{ litellm_faig_backend_base_url }}"
+        api_key: "{{ litellm_faig_backend_api_key }}"
+        instruction_profile: demo-b
+  when:
+    - litellm_enabled | bool
+    - litellm_use_ollama_model_list | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_ollama_model_entries
+
+- name: Add configured Ollama models to LiteLLM model list
+  ansible.builtin.set_fact:
+    litellm_ollama_model_entries: >-
+      {{
+        litellm_ollama_model_entries
+        + [
+          {
+            'name': item,
+            'provider_model': 'ollama_chat/' ~ item,
+            'api_base': litellm_ollama_base_url,
+            'instruction_profile': 'passthrough'
+          }
+        ]
+      }}
+  loop: "{{ litellm_configured_ollama_models }}"
+  when:
+    - litellm_enabled | bool
+    - litellm_use_ollama_model_list | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_ollama_model_entries
+
+- name: Use generated LiteLLM Ollama model list
+  ansible.builtin.set_fact:
+    litellm_models: "{{ litellm_ollama_model_entries }}"
+  when:
+    - litellm_enabled | bool
+    - litellm_use_ollama_model_list | bool
+  # - ansible.builtin.debug:
+  #     var: litellm_models
+
 - name: Validate LiteLLM deployment settings
   ansible.builtin.assert:
     that:
@@ -45,6 +118,7 @@
   become: false
   when:
     - litellm_enabled | bool
+    - litellm_bedrock_enabled | bool
     - litellm_bedrock_use_terraform_output | bool
   # - ansible.builtin.debug:
   #     var: litellm_bedrock_models_raw.stdout_lines
@@ -64,6 +138,7 @@
   become: false
   when:
     - litellm_enabled | bool
+    - litellm_bedrock_enabled | bool
     - litellm_bedrock_use_terraform_output | bool
   # - ansible.builtin.debug:
   #     var: litellm_bedrock_region_raw.stdout_lines
@@ -82,7 +157,9 @@
         )
         else []
       }}
-  when: litellm_enabled | bool
+  when:
+    - litellm_enabled | bool
+    - litellm_bedrock_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_bedrock_model_ids
 
@@ -99,7 +176,7 @@
             and litellm_bedrock_region_raw.rc == 0
             and litellm_bedrock_region_raw.stdout | default('', true) | length > 0
           )
-          else aws_region
+          else aws_region | default("us-east-1")
         )
       }}
     litellm_effective_bedrock_model_id: >-
@@ -114,7 +191,9 @@
           else litellm_bedrock_fallback_model_id | default('openai.gpt-oss-20b-1:0', true)
         )
       }}
-  when: litellm_enabled | bool
+  when:
+    - litellm_enabled | bool
+    - litellm_bedrock_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_effective_bedrock_model_id
 

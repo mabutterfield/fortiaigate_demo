@@ -5,6 +5,17 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added Phase 9 local hardware deployment foundations:
+  - `scripts/local_setup.py` generates ignored local inventory, registry, host,
+    appliance, GPU, and Ollama variables without changing the default AWS path
+  - `automated_quickstart.py --local` skips Terraform and uses the generated
+    local inventory
+  - Ollama can deploy in k3s with model preloading, optional GPU UUID pinning,
+    and a plain HTTP NodePort for trusted local-lab access
+  - NVIDIA driver bootstrap now supports local branch switching and validates
+    selected GPU UUID visibility
+  - FortiAIGate Triton can be pinned to the selected FAIG GPU UUID so mixed
+    legacy/current GPU hosts avoid unsupported TensorRT placements
 - Updated the HR MCP/DLP demo:
   - promoted the working HR Bot with MCP `demo-a` instructions into the
     tracked instruction examples

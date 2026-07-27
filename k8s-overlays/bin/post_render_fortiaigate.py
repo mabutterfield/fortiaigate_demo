@@ -29,6 +29,11 @@ def env_int(name, default):
         raise SystemExit(f"{name} must be an integer, got {value!r}") from exc
 
 
+def env_csv(name):
+    value = os.environ.get(name, "")
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def patch_storage_pvc(doc):
     metadata = doc.get("metadata", {})
     name = metadata.get("name", "")
@@ -70,6 +75,7 @@ def patch_triton_deployment(doc):
     triton_image_tag = os.environ.get("FORTIAIGATE_TRITON_IMAGE_TAG", "")
     triton_probe_initial_delay = env_int("FORTIAIGATE_TRITON_PROBE_INITIAL_DELAY_SECONDS", 300)
     triton_probe_failure_threshold = env_int("FORTIAIGATE_TRITON_PROBE_FAILURE_THRESHOLD", 30)
+    triton_gpu_uuids = env_csv("FORTIAIGATE_GPU_UUIDS")
 
     for container in pod_spec.get("initContainers", []):
         if container.get("name") == "model-loader" and image_repository and triton_model_image_tag:
@@ -82,7 +88,7 @@ def patch_triton_deployment(doc):
         if image_repository and triton_image_tag:
             container["image"] = f"{image_repository}/custom-triton:{triton_image_tag}"
 
-        ensure_named_env(container, "NVIDIA_VISIBLE_DEVICES", "all")
+        ensure_named_env(container, "NVIDIA_VISIBLE_DEVICES", ",".join(triton_gpu_uuids) if triton_gpu_uuids else "all")
         ensure_named_env(container, "NVIDIA_DRIVER_CAPABILITIES", "compute,utility")
         container["resources"] = {
             "requests": {

@@ -1,0 +1,37 @@
+---
+ollama_enabled: false
+ollama_namespace: ollama
+ollama_release_name: ollama
+ollama_image_repository: ollama/ollama
+ollama_image_tag: latest
+ollama_image_pull_policy: IfNotPresent
+ollama_service_type: ClusterIP
+ollama_service_port: 11434
+ollama_node_port: ""
+ollama_firewall_manage_node_port: "{{ deployment_target | default('aws') == 'local' }}"
+ollama_node_port_allowed_cidrs:
+  - "{{ lab_routed_cidr | default('0.0.0.0/0') }}"
+ollama_container_port: 11434
+ollama_models:
+  - llama3.1:8b
+  - gpt-oss:20b
+ollama_model: "{{ ollama_models[0] }}"
+ollama_storage_class: local-path
+ollama_storage_size: 80Gi
+ollama_manifest_remote_path: "/home/{{ ansible_user }}/tmp/ollama.yaml"
+ollama_runtime_class_name: "{{ nvidia_runtime_class_name | default('nvidia') }}"
+ollama_gpu_uuids: "{{ local_ollama_gpu_uuids | default([]) }}"
+ollama_gpu_enabled: "{{ ollama_gpu_uuids | length > 0 }}"
+ollama_gpu_count: "{{ ollama_gpu_uuids | length }}"
+ollama_gpu_resource_request_enabled: false
+ollama_cpu_request: "2"
+ollama_memory_request: 8Gi
+ollama_cpu_limit: "16"
+ollama_memory_limit: 48Gi
+ollama_keep_alive: 30m
+ollama_model_pull_job_name: "{{ ollama_release_name }}-model-pull"
+ollama_model_pull_wait: true
+ollama_model_pull_wait_timeout: 3600s
+ollama_model_pull_job_backoff_limit: 1
+ollama_model_pull_job_active_deadline_seconds: 7200
+ollama_rollout_timeout: 600s

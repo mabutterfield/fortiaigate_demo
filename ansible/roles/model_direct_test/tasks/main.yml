@@ -5,6 +5,45 @@
       - direct_model_provider in ["bedrock", "ollama"]
     fail_msg: "Set direct_model_provider to either 'bedrock' or 'ollama'."
 
+- name: Set direct Ollama execution host
+  ansible.builtin.set_fact:
+    direct_model_ollama_delegate_host: >-
+      {{
+        direct_model_ollama_k3s_host
+        if (
+          direct_model_provider == 'ollama'
+          and direct_model_ollama_execute_on_k3s_host | bool
+          and direct_model_ollama_k3s_host | default('', true) | length > 0
+        )
+        else 'localhost'
+      }}
+  when: direct_model_provider == "ollama"
+  # - ansible.builtin.debug:
+  #     var: direct_model_ollama_delegate_host
+
+- name: Discover local Ollama service ClusterIP
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - get
+      - service
+      - "{{ direct_model_ollama_release_name }}"
+      - -n
+      - "{{ direct_model_ollama_namespace }}"
+      - -o
+      - "jsonpath={.spec.clusterIP}"
+  changed_when: false
+  register: direct_model_ollama_service_cluster_ip
+  delegate_to: "{{ direct_model_ollama_delegate_host }}"
+  become: true
+  when:
+    - direct_model_provider == "ollama"
+    - direct_model_ollama_delegate_host != "localhost"
+  # - ansible.builtin.debug:
+  #     var: direct_model_ollama_service_cluster_ip.stdout
+
 - name: Read approved Bedrock model IDs from Terraform output
   ansible.builtin.command:
     argv:
@@ -240,7 +279,23 @@
 - name: Set Ollama target facts
   ansible.builtin.set_fact:
     direct_model_effective_model: "{{ direct_model_ollama_model }}"
-    direct_model_url: "{{ direct_model_ollama_base_url | regex_replace('/+$', '') }}/chat/completions"
+    direct_model_ollama_effective_base_url: >-
+      {{
+        ('http://' ~ direct_model_ollama_service_cluster_ip.stdout ~ ':' ~ (direct_model_ollama_service_port | string) ~ '/v1')
+        if (
+          direct_model_ollama_service_cluster_ip is defined
+          and direct_model_ollama_service_cluster_ip.rc | default(1) == 0
+          and direct_model_ollama_service_cluster_ip.stdout | default('', true) | length > 0
+        )
+        else direct_model_ollama_base_url
+      }}
+  when: direct_model_provider == "ollama"
+  # - ansible.builtin.debug:
+  #     var: direct_model_ollama_effective_base_url
+
+- name: Set Ollama direct request facts
+  ansible.builtin.set_fact:
+    direct_model_url: "{{ direct_model_ollama_effective_base_url | regex_replace('/+$', '') }}/chat/completions"
     direct_model_payload:
       model: "{{ direct_model_ollama_model }}"
       messages:
@@ -314,6 +369,7 @@
   register: direct_model_ollama_response_raw
   environment:
     DIRECT_MODEL_OLLAMA_API_KEY: "{{ direct_model_ollama_api_key }}"
+  delegate_to: "{{ direct_model_ollama_delegate_host }}"
   when: direct_model_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_response_raw.stdout_lines

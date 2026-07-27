@@ -1,9 +1,73 @@
 ---
+- name: Derive requested NVIDIA driver package suffix
+  ansible.builtin.set_fact:
+    nvidia_driver_package_suffix: "{{ nvidia_driver_package | regex_replace('^nvidia-driver-', '') }}"
+    nvidia_driver_target_branch: "{{ nvidia_driver_package | regex_search('[0-9]{3}') }}"
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "nvidia_driver_package_suffix={{ nvidia_driver_package_suffix }}"
+  #       - "nvidia_driver_target_branch={{ nvidia_driver_target_branch }}"
+
+- name: Validate requested NVIDIA driver branch
+  ansible.builtin.assert:
+    that:
+      - nvidia_driver_target_branch is string
+      - nvidia_driver_target_branch | length > 0
+      - nvidia_driver_package_suffix is string
+      - nvidia_driver_package_suffix | length > 0
+    fail_msg: "Unable to infer NVIDIA driver branch from nvidia_driver_package={{ nvidia_driver_package }}"
+
+- name: Build NVIDIA driver package list
+  ansible.builtin.set_fact:
+    nvidia_driver_effective_packages: >-
+      {{
+        ([
+            nvidia_driver_package,
+            nvidia_utils_package,
+            'nvidia-dkms-' ~ nvidia_driver_package_suffix,
+            'nvidia-compute-utils-' ~ nvidia_driver_package_suffix
+          ]
+          + (nvidia_driver_extra_packages | default([])))
+        | unique
+        | list
+      }}
+  # - ansible.builtin.debug:
+  #     var: nvidia_driver_effective_packages
+
+- name: Gather installed package facts before NVIDIA branch reconciliation
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Identify conflicting NVIDIA driver branch packages
+  ansible.builtin.set_fact:
+    nvidia_driver_conflicting_packages: >-
+      {{
+        ansible_facts.packages.keys()
+        | select('match', '^(libnvidia|nvidia|xserver-xorg-video-nvidia).*(^|-)[0-9]{3}(-|$)')
+        | reject('search', '(^|-)' ~ nvidia_driver_target_branch ~ '(-|$)')
+        | list
+        | sort
+      }}
+  when: nvidia_driver_manage_branch_switch | bool
+  # - ansible.builtin.debug:
+  #     var: nvidia_driver_conflicting_packages
+
+- name: Remove conflicting NVIDIA driver branch packages
+  ansible.builtin.apt:
+    name: "{{ nvidia_driver_conflicting_packages }}"
+    state: absent
+    purge: true
+    autoremove: true
+  register: nvidia_driver_branch_remove
+  when:
+    - nvidia_driver_manage_branch_switch | bool
+    - nvidia_driver_conflicting_packages | default([]) | length > 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_driver_branch_remove
+
 - name: Install NVIDIA driver packages
   ansible.builtin.apt:
-    name:
-      - "{{ nvidia_driver_package }}"
-      - "{{ nvidia_utils_package }}"
+    name: "{{ nvidia_driver_effective_packages }}"
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -18,7 +82,7 @@
   ansible.builtin.reboot:
     msg: "Rebooting after NVIDIA driver package changes"
     reboot_timeout: 900
-  when: nvidia_driver_install.changed
+  when: (nvidia_driver_branch_remove.changed | default(false)) or nvidia_driver_install.changed
 
 - name: Validate nvidia-smi
   ansible.builtin.command: nvidia-smi
@@ -26,3 +90,25 @@
   register: nvidia_smi_result
   # - ansible.builtin.debug:
   #     var: nvidia_smi_result.stdout_lines
+
+- name: Query NVIDIA GPU UUIDs
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+      - --query-gpu=uuid
+      - --format=csv,noheader
+  changed_when: false
+  register: nvidia_driver_detected_gpu_uuid_query
+  when: nvidia_driver_expected_gpu_uuids | default([]) | length > 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_driver_detected_gpu_uuid_query.stdout_lines
+
+- name: Validate expected NVIDIA GPU UUIDs are visible
+  ansible.builtin.assert:
+    that:
+      - (nvidia_driver_expected_gpu_uuids | difference(nvidia_driver_detected_gpu_uuid_query.stdout_lines | map('trim') | list)) | length == 0
+    fail_msg: >-
+      Expected NVIDIA GPU UUIDs are not visible to nvidia-smi:
+      {{ nvidia_driver_expected_gpu_uuids | difference(nvidia_driver_detected_gpu_uuid_query.stdout_lines | map('trim') | list) }}.
+      Check the selected driver branch for this GPU generation.
+  when: nvidia_driver_expected_gpu_uuids | default([]) | length > 0
