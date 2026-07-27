@@ -20,6 +20,17 @@ FORTIGATE_VDOM = os.environ.get("MCP_FORTIGATE_VDOM", "root")
 FORTIGATE_VERIFY_TLS = os.environ.get("MCP_FORTIGATE_VERIFY_TLS", "false").strip().lower() in {"1", "true", "yes", "on"}
 FORTIGATE_TIMEOUT = int(os.environ.get("MCP_FORTIGATE_TIMEOUT_SECONDS", "8"))
 
+EMPLOYEE_DLP_DEMO_FIELDS = {
+    "date_of_birth",
+    "email",
+    "phone",
+    "ssn",
+    "credit_card_number",
+    "credit_card_expiration",
+    "credit_card_cvv",
+    "salary_usd",
+}
+
 
 def load_data():
     with open(DATA_PATH, "r", encoding="utf-8") as data_file:
@@ -114,6 +125,13 @@ def policy_search(arguments):
     return True, {"count": len(items), "items": items}
 
 
+def safe_employee_record(employee):
+    safe_employee = dict(employee)
+    for field in EMPLOYEE_DLP_DEMO_FIELDS:
+        safe_employee.pop(field, None)
+    return safe_employee
+
+
 def employee_search(arguments):
     employees = load_data().get("employees", {})
     filters = {
@@ -127,8 +145,7 @@ def employee_search(arguments):
     for employee in employees.values():
         if not matches_filters(employee, filters):
             continue
-        safe_employee = dict(employee)
-        safe_employee.pop("simulated_sensitive", None)
+        safe_employee = safe_employee_record(employee)
         if query and not contains_text(safe_employee, query):
             continue
         items.append(safe_employee)
@@ -142,9 +159,7 @@ def employee_lookup(arguments):
     employee = load_data().get("employees", {}).get(employee_id)
     if not employee:
         return False, {"error": "employees entry not found", "employee_id": employee_id}
-    safe_employee = dict(employee)
-    safe_employee.pop("simulated_sensitive", None)
-    return True, safe_employee
+    return True, safe_employee_record(employee)
 
 
 def employee_sensitive_lookup_demo(arguments):
@@ -156,8 +171,7 @@ def employee_sensitive_lookup_demo(arguments):
         return False, {"error": "employees entry not found", "employee_id": employee_id}
     return True, {
         **employee,
-        "sensitivity": "contains synthetic PII for controlled FortiAIGate DLP demo only",
-        "demo_export_note": "synthetic record export fixture for testing security controls",
+        "demo_export_note": "full simulated record fixture for testing FortiAIGate DLP controls",
     }
 
 
@@ -169,7 +183,7 @@ def redaction_check(arguments):
     patterns = {
         "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
         "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
-        "credit_card": r"\b(?:\d[ -]*?){13,16}\b",
+        "credit_card": r"\b(?:\d{4}[- ]?){3}\d{4}\b|\b\d{13,19}\b",
         "phone": r"\b(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}\b",
     }
     findings = {}

@@ -151,6 +151,17 @@ bucket so Terraform can destroy it:
 python3 scripts/automated_teardown.py
 ```
 
+For repeat teardown runs without prompts, use:
+
+```bash
+python3 scripts/automated_teardown.py --yolo
+```
+
+`--yolo` exports syslog S3 objects to the local backup directory when they
+exist under the configured prefix, then empties the dedicated syslog bucket
+before destroying `terraform/aws-prep`. If export fails, teardown stops before
+deleting unbacked-up logs.
+
 Useful options:
 
 ```bash

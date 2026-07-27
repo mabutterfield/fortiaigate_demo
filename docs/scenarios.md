@@ -5,6 +5,9 @@ and prompt examples. They sit above instruction profiles: a scenario installs a
 known instruction set into `demo-a`, `demo-b`, or `frontend`, and the local
 instruction profile can still be edited afterward for tone or wording.
 
+For the recorded-demo scenario matrix, OWASP mapping, and isolated FAIG guard
+settings, use [scenario-catalog.md](scenario-catalog.md).
+
 All scenarios use the same shared MCP server. The `required_tools` metadata in
 each profile documents which tools the scenario should use; it does not deploy
 a scenario-specific MCP service.
