@@ -82,11 +82,17 @@ ansible/host_vars/*.yml
 ansible/inventory/aws.generated.ini
 ansible/inventory/fortigate.generated.ini
 ansible/inventory/fortiweb.generated.ini
+ansible/inventory/local.generated.ini
+ansible/inventory/fortigate.local.generated.ini
+ansible/inventory/fortiweb.local.generated.ini
 ansible/secrets/
 ansible/group_vars/ecr.generated.yml
 ansible/group_vars/bedrock.generated.yml
 ansible/group_vars/fortiweb.generated.yml
+ansible/group_vars/local.generated.yml
+ansible/group_vars/local.secrets.yml
 ansible/group_vars/ports.generated.yml
+ansible/group_vars/registry.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
