@@ -89,6 +89,9 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
     print(f"instructions: {instruction_path(profile_path, profile).relative_to(REPO_ROOT)}")
 
     mcp = profile.get("mcp", {})
+    tool_profile = mcp.get("tool_profile", "")
+    if tool_profile:
+        print(f"MCP tool profile: {tool_profile}")
     tools = mcp.get("required_tools", [])
     if tools:
         print("required MCP tools:")
@@ -139,12 +142,15 @@ def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: b
         "source_type": "scenario",
         "scenario_id": scenario_id,
         "source": str(source.relative_to(REPO_ROOT)),
+        "tool_profile": profile.get("mcp", {}).get("tool_profile", scenario_id),
         "required_tools": profile.get("mcp", {}).get("required_tools", []),
         "updated_at": int(time.time()),
     }
     instruction_profiles.write_json(instruction_profiles.metadata_path_for_instruction(destination), metadata)
 
     print(f"installed: {scenario_id} -> {instruction_profiles.resolve_slot(target_slot)} -> {destination}")
+    if metadata["tool_profile"]:
+        print(f"chatbot MCP tool profile: {metadata['tool_profile']}")
     instruction_profiles.print_deploy_hint(scenario_id, target_slot, destination)
     return destination
 
@@ -176,6 +182,9 @@ def validate_scenarios() -> None:
             required_tools = profile.get("mcp", {}).get("required_tools", [])
             if not required_tools:
                 raise ValueError("required MCP tools are missing")
+            tool_profile = profile.get("mcp", {}).get("tool_profile", "")
+            if tool_profile and not isinstance(tool_profile, str):
+                raise ValueError("mcp.tool_profile must be a string")
             missing_tools = sorted(set(required_tools) - available_tools)
             if missing_tools:
                 raise ValueError(f"required MCP tools are not in shared MCP server: {', '.join(missing_tools)}")

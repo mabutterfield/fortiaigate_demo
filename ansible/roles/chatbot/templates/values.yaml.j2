@@ -21,6 +21,7 @@ containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 {% set chatbot_model_options_value = item.model_options | default(chatbot_model_options, true) | default([], true) %}
 {% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes, true) | default([], true) %}
 {% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes, true) | default([], true) %}
+{% set chatbot_mcp_tool_profiles_value = item.mcp_tool_profiles | default(chatbot_mcp_tool_profiles, true) | default([], true) %}
 {% set chatbot_ingress_host = item.ingress_host | default('', true) %}
 {% set chatbot_app_checksum_source = lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/chatbot.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/Dockerfile') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/requirements.txt') %}
 {% if (chatbot_prompt_inline | length == 0) and (chatbot_prompt_source_path | length > 0) %}
@@ -56,6 +57,8 @@ chatbot:
   mcpTimeoutSeconds: "{{ item.mcp_timeout_seconds | default(chatbot_mcp_timeout_seconds, true) }}"
   mcpVerifyTls: "{{ (item.mcp_verify_tls | default(chatbot_mcp_verify_tls) | bool) | ternary('true', 'false') }}"
   mcpMaxToolRounds: "{{ item.mcp_max_tool_rounds | default(chatbot_mcp_max_tool_rounds, true) }}"
+  mcpToolProfile: "{{ item.mcp_tool_profile | default(chatbot_mcp_tool_profile, true) }}"
+  mcpToolProfilesJson: {{ (chatbot_mcp_tool_profiles_value if chatbot_mcp_tool_profiles_value is string else chatbot_mcp_tool_profiles_value | to_json) | to_json }}
   contextMode: "{{ item.context_mode | default(chatbot_context_mode, true) }}"
   contextWindow: "{{ item.context_window | default(chatbot_context_window, true) }}"
   contextSummaryMaxChars: "{{ item.context_summary_max_chars | default(chatbot_context_summary_max_chars, true) }}"

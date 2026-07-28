@@ -4,13 +4,13 @@
   "description": "Clean synthetic resume screening scenario using read-only document retrieval tools.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "resume-screening-clean",
     "required_tools": [
       "document_list",
       "document_search",
       "document_read",
       "resume_search",
-      "resume_summary",
-      "document_injection_check"
+      "resume_summary"
     ],
     "data_sources": [
       "mcp/chart/files/documents/documents.json",

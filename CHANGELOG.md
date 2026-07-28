@@ -5,6 +5,15 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added scenario-scoped MCP tool profiles:
+  - chatbot UI and `agent_probe.py` can expose only the MCP tools needed for
+    the selected scenario
+  - scenario profiles now declare `mcp.tool_profile`, and the scenario test
+    harness defaults to that profile
+  - added `support-ticket-triage` to cover customer, ticket, and generic policy
+    MCP tools without mixing them into HR, resume, menu, or FortiGate demos
+  - documented when LiteLLM, chatbot, and MCP redeploys are required for
+    scenario edits
 - Updated the HR MCP/DLP demo:
   - promoted the working HR Bot with MCP `demo-a` instructions into the
     tracked instruction examples
