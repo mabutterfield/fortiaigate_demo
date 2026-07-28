@@ -40,6 +40,8 @@ chatbot:
   mcpTimeoutSeconds: "10"
   mcpVerifyTls: "false"
   mcpMaxToolRounds: "3"
+  mcpToolProfile: all-tools
+  mcpToolProfilesJson: ""
   contextMode: recent
   contextWindow: "8"
   contextSummaryMaxChars: "1500"

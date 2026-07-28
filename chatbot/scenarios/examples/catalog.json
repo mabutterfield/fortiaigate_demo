@@ -8,6 +8,10 @@
       "path": "fortigate-operator/profile.json",
       "display_name": "FortiGate Operator Assistant"
     },
+    "support-ticket-triage": {
+      "path": "support-ticket-triage/profile.json",
+      "display_name": "Support Ticket Triage Assistant"
+    },
     "hr-policy-risk": {
       "path": "hr-policy-risk/profile.json",
       "display_name": "HR Policy Risk Assistant"

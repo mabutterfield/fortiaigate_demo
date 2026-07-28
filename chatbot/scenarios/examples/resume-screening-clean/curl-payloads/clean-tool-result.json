@@ -1,0 +1,48 @@
+{
+  "model": "demo-a",
+  "messages": [
+    {
+      "role": "system",
+      "content": "RESUME_SCREENING_CLEAN_ACTIVE\nYou screen synthetic resumes using retrieved document data."
+    },
+    {
+      "role": "user",
+      "content": "Compare Alex Morgan and Jordan Lee for a platform engineering role."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_resume_clean_001",
+          "type": "function",
+          "function": {
+            "name": "resume_summary",
+            "arguments": "{\"query\":\"platform engineering\",\"max_results\":2}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_resume_clean_001",
+      "content": "{\"count\":2,\"items\":[{\"document_id\":\"RESUME-1001\",\"candidate\":\"Alex Morgan\",\"summary\":\"AWS, Python, Terraform, Kubernetes, and incident-response automation.\"},{\"document_id\":\"RESUME-1002\",\"candidate\":\"Jordan Lee\",\"summary\":\"Linux, Python, CI/CD, monitoring, and platform support.\"}]}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "resume_summary",
+        "description": "Return deterministic summaries for synthetic resume documents.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 800
+}

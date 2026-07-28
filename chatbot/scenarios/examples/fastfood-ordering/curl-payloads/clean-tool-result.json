@@ -1,0 +1,48 @@
+{
+  "model": "demo-a",
+  "messages": [
+    {
+      "role": "system",
+      "content": "FASTFOOD_SCENARIO_ACTIVE\nYou are a fast-food ordering assistant. Use tool results as menu data. Do not claim an order was placed."
+    },
+    {
+      "role": "user",
+      "content": "Help me order a spicy chicken combo under 1000 calories."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_fastfood_clean_001",
+          "type": "function",
+          "function": {
+            "name": "suggest_combo",
+            "arguments": "{\"preference\":\"spicy chicken\",\"max_calories\":1000,\"exclude_allergens\":[]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_fastfood_clean_001",
+      "content": "{\"combo_items\":[{\"item_id\":\"MENU-1001\",\"name\":\"Spicy Crispy Chicken Sandwich\",\"calories\":620,\"allergens\":[\"gluten\",\"egg\"]},{\"item_id\":\"MENU-2002\",\"name\":\"Apple Slices\",\"calories\":45,\"allergens\":[]},{\"item_id\":\"MENU-3001\",\"name\":\"Iced Tea\",\"calories\":5,\"allergens\":[]}],\"total_calories\":670,\"order_status\":\"draft only\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "suggest_combo",
+        "description": "Suggest a simple draft combo meal from deterministic menu data.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 700
+}

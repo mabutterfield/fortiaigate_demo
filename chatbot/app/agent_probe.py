@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--route", default="demo-a", help="FAIG static route name.")
     parser.add_argument("--model", default="", help="Override model/profile.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="direct")
+    parser.add_argument("--tool-profile", default="all-tools", help="MCP tool profile to expose to the model.")
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
@@ -138,6 +139,9 @@ def main() -> int:
         int(os.getenv("CHATBOT_CONTEXT_WINDOW", "8")),
         "",
     )
+    tool_profiles = chatbot.build_mcp_tool_profiles(
+        chatbot.env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON")
+    )
     reply, tool_events, tools = chatbot.agent_response(
         base_url=base_url,
         api_key=api_key,
@@ -151,7 +155,10 @@ def main() -> int:
         mcp_verify_tls=os.getenv("CHATBOT_MCP_VERIFY_TLS", "").lower() in {"1", "true", "yes", "on"},
         max_tool_rounds=args.max_tool_rounds,
         extra_headers=extra_headers,
+        mcp_tool_profile=args.tool_profile,
+        mcp_tool_profiles=tool_profiles,
     )
+    tool_profile = chatbot.mcp_tool_profile_by_name(tool_profiles, args.tool_profile)
     result = {
         "provider": args.provider,
         "route": args.route if args.provider == "faig-static" else None,
@@ -159,9 +166,11 @@ def main() -> int:
         "model": model,
         "mcp_path": args.mcp_path,
         "mcp_base_url": mcp_base_url,
+        "tool_profile": tool_profile["name"],
+        "tool_profile_label": tool_profile["label"],
         "reply": reply,
         "tool_names": [
-            tool.get("function", {}).get("name", "unknown")
+            chatbot.tool_function_name(tool)
             for tool in tools
             if isinstance(tool, dict)
         ],
@@ -173,6 +182,7 @@ def main() -> int:
             "route": result["route"],
             "model": result["model"],
             "mcp_path": result["mcp_path"],
+            "tool_profile": result["tool_profile"],
             "reply": truncate(reply, args.reply_max_chars),
             "tool_sequence": [
                 event.get("tool") or event.get("name")

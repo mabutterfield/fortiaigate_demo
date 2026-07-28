@@ -32,3 +32,6 @@ example or an unused local instruction file after confirmation.
 Ansible also initializes missing active files from examples before rendering
 LiteLLM instruction profiles. Automated quickstart initializes missing local
 slots during user profile setup.
+
+Scenario-specific editing and install guidance lives in
+`docs/scenario-authoring.md`.

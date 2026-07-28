@@ -4,6 +4,7 @@
   "description": "Synthetic HR policy retrieval scenario for clean policy lookup, conflicting policy drafts, and DLP behavior.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "hr-policy-rag-risk",
     "required_tools": [
       "document_search",
       "document_read",

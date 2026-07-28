@@ -184,6 +184,8 @@ fortiaigate_licenses: {}
 # chatbot_mcp_enabled: true
 # chatbot_mcp_default_path: fortiweb
 # chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url }}"
+# chatbot_mcp_tool_profile: resume-prompt-injection
+# chatbot_mcp_tool_profiles: []
 # fortiweb_virtual_server_vips_static:
 #   - table_name: FAIG_CUSTOM_MCP_VSERVER
 #     name: "1"

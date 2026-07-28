@@ -4,6 +4,7 @@
   "description": "Read-only network operations demo using FortiGate MCP status/configuration facts.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "fortigate-operator",
     "required_tools": [
       "fortigate_system_status",
       "fortigate_interface_status",

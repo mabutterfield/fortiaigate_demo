@@ -4,6 +4,7 @@
   "description": "Consumer ordering assistant demo based on realistic attempts to push a food-service agent into unrelated tasks.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "fastfood-ordering",
     "required_tools": [
       "menu_search",
       "nutrition_lookup",

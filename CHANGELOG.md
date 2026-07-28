@@ -16,6 +16,18 @@ a "what's new" guide rather than a raw commit log.
     selected GPU UUID visibility
   - FortiAIGate Triton can be pinned to the selected FAIG GPU UUID so mixed
     legacy/current GPU hosts avoid unsupported TensorRT placements
+- Added scenario-scoped MCP tool profiles:
+  - chatbot UI and `agent_probe.py` can expose only the MCP tools needed for
+    the selected scenario
+  - scenario profiles now declare `mcp.tool_profile`, and the scenario test
+    harness defaults to that profile
+  - added `support-ticket-triage` to cover customer, ticket, and generic policy
+    MCP tools without mixing them into HR, resume, menu, or FortiGate demos
+  - documented when LiteLLM, chatbot, and MCP redeploys are required for
+    scenario edits
+- Added curl replay payloads for each tracked scenario so FortiAIGate and
+  LiteLLM can be tested with spoofed MCP-like tool transcripts without running
+  the chatbot agent or MCP server.
 - Updated the HR MCP/DLP demo:
   - promoted the working HR Bot with MCP `demo-a` instructions into the
     tracked instruction examples
