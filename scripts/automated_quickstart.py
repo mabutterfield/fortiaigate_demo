@@ -1559,7 +1559,9 @@ def run_ansible_playbook(
     if inventory:
         argv.extend(["-i", inventory])
     argv.append(f"ansible/playbooks/{playbook}")
-    for key, value in (extra_vars or {}).items():
+    effective_extra_vars = {"deployment_target": os.environ.get("FAIG_DEPLOYMENT_TARGET", "aws")}
+    effective_extra_vars.update(extra_vars or {})
+    for key, value in effective_extra_vars.items():
         argv.extend(["-e", f"{key}={value}"])
     result = run_command(
         argv,
@@ -2026,6 +2028,7 @@ def main() -> None:
     print("This script can run Terraform, publish images, bootstrap k3s, and deploy the demo.")
     print("Existing local tfvars/YAML values are used as prompt defaults when present.")
     print(f"Deployment target: {args.target}")
+    os.environ["FAIG_DEPLOYMENT_TARGET"] = args.target
     if args.yolo:
         print("\nYOLO mode is enabled.")
         print("- Terraform apply uses -auto-approve.")

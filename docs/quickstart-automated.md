@@ -106,6 +106,13 @@ Ollama as the direct model provider, keeps LiteLLM pointed at the in-cluster
 Ollama service, and exposes Ollama on the plain HTTP NodePort range. The
 default local Ollama NodePort is `30085`; keep this endpoint restricted to a
 trusted lab network because stock Ollama does not provide built-in API auth.
+Automated quickstart passes the deployment target to Ansible so AWS generated
+vars and local generated vars do not leak into each other. If you run local
+playbooks manually, pass the same target explicitly:
+
+```bash
+FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generated.ini ansible/playbooks/status_demo_home.yml
+```
 
 When local appliance inventories exist, `automated_quickstart.py --local` uses
 the managed credentials created by `local_setup.py` and runs the same

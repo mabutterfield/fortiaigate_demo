@@ -777,6 +777,7 @@ def render_local_inventory(target: SshTarget) -> str:
         f"{target.alias} ansible_host={target.host} ansible_user={target.user}",
         "",
         "[fortiaigate:vars]",
+        "deployment_target=local",
         "ansible_python_interpreter=/usr/bin/python3",
     ]
     if target.key_path:
@@ -792,6 +793,7 @@ def render_fortigate_local_inventory(host: str, port: str, api_admin: str, inter
 local-fortigate ansible_host={host}
 
 [fortigate:vars]
+deployment_target=local
 ansible_connection=httpapi
 ansible_network_os=fortinet.fortios.fortios
 ansible_httpapi_use_ssl=true
@@ -816,6 +818,7 @@ def render_fortiweb_local_inventory(host: str, port: str, admin_user: str, inter
 local-fortiweb ansible_host={host}
 
 [fortiweb:vars]
+deployment_target=local
 ansible_connection=httpapi
 ansible_network_os=fortinet.fortiweb.fwebos
 ansible_httpapi_use_ssl=true
