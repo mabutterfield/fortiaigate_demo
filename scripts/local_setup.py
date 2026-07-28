@@ -916,7 +916,6 @@ ollama_service_type: NodePort
 ollama_node_port: 30085
 ollama_node_port_allowed_cidrs: "{{{{ local_access_cidrs }}}}"
 ollama_models:
-  - llama3.1:8b
   - gpt-oss:20b
 ollama_model: "{{{{ ollama_models[0] }}}}"
 ollama_internal_base_url: http://ollama.ollama.svc.cluster.local:11434/v1

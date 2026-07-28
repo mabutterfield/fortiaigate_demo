@@ -102,12 +102,11 @@ ollama_enabled: false
 ollama_service_type: ClusterIP
 ollama_node_port: "{{ demo_ollama_http_port | default((demo_http_base_port | default(30080) | int) + 5) }}"
 ollama_models:
-  - llama3.1:8b
   - gpt-oss:20b
 ollama_model: "{{ ollama_models[0] }}"
 ollama_base_url: http://ollama.ollama.svc.cluster.local:11434/v1
 # ollama_base_url: http://<ollama-host>:11434/v1
-# ollama_model: llama3.2:1b
+# ollama_model: gpt-oss:20b
 # FortiAIGate 8.0.1 serves the UI under /ui/. 8.0.0 used /.
 fortiaigate_ui_path: "{{ '/ui/' if fortiaigate_version is version('8.0.1', '>=') else '/' }}"
 fortiaigate_status_verbose: false
@@ -181,8 +180,8 @@ litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b
 litellm_demo_a_faig_be_model_alias: demo-a-faig-be
 litellm_demo_b_faig_be_model_alias: demo-b-faig-be
-litellm_ollama_model_alias: "{{ ollama_model | default('llama3.2:1b') }}"
-litellm_ollama_model: "{{ ollama_model | default('llama3.2:1b') }}"
+litellm_ollama_model_alias: "{{ ollama_model | default('gpt-oss:20b') }}"
+litellm_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
@@ -244,10 +243,6 @@ litellm_models:
     api_base: "{{ litellm_faig_backend_base_url }}"
     api_key: "{{ litellm_faig_backend_api_key }}"
     instruction_profile: demo-b
-  - name: "{{ litellm_ollama_model_alias }}"
-    provider_model: "ollama_chat/{{ litellm_ollama_model }}"
-    api_base: "{{ litellm_ollama_base_url }}"
-    instruction_profile: passthrough
 # Optional explicit map override. Leave empty to use instruction_profile on each litellm_models entry.
 litellm_model_instruction_profiles: {}
 litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:4000/v1"
@@ -395,7 +390,6 @@ chatbot_model_options_full:
   - "{{ litellm_demo_b_model_alias }}"
   - "{{ litellm_demo_a_faig_be_model_alias }}"
   - "{{ litellm_demo_b_faig_be_model_alias }}"
-  - "{{ litellm_ollama_model_alias }}"
 chatbot_model_options: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
 chatbot_frontend_system_prompt: ""
 # Optional UI-layer system prompt. Leave empty for the default architecture

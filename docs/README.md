@@ -37,6 +37,7 @@ Start with one quick start, then use the topic docs for details and recovery.
 | [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) | First GUI login, AI flow, guard, deploy, and lab API-key setup |
 | [AWS k3s Foundation](aws-k3s-foundation.md) | Detailed AWS k3s architecture, host bootstrap behavior, and FortiAIGate deployment mechanics |
 | [AWS Instance Sizing](aws_instance.MD) | GPU instance sizing guidance |
+| [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary S3 cache workaround for slow NVIDIA package downloads |
 | [Terraform Reference](terraform.md) | Terraform module usage, generated Ansible files, and import commands |
 
 ## Playbook Intent

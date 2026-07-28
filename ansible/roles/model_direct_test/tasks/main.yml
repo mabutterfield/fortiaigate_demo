@@ -36,7 +36,7 @@
       - "jsonpath={.spec.clusterIP}"
   changed_when: false
   register: direct_model_ollama_service_cluster_ip
-  delegate_to: "{{ direct_model_ollama_delegate_host }}"
+  delegate_to: "{{ direct_model_ollama_delegate_host | default('localhost') }}"
   become: true
   when:
     - direct_model_provider == "ollama"
@@ -369,7 +369,7 @@
   register: direct_model_ollama_response_raw
   environment:
     DIRECT_MODEL_OLLAMA_API_KEY: "{{ direct_model_ollama_api_key }}"
-  delegate_to: "{{ direct_model_ollama_delegate_host }}"
+  delegate_to: "{{ direct_model_ollama_delegate_host | default('localhost') }}"
   when: direct_model_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_response_raw.stdout_lines
