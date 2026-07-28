@@ -114,6 +114,13 @@ playbooks manually, pass the same target explicitly:
 FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generated.ini ansible/playbooks/status_demo_home.yml
 ```
 
+To reset only the local generated vars and inventories in this checkout without
+touching the deployed lab, run:
+
+```bash
+python3 scripts/local_var_cleanup.py
+```
+
 When local appliance inventories exist, `automated_quickstart.py --local` uses
 the managed credentials created by `local_setup.py` and runs the same
 FortiGate/FortiWeb status and configuration playbooks used by the AWS path. It
