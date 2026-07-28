@@ -1,0 +1,11 @@
+---
+fortiweb_local_bootstrap_no_log: true
+fortiweb_local_bootstrap_username: admin
+fortiweb_local_bootstrap_password: ""
+fortiweb_local_managed_username: apiadmin
+fortiweb_local_managed_password: ""
+fortiweb_local_managed_access_profile: prof_admin
+fortiweb_local_managed_domains: root
+fortiweb_local_managed_trusthostv4: 0.0.0.0/0
+fortiweb_local_managed_trusthostv6: ::/0
+fortiweb_local_bootstrap_result_file: "{{ local_bootstrap_result_file | default('') }}"

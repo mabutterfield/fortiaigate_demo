@@ -7,9 +7,11 @@ import argparse
 import csv
 import getpass
 import ipaddress
+import secrets
 import socket
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
@@ -27,6 +29,7 @@ DEFAULT_K3S_CLUSTER_CIDR = "10.60.0.0/16"
 DEFAULT_K3S_SERVICE_CIDR = "10.70.0.0/16"
 DEFAULT_K3S_CLUSTER_DNS = "10.70.0.10"
 DEFAULT_REGISTRY = "jarvis:5000"
+DEFAULT_LOCAL_APPLIANCE_ADMIN = "apiadmin"
 T4_COMPUTE_CAPABILITY = 7.5
 SKIP_SSH_PRIVATE_KEY_NAMES = {
     "authorized_keys",
@@ -66,6 +69,14 @@ class Gpu:
     def compatible(self) -> bool:
         value = self.compute_cap_float
         return value is not None and value >= T4_COMPUTE_CAPABILITY
+
+
+@dataclass
+class ApplianceBootstrapResult:
+    key: str
+    enabled: bool
+    generated_vars: dict[str, str]
+    secret_content: str
 
 
 def print_header(message: str) -> None:
@@ -403,6 +414,67 @@ def write_text(path: Path, content: str) -> None:
     print(f"wrote: {path.relative_to(REPO_ROOT)}")
 
 
+def append_local_vars(content: str) -> None:
+    with LOCAL_VARS.open("a", encoding="utf-8") as handle:
+        handle.write("\n")
+        handle.write(content)
+        if not content.endswith("\n"):
+            handle.write("\n")
+    print(f"updated: {LOCAL_VARS.relative_to(REPO_ROOT)}")
+
+
+def parse_simple_yaml_mapping(content: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or ":" not in stripped:
+            continue
+        key, value = stripped.split(":", 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def replace_managed_secret_block(secret_content: str) -> None:
+    start = "# BEGIN FAIG LOCAL APPLIANCE MANAGED SECRETS"
+    end = "# END FAIG LOCAL APPLIANCE MANAGED SECRETS"
+    existing = LOCAL_SECRETS.read_text(encoding="utf-8") if LOCAL_SECRETS.exists() else "---\n"
+    lines = existing.splitlines()
+    output: list[str] = []
+    existing_block: list[str] = []
+    in_block = False
+    for line in lines:
+        if line.strip() == start:
+            in_block = True
+            continue
+        if line.strip() == end:
+            in_block = False
+            continue
+        if in_block:
+            existing_block.append(line)
+        else:
+            output.append(line)
+    base = "\n".join(output).rstrip()
+    merged = parse_simple_yaml_mapping("\n".join(existing_block))
+    merged.update(parse_simple_yaml_mapping(secret_content))
+    merged_content = "\n".join(f"{key}: {value}" for key, value in merged.items())
+    block = f"{start}\n{merged_content}\n{end}"
+    content = f"{base}\n\n{block}\n" if base else f"---\n\n{block}\n"
+    LOCAL_SECRETS.parent.mkdir(parents=True, exist_ok=True)
+    LOCAL_SECRETS.write_text(content, encoding="utf-8")
+    LOCAL_SECRETS.chmod(0o600)
+    print(f"updated: {LOCAL_SECRETS.relative_to(REPO_ROOT)}")
+
+
+def generate_password(length: int = 24) -> str:
+    alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def https_url(host: str, port: str, suffix: str = "") -> str:
+    port_part = "" if str(port).strip() == "443" else f":{str(port).strip()}"
+    return f"https://{host}{port_part}{suffix}"
+
+
 def render_local_inventory(target: SshTarget) -> str:
     parts = [
         "[fortiaigate]",
@@ -417,6 +489,57 @@ def render_local_inventory(target: SshTarget) -> str:
         parts.append(f"ansible_password={target.password}")
         parts.append("ansible_become_password={{ ansible_password }}")
     return "\n".join(parts) + "\n"
+
+
+def render_fortigate_local_inventory(host: str, port: str, api_admin: str) -> str:
+    return f"""[fortigate]
+local-fortigate ansible_host={host}
+
+[fortigate:vars]
+ansible_connection=httpapi
+ansible_network_os=fortinet.fortios.fortios
+ansible_httpapi_use_ssl=true
+ansible_httpapi_validate_certs=false
+ansible_httpapi_port={port}
+fortigate_admin_port={port}
+fortigate_api_admin={api_admin}
+fortigate_public_ip={host}
+fortigate_public_private_ip={host}
+fortigate_internal_ip={host}
+fortigate_admin_url={https_url(host, port)}
+fortigate_api_url={https_url(host, port, "/api/v2")}
+fortigate_vdom=root
+
+[fortinet_appliances:children]
+fortigate
+"""
+
+
+def render_fortiweb_local_inventory(host: str, port: str, admin_user: str) -> str:
+    return f"""[fortiweb]
+local-fortiweb ansible_host={host}
+
+[fortiweb:vars]
+ansible_connection=httpapi
+ansible_network_os=fortinet.fortiweb.fwebos
+ansible_httpapi_use_ssl=true
+ansible_httpapi_validate_certs=false
+ansible_httpapi_port={port}
+fortiweb_admin_https_port={port}
+fortiweb_admin_http_port=8080
+fortiweb_hostname=faig-fortiweb-local
+fortiweb_public_ip={host}
+fortiweb_public_private_ip={host}
+fortiweb_internal_ip={host}
+fortiweb_admin_url={https_url(host, port)}
+fortiweb_http_admin_url=http://{host}:8080
+fortiweb_api_url={https_url(host, port, "/api/v2.0")}
+fortiweb_vdom=root
+fortiweb_username={admin_user}
+
+[fortinet_appliances:children]
+fortiweb
+"""
 
 
 def render_registry_vars(local_registry: str, repo_prefix: str) -> str:
@@ -514,37 +637,184 @@ litellm_faig_backend_downstream_model: "{{{{ litellm_passthrough_model_alias }}}
 """
 
 
-def prompt_appliance(appliance: str, output_path: Path) -> None:
-    print_header(f"{appliance} Local Appliance")
-    if not prompt_yes_no(f"Configure an existing local {appliance} now?", False):
-        print(f"{appliance}: do not install/configure selected.")
-        if output_path.exists():
-            print(f"Leaving existing ignored inventory in place: {output_path.relative_to(REPO_ROOT)}")
-        return
+def run_bootstrap_playbook(playbook: str, inventory: Path, bootstrap_vars: dict[str, str]) -> str:
+    result_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        prefix="faig-local-bootstrap-result-",
+        suffix=".yml",
+        delete=False,
+    )
+    result_path = Path(result_file.name)
+    result_file.close()
+    result_path.chmod(0o600)
 
-    host = prompt_ip_or_host(f"{appliance} management/API IP or DNS", "")
-    user = prompt_text(f"{appliance} admin user", "admin")
-    password = prompt_secret(f"{appliance} admin password, leave empty to omit")
-    port = prompt_text(f"{appliance} HTTPS/API port", "443")
-    key = appliance.lower()
-    network_os = "fortinet.fortios.fortios" if key == "fortigate" else "fortinet.fortiweb.fwebos"
-    host_alias = f"local-{key}"
-    content = f"""[{key}]
-{host_alias} ansible_host={host} ansible_user={user} ansible_httpapi_port={port}
+    vars_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        prefix="faig-local-bootstrap-vars-",
+        suffix=".yml",
+        delete=False,
+        encoding="utf-8",
+    )
+    vars_path = Path(vars_file.name)
+    try:
+        vars_file.write("---\n")
+        for key, value in bootstrap_vars.items():
+            vars_file.write(f"{key}: {yaml_quote(value)}\n")
+        vars_file.write(f"local_bootstrap_result_file: {yaml_quote(str(result_path))}\n")
+        vars_file.close()
+        vars_path.chmod(0o600)
 
-[{key}:vars]
-ansible_connection=httpapi
-ansible_network_os={network_os}
-ansible_httpapi_use_ssl=true
-ansible_httpapi_validate_certs=false
-{key}_public_ip={host}
-{key}_public_private_ip={host}
-{key}_internal_ip={host}
-{key}_vdom=root
-"""
-    if password:
-        content += f"ansible_password={password}\n"
-    write_text(output_path, content)
+        argv = [
+            "ansible-playbook",
+            "-i",
+            str(inventory),
+            str(REPO_ROOT / "ansible/playbooks" / playbook),
+            "-e",
+            f"@{vars_path}",
+        ]
+        result = subprocess.run(
+            argv,
+            cwd=str(REPO_ROOT),
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        if result.returncode != 0:
+            raise SystemExit(result.returncode)
+        return result_path.read_text(encoding="utf-8")
+    finally:
+        vars_path.unlink(missing_ok=True)
+        result_path.unlink(missing_ok=True)
+
+
+def prompt_fortigate_appliance() -> ApplianceBootstrapResult:
+    key = "fortigate"
+    print_header("FortiGate Local Appliance")
+    if not prompt_yes_no("Configure an existing local FortiGate now?", False):
+        print("FortiGate: do not install/configure selected.")
+        if FORTIGATE_LOCAL_INVENTORY.exists():
+            print(f"Leaving existing ignored inventory in place: {FORTIGATE_LOCAL_INVENTORY.relative_to(REPO_ROOT)}")
+        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="")
+
+    host = prompt_ip_or_host("FortiGate management/API IP or DNS", "")
+    port = prompt_text("FortiGate HTTPS/API port", "443")
+    bootstrap_user = prompt_text("FortiGate current admin user", "admin")
+    bootstrap_password = prompt_secret("FortiGate current admin password")
+    api_admin = prompt_text("FortiGate managed API admin user", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+
+    write_text(FORTIGATE_LOCAL_INVENTORY, render_fortigate_local_inventory(host, port, api_admin))
+    generated_vars = {
+        "fortigate_local_enabled": "true",
+        "fortigate_api_admin": api_admin,
+        "fortigate_admin_port": port,
+        "fortigate_public_ip": host,
+        "fortigate_public_private_ip": host,
+        "fortigate_internal_ip": host,
+        "fortigate_admin_url": https_url(host, port),
+        "fortigate_api_url": https_url(host, port, "/api/v2"),
+        "fortigate_vdom": "root",
+        "fortigate_bootstrap_api_account_name": api_admin,
+        "fortigate_bootstrap_api_account_trusthost_cidrs": "{{ local_access_cidrs }}",
+        "fortigate_readonly_api_account_trusthost_cidrs": "{{ local_access_cidrs }}",
+        "fortigate_readonly_api_account_include_vpc_cidr": "false",
+    }
+
+    secret_content = ""
+    if prompt_yes_no("Create/update FortiGate apiadmin and store managed API token now?", True):
+        secret_content = run_bootstrap_playbook(
+            "bootstrap_fortigate_local_api.yml",
+            FORTIGATE_LOCAL_INVENTORY,
+            {
+                "fortigate_local_bootstrap_username": bootstrap_user,
+                "fortigate_local_bootstrap_password": bootstrap_password,
+                "fortigate_local_bootstrap_api_admin": api_admin,
+            },
+        )
+    else:
+        print("Skipped FortiGate API admin bootstrap. Quickstart can run after local.secrets.yml contains fortigate_api_key.")
+
+    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content)
+
+
+def prompt_fortiweb_appliance(lab_cidr: str) -> ApplianceBootstrapResult:
+    key = "fortiweb"
+    print_header("FortiWeb Local Appliance")
+    if not prompt_yes_no("Configure an existing local FortiWeb now?", False):
+        print("FortiWeb: do not install/configure selected.")
+        if FORTIWEB_LOCAL_INVENTORY.exists():
+            print(f"Leaving existing ignored inventory in place: {FORTIWEB_LOCAL_INVENTORY.relative_to(REPO_ROOT)}")
+        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="")
+
+    host = prompt_ip_or_host("FortiWeb management/API IP or DNS", "")
+    port = prompt_text("FortiWeb HTTPS/API port", "443")
+    bootstrap_user = prompt_text("FortiWeb current admin user", "admin")
+    bootstrap_password = prompt_secret("FortiWeb current admin password")
+    managed_user = prompt_text("FortiWeb managed admin user", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+    access_profile = prompt_text("FortiWeb managed admin access profile", "prof_admin")
+    managed_password = generate_password()
+
+    write_text(FORTIWEB_LOCAL_INVENTORY, render_fortiweb_local_inventory(host, port, managed_user))
+    generated_vars = {
+        "fortiweb_local_enabled": "true",
+        "fortiweb_username": managed_user,
+        "fortiweb_admin_https_port": port,
+        "fortiweb_admin_http_port": "8080",
+        "fortiweb_hostname": "faig-fortiweb-local",
+        "fortiweb_public_ip": host,
+        "fortiweb_public_private_ip": host,
+        "fortiweb_internal_ip": host,
+        "fortiweb_admin_url": https_url(host, port),
+        "fortiweb_http_admin_url": f"http://{host}:8080",
+        "fortiweb_api_url": https_url(host, port, "/api/v2.0"),
+        "fortiweb_vdom": "root",
+        "fortiweb_mcp_proxy_enabled": "true",
+    }
+
+    secret_content = ""
+    if prompt_yes_no("Create/update FortiWeb apiadmin and store managed password now?", True):
+        secret_content = run_bootstrap_playbook(
+            "bootstrap_fortiweb_local_admin.yml",
+            FORTIWEB_LOCAL_INVENTORY,
+            {
+                "fortiweb_local_bootstrap_username": bootstrap_user,
+                "fortiweb_local_bootstrap_password": bootstrap_password,
+                "fortiweb_local_managed_username": managed_user,
+                "fortiweb_local_managed_password": managed_password,
+                "fortiweb_local_managed_access_profile": access_profile,
+                "fortiweb_local_managed_trusthostv4": lab_cidr,
+            },
+        )
+    else:
+        print("Skipped FortiWeb managed admin bootstrap. Quickstart can run after local.secrets.yml contains fortiweb_admin_password_override.")
+
+    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content)
+
+
+def render_appliance_local_vars(results: list[ApplianceBootstrapResult]) -> str:
+    lines = ["# Local appliance facts generated by scripts/local_setup.py."]
+    for result in results:
+        if not result.enabled:
+            continue
+        for key, value in result.generated_vars.items():
+            if value in {"true", "false"}:
+                lines.append(f"{key}: {value}")
+            else:
+                lines.append(f"{key}: {yaml_quote(value)}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n" if len(lines) > 1 else ""
+
+
+def persist_appliance_result(result: ApplianceBootstrapResult) -> None:
+    appliance_vars = render_appliance_local_vars([result])
+    if appliance_vars:
+        append_local_vars(appliance_vars)
+    if result.secret_content.strip():
+        replace_managed_secret_block(result.secret_content)
 
 
 def parse_args() -> argparse.Namespace:
@@ -642,12 +912,13 @@ def main() -> None:
     write_text(REGISTRY_VARS, render_registry_vars(local_registry, repo_prefix))
     if not LOCAL_SECRETS.exists():
         write_text(LOCAL_SECRETS, "---\n# Local secret overrides may be stored here. This file is ignored by Git.\n")
+        LOCAL_SECRETS.chmod(0o600)
 
     if args.non_interactive:
         print("Non-interactive mode: skipped optional FortiGate/FortiWeb prompts.")
     else:
-        prompt_appliance("FortiGate", FORTIGATE_LOCAL_INVENTORY)
-        prompt_appliance("FortiWeb", FORTIWEB_LOCAL_INVENTORY)
+        persist_appliance_result(prompt_fortigate_appliance())
+        persist_appliance_result(prompt_fortiweb_appliance(lab_cidr))
 
     print_header("Next Step")
     print("Run local deployment with:")

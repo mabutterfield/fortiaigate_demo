@@ -13,15 +13,26 @@
   changed_when: false
   no_log: "{{ fortigate_api_accounts_no_log | bool }}"
   register: fortigate_api_accounts_bootstrap_key_raw
+  when: fortigate_api_key | default('', true) | length == 0
   tags: [fortigate_api_accounts]
   # - ansible.builtin.debug:
   #     msg: "FortiGate bootstrap API key read: {{ fortigate_api_accounts_bootstrap_key_raw.stdout | length > 0 }}"
 
 - name: Set FortiGate bootstrap API key fact
   ansible.builtin.set_fact:
-    fortigate_bootstrap_access_token: "{{ fortigate_api_accounts_bootstrap_key_raw.stdout | trim }}"
+    fortigate_bootstrap_access_token: >-
+      {{
+        fortigate_api_key | default('', true) | trim
+        if fortigate_api_key | default('', true) | length > 0
+        else fortigate_api_accounts_bootstrap_key_raw.stdout | trim
+      }}
     ansible_httpapi_session_key:
-      access_token: "{{ fortigate_api_accounts_bootstrap_key_raw.stdout | trim }}"
+      access_token: >-
+        {{
+          fortigate_api_key | default('', true) | trim
+          if fortigate_api_key | default('', true) | length > 0
+          else fortigate_api_accounts_bootstrap_key_raw.stdout | trim
+        }}
   no_log: "{{ fortigate_api_accounts_no_log | bool }}"
   tags: [fortigate_api_accounts]
   # - ansible.builtin.debug:

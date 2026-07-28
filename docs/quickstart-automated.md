@@ -65,9 +65,26 @@ python3 scripts/local_setup.py
 ```
 
 The setup script prompts for the Ubuntu SSH target, local registry, optional
-existing FortiGate/FortiWeb API targets, and GPU assignment when `nvidia-smi`
-can enumerate GPUs. It writes ignored files under `ansible/inventory/` and
-`ansible/group_vars/`, including local registry settings and Ollama defaults.
+existing FortiGate/FortiWeb appliance targets, and GPU assignment when
+`nvidia-smi` can enumerate GPUs. It writes ignored files under
+`ansible/inventory/` and `ansible/group_vars/`, including local registry
+settings and Ollama defaults.
+
+For local FortiGate onboarding, `local_setup.py` can use the prompted current
+admin username/password once to create or refresh a managed `apiadmin` API
+account, generate its API token, validate token login, and then store only the
+managed token in ignored `ansible/group_vars/local.secrets.yml`. The prompted
+admin password is written only to a temporary vars file used by the bootstrap
+playbook and is deleted when the playbook exits.
+
+For local FortiWeb onboarding, `local_setup.py` can use the prompted current
+admin username/password once to create or refresh a managed `apiadmin` local
+admin with a generated password. Only the managed `apiadmin` username/password
+is stored in ignored `ansible/group_vars/local.secrets.yml`; the prompted
+bootstrap password is not stored in inventory or committed files.
+
+The generated local appliance inventories contain host, port, and connection
+metadata only. They do not contain appliance passwords or API tokens.
 
 Then run:
 
@@ -80,6 +97,11 @@ Ollama as the direct model provider, keeps LiteLLM pointed at the in-cluster
 Ollama service, and exposes Ollama on the plain HTTP NodePort range. The
 default local Ollama NodePort is `30085`; keep this endpoint restricted to a
 trusted lab network because stock Ollama does not provide built-in API auth.
+
+When local appliance inventories exist, `automated_quickstart.py --local` uses
+the managed credentials created by `local_setup.py` and runs the same
+FortiGate/FortiWeb status and configuration playbooks used by the AWS path. It
+does not need the original prompted bootstrap passwords.
 
 On a fresh host where NVIDIA drivers are not yet usable, `local_setup.py` may
 not be able to capture GPU UUIDs. In that case local quickstart completes the

@@ -16,6 +16,9 @@ a "what's new" guide rather than a raw commit log.
     selected GPU UUID visibility
   - FortiAIGate Triton can be pinned to the selected FAIG GPU UUID so mixed
     legacy/current GPU hosts avoid unsupported TensorRT placements
+  - local FortiGate/FortiWeb onboarding now creates managed `apiadmin`
+    credentials during `local_setup.py` and stores only those managed
+    credentials in ignored local secrets
 - Added scenario-scoped MCP tool profiles:
   - chatbot UI and `agent_probe.py` can expose only the MCP tools needed for
     the selected scenario

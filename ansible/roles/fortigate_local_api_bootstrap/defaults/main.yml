@@ -1,0 +1,11 @@
+---
+fortigate_local_bootstrap_no_log: true
+fortigate_local_bootstrap_vdom: "{{ fortigate_vdom | default('root') }}"
+fortigate_local_bootstrap_username: admin
+fortigate_local_bootstrap_password: ""
+fortigate_local_bootstrap_api_admin: "{{ fortigate_api_admin | default('apiadmin') }}"
+fortigate_local_bootstrap_api_accprofile: super_admin
+fortigate_local_bootstrap_trusthost_cidrs: "{{ local_access_cidrs | default([lab_routed_cidr | default('0.0.0.0/0')]) }}"
+fortigate_local_bootstrap_validate_certs: false
+fortigate_local_bootstrap_result_file: "{{ local_bootstrap_result_file | default('') }}"
+fortigate_local_bootstrap_api_comments: "FAIG local managed API admin"

@@ -1,0 +1,238 @@
+---
+- name: Validate FortiGate local bootstrap inputs
+  ansible.builtin.assert:
+    that:
+      - fortigate_local_bootstrap_username | length > 0
+      - fortigate_local_bootstrap_password | length > 0
+      - fortigate_local_bootstrap_api_admin | length > 0
+      - fortigate_local_bootstrap_result_file | length > 0
+    fail_msg: "FortiGate local bootstrap requires username/password, managed API admin name, and result file."
+    quiet: true
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Wait for FortiGate HTTPS API
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: "{{ ansible_httpapi_port | default(443) | int }}"
+    timeout: 30
+  delegate_to: localhost
+  tags: [fortigate_local_bootstrap]
+
+- name: Set FortiGate bootstrap username/password auth
+  ansible.builtin.set_fact:
+    ansible_user: "{{ fortigate_local_bootstrap_username }}"
+    ansible_password: "{{ fortigate_local_bootstrap_password }}"
+    ansible_httpapi_session_key: {}
+    ansible_httpapi_token: ""
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap, fortigate_auth]
+
+- name: Reset FortiGate connection for bootstrap auth
+  ansible.builtin.meta: reset_connection
+  tags: [fortigate_local_bootstrap, fortigate_auth]
+
+- name: Probe FortiGate system status with bootstrap auth
+  fortinet.fortios.fortios_monitor_fact:
+    vdom: "{{ fortigate_local_bootstrap_vdom }}"
+    selector: system_status
+  register: fortigate_local_bootstrap_status
+  timeout: 10
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Convert FortiGate local API trusthost CIDRs
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python | default('python3') }}"
+      - -c
+      - |
+        import ipaddress, json, sys
+        cidrs = json.load(sys.stdin)
+        trusthosts = []
+        for index, cidr in enumerate(cidrs, start=1):
+            network = ipaddress.ip_network(str(cidr), strict=False)
+            trusthosts.append({
+                "id": index,
+                "type": "ipv4-trusthost",
+                "ipv4_trusthost": f"{network.network_address} {network.netmask}",
+            })
+        print(json.dumps(trusthosts))
+    stdin: "{{ fortigate_local_bootstrap_trusthost_cidrs | to_json }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fortigate_local_bootstrap_trusthosts_raw
+  tags: [fortigate_local_bootstrap]
+
+- name: Set FortiGate local API trusthost fact
+  ansible.builtin.set_fact:
+    fortigate_local_bootstrap_trusthosts: "{{ fortigate_local_bootstrap_trusthosts_raw.stdout | from_json }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Create or update FortiGate managed API admin
+  fortinet.fortios.fortios_system_api_user:
+    vdom: "{{ fortigate_local_bootstrap_vdom }}"
+    state: present
+    system_api_user:
+      name: "{{ fortigate_local_bootstrap_api_admin }}"
+      accprofile: "{{ fortigate_local_bootstrap_api_accprofile }}"
+      comments: "{{ fortigate_local_bootstrap_api_comments }}"
+      trusthost: "{{ fortigate_local_bootstrap_trusthosts }}"
+      vdom:
+        - name: "{{ fortigate_local_bootstrap_vdom }}"
+  register: fortigate_local_bootstrap_api_user
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+  # - ansible.builtin.debug:
+  #     var: fortigate_local_bootstrap_api_user
+
+- name: Set FortiGate API base URL for local token generation
+  ansible.builtin.set_fact:
+    fortigate_local_bootstrap_base_url: >-
+      {{
+        'https://' ~ (ansible_host | default(inventory_hostname)) ~
+        (
+          ((ansible_httpapi_port | default(443) | int) == 443)
+          | ternary('', ':' ~ (ansible_httpapi_port | default(443) | string))
+        )
+      }}
+  tags: [fortigate_local_bootstrap]
+
+- name: Login to FortiGate API for local token generation
+  ansible.builtin.uri:
+    url: "{{ fortigate_local_bootstrap_base_url }}/api/v2/authentication"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ fortigate_local_bootstrap_username }}"
+      secretkey: "{{ fortigate_local_bootstrap_password }}"
+      password: "{{ fortigate_local_bootstrap_password }}"
+      ack_pre_disclaimer: true
+      ack_post_disclaimer: true
+      request_key: true
+    headers:
+      Content-Type: application/json
+    return_content: true
+    status_code: 200
+    validate_certs: "{{ fortigate_local_bootstrap_validate_certs | bool }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: fortigate_local_bootstrap_login
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Set FortiGate local bootstrap CSRF token
+  ansible.builtin.set_fact:
+    fortigate_local_bootstrap_csrf_token: >-
+      {{
+        (
+          (fortigate_local_bootstrap_login.cookies | default({}))
+          | dict2items
+          | selectattr('key', 'match', '^ccsrf_token')
+          | map(attribute='value')
+          | first
+        ) | default('')
+      }}
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Generate FortiGate managed API token
+  ansible.builtin.uri:
+    url: "{{ fortigate_local_bootstrap_base_url }}/api/v2/monitor/system/api-user/generate-key?vdom={{ fortigate_local_bootstrap_vdom }}"
+    method: POST
+    body_format: json
+    body:
+      api-user: "{{ fortigate_local_bootstrap_api_admin }}"
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      Cookie: "{{ fortigate_local_bootstrap_login.cookies_string }}"
+      X-Admin-Passwd: "{{ fortigate_local_bootstrap_password }}"
+      x-csrftoken: "{{ fortigate_local_bootstrap_csrf_token }}"
+    return_content: true
+    status_code: 200
+    validate_certs: "{{ fortigate_local_bootstrap_validate_certs | bool }}"
+  delegate_to: localhost
+  become: false
+  changed_when: >-
+    fortigate_local_bootstrap_token_response.json is defined
+    and fortigate_local_bootstrap_token_response.json.results is defined
+    and (fortigate_local_bootstrap_token_response.json.results.access_token | default('') | length > 0)
+  register: fortigate_local_bootstrap_token_response
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Log out FortiGate manual API session
+  ansible.builtin.uri:
+    url: "{{ fortigate_local_bootstrap_base_url }}/api/v2/authentication"
+    method: DELETE
+    headers:
+      Accept: application/json
+      Cookie: "{{ fortigate_local_bootstrap_login.cookies_string }}"
+      x-csrftoken: "{{ fortigate_local_bootstrap_csrf_token }}"
+    return_content: true
+    status_code:
+      - 200
+      - 204
+    validate_certs: "{{ fortigate_local_bootstrap_validate_certs | bool }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  failed_when: false
+  register: fortigate_local_bootstrap_logout
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+  # - ansible.builtin.debug:
+  #     var: fortigate_local_bootstrap_logout
+
+- name: Set FortiGate managed API token fact
+  ansible.builtin.set_fact:
+    fortigate_local_bootstrap_api_key: "{{ ((fortigate_local_bootstrap_token_response.json | default({})).results | default({})).access_token | default('') }}"
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Fail when FortiGate managed API token was not generated
+  ansible.builtin.fail:
+    msg: "FortiGate local bootstrap did not return a managed API token."
+  when: fortigate_local_bootstrap_api_key | length == 0
+  tags: [fortigate_local_bootstrap]
+
+- name: Switch FortiGate connection to managed API token
+  ansible.builtin.set_fact:
+    ansible_user: ""
+    ansible_password: ""
+    ansible_httpapi_token: ""
+    ansible_httpapi_session_key:
+      access_token: "{{ fortigate_local_bootstrap_api_key }}"
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap, fortigate_auth]
+
+- name: Reset FortiGate connection for managed API token
+  ansible.builtin.meta: reset_connection
+  tags: [fortigate_local_bootstrap, fortigate_auth]
+
+- name: Validate FortiGate managed API token
+  fortinet.fortios.fortios_monitor_fact:
+    vdom: "{{ fortigate_local_bootstrap_vdom }}"
+    selector: system_status
+  register: fortigate_local_bootstrap_token_validation
+  timeout: 10
+  retries: 3
+  delay: 3
+  until: fortigate_local_bootstrap_token_validation is succeeded
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]
+
+- name: Write FortiGate local managed token result
+  ansible.builtin.copy:
+    dest: "{{ fortigate_local_bootstrap_result_file }}"
+    mode: "0600"
+    content: |
+      fortigate_api_admin: {{ fortigate_local_bootstrap_api_admin | to_json }}
+      fortigate_api_key: {{ fortigate_local_bootstrap_api_key | to_json }}
+  delegate_to: localhost
+  become: false
+  no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
+  tags: [fortigate_local_bootstrap]

@@ -1,0 +1,19 @@
+---
+- name: Bootstrap local FortiWeb managed admin
+  hosts: fortiweb
+  gather_facts: false
+  become: false
+  pre_tasks:
+    - name: Load environment, generated, and local group vars when present
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: >-
+        {{
+          query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml')
+          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
+        }}
+      tags: [always]
+  roles:
+    - fortiweb_local_admin_bootstrap
