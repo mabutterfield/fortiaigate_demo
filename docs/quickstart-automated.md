@@ -86,6 +86,15 @@ bootstrap password is not stored in inventory or committed files.
 The generated local appliance inventories contain host, port, and connection
 metadata only. They do not contain appliance passwords or API tokens.
 
+In local appliance mode, the AWS-shaped `*_public_private_ip` variables map to
+the appliance port1/operator-side address, while `*_internal_ip` maps to the
+port2/backend address on the k3s LAN. `local_setup.py` prompts for both when an
+appliance is enabled. FortiGate MCP tooling is generated to target
+`mcp_fortigate_base_url` on FortiGate port2 when that backend IP is known,
+because the MCP pod runs on the k3s/backend side. FortiWeb generated proxy
+objects still publish listener VIPs on port1 by default and proxy to k3s
+NodePorts through port2.
+
 Then run:
 
 ```bash

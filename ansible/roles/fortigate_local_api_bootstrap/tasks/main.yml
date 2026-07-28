@@ -41,6 +41,26 @@
   no_log: "{{ fortigate_local_bootstrap_no_log | bool }}"
   tags: [fortigate_local_bootstrap]
 
+- name: Normalize FortiGate local API trusthost CIDRs
+  ansible.builtin.set_fact:
+    fortigate_local_bootstrap_trusthost_cidrs_normalized: >-
+      {{
+        (
+          fortigate_local_bootstrap_trusthost_cidrs
+          if (
+            fortigate_local_bootstrap_trusthost_cidrs is sequence
+            and fortigate_local_bootstrap_trusthost_cidrs is not string
+          )
+          else (fortigate_local_bootstrap_trusthost_cidrs | string).split(',')
+        )
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+  tags: [fortigate_local_bootstrap]
+  # - ansible.builtin.debug:
+  #     var: fortigate_local_bootstrap_trusthost_cidrs_normalized
+
 - name: Convert FortiGate local API trusthost CIDRs
   ansible.builtin.command:
     argv:
@@ -58,7 +78,7 @@
                 "ipv4_trusthost": f"{network.network_address} {network.netmask}",
             })
         print(json.dumps(trusthosts))
-    stdin: "{{ fortigate_local_bootstrap_trusthost_cidrs | to_json }}"
+    stdin: "{{ fortigate_local_bootstrap_trusthost_cidrs_normalized | to_json }}"
   delegate_to: localhost
   become: false
   changed_when: false

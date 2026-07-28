@@ -8,6 +8,7 @@ import csv
 import getpass
 import ipaddress
 import secrets
+import shlex
 import socket
 import subprocess
 import sys
@@ -77,6 +78,7 @@ class ApplianceBootstrapResult:
     enabled: bool
     generated_vars: dict[str, str]
     secret_content: str
+    access_cidrs: list[str]
 
 
 def print_header(message: str) -> None:
@@ -115,12 +117,44 @@ def prompt_cidr(prompt: str, default: str) -> str:
             print(f"Invalid CIDR: {error}")
 
 
+def prompt_cidr_list(prompt: str, defaults: list[str]) -> list[str]:
+    default_text = ", ".join(defaults)
+    while True:
+        value = prompt_text(prompt, default_text).strip()
+        values = [item.strip() for item in value.split(",") if item.strip()]
+        if not values:
+            print("Enter at least one CIDR.")
+            continue
+        normalized: list[str] = []
+        try:
+            for cidr in values:
+                network = str(ipaddress.ip_network(cidr, strict=False))
+                if network not in normalized:
+                    normalized.append(network)
+        except ValueError as error:
+            print(f"Invalid CIDR: {error}")
+            continue
+        return normalized
+
+
 def prompt_ip_or_host(prompt: str, default: str) -> str:
     while True:
         value = prompt_text(prompt, default).strip()
         if value:
             return value
         print("Enter an IP address or DNS name.")
+
+
+def prompt_optional_ip(prompt: str, default: str = "") -> str:
+    while True:
+        value = prompt_text(prompt, default).strip()
+        if not value:
+            return ""
+        try:
+            ipaddress.ip_address(value)
+            return value
+        except ValueError as error:
+            print(f"Invalid IP address: {error}")
 
 
 def display_path(path: Path) -> str:
@@ -191,6 +225,83 @@ def resolve_host_ip(host: str) -> str:
         if address:
             return address
     return ""
+
+
+def yaml_unquote(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
+
+
+def load_generated_yaml(path: Path) -> dict[str, str | list[str]]:
+    if not path.exists():
+        return {}
+
+    values: dict[str, str | list[str]] = {}
+    current_list_key = ""
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#") or raw_line.strip() == "---":
+            continue
+        if raw_line.startswith(" ") and current_list_key and raw_line.strip().startswith("- "):
+            current = values.setdefault(current_list_key, [])
+            if isinstance(current, list):
+                current.append(yaml_unquote(raw_line.strip()[2:].strip()))
+            continue
+        current_list_key = ""
+        if ":" not in raw_line:
+            continue
+        key, value = raw_line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if not value:
+            values[key] = []
+            current_list_key = key
+        else:
+            values[key] = yaml_unquote(value)
+    return values
+
+
+def load_inventory_defaults(path: Path, group: str) -> tuple[str, dict[str, str]]:
+    if not path.exists():
+        return "", {}
+
+    host_alias = ""
+    values: dict[str, str] = {}
+    section = ""
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            continue
+        if section == group and not host_alias:
+            try:
+                parts = shlex.split(line)
+            except ValueError:
+                parts = line.split()
+            if parts:
+                host_alias = parts[0]
+            for part in parts[1:]:
+                if "=" in part:
+                    key, value = part.split("=", 1)
+                    values[key] = value
+            continue
+        if section == f"{group}:vars" and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return host_alias, values
+
+
+def generated_scalar(values: dict[str, str | list[str]], key: str, default: str = "") -> str:
+    value = values.get(key, default)
+    return value if isinstance(value, str) else default
+
+
+def generated_list(values: dict[str, str | list[str]], key: str) -> list[str]:
+    value = values.get(key, [])
+    return value if isinstance(value, list) else []
 
 
 def validate_no_overlap(named_cidrs: dict[str, str]) -> None:
@@ -303,6 +414,152 @@ def cidr_from_interface_address(value: str) -> str:
     return str(interface.network)
 
 
+def local_source_ip_for_target(host: str, port: int = 443) -> str:
+    resolved = resolve_host_ip(host) or host
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect((resolved, port))
+            return sock.getsockname()[0]
+    except OSError:
+        return ""
+
+
+def macos_interface_for_target(host: str) -> str:
+    result = run_command(["route", "-n", "get", host])
+    if result.returncode != 0:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("interface:"):
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+def macos_cidr_for_interface(interface: str, source_ip: str) -> str:
+    if not interface:
+        return ""
+    result = run_command(["ifconfig", interface])
+    if result.returncode != 0:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 4 and parts[0] == "inet" and parts[1] == source_ip and "netmask" in parts:
+            netmask_text = parts[parts.index("netmask") + 1]
+            try:
+                netmask_int = int(netmask_text, 16) if netmask_text.startswith("0x") else int(netmask_text)
+                netmask = socket.inet_ntoa(netmask_int.to_bytes(4, "big"))
+                return str(ipaddress.ip_network(f"{source_ip}/{netmask}", strict=False))
+            except (ValueError, OSError):
+                return ""
+    return ""
+
+
+def macos_primary_ipv4_cidr() -> str:
+    result = run_command(["ifconfig"])
+    if result.returncode != 0:
+        return ""
+
+    active = False
+    for line in (result.stdout or "").splitlines():
+        if line and not line.startswith("\t") and not line.startswith(" "):
+            active = "UP" in line and "LOOPBACK" not in line
+            continue
+        if not active:
+            continue
+        parts = line.strip().split()
+        if len(parts) >= 4 and parts[0] == "inet" and parts[1] != "127.0.0.1" and "netmask" in parts:
+            source_ip = parts[1]
+            netmask_text = parts[parts.index("netmask") + 1]
+            try:
+                netmask_int = int(netmask_text, 16) if netmask_text.startswith("0x") else int(netmask_text)
+                netmask = socket.inet_ntoa(netmask_int.to_bytes(4, "big"))
+                return str(ipaddress.ip_network(f"{source_ip}/{netmask}", strict=False))
+            except (ValueError, OSError):
+                continue
+    return ""
+
+
+def linux_cidr_for_source_ip(source_ip: str) -> str:
+    if not source_ip:
+        return ""
+    result = run_command(["ip", "-o", "-f", "inet", "addr", "show"])
+    if result.returncode != 0:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        fields = line.split()
+        if "inet" not in fields:
+            continue
+        address = fields[fields.index("inet") + 1]
+        if address.split("/", 1)[0] == source_ip:
+            return cidr_from_interface_address(address)
+    return ""
+
+
+def linux_primary_ipv4_cidr() -> str:
+    result = run_command(["ip", "-o", "-f", "inet", "addr", "show", "scope", "global"])
+    if result.returncode != 0:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        fields = line.split()
+        if "inet" not in fields:
+            continue
+        cidr = cidr_from_interface_address(fields[fields.index("inet") + 1])
+        if cidr:
+            return cidr
+    return ""
+
+
+def local_primary_ipv4_cidr() -> str:
+    if sys.platform == "darwin":
+        return macos_primary_ipv4_cidr()
+    return linux_primary_ipv4_cidr()
+
+
+def fallback_cidr_for_source_ip(source_ip: str) -> str:
+    if not source_ip:
+        return ""
+    try:
+        ipaddress.ip_address(source_ip)
+    except ValueError:
+        return ""
+    return str(ipaddress.ip_network(f"{source_ip}/24", strict=False))
+
+
+def suggested_local_backend_ip(lab_cidr: str, management_host: str, default_host_offset: int) -> str:
+    try:
+        network = ipaddress.ip_network(lab_cidr, strict=False)
+        if network.version != 4:
+            return ""
+        management_ip = ipaddress.ip_address(resolve_host_ip(management_host) or management_host)
+        if management_ip.version != 4:
+            return ""
+        octets = str(management_ip).split(".")
+        host_offset = int(octets[-1]) + 100
+        if host_offset <= 0 or host_offset >= network.num_addresses - 1:
+            host_offset = default_host_offset
+        candidate = network.network_address + host_offset
+        if candidate not in network or candidate == network.broadcast_address:
+            return ""
+        return str(candidate)
+    except (ValueError, IndexError):
+        return ""
+
+
+def discover_controller_cidr(target_host: str, target_port: str = "443") -> str:
+    try:
+        port = int(target_port)
+    except ValueError:
+        port = 443
+    source_ip = local_source_ip_for_target(target_host, port)
+    if not source_ip:
+        return local_primary_ipv4_cidr()
+    if sys.platform == "darwin":
+        discovered = macos_cidr_for_interface(macos_interface_for_target(target_host), source_ip)
+    else:
+        discovered = linux_cidr_for_source_ip(source_ip)
+    return discovered or fallback_cidr_for_source_ip(source_ip) or local_primary_ipv4_cidr()
+
+
 def choose_lab_cidr(args: argparse.Namespace, facts: dict[str, str]) -> str:
     discovered = cidr_from_interface_address(facts.get("default_route_cidr", "")) or cidr_from_interface_address(facts.get("ssh_interface_cidr", ""))
     fallback = args.lab_cidr or discovered or "192.168.1.0/24"
@@ -315,6 +572,40 @@ def choose_lab_cidr(args: argparse.Namespace, facts: dict[str, str]) -> str:
         else:
             print(f"Discovered from SSH-connected host interface: {facts.get('ssh_interface_cidr')} -> {discovered}")
     return prompt_cidr("Local routed CIDR", fallback)
+
+
+def choose_local_access_cidrs(
+    *,
+    lab_cidr: str,
+    existing_cidrs: list[str],
+    appliance_hosts: list[tuple[str, str]],
+    non_interactive: bool,
+) -> list[str]:
+    discovered: list[str] = []
+    for host, port in appliance_hosts:
+        cidr = discover_controller_cidr(host, port)
+        if cidr and cidr not in discovered:
+            discovered.append(cidr)
+
+    defaults: list[str] = []
+    for cidr in existing_cidrs + [lab_cidr] + discovered:
+        if not cidr:
+            continue
+        try:
+            normalized = str(ipaddress.ip_network(cidr, strict=False))
+        except ValueError:
+            continue
+        if normalized not in defaults:
+            defaults.append(normalized)
+
+    if non_interactive:
+        return defaults
+
+    print_header("Local Access CIDRs")
+    print("These CIDRs are allowed to reach local NodePorts and local appliance API trusthosts.")
+    if discovered:
+        print(f"Discovered controller/API source CIDR(s): {', '.join(discovered)}")
+    return prompt_cidr_list("Local access CIDRs", defaults)
 
 
 def discover_gpus(target: SshTarget) -> list[Gpu]:
@@ -385,6 +676,11 @@ def select_gpus(prompt: str, gpus: list[Gpu], unavailable: set[str], default: st
                 selected.append(match.uuid)
         if valid:
             return selected
+
+
+def gpu_selection_default(gpus: list[Gpu], existing_uuids: list[str], fallback: str) -> str:
+    indexes = [gpu.index for gpu in gpus if gpu.uuid in set(existing_uuids)]
+    return ",".join(indexes) if indexes else fallback
 
 
 def yaml_quote(value: str) -> str:
@@ -491,7 +787,7 @@ def render_local_inventory(target: SshTarget) -> str:
     return "\n".join(parts) + "\n"
 
 
-def render_fortigate_local_inventory(host: str, port: str, api_admin: str) -> str:
+def render_fortigate_local_inventory(host: str, port: str, api_admin: str, internal_ip: str = "") -> str:
     return f"""[fortigate]
 local-fortigate ansible_host={host}
 
@@ -505,17 +801,17 @@ fortigate_admin_port={port}
 fortigate_api_admin={api_admin}
 fortigate_public_ip={host}
 fortigate_public_private_ip={host}
-fortigate_internal_ip={host}
 fortigate_admin_url={https_url(host, port)}
 fortigate_api_url={https_url(host, port, "/api/v2")}
 fortigate_vdom=root
+fortigate_internal_ip={internal_ip}
 
 [fortinet_appliances:children]
 fortigate
 """
 
 
-def render_fortiweb_local_inventory(host: str, port: str, admin_user: str) -> str:
+def render_fortiweb_local_inventory(host: str, port: str, admin_user: str, internal_ip: str = "") -> str:
     return f"""[fortiweb]
 local-fortiweb ansible_host={host}
 
@@ -530,7 +826,7 @@ fortiweb_admin_http_port=8080
 fortiweb_hostname=faig-fortiweb-local
 fortiweb_public_ip={host}
 fortiweb_public_private_ip={host}
-fortiweb_internal_ip={host}
+fortiweb_internal_ip={internal_ip}
 fortiweb_admin_url={https_url(host, port)}
 fortiweb_http_admin_url=http://{host}:8080
 fortiweb_api_url={https_url(host, port, "/api/v2.0")}
@@ -569,6 +865,7 @@ def render_local_vars(
     lab_name: str,
     ansible_user: str,
     lab_cidr: str,
+    local_access_cidrs: list[str],
     k3s_public_ip: str,
     k3s_private_ip: str,
     k3s_cluster_cidr: str,
@@ -585,8 +882,7 @@ deployment_target: local
 lab_name: {yaml_quote(lab_name)}
 ansible_user: {yaml_quote(ansible_user)}
 lab_routed_cidr: {yaml_quote(lab_cidr)}
-local_access_cidrs:
-  - {yaml_quote(lab_cidr)}
+local_access_cidrs:{yaml_string_list(local_access_cidrs)}
 lab_static_ip_mode: true
 lab_public_access_mode: local_lan
 
@@ -637,7 +933,7 @@ litellm_faig_backend_downstream_model: "{{{{ litellm_passthrough_model_alias }}}
 """
 
 
-def run_bootstrap_playbook(playbook: str, inventory: Path, bootstrap_vars: dict[str, str]) -> str:
+def run_bootstrap_playbook(playbook: str, inventory: Path, bootstrap_vars: dict[str, str | list[str]]) -> str:
     result_file = tempfile.NamedTemporaryFile(
         mode="w",
         prefix="faig-local-bootstrap-result-",
@@ -659,7 +955,10 @@ def run_bootstrap_playbook(playbook: str, inventory: Path, bootstrap_vars: dict[
     try:
         vars_file.write("---\n")
         for key, value in bootstrap_vars.items():
-            vars_file.write(f"{key}: {yaml_quote(value)}\n")
+            if isinstance(value, list):
+                vars_file.write(f"{key}:{yaml_string_list(value)}\n")
+            else:
+                vars_file.write(f"{key}: {yaml_quote(value)}\n")
         vars_file.write(f"local_bootstrap_result_file: {yaml_quote(str(result_path))}\n")
         vars_file.close()
         vars_path.chmod(0o600)
@@ -692,29 +991,67 @@ def run_bootstrap_playbook(playbook: str, inventory: Path, bootstrap_vars: dict[
         result_path.unlink(missing_ok=True)
 
 
-def prompt_fortigate_appliance() -> ApplianceBootstrapResult:
+def run_status_playbook(playbook: str, inventory: Path) -> bool:
+    argv = [
+        "ansible-playbook",
+        "-i",
+        str(inventory),
+        str(REPO_ROOT / "ansible/playbooks" / playbook),
+    ]
+    result = subprocess.run(
+        argv,
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode == 0
+
+
+def prompt_fortigate_appliance(
+    *,
+    inventory_defaults: dict[str, str],
+    generated_defaults: dict[str, str | list[str]],
+    secret_defaults: dict[str, str | list[str]],
+    current_access_cidrs: list[str],
+    lab_cidr: str,
+) -> ApplianceBootstrapResult:
     key = "fortigate"
     print_header("FortiGate Local Appliance")
-    if not prompt_yes_no("Configure an existing local FortiGate now?", False):
+    default_enabled = FORTIGATE_LOCAL_INVENTORY.exists() or generated_scalar(generated_defaults, "fortigate_local_enabled") == "true"
+    if not prompt_yes_no("Configure an existing local FortiGate now?", default_enabled):
         print("FortiGate: do not install/configure selected.")
         if FORTIGATE_LOCAL_INVENTORY.exists():
             print(f"Leaving existing ignored inventory in place: {FORTIGATE_LOCAL_INVENTORY.relative_to(REPO_ROOT)}")
-        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="")
+        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="", access_cidrs=[])
 
-    host = prompt_ip_or_host("FortiGate management/API IP or DNS", "")
-    port = prompt_text("FortiGate HTTPS/API port", "443")
-    bootstrap_user = prompt_text("FortiGate current admin user", "admin")
-    bootstrap_password = prompt_secret("FortiGate current admin password")
-    api_admin = prompt_text("FortiGate managed API admin user", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+    host_default = inventory_defaults.get("ansible_host") or generated_scalar(generated_defaults, "fortigate_public_ip")
+    port_default = inventory_defaults.get("ansible_httpapi_port") or generated_scalar(generated_defaults, "fortigate_admin_port", "443")
+    api_admin_default = inventory_defaults.get("fortigate_api_admin") or generated_scalar(generated_defaults, "fortigate_api_admin", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+    host = prompt_ip_or_host("FortiGate management/API IP or DNS", host_default)
+    port = prompt_text("FortiGate HTTPS/API port", port_default)
+    api_admin = prompt_text("FortiGate managed API admin user", api_admin_default)
+    existing_internal_ip = inventory_defaults.get("fortigate_internal_ip") or generated_scalar(generated_defaults, "fortigate_internal_ip")
+    if existing_internal_ip == host:
+        existing_internal_ip = ""
+    internal_ip_default = existing_internal_ip or suggested_local_backend_ip(lab_cidr, host, 120)
+    internal_ip = prompt_optional_ip("FortiGate port2/backend IP on local routed network, empty if unknown", internal_ip_default)
+    host_controller_cidr = discover_controller_cidr(host, port)
+    trusthost_cidrs = list(dict.fromkeys(current_access_cidrs + ([host_controller_cidr] if host_controller_cidr else [])))
 
-    write_text(FORTIGATE_LOCAL_INVENTORY, render_fortigate_local_inventory(host, port, api_admin))
+    write_text(FORTIGATE_LOCAL_INVENTORY, render_fortigate_local_inventory(host, port, api_admin, internal_ip))
     generated_vars = {
         "fortigate_local_enabled": "true",
         "fortigate_api_admin": api_admin,
         "fortigate_admin_port": port,
         "fortigate_public_ip": host,
         "fortigate_public_private_ip": host,
-        "fortigate_internal_ip": host,
+        "fortigate_internal_ip": internal_ip,
         "fortigate_admin_url": https_url(host, port),
         "fortigate_api_url": https_url(host, port, "/api/v2"),
         "fortigate_vdom": "root",
@@ -723,9 +1060,30 @@ def prompt_fortigate_appliance() -> ApplianceBootstrapResult:
         "fortigate_readonly_api_account_trusthost_cidrs": "{{ local_access_cidrs }}",
         "fortigate_readonly_api_account_include_vpc_cidr": "false",
     }
+    if internal_ip:
+        generated_vars["mcp_fortigate_base_url"] = https_url(internal_ip, port)
 
     secret_content = ""
-    if prompt_yes_no("Create/update FortiGate apiadmin and store managed API token now?", True):
+    existing_token = generated_scalar(secret_defaults, "fortigate_api_key")
+    existing_credential_ready = False
+    existing_credential_failed = False
+    if existing_token:
+        if prompt_yes_no("Existing FortiGate managed API token found. Use it and run status test now?", True):
+            existing_credential_ready = run_status_playbook("status_fortigate.yml", FORTIGATE_LOCAL_INVENTORY)
+            existing_credential_failed = not existing_credential_ready
+            if existing_credential_ready:
+                print("FortiGate existing managed API token validated.")
+            else:
+                print("FortiGate existing managed API token status test failed; bootstrap is recommended.")
+        else:
+            print("Skipped FortiGate existing managed API token test.")
+
+    manage_default = len(existing_token) == 0 or existing_credential_failed
+    if not existing_credential_ready and prompt_yes_no("Create/update FortiGate apiadmin and store managed API token now?", manage_default):
+        if host_controller_cidr and host_controller_cidr not in current_access_cidrs:
+            print(f"Including controller/API source CIDR in FortiGate trusthosts: {host_controller_cidr}")
+        bootstrap_user = prompt_text("FortiGate current admin user", "admin")
+        bootstrap_password = prompt_secret("FortiGate current admin password")
         secret_content = run_bootstrap_playbook(
             "bootstrap_fortigate_local_api.yml",
             FORTIGATE_LOCAL_INVENTORY,
@@ -733,32 +1091,51 @@ def prompt_fortigate_appliance() -> ApplianceBootstrapResult:
                 "fortigate_local_bootstrap_username": bootstrap_user,
                 "fortigate_local_bootstrap_password": bootstrap_password,
                 "fortigate_local_bootstrap_api_admin": api_admin,
+                "fortigate_local_bootstrap_trusthost_cidrs": trusthost_cidrs,
             },
         )
-    else:
+    elif not existing_credential_ready:
         print("Skipped FortiGate API admin bootstrap. Quickstart can run after local.secrets.yml contains fortigate_api_key.")
 
-    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content)
+    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content, access_cidrs=trusthost_cidrs)
 
 
-def prompt_fortiweb_appliance(lab_cidr: str) -> ApplianceBootstrapResult:
+def prompt_fortiweb_appliance(
+    *,
+    inventory_defaults: dict[str, str],
+    generated_defaults: dict[str, str | list[str]],
+    secret_defaults: dict[str, str | list[str]],
+    current_access_cidrs: list[str],
+    lab_cidr: str,
+) -> ApplianceBootstrapResult:
     key = "fortiweb"
     print_header("FortiWeb Local Appliance")
-    if not prompt_yes_no("Configure an existing local FortiWeb now?", False):
+    default_enabled = FORTIWEB_LOCAL_INVENTORY.exists() or generated_scalar(generated_defaults, "fortiweb_local_enabled") == "true"
+    if not prompt_yes_no("Configure an existing local FortiWeb now?", default_enabled):
         print("FortiWeb: do not install/configure selected.")
         if FORTIWEB_LOCAL_INVENTORY.exists():
             print(f"Leaving existing ignored inventory in place: {FORTIWEB_LOCAL_INVENTORY.relative_to(REPO_ROOT)}")
-        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="")
+        return ApplianceBootstrapResult(key=key, enabled=False, generated_vars={}, secret_content="", access_cidrs=[])
 
-    host = prompt_ip_or_host("FortiWeb management/API IP or DNS", "")
-    port = prompt_text("FortiWeb HTTPS/API port", "443")
-    bootstrap_user = prompt_text("FortiWeb current admin user", "admin")
-    bootstrap_password = prompt_secret("FortiWeb current admin password")
-    managed_user = prompt_text("FortiWeb managed admin user", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+    host_default = inventory_defaults.get("ansible_host") or generated_scalar(generated_defaults, "fortiweb_public_ip")
+    port_default = inventory_defaults.get("ansible_httpapi_port") or generated_scalar(generated_defaults, "fortiweb_admin_https_port", "443")
+    managed_user_default = inventory_defaults.get("fortiweb_username") or generated_scalar(generated_defaults, "fortiweb_username", DEFAULT_LOCAL_APPLIANCE_ADMIN)
+    host = prompt_ip_or_host("FortiWeb management/API IP or DNS", host_default)
+    port = prompt_text("FortiWeb HTTPS/API port", port_default)
+    managed_user = prompt_text("FortiWeb managed admin user", managed_user_default)
     access_profile = prompt_text("FortiWeb managed admin access profile", "prof_admin")
+    existing_internal_ip = inventory_defaults.get("fortiweb_internal_ip") or generated_scalar(generated_defaults, "fortiweb_internal_ip")
+    if existing_internal_ip == host:
+        existing_internal_ip = ""
+    internal_ip_default = existing_internal_ip or suggested_local_backend_ip(lab_cidr, host, 130)
+    internal_ip = prompt_optional_ip("FortiWeb port2/backend IP on local routed network, empty to skip port2 config", internal_ip_default)
     managed_password = generate_password()
+    host_controller_cidr = discover_controller_cidr(host, port)
+    trusthost_cidrs = list(dict.fromkeys(current_access_cidrs + ([host_controller_cidr] if host_controller_cidr else [])))
+    managed_trusthost_cidrs = list(dict.fromkeys(([host_controller_cidr] if host_controller_cidr else []) + trusthost_cidrs))
+    managed_trusthostv4 = " ".join(managed_trusthost_cidrs) if managed_trusthost_cidrs else "0.0.0.0/0"
 
-    write_text(FORTIWEB_LOCAL_INVENTORY, render_fortiweb_local_inventory(host, port, managed_user))
+    write_text(FORTIWEB_LOCAL_INVENTORY, render_fortiweb_local_inventory(host, port, managed_user, internal_ip))
     generated_vars = {
         "fortiweb_local_enabled": "true",
         "fortiweb_username": managed_user,
@@ -767,16 +1144,37 @@ def prompt_fortiweb_appliance(lab_cidr: str) -> ApplianceBootstrapResult:
         "fortiweb_hostname": "faig-fortiweb-local",
         "fortiweb_public_ip": host,
         "fortiweb_public_private_ip": host,
-        "fortiweb_internal_ip": host,
+        "fortiweb_internal_ip": internal_ip,
         "fortiweb_admin_url": https_url(host, port),
         "fortiweb_http_admin_url": f"http://{host}:8080",
         "fortiweb_api_url": https_url(host, port, "/api/v2.0"),
         "fortiweb_vdom": "root",
         "fortiweb_mcp_proxy_enabled": "true",
+        "fortiweb_static_route_vpc_gateway": "",
     }
 
     secret_content = ""
-    if prompt_yes_no("Create/update FortiWeb apiadmin and store managed password now?", True):
+    existing_password = generated_scalar(secret_defaults, "fortiweb_admin_password_override")
+    existing_credential_ready = False
+    existing_credential_failed = False
+    if existing_password:
+        if prompt_yes_no("Existing FortiWeb managed admin password found. Use it and run status test now?", True):
+            existing_credential_ready = run_status_playbook("status_fortiweb.yml", FORTIWEB_LOCAL_INVENTORY)
+            existing_credential_failed = not existing_credential_ready
+            if existing_credential_ready:
+                print("FortiWeb existing managed admin password validated.")
+            else:
+                print("FortiWeb existing managed admin password status test failed; bootstrap is recommended.")
+        else:
+            print("Skipped FortiWeb existing managed admin password test.")
+
+    manage_default = len(existing_password) == 0 or existing_credential_failed
+    if not existing_credential_ready and prompt_yes_no("Create/update FortiWeb apiadmin and store managed password now?", manage_default):
+        if host_controller_cidr and host_controller_cidr not in current_access_cidrs:
+            print(f"Including controller/API source CIDR in FortiWeb managed admin trusthostv4: {host_controller_cidr}")
+        print(f"FortiWeb managed admin trusthostv4: {managed_trusthostv4}")
+        bootstrap_user = prompt_text("FortiWeb current admin user", "admin")
+        bootstrap_password = prompt_secret("FortiWeb current admin password")
         secret_content = run_bootstrap_playbook(
             "bootstrap_fortiweb_local_admin.yml",
             FORTIWEB_LOCAL_INVENTORY,
@@ -786,13 +1184,13 @@ def prompt_fortiweb_appliance(lab_cidr: str) -> ApplianceBootstrapResult:
                 "fortiweb_local_managed_username": managed_user,
                 "fortiweb_local_managed_password": managed_password,
                 "fortiweb_local_managed_access_profile": access_profile,
-                "fortiweb_local_managed_trusthostv4": lab_cidr,
+                "fortiweb_local_managed_trusthostv4": managed_trusthostv4,
             },
         )
-    else:
+    elif not existing_credential_ready:
         print("Skipped FortiWeb managed admin bootstrap. Quickstart can run after local.secrets.yml contains fortiweb_admin_password_override.")
 
-    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content)
+    return ApplianceBootstrapResult(key=key, enabled=True, generated_vars=generated_vars, secret_content=secret_content, access_cidrs=trusthost_cidrs)
 
 
 def render_appliance_local_vars(results: list[ApplianceBootstrapResult]) -> str:
@@ -810,9 +1208,6 @@ def render_appliance_local_vars(results: list[ApplianceBootstrapResult]) -> str:
 
 
 def persist_appliance_result(result: ApplianceBootstrapResult) -> None:
-    appliance_vars = render_appliance_local_vars([result])
-    if appliance_vars:
-        append_local_vars(appliance_vars)
     if result.secret_content.strip():
         replace_managed_secret_block(result.secret_content)
 
@@ -832,16 +1227,26 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    local_defaults = load_generated_yaml(LOCAL_VARS)
+    registry_defaults = load_generated_yaml(REGISTRY_VARS)
+    secret_defaults = load_generated_yaml(LOCAL_SECRETS)
+    local_alias, local_inventory_defaults = load_inventory_defaults(LOCAL_INVENTORY, "fortiaigate")
+    _fortigate_alias, fortigate_inventory_defaults = load_inventory_defaults(FORTIGATE_LOCAL_INVENTORY, "fortigate")
+    _fortiweb_alias, fortiweb_inventory_defaults = load_inventory_defaults(FORTIWEB_LOCAL_INVENTORY, "fortiweb")
 
     print("FortiAIGate local setup")
     print(f"Repo root: {REPO_ROOT}")
     print("This writes ignored local inventory and group_vars files. Cloud quickstart remains the default.")
 
     print_header("Ubuntu k3s Host")
-    host = args.host if args.non_interactive else prompt_ip_or_host("Ubuntu host IP or DNS", args.host)
-    alias = args.alias if args.non_interactive else prompt_text("Ansible host alias", args.alias)
-    user = args.user if args.non_interactive else prompt_text("SSH user", args.user)
-    key_path = args.ssh_key if args.non_interactive else choose_local_ssh_private_key(args.ssh_key, alias)
+    host_default = local_inventory_defaults.get("ansible_host") or generated_scalar(local_defaults, "k3s_public_ip") or args.host
+    alias_default = local_alias or generated_scalar(local_defaults, "lab_name") or args.alias
+    user_default = local_inventory_defaults.get("ansible_user") or generated_scalar(local_defaults, "ansible_user") or args.user
+    key_default = local_inventory_defaults.get("ansible_ssh_private_key_file") or args.ssh_key
+    host = host_default if args.non_interactive else prompt_ip_or_host("Ubuntu host IP or DNS", host_default)
+    alias = alias_default if args.non_interactive else prompt_text("Ansible host alias", alias_default)
+    user = user_default if args.non_interactive else prompt_text("SSH user", user_default)
+    key_path = key_default if args.non_interactive else choose_local_ssh_private_key(key_default, alias)
     password = "" if args.non_interactive else prompt_secret("SSH password, leave empty for key/agent auth")
     target = SshTarget(alias=alias, host=host, user=user, key_path=key_path, password=password)
 
@@ -856,10 +1261,12 @@ def main() -> None:
     else:
         print("Skipping live system and GPU discovery for this run.")
 
+    if not args.lab_cidr:
+        args.lab_cidr = generated_scalar(local_defaults, "lab_routed_cidr")
     lab_cidr = choose_lab_cidr(args, facts)
-    k3s_cluster_cidr = DEFAULT_K3S_CLUSTER_CIDR
-    k3s_service_cidr = DEFAULT_K3S_SERVICE_CIDR
-    k3s_cluster_dns = DEFAULT_K3S_CLUSTER_DNS
+    k3s_cluster_cidr = generated_scalar(local_defaults, "k3s_cluster_cidr", DEFAULT_K3S_CLUSTER_CIDR)
+    k3s_service_cidr = generated_scalar(local_defaults, "k3s_service_cidr", DEFAULT_K3S_SERVICE_CIDR)
+    k3s_cluster_dns = generated_scalar(local_defaults, "k3s_cluster_dns", DEFAULT_K3S_CLUSTER_DNS)
     validate_no_overlap(
         {
             "lab_routed_cidr": lab_cidr,
@@ -867,18 +1274,32 @@ def main() -> None:
             "k3s_service_cidr": k3s_service_cidr,
         }
     )
+    existing_access_cidrs = generated_list(local_defaults, "local_access_cidrs")
+    existing_appliance_hosts: list[tuple[str, str]] = []
+    if fortigate_inventory_defaults.get("ansible_host"):
+        existing_appliance_hosts.append((fortigate_inventory_defaults["ansible_host"], fortigate_inventory_defaults.get("ansible_httpapi_port", "443")))
+    if fortiweb_inventory_defaults.get("ansible_host"):
+        existing_appliance_hosts.append((fortiweb_inventory_defaults["ansible_host"], fortiweb_inventory_defaults.get("ansible_httpapi_port", "443")))
+    local_access_cidrs = choose_local_access_cidrs(
+        lab_cidr=lab_cidr,
+        existing_cidrs=existing_access_cidrs,
+        appliance_hosts=existing_appliance_hosts,
+        non_interactive=args.non_interactive,
+    )
 
     selected_faig: list[str] = []
     selected_ollama: list[str] = []
     if gpus and not args.non_interactive:
         compatible = [gpu for gpu in gpus if gpu.compatible]
-        default_faig = compatible[0].index if compatible else "cpu-only"
+        default_faig_fallback = compatible[0].index if compatible else "cpu-only"
+        default_faig = gpu_selection_default(gpus, generated_list(local_defaults, "local_faig_gpu_uuids"), default_faig_fallback)
         selected_faig = select_gpus("GPU(s) dedicated to FortiAIGate", gpus, set(), default_faig)
         unavailable = set(selected_faig)
         remaining_gpus = [gpu for gpu in gpus if gpu.uuid not in unavailable]
         remaining_compatible = [gpu for gpu in gpus if gpu.compatible and gpu.uuid not in unavailable]
         default_ollama_candidates = remaining_compatible or remaining_gpus
-        default_ollama = ",".join(gpu.index for gpu in default_ollama_candidates) if default_ollama_candidates else "cpu-only"
+        default_ollama_fallback = ",".join(gpu.index for gpu in default_ollama_candidates) if default_ollama_candidates else "cpu-only"
+        default_ollama = gpu_selection_default(gpus, generated_list(local_defaults, "local_ollama_gpu_uuids"), default_ollama_fallback)
         selected_ollama = select_gpus("GPU(s) dedicated to Ollama", gpus, unavailable, default_ollama)
     selected_gpu_uuids = list(dict.fromkeys(selected_faig + selected_ollama))
     nvidia_driver_suffix = recommended_nvidia_suffix(selected_gpu_uuids, gpus)
@@ -886,27 +1307,34 @@ def main() -> None:
     print(f"Generated local vars will request nvidia-driver-{nvidia_driver_suffix}.")
 
     print_header("Local Registry")
-    local_registry = args.registry if args.non_interactive else prompt_text("Docker registry host:port", args.registry)
-    repo_prefix = args.repo_prefix if args.non_interactive else prompt_text("Repository prefix", args.repo_prefix)
+    registry_default = generated_scalar(registry_defaults, "local_registry", args.registry)
+    repo_prefix_default = generated_scalar(registry_defaults, "repo_prefix", args.repo_prefix)
+    local_registry = registry_default if args.non_interactive else prompt_text("Docker registry host:port", registry_default)
+    repo_prefix = repo_prefix_default if args.non_interactive else prompt_text("Repository prefix", repo_prefix_default)
 
-    write_text(LOCAL_INVENTORY, render_local_inventory(target))
     resolved_public_ip = resolve_host_ip(host) or host
     private_ip = facts.get("default_route_ip") or facts.get("ssh_server_ip") or resolved_public_ip
+    local_vars_kwargs = {
+        "lab_name": alias,
+        "ansible_user": user,
+        "lab_cidr": lab_cidr,
+        "k3s_public_ip": resolved_public_ip,
+        "k3s_private_ip": private_ip,
+        "k3s_cluster_cidr": k3s_cluster_cidr,
+        "k3s_service_cidr": k3s_service_cidr,
+        "k3s_cluster_dns": k3s_cluster_dns,
+        "faig_gpus": selected_faig,
+        "ollama_gpus": selected_ollama,
+        "nvidia_driver_suffix": nvidia_driver_suffix,
+        "gpu_inventory_captured": bool(gpus),
+    }
+
+    write_text(LOCAL_INVENTORY, render_local_inventory(target))
     write_text(
         LOCAL_VARS,
         render_local_vars(
-            lab_name=alias,
-            ansible_user=user,
-            lab_cidr=lab_cidr,
-            k3s_public_ip=resolved_public_ip,
-            k3s_private_ip=private_ip,
-            k3s_cluster_cidr=k3s_cluster_cidr,
-            k3s_service_cidr=k3s_service_cidr,
-            k3s_cluster_dns=k3s_cluster_dns,
-            faig_gpus=selected_faig,
-            ollama_gpus=selected_ollama,
-            nvidia_driver_suffix=nvidia_driver_suffix,
-            gpu_inventory_captured=bool(gpus),
+            **local_vars_kwargs,
+            local_access_cidrs=local_access_cidrs,
         ),
     )
     write_text(REGISTRY_VARS, render_registry_vars(local_registry, repo_prefix))
@@ -917,8 +1345,36 @@ def main() -> None:
     if args.non_interactive:
         print("Non-interactive mode: skipped optional FortiGate/FortiWeb prompts.")
     else:
-        persist_appliance_result(prompt_fortigate_appliance())
-        persist_appliance_result(prompt_fortiweb_appliance(lab_cidr))
+        appliance_results: list[ApplianceBootstrapResult] = []
+        fortigate_result = prompt_fortigate_appliance(
+            inventory_defaults=fortigate_inventory_defaults,
+            generated_defaults=local_defaults,
+            secret_defaults=secret_defaults,
+            current_access_cidrs=local_access_cidrs,
+            lab_cidr=lab_cidr,
+        )
+        appliance_results.append(fortigate_result)
+        persist_appliance_result(fortigate_result)
+        local_access_cidrs = list(dict.fromkeys(local_access_cidrs + fortigate_result.access_cidrs))
+        fortiweb_result = prompt_fortiweb_appliance(
+            inventory_defaults=fortiweb_inventory_defaults,
+            generated_defaults=local_defaults,
+            secret_defaults=secret_defaults,
+            current_access_cidrs=local_access_cidrs,
+            lab_cidr=lab_cidr,
+        )
+        appliance_results.append(fortiweb_result)
+        persist_appliance_result(fortiweb_result)
+        local_access_cidrs = list(dict.fromkeys(local_access_cidrs + fortiweb_result.access_cidrs))
+        write_text(
+            LOCAL_VARS,
+            render_local_vars(
+                **local_vars_kwargs,
+                local_access_cidrs=local_access_cidrs,
+            )
+            + "\n"
+            + render_appliance_local_vars(appliance_results),
+        )
 
     print_header("Next Step")
     print("Run local deployment with:")
