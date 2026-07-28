@@ -9,6 +9,8 @@ For the recorded-demo scenario matrix, OWASP mapping, and isolated FAIG guard
 settings, use [scenario-catalog.md](scenario-catalog.md).
 For scenario editing, local tuning, tool profiles, and install/deploy
 boundaries, use [scenario-authoring.md](scenario-authoring.md).
+For raw curl replay payloads that simulate MCP tool transcripts through
+LiteLLM or FortiAIGate, use [curl-payloads.md](curl-payloads.md).
 
 All scenarios use the same shared MCP server. The `required_tools` metadata in
 each profile documents which tools the scenario should use. The custom chatbot

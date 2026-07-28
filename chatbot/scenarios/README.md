@@ -24,4 +24,5 @@ scenario has been installed.
 Operator-facing prompts, recommended chatbot settings, and expected demo
 behavior are documented in `docs/scenarios.md`. Editing workflow, tool-profile
 selection, and deploy boundaries are documented in
-`docs/scenario-authoring.md`.
+`docs/scenario-authoring.md`. Raw curl replay payloads are documented in
+`docs/curl-payloads.md`.

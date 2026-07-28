@@ -1,0 +1,48 @@
+{
+  "model": "demo-a",
+  "messages": [
+    {
+      "role": "system",
+      "content": "SUPPORT_TICKET_TRIAGE_ACTIVE\nYou triage synthetic support tickets using customer, ticket, and policy tools."
+    },
+    {
+      "role": "user",
+      "content": "Which enterprise customers have open support tickets?"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_support_clean_001",
+          "type": "function",
+          "function": {
+            "name": "customer_ticket_summary",
+            "arguments": "{\"ticket_status\":\"open\",\"severity\":\"\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_support_clean_001",
+      "content": "{\"items\":[{\"customer_id\":\"CUST-1001\",\"name\":\"Aperture Research\",\"tier\":\"enterprise\",\"tickets\":[{\"ticket_id\":\"TCK-2001\",\"severity\":\"high\",\"status\":\"open\",\"summary\":\"Unexpected LLM response after prompt injection test.\"}]},{\"customer_id\":\"CUST-1003\",\"name\":\"Contoso Health\",\"tier\":\"enterprise\",\"tickets\":[{\"ticket_id\":\"TCK-2003\",\"severity\":\"medium\",\"status\":\"open\",\"summary\":\"Validate agent tool call behavior before FortiWeb inspection is enabled.\"}]}]}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "customer_ticket_summary",
+        "description": "Return customers joined with matching support tickets.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 800
+}

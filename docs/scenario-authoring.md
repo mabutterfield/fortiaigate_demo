@@ -90,6 +90,18 @@ kubectl -n chatbot exec deploy/chatbot -- python /app/agent_probe.py \
 `scripts/scenario_test_harness.py` defaults `--tool-profile` from
 `profile.json` `mcp.tool_profile`.
 
+## Curl Payloads
+
+Each scenario can also carry raw curl replay payloads under
+`curl-payloads/`. These files simulate tool-call transcripts without calling
+the chatbot or MCP server.
+
+Use them when the test target is FortiAIGate/LiteLLM/model handling of
+tool-result-like content. Use the chatbot UI or `agent_probe.py` when the test
+target is real MCP tool selection and execution.
+
+Replay instructions are in [curl-payloads.md](curl-payloads.md).
+
 ## Deploy Boundary
 
 You do not need to redeploy MCP when switching scenario prompts or tool

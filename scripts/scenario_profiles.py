@@ -116,6 +116,12 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
         for item in trace:
             print(f"- {item}")
 
+    payloads = sorted((profile_path.parent / "curl-payloads").glob("*.json"))
+    if payloads:
+        print("curl payloads:")
+        for payload in payloads:
+            print(f"- {payload.relative_to(REPO_ROOT)}")
+
 
 def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: bool) -> Path:
     profile_path, profile = load_scenario(scenario_id)
@@ -188,6 +194,16 @@ def validate_scenarios() -> None:
             missing_tools = sorted(set(required_tools) - available_tools)
             if missing_tools:
                 raise ValueError(f"required MCP tools are not in shared MCP server: {', '.join(missing_tools)}")
+            payload_dir = profile_path.parent / "curl-payloads"
+            for payload_path in sorted(payload_dir.glob("*.json")):
+                payload = read_json(payload_path)
+                if not payload.get("model"):
+                    raise ValueError(f"{payload_path.relative_to(REPO_ROOT)} missing model")
+                messages = payload.get("messages", [])
+                if not isinstance(messages, list) or not messages:
+                    raise ValueError(f"{payload_path.relative_to(REPO_ROOT)} missing messages list")
+                if not any(message.get("role") == "tool" for message in messages if isinstance(message, dict)):
+                    raise ValueError(f"{payload_path.relative_to(REPO_ROOT)} missing tool result message")
             if not profile.get("clean_prompts"):
                 raise ValueError("clean prompts are missing")
             print(f"- {scenario_id}: ok")

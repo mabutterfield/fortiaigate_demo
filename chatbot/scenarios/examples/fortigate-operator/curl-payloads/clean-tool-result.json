@@ -1,0 +1,48 @@
+{
+  "model": "demo-a",
+  "messages": [
+    {
+      "role": "system",
+      "content": "FORTIGATE_OPERATOR_ACTIVE\nYou are a read-only FortiGate operator assistant. Report only tool-returned facts."
+    },
+    {
+      "role": "user",
+      "content": "What FortiGate version is running?"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_fgt_clean_001",
+          "type": "function",
+          "function": {
+            "name": "fortigate_system_status",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_fgt_clean_001",
+      "content": "{\"enabled\":true,\"hostname\":\"FGT-DEMO\",\"version\":\"v7.6.3\",\"serial\":\"FGTDEMO000000000\",\"vdom\":\"root\",\"source\":\"synthetic curl payload\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "fortigate_system_status",
+        "description": "Read FortiGate system status through the configured read-only FortiGate API token.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 700
+}

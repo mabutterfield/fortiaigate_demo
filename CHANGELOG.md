@@ -14,6 +14,9 @@ a "what's new" guide rather than a raw commit log.
     MCP tools without mixing them into HR, resume, menu, or FortiGate demos
   - documented when LiteLLM, chatbot, and MCP redeploys are required for
     scenario edits
+- Added curl replay payloads for each tracked scenario so FortiAIGate and
+  LiteLLM can be tested with spoofed MCP-like tool transcripts without running
+  the chatbot agent or MCP server.
 - Updated the HR MCP/DLP demo:
   - promoted the working HR Bot with MCP `demo-a` instructions into the
     tracked instruction examples
