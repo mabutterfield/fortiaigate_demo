@@ -184,6 +184,8 @@ fortiaigate_licenses: {}
 # chatbot_mcp_enabled: true
 # chatbot_mcp_default_path: fortiweb
 # chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url }}"
+# chatbot_mcp_tool_profile: resume-prompt-injection
+# chatbot_mcp_tool_profiles: []
 # fortiweb_virtual_server_vips_static:
 #   - table_name: FAIG_CUSTOM_MCP_VSERVER
 #     name: "1"
@@ -213,10 +215,10 @@ litellm_ui_password: litellm-demo-change-me
 # direct_model_bedrock_model: openai.gpt-oss-20b-1:0
 # direct_model_bedrock_region: ""
 
-# Ollama is exposed as a selectable LiteLLM alias by default, but it still
-# requires a reachable Ollama server from the k3s cluster before requests work.
+# Ollama is disabled in the AWS default path. Local deployments can enable an
+# in-cluster Ollama backend and use gpt-oss:20b by default.
 # ollama_base_url: http://<ollama-host>:11434/v1
-# ollama_model: llama3.2:1b
+# ollama_model: gpt-oss:20b
 
 # Optional secondary UI.
 openwebui_enabled: false

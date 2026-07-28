@@ -81,5 +81,12 @@ Notes:
   selected LLM path. `MCP=Direct` calls the in-cluster MCP service.
   `MCP=FortiWeb` calls the FortiWeb port1 listener, then FortiWeb reverse
   proxies to the MCP NodePort through port2.
+- In AWS, FortiGate/FortiWeb port1 private addresses are inside the VPC and the
+  public EIPs are 1:1 NATs. In local mode, port1 may be an operator/public LAN
+  and port2 may be the only appliance interface on the k3s/backend LAN. For
+  that topology, pod-originated MCP FortiGate API calls should target
+  `mcp_fortigate_base_url` on FortiGate port2. FortiWeb-fronted MCP from inside
+  k3s needs either routing to FortiWeb port1 or a FortiWeb listener VIP on
+  port2.
 - FAIG is reached via the in-cluster nginx ingress service; LiteLLM appends
   `/chat/completions` to configured base paths.

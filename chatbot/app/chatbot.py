@@ -25,6 +25,142 @@ EMPTY_RESPONSE_FALLBACK = (
     "The model returned an empty response and did not request an MCP tool. "
     "Retry the prompt or switch to a stronger model/profile for this scenario."
 )
+DEFAULT_MCP_TOOL_PROFILES = [
+    {
+        "name": "all-tools",
+        "label": "All tools",
+        "tools": [],
+    },
+    {
+        "name": "fastfood-ordering",
+        "label": "Fast Food Ordering",
+        "tools": [
+            "menu_search",
+            "nutrition_lookup",
+            "allergen_check",
+            "suggest_combo",
+            "build_order_summary",
+        ],
+    },
+    {
+        "name": "menu-poisoning",
+        "label": "Menu Poisoning",
+        "tools": [
+            "document_search",
+            "document_read",
+            "document_injection_check",
+            "menu_search",
+            "allergen_check",
+        ],
+    },
+    {
+        "name": "hr-policy-risk",
+        "label": "HR Policy Risk",
+        "tools": [
+            "employee_lookup",
+            "employee_search",
+            "hr_policy_lookup",
+            "policy_search",
+            "redaction_check",
+        ],
+    },
+    {
+        "name": "hr-tool-dlp-vulnerable",
+        "label": "HR Tool DLP",
+        "tools": [
+            "employee_sensitive_lookup_demo",
+        ],
+    },
+    {
+        "name": "hr-policy-rag-risk",
+        "label": "HR Policy RAG Risk",
+        "tools": [
+            "document_search",
+            "document_read",
+            "document_injection_check",
+            "redaction_check",
+        ],
+    },
+    {
+        "name": "resume-screening-clean",
+        "label": "Resume Clean Retrieval",
+        "tools": [
+            "document_list",
+            "document_search",
+            "document_read",
+            "resume_search",
+            "resume_summary",
+        ],
+    },
+    {
+        "name": "resume-prompt-injection",
+        "label": "Resume Prompt Injection",
+        "tools": [
+            "document_upload_simulation",
+            "resume_search",
+            "document_read",
+            "document_injection_check",
+            "resume_summary",
+        ],
+    },
+    {
+        "name": "resume-cloud-tool-pivot-safe",
+        "label": "Resume Pivot Safe",
+        "tools": [
+            "document_upload_simulation",
+            "document_read",
+            "document_injection_check",
+            "resume_summary",
+        ],
+    },
+    {
+        "name": "resume-cloud-tool-pivot-vulnerable",
+        "label": "Resume Pivot Vulnerable",
+        "tools": [
+            "document_upload_simulation",
+            "document_read",
+            "resume_summary",
+            "cloud_bucket_list_demo",
+        ],
+    },
+    {
+        "name": "resume-cloud-tool-pivot",
+        "label": "Resume Pivot Explicit",
+        "tools": [
+            "document_upload_simulation",
+            "document_read",
+            "document_injection_check",
+            "resume_summary",
+            "cloud_bucket_list_demo",
+        ],
+    },
+    {
+        "name": "support-ticket-triage",
+        "label": "Support Ticket Triage",
+        "tools": [
+            "customer_lookup",
+            "customer_search",
+            "ticket_lookup",
+            "ticket_search",
+            "policy_lookup",
+            "policy_search",
+            "customer_ticket_summary",
+            "redaction_check",
+        ],
+    },
+    {
+        "name": "fortigate-operator",
+        "label": "FortiGate Operator",
+        "tools": [
+            "fortigate_system_status",
+            "fortigate_interface_status",
+            "fortigate_route_list",
+            "fortigate_policy_list",
+            "fortigate_address_list",
+            "fortigate_service_list",
+        ],
+    },
+]
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -73,6 +209,89 @@ def env_json_list(name: str) -> list[dict[str, Any]]:
             raise RuntimeError(f"{name} entries require a non-empty name")
         routes.append(item)
     return routes
+
+
+def env_json_tool_profiles(name: str) -> list[dict[str, Any]]:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{name} is not valid JSON: {exc}") from exc
+    if isinstance(parsed, dict):
+        parsed = [
+            {"name": key, **value}
+            for key, value in parsed.items()
+            if isinstance(value, dict)
+        ]
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"{name} must be a JSON list or object")
+
+    profiles = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise RuntimeError(f"{name} entries must be JSON objects")
+        profile_name = str(item.get("name", "")).strip()
+        if not profile_name:
+            raise RuntimeError(f"{name} entries require a non-empty name")
+        tools = item.get("tools", [])
+        if not isinstance(tools, list) or any(not isinstance(tool, str) for tool in tools):
+            raise RuntimeError(f"{name} entry {profile_name} requires a tools string list")
+        profiles.append(
+            {
+                "name": profile_name,
+                "label": str(item.get("label") or profile_name).strip(),
+                "tools": tools,
+            }
+        )
+    return profiles
+
+
+def build_mcp_tool_profiles(extra_profiles: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    profiles = [dict(profile) for profile in DEFAULT_MCP_TOOL_PROFILES]
+    profile_index = {profile["name"]: index for index, profile in enumerate(profiles)}
+    for profile in extra_profiles or []:
+        profile_name = profile["name"]
+        if profile_name in profile_index:
+            profiles[profile_index[profile_name]] = profile
+        else:
+            profile_index[profile_name] = len(profiles)
+            profiles.append(profile)
+    return profiles
+
+
+def mcp_tool_profile_by_name(profiles: list[dict[str, Any]], profile_name: str) -> dict[str, Any]:
+    for profile in profiles:
+        if profile.get("name") == profile_name:
+            return profile
+    available = ", ".join(profile.get("name", "") for profile in profiles)
+    raise RuntimeError(f"Unknown MCP tool profile '{profile_name}'. Available: {available}")
+
+
+def tool_function_name(tool: dict[str, Any]) -> str:
+    return str(tool.get("function", {}).get("name", "unknown"))
+
+
+def filter_mcp_tools(
+    tools: list[dict[str, Any]],
+    tool_profile_name: str,
+    tool_profiles: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    profile = mcp_tool_profile_by_name(tool_profiles, tool_profile_name)
+    allowed_tools = profile.get("tools", [])
+    if not allowed_tools:
+        return tools, []
+
+    allowed = set(allowed_tools)
+    filtered = [
+        tool
+        for tool in tools
+        if isinstance(tool, dict) and tool_function_name(tool) in allowed
+    ]
+    available = {tool_function_name(tool) for tool in tools if isinstance(tool, dict)}
+    missing = sorted(allowed - available)
+    return filtered, missing
 
 
 def normalize_context_mode(value: str) -> str:
@@ -163,6 +382,8 @@ def render_mcp_trace(trace: dict[str, Any]) -> None:
         return
 
     st.write(f"Path: {trace.get('path', 'unknown')}")
+    if trace.get("tool_profile"):
+        st.write(f"Tool profile: {trace.get('tool_profile')}")
     endpoint = trace.get("endpoint", "")
     if endpoint:
         st.write(f"Endpoint: `{endpoint}`")
@@ -171,6 +392,11 @@ def render_mcp_trace(trace: dict[str, Any]) -> None:
     if tool_names:
         with st.expander("Available tools", expanded=False):
             for tool_name in tool_names:
+                st.write(f"`{tool_name}`")
+    missing_tool_names = trace.get("missing_tool_names") or []
+    if missing_tool_names:
+        with st.expander("Profile tools missing from MCP", expanded=False):
+            for tool_name in missing_tool_names:
                 st.write(f"`{tool_name}`")
 
     if trace.get("error"):
@@ -481,10 +707,25 @@ def agent_response(
     mcp_verify_tls: bool,
     max_tool_rounds: int,
     extra_headers: dict[str, str] | None = None,
+    mcp_tool_profile: str = "all-tools",
+    mcp_tool_profiles: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
-    tools = fetch_mcp_tools(mcp_base_url, mcp_timeout_seconds, mcp_verify_tls)
+    all_tools = fetch_mcp_tools(mcp_base_url, mcp_timeout_seconds, mcp_verify_tls)
+    tools, missing_tools = filter_mcp_tools(
+        all_tools,
+        mcp_tool_profile,
+        mcp_tool_profiles or DEFAULT_MCP_TOOL_PROFILES,
+    )
+    if missing_tools:
+        logger.warning(
+            "MCP tool profile %s references missing tools: %s",
+            mcp_tool_profile,
+            ", ".join(missing_tools),
+        )
+    if not tools:
+        raise RuntimeError(f"MCP tool profile '{mcp_tool_profile}' did not expose any tools")
     tool_names = [
-        tool.get("function", {}).get("name", "unknown")
+        tool_function_name(tool)
         for tool in tools
         if isinstance(tool, dict)
     ]
@@ -600,6 +841,12 @@ def main() -> None:
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)
     mcp_trace_height = max(240, env_int("CHATBOT_MCP_TRACE_HEIGHT", 720))
+    mcp_tool_profiles = build_mcp_tool_profiles(env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"))
+    mcp_tool_profile_names = [profile["name"] for profile in mcp_tool_profiles]
+    mcp_default_tool_profile = os.getenv("CHATBOT_MCP_TOOL_PROFILE", "all-tools").strip() or "all-tools"
+    if mcp_default_tool_profile not in mcp_tool_profile_names:
+        logger.warning("Invalid CHATBOT_MCP_TOOL_PROFILE=%s; using all-tools", mcp_default_tool_profile)
+        mcp_default_tool_profile = "all-tools"
     context_default_mode = normalize_context_mode(os.getenv("CHATBOT_CONTEXT_MODE", "recent"))
     context_window_default = max(1, env_int("CHATBOT_CONTEXT_WINDOW", 8))
     context_summary_max_chars = max(250, env_int("CHATBOT_CONTEXT_SUMMARY_MAX_CHARS", 1500))
@@ -730,6 +977,18 @@ def main() -> None:
             mcp_path_index = 1
         mcp_path = st.radio("MCP path", mcp_path_options, index=mcp_path_index, disabled=not mcp_enabled)
         mcp_base_url = mcp_direct_base_url if mcp_path == "Direct MCP" else mcp_fortiweb_base_url
+        mcp_tool_profile_index = (
+            mcp_tool_profile_names.index(mcp_default_tool_profile)
+            if mcp_default_tool_profile in mcp_tool_profile_names
+            else 0
+        )
+        mcp_tool_profile = st.selectbox(
+            "Tool profile",
+            mcp_tool_profile_names,
+            index=mcp_tool_profile_index,
+            disabled=not mcp_enabled,
+            format_func=lambda profile_name: mcp_tool_profile_by_name(mcp_tool_profiles, profile_name)["label"],
+        )
         mcp_max_tool_rounds = st.number_input(
             "Max tool rounds",
             min_value=1,
@@ -801,16 +1060,26 @@ def main() -> None:
                         mcp_verify_tls,
                         mcp_max_tool_rounds,
                         route_headers,
+                        mcp_tool_profile,
+                        mcp_tool_profiles,
                     )
                     tool_names = [
-                        tool.get("function", {}).get("name", "unknown")
+                        tool_function_name(tool)
                         for tool in tools
                         if isinstance(tool, dict)
                     ]
+                    profile_config = mcp_tool_profile_by_name(mcp_tool_profiles, mcp_tool_profile)
+                    missing_tool_names = (
+                        sorted(set(profile_config.get("tools", [])) - set(tool_names))
+                        if profile_config.get("tools")
+                        else []
+                    )
                     st.session_state.mcp_tool_trace = {
                         "path": mcp_path,
                         "endpoint": mcp_base_url,
+                        "tool_profile": profile_config["label"],
                         "tool_names": tool_names,
+                        "missing_tool_names": missing_tool_names,
                         "tool_events": tool_events,
                     }
                     st.markdown(reply, unsafe_allow_html=True)
@@ -847,6 +1116,7 @@ def main() -> None:
                     st.session_state.mcp_tool_trace = {
                         "path": mcp_path,
                         "endpoint": mcp_base_url,
+                        "tool_profile": mcp_tool_profile_by_name(mcp_tool_profiles, mcp_tool_profile)["label"],
                         "error": reply,
                     }
                 st.error(reply)

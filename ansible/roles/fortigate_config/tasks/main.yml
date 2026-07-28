@@ -13,15 +13,26 @@
   changed_when: false
   no_log: "{{ fortigate_config_no_log | bool }}"
   register: fortigate_config_api_key_raw
+  when: fortigate_api_key | default('', true) | length == 0
   tags: [fortigate_config, fortigate_auth]
   # - ansible.builtin.debug:
   #     msg: "FortiGate API key read from Terraform output: {{ fortigate_config_api_key_raw.stdout | length > 0 }}"
 
 - name: Set FortiGate API key fact
   ansible.builtin.set_fact:
-    fortigate_access_token: "{{ fortigate_config_api_key_raw.stdout | trim }}"
+    fortigate_access_token: >-
+      {{
+        fortigate_api_key | default('', true) | trim
+        if fortigate_api_key | default('', true) | length > 0
+        else fortigate_config_api_key_raw.stdout | trim
+      }}
     ansible_httpapi_session_key:
-      access_token: "{{ fortigate_config_api_key_raw.stdout | trim }}"
+      access_token: >-
+        {{
+          fortigate_api_key | default('', true) | trim
+          if fortigate_api_key | default('', true) | length > 0
+          else fortigate_config_api_key_raw.stdout | trim
+        }}
   no_log: "{{ fortigate_config_no_log | bool }}"
   tags: [fortigate_config, fortigate_auth]
   # - ansible.builtin.debug:

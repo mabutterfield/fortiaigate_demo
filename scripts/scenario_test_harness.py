@@ -193,6 +193,7 @@ def run_agent_probe(
     inventory_host: dict[str, str],
     prompt: str,
     path_name: str,
+    tool_profile: str,
 ) -> dict[str, Any]:
     path_config = PATH_CONFIGS[path_name]
     remote_parts = [
@@ -215,6 +216,8 @@ def run_agent_probe(
         args.model_profile,
         "--mcp-path",
         args.mcp_path,
+        "--tool-profile",
+        tool_profile,
         "--max-tool-rounds",
         str(args.max_tool_rounds),
         "--temperature",
@@ -324,6 +327,7 @@ def parse_models(values: list[str] | None) -> list[str]:
 def run_tests(args: argparse.Namespace) -> None:
     profile_path, profile = scenario_entry(args.scenario)
     prompts = select_prompts(profile, args)
+    tool_profile = args.tool_profile or str(profile.get("mcp", {}).get("tool_profile") or args.scenario)
     models = parse_models(args.models)
     if models and not args.deploy_models:
         raise SystemExit("--models requires --deploy-models so output labels match the live backend model")
@@ -366,7 +370,7 @@ def run_tests(args: argparse.Namespace) -> None:
                 if path_name not in PATH_CONFIGS:
                     raise SystemExit(f"Unknown path '{path_name}'. Valid paths: {', '.join(PATH_CONFIGS)}")
                 for run_index in range(1, args.runs + 1):
-                    result = run_agent_probe(args, inventory_host, prompt, path_name)
+                    result = run_agent_probe(args, inventory_host, prompt, path_name, tool_profile)
                     captured_at = now_iso()
                     output_dir = scenario_output_root / label / prompt_slug / path_name / f"run-{run_index:02d}"
                     request = {
@@ -380,6 +384,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         "bedrock_model_id": model_id,
                         "model_profile": args.model_profile,
                         "mcp_path": args.mcp_path,
+                        "tool_profile": tool_profile,
                         "prompt": prompt,
                     }
                     response = {
@@ -425,6 +430,7 @@ def run_tests(args: argparse.Namespace) -> None:
                 "run_label": args.run_label,
                 "prompts": prompts,
                 "paths": args.paths,
+                "tool_profile": tool_profile,
                 "runs": args.runs,
                 "results": all_summaries,
             },
@@ -455,6 +461,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--slot", default="demo-a", help="Local instruction slot used with --install-profile.")
     parser.add_argument("--model-profile", default="demo-a", help="OpenAI-compatible model/profile sent in the request body.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="direct")
+    parser.add_argument("--tool-profile", default="", help="MCP tool profile. Defaults to the scenario profile mcp.tool_profile.")
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)

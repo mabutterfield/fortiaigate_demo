@@ -1,0 +1,105 @@
+---
+- name: Validate FortiWeb local bootstrap inputs
+  ansible.builtin.assert:
+    that:
+      - fortiweb_local_bootstrap_username | length > 0
+      - fortiweb_local_bootstrap_password | length > 0
+      - fortiweb_local_managed_username | length > 0
+      - fortiweb_local_managed_password | length > 0
+      - fortiweb_local_bootstrap_result_file | length > 0
+      - fortiweb_local_bootstrap_username != fortiweb_local_managed_username
+    fail_msg: "FortiWeb local bootstrap requires bootstrap credentials, managed admin credentials, result file, and a bootstrap user different from the managed user."
+    quiet: true
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]
+
+- name: Wait for FortiWeb HTTPS API
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: "{{ ansible_httpapi_port | default(443) | int }}"
+    timeout: 30
+  delegate_to: localhost
+  tags: [fortiweb_local_bootstrap]
+
+- name: Set FortiWeb bootstrap username/password auth
+  ansible.builtin.set_fact:
+    ansible_user: "{{ fortiweb_local_bootstrap_username }}"
+    ansible_password: "{{ fortiweb_local_bootstrap_password }}"
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap, fortiweb_auth]
+
+- name: Reset FortiWeb connection for bootstrap auth
+  ansible.builtin.meta: reset_connection
+  tags: [fortiweb_local_bootstrap, fortiweb_auth]
+
+- name: Probe FortiWeb system status with bootstrap auth
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_vdom | default('root') }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/system/status.systemstatus', 'jsonbody': {}} | to_json }}"
+  register: fortiweb_local_bootstrap_status
+  changed_when: false
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]
+
+- name: Delete existing FortiWeb managed admin before recreation
+  fortinet.fortiweb.fwebos_admin:
+    action: delete
+    name: "{{ fortiweb_local_managed_username }}"
+  register: fortiweb_local_managed_admin_delete
+  failed_when: false
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_local_managed_admin_delete
+
+- name: Create FortiWeb managed admin
+  fortinet.fortiweb.fwebos_admin:
+    action: add
+    name: "{{ fortiweb_local_managed_username }}"
+    access_profile: "{{ fortiweb_local_managed_access_profile }}"
+    trusthostv4: "{{ fortiweb_local_managed_trusthostv4 }}"
+    trusthostv6: "{{ fortiweb_local_managed_trusthostv6 }}"
+    domains: "{{ fortiweb_local_managed_domains }}"
+    type: local-user
+    force_password_change: disable
+    password: "{{ fortiweb_local_managed_password }}"
+  register: fortiweb_local_managed_admin_add
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]
+  # - ansible.builtin.debug:
+  #     var: fortiweb_local_managed_admin_add
+
+- name: Switch FortiWeb connection to managed admin
+  ansible.builtin.set_fact:
+    ansible_user: "{{ fortiweb_local_managed_username }}"
+    ansible_password: "{{ fortiweb_local_managed_password }}"
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap, fortiweb_auth]
+
+- name: Reset FortiWeb connection for managed admin
+  ansible.builtin.meta: reset_connection
+  tags: [fortiweb_local_bootstrap, fortiweb_auth]
+
+- name: Validate FortiWeb managed admin login
+  fortinet.fortiweb.fwebos_json_generic:
+    vdom: "{{ fortiweb_vdom | default('root') }}"
+    json_generic: "{{ {'method': 'GET', 'path': '/api/v2.0/system/status.systemstatus', 'jsonbody': {}} | to_json }}"
+  register: fortiweb_local_managed_status
+  changed_when: false
+  retries: 3
+  delay: 3
+  until: fortiweb_local_managed_status is succeeded
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]
+
+- name: Write FortiWeb local managed admin result
+  ansible.builtin.copy:
+    dest: "{{ fortiweb_local_bootstrap_result_file }}"
+    mode: "0600"
+    content: |
+      fortiweb_username: {{ fortiweb_local_managed_username | to_json }}
+      fortiweb_admin_password_override: {{ fortiweb_local_managed_password | to_json }}
+  delegate_to: localhost
+  become: false
+  no_log: "{{ fortiweb_local_bootstrap_no_log | bool }}"
+  tags: [fortiweb_local_bootstrap]

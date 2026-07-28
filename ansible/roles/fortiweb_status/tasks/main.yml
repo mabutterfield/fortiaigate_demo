@@ -12,13 +12,23 @@
   changed_when: false
   no_log: "{{ fortiweb_no_log | bool }}"
   register: fortiweb_status_terraform_output_raw
+  when: fortiweb_status_admin_password_override | length == 0
   tags: [fortiweb_status, fortiweb_auth]
   # - ansible.builtin.debug:
   #     msg: "FortiWeb Terraform outputs read: {{ fortiweb_status_terraform_output_raw.stdout | length > 0 }}"
 
 - name: Set FortiWeb Terraform output facts
   ansible.builtin.set_fact:
-    fortiweb_status_terraform_outputs: "{{ fortiweb_status_terraform_output_raw.stdout | from_json }}"
+    fortiweb_status_terraform_outputs: >-
+      {{
+        fortiweb_status_terraform_output_raw.stdout | from_json
+        if (
+          fortiweb_status_terraform_output_raw is defined
+          and not (fortiweb_status_terraform_output_raw.skipped | default(false))
+          and fortiweb_status_terraform_output_raw.stdout | default('', true) | length > 0
+        )
+        else {}
+      }}
   no_log: "{{ fortiweb_no_log | bool }}"
   tags: [fortiweb_status, fortiweb_auth]
   # - ansible.builtin.debug:
@@ -26,7 +36,7 @@
 
 - name: Set FortiWeb admin credential facts
   ansible.builtin.set_fact:
-    fortiweb_status_instance_id: "{{ (fortiweb_status_terraform_outputs.fortiweb_instance_id | default({})).value | default(fortiweb_instance_id | default('')) }}"
+    fortiweb_status_instance_id: "{{ (fortiweb_status_terraform_outputs.fortiweb_instance_id | default({})).value | default(fortiweb_instance_id | default(''), true) }}"
     fortiweb_status_admin_password_from_output: "{{ (fortiweb_status_terraform_outputs.fortiweb_admin_password | default({})).value | default('') }}"
   no_log: "{{ fortiweb_no_log | bool }}"
   tags: [fortiweb_status, fortiweb_auth]
@@ -53,7 +63,7 @@
 
 - name: Fail when FortiWeb admin password is not available
   ansible.builtin.fail:
-    msg: "FortiWeb admin password is empty. Confirm terraform/aws-fortiweb was applied and fortiweb_instance_id is available, or set fortiweb_set_initial_password=true."
+    msg: "FortiWeb admin password is empty. Confirm terraform/aws-fortiweb was applied, or set fortiweb_admin_password_override in ignored local secrets."
   when: ansible_password | length == 0
   tags: [fortiweb_status, fortiweb_auth]
 

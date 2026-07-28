@@ -4,6 +4,7 @@
   "description": "Synthetic HR assistant scenario for PII, instruction disclosure, and redaction behavior demos.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "hr-policy-risk",
     "required_tools": [
       "employee_lookup",
       "employee_search",

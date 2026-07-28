@@ -41,13 +41,13 @@ the LLM turns.
 
 ## First-Draft Recording Lanes
 
-| Priority | Demo lane | Scenario profile | Prompt ID | Primary OWASP | Secondary OWASP | FAIG protect guard | Keep enabled |
-|---:|---|---|---|---|---|---|---|
-| 1 | GUI telemetry baseline | `resume-screening-clean` or `fastfood-ordering` | `telemetry-clean-01` | `LLM10` | `MCP08`, `LLM08` | None; `/v1/demo-a/*` detect-only | Token/cost logging, detections, route visibility |
-| 2 | Text-only prompt injection | `fastfood-ordering` | `text-prompt-injection-01` | `LLM01` | `LLM05`, `LLM09` | `input-prompt-injection` | Prompt injection input only |
-| 3 | Uploaded resume prompt injection | `resume-prompt-injection` | `resume-injection-01` | `LLM01` | `LLM04`, `LLM07`, `LLM08` | `input-prompt-injection` | Prompt injection input only; avoid DLP overlap |
-| 4 | DLP redaction | `hr-tool-dlp-vulnerable` | `dlp-tool-result-01` | `LLM02` | `MCP01`, `MCP10`, `LLM06` | `output-dlp` | DLP output redaction/block only |
-| 5 | MCP tool misuse | `resume-cloud-tool-pivot-vulnerable` plus safe comparison | `mcp-tool-misuse-01` | `LLM06` | `LLM01`, `LLM04`, `ASI02` | Detect-only for first pass | Tool trace, tool count, route telemetry |
+| Priority | Demo lane | Scenario profile | Tool profile | Prompt ID | Primary OWASP | Secondary OWASP | FAIG protect guard | Keep enabled |
+|---:|---|---|---|---|---|---|---|---|
+| 1 | GUI telemetry baseline | `resume-screening-clean` or `fastfood-ordering` | Same as scenario | `telemetry-clean-01` | `LLM10` | `MCP08`, `LLM08` | None; `/v1/demo-a/*` detect-only | Token/cost logging, detections, route visibility |
+| 2 | Text-only prompt injection | `fastfood-ordering` | `fastfood-ordering` | `text-prompt-injection-01` | `LLM01` | `LLM05`, `LLM09` | `input-prompt-injection` | Prompt injection input only |
+| 3 | Uploaded resume prompt injection | `resume-prompt-injection` | `resume-prompt-injection` | `resume-injection-01` | `LLM01` | `LLM04`, `LLM07`, `LLM08` | `input-prompt-injection` | Prompt injection input only; avoid DLP overlap |
+| 4 | DLP redaction | `hr-tool-dlp-vulnerable` | `hr-tool-dlp-vulnerable` | `dlp-tool-result-01` | `LLM02` | `MCP01`, `MCP10`, `LLM06` | `output-dlp` | DLP output redaction/block only |
+| 5 | MCP tool misuse | `resume-cloud-tool-pivot-vulnerable` plus safe comparison | Safe or vulnerable pivot profile | `mcp-tool-misuse-01` | `LLM06` | `LLM01`, `LLM04`, `ASI02` | Detect-only for first pass | Tool trace, tool count, route telemetry |
 
 The first draft does not need every lane in one uninterrupted flow. It is fine
 to record lanes separately and stitch together Direct, Scan, and Protect
@@ -74,6 +74,8 @@ Recommended profile:
 
 - `resume-screening-clean` for document/tool telemetry.
 - `fastfood-ordering` for a simpler public-chatbot story.
+
+Use the matching chatbot MCP tool profile for the selected scenario.
 
 Prompt set:
 
@@ -106,6 +108,8 @@ tool-pivot complexity.
 
 Recommended profile: `fastfood-ordering`
 
+Tool profile: `fastfood-ordering`
+
 Prompt set:
 
 | Prompt ID | Prompt | Expected tools | Expected result |
@@ -129,6 +133,8 @@ FAIG protect guard:
 Purpose: show indirect prompt injection through retrieved document content.
 
 Recommended profile: `resume-prompt-injection`
+
+Tool profile: `resume-prompt-injection`
 
 Prompt set:
 
@@ -160,6 +166,8 @@ Purpose: show sensitive synthetic data being redacted or blocked by FAIG after
 the model processes it.
 
 Recommended primary profile: `hr-tool-dlp-vulnerable`
+
+Tool profile: `hr-tool-dlp-vulnerable`
 
 Fallback profile: `hr-policy-risk` with generated synthetic personal details if
 the MCP tool-backed flow is not stable during recording.
@@ -201,6 +209,10 @@ Recommended profiles:
 - `resume-cloud-tool-pivot-vulnerable` for the vulnerable comparison.
 - `resume-cloud-tool-pivot` for explicit troubleshooting.
 
+Use the matching tool profile for the selected comparison. The safe profile
+does not expose `cloud_bucket_list_demo`; the vulnerable and explicit profiles
+do expose it.
+
 Prompt set:
 
 | Prompt ID | Prompt | Expected tools | Expected result |
@@ -235,6 +247,7 @@ These remain useful but should not distract from the first-draft recording.
 | `menu-poisoning` | Alternate indirect prompt-injection story for public chatbot data poisoning | Protect mode previously blocked injection-check tool results before safe menu recovery. Use 5 tool rounds if recording this lane. |
 | `hr-policy-rag-risk` | Alternate RAG-style policy poisoning story | Good for explaining untrusted retrieved policy text, but overlaps with resume prompt-injection. |
 | `hr-policy-risk` | Safe HR assistant and generated DLP fallback | Safe tools strip sensitive fields, so it is less useful for tool-backed DLP than `hr-tool-dlp-vulnerable`. |
+| `support-ticket-triage` | Customer/ticket/policy tool coverage | Useful for showing support triage, policy grounding, and redaction checks without HR or resume tools. |
 | `fortigate-operator` | Internal automation/read-only tools | Strong later story for read-only boundaries and hallucination avoidance. Not required for the first FAIG prompt/DLP recording. |
 | `resume-screening-clean` | Clean retrieval baseline | Best clean business-flow control for FAIG GUI telemetry. |
 
@@ -257,6 +270,7 @@ Recommended event fields:
 | `faig_guard` | `none`, `prompt-injection`, `dlp-redaction`, `mcp-tool-risk` |
 | `model_profile` | `demo-a` |
 | `mcp_path` | `direct`, `fortiweb-mcp`, `disabled` |
+| `mcp_tool_profile` | `resume-prompt-injection` |
 | `expected_tools` | `document_read,document_injection_check` |
 | `expected_classification` | `clean`, `prompt_injection`, `dlp`, `tool_misuse` |
 | `save_raw` | `false` by default |

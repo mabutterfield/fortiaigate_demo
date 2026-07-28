@@ -15,6 +15,7 @@ fortiaigate_helm_timeout: 20m
 fortiaigate_ecr_token_source: instance_role
 fortiaigate_triton_probe_initial_delay_seconds: 300
 fortiaigate_triton_probe_failure_threshold: 30
+fortiaigate_gpu_uuids: "{{ local_faig_gpu_uuids | default([]) }}"
 fortiaigate_image_pull_policy: IfNotPresent
 fortiaigate_image_pull_secrets: []
 fortiaigate_update_strategy: Recreate

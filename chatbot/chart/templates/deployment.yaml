@@ -89,6 +89,10 @@ spec:
               value: {{ .Values.chatbot.mcpVerifyTls | quote }}
             - name: CHATBOT_MCP_MAX_TOOL_ROUNDS
               value: {{ .Values.chatbot.mcpMaxToolRounds | quote }}
+            - name: CHATBOT_MCP_TOOL_PROFILE
+              value: {{ .Values.chatbot.mcpToolProfile | quote }}
+            - name: CHATBOT_MCP_TOOL_PROFILES_JSON
+              value: {{ .Values.chatbot.mcpToolProfilesJson | quote }}
             - name: CHATBOT_CONTEXT_MODE
               value: {{ .Values.chatbot.contextMode | quote }}
             - name: CHATBOT_CONTEXT_WINDOW

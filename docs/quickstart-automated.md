@@ -54,6 +54,97 @@ YOLO mode is intended for subsequent lab cycles, not first-time setup. It:
 - runs the remaining Ansible bootstrap/deployment flow without the normal
   confirmation prompts
 
+## Local Hardware Mode
+
+Cloud deployment remains the default. To target an existing local Ubuntu/k3s
+host and local registry instead of AWS Terraform, generate ignored local
+inventory and variable files first:
+
+```bash
+python3 scripts/local_setup.py
+```
+
+The setup script prompts for the Ubuntu SSH target, local registry, optional
+existing FortiGate/FortiWeb appliance targets, and GPU assignment when
+`nvidia-smi` can enumerate GPUs. It writes ignored files under
+`ansible/inventory/` and `ansible/group_vars/`, including local registry
+settings and Ollama defaults.
+
+For local FortiGate onboarding, `local_setup.py` can use the prompted current
+admin username/password once to create or refresh a managed `apiadmin` API
+account, generate its API token, validate token login, and then store only the
+managed token in ignored `ansible/group_vars/local.secrets.yml`. The prompted
+admin password is written only to a temporary vars file used by the bootstrap
+playbook and is deleted when the playbook exits.
+
+For local FortiWeb onboarding, `local_setup.py` can use the prompted current
+admin username/password once to create or refresh a managed `apiadmin` local
+admin with a generated password. Only the managed `apiadmin` username/password
+is stored in ignored `ansible/group_vars/local.secrets.yml`; the prompted
+bootstrap password is not stored in inventory or committed files.
+
+The generated local appliance inventories contain host, port, and connection
+metadata only. They do not contain appliance passwords or API tokens.
+
+In local appliance mode, the AWS-shaped `*_public_private_ip` variables map to
+the appliance port1/operator-side address, while `*_internal_ip` maps to the
+port2/backend address on the k3s LAN. `local_setup.py` prompts for both when an
+appliance is enabled. FortiGate MCP tooling is generated to target
+`mcp_fortigate_base_url` on FortiGate port2 when that backend IP is known,
+because the MCP pod runs on the k3s/backend side. FortiWeb generated proxy
+objects still publish listener VIPs on port1 by default and proxy to k3s
+NodePorts through port2.
+
+Then run:
+
+```bash
+python3 scripts/automated_quickstart.py --local
+```
+
+Local mode skips Terraform and uses the generated local inventory. It deploys
+Ollama as the direct model provider, keeps LiteLLM pointed at the in-cluster
+Ollama service, and exposes Ollama on the plain HTTP NodePort range. The
+default local Ollama NodePort is `30085`; keep this endpoint restricted to a
+trusted lab network because stock Ollama does not provide built-in API auth.
+Automated quickstart passes the deployment target to Ansible so AWS generated
+vars and local generated vars do not leak into each other. If you run local
+playbooks manually, pass the same target explicitly:
+
+```bash
+FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generated.ini ansible/playbooks/status_demo_home.yml
+```
+
+To reset only the local generated vars and inventories in this checkout without
+touching the deployed lab, export them. Export creates a backup archive and then
+removes the generated local files:
+
+```bash
+python3 scripts/local_var_cleanup.py export
+```
+
+The default archive is `../local_vars_backup.tgz`. This archive may contain the
+managed FortiGate API token and FortiWeb admin password from
+`ansible/group_vars/local.secrets.yml`, so treat it as sensitive and keep it out
+of Git. To restore those generated local files later:
+
+```bash
+python3 scripts/local_var_cleanup.py import
+```
+
+Pass an explicit archive path to either action when you want a different backup
+location.
+
+When local appliance inventories exist, `automated_quickstart.py --local` uses
+the managed credentials created by `local_setup.py` and runs the same
+FortiGate/FortiWeb status and configuration playbooks used by the AWS path. It
+does not need the original prompted bootstrap passwords.
+
+On a fresh host where NVIDIA drivers are not yet usable, `local_setup.py` may
+not be able to capture GPU UUIDs. In that case local quickstart completes the
+k3s/GPU bootstrap and stops before FortiAIGate deployment. Rerun
+`local_setup.py`, select the FortiAIGate and Ollama GPUs, then rerun
+`automated_quickstart.py --local`.
+
 To initialize, export, or import local user-owned settings without running
 Terraform or Ansible, use the standalone user profile tool:
 

@@ -93,9 +93,16 @@
   ansible.builtin.set_fact:
     demo_home_status_host: >-
       {{
-        public_ip
-        if (public_ip is defined and public_ip | default('', true) | length > 0)
-        else (ansible_host | default(inventory_hostname))
+        k3s_public_ip
+        if (
+          deployment_target | default('aws') == 'local'
+          and k3s_public_ip | default('', true) | length > 0
+        )
+        else (
+          public_ip
+          if (public_ip is defined and public_ip | default('', true) | length > 0)
+          else (ansible_host | default(inventory_hostname))
+        )
       }}
     demo_home_status_deployment_json: "{{ demo_home_status_deployment.stdout | default('{}') | from_json if demo_home_status_deployment.rc == 0 else {} }}"
     demo_home_status_pods_json: "{{ demo_home_status_pods.stdout | default('{\"items\": []}') | from_json if demo_home_status_pods.rc == 0 else {'items': []} }}"

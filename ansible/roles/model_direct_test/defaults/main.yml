@@ -18,3 +18,8 @@ direct_model_aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') | default
 direct_model_ollama_base_url: "{{ ollama_base_url | default('', true) }}"
 direct_model_ollama_model: "{{ ollama_model | default('', true) }}"
 direct_model_ollama_api_key: ""
+direct_model_ollama_execute_on_k3s_host: "{{ deployment_target | default('aws') == 'local' }}"
+direct_model_ollama_k3s_host: "{{ (groups.get('fortiaigate', []) | first) | default('', true) }}"
+direct_model_ollama_namespace: "{{ ollama_namespace | default('ollama') }}"
+direct_model_ollama_release_name: "{{ ollama_release_name | default('ollama') }}"
+direct_model_ollama_service_port: "{{ ollama_service_port | default(11434) }}"

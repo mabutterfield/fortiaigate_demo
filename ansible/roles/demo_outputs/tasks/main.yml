@@ -1,4 +1,10 @@
 ---
+- name: Set demo output target facts
+  ansible.builtin.set_fact:
+    demo_outputs_target_is_local: "{{ deployment_target | default('aws') == 'local' }}"
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_target_is_local
+
 - name: Read Bedrock model IDs from Terraform output
   ansible.builtin.command:
     argv:
@@ -10,6 +16,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_bedrock_models_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_models_raw.stdout_lines
 
@@ -24,6 +31,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_bedrock_regions_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_regions_raw.stdout_lines
 
@@ -38,6 +46,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_bedrock_access_key_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_access_key_raw.stdout_lines
 
@@ -52,6 +61,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_public_ip_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_public_ip_raw.stdout_lines
 
@@ -66,6 +76,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_ssh_command_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_ssh_command_raw.stdout_lines
 
@@ -80,6 +91,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_fortigate_admin_url_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_fortigate_admin_url_raw.stdout_lines
 
@@ -94,6 +106,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_fortigate_instance_id_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_fortigate_instance_id_raw.stdout_lines
 
@@ -108,6 +121,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_fortiweb_admin_url_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_fortiweb_admin_url_raw.stdout_lines
 
@@ -122,6 +136,7 @@
   changed_when: false
   failed_when: false
   register: demo_outputs_fortiweb_instance_id_raw
+  when: not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_fortiweb_instance_id_raw.stdout_lines
 
@@ -137,7 +152,9 @@
   failed_when: false
   no_log: "{{ not (demo_outputs_show_secrets | bool) }}"
   register: demo_outputs_bedrock_secret_key_raw
-  when: demo_outputs_show_secrets | bool
+  when:
+    - demo_outputs_show_secrets | bool
+    - not (demo_outputs_target_is_local | bool)
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_secret_key_raw.stdout_lines
 
@@ -147,7 +164,7 @@
       {{
         demo_outputs_bedrock_models_raw.stdout | from_json
         if (
-          demo_outputs_bedrock_models_raw.rc == 0
+          demo_outputs_bedrock_models_raw.rc | default(1) == 0
           and demo_outputs_bedrock_models_raw.stdout | default('') | length > 0
         )
         else []
@@ -156,7 +173,7 @@
       {{
         demo_outputs_bedrock_regions_raw.stdout | from_json
         if (
-          demo_outputs_bedrock_regions_raw.rc == 0
+          demo_outputs_bedrock_regions_raw.rc | default(1) == 0
           and demo_outputs_bedrock_regions_raw.stdout | default('') | length > 0
         )
         else []
@@ -165,7 +182,7 @@
       {{
         demo_outputs_bedrock_access_key_raw.stdout | trim
         if (
-          demo_outputs_bedrock_access_key_raw.rc == 0
+          demo_outputs_bedrock_access_key_raw.rc | default(1) == 0
           and demo_outputs_bedrock_access_key_raw.stdout | default('') | length > 0
         )
         else 'unavailable'
@@ -176,7 +193,7 @@
         if (
           demo_outputs_show_secrets | bool
           and demo_outputs_bedrock_secret_key_raw is defined
-          and demo_outputs_bedrock_secret_key_raw.rc == 0
+          and demo_outputs_bedrock_secret_key_raw.rc | default(1) == 0
           and demo_outputs_bedrock_secret_key_raw.stdout | default('') | length > 0
         )
         else ''
@@ -185,25 +202,67 @@
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_models
 
+- name: Set demo output inventory host facts
+  ansible.builtin.set_fact:
+    demo_outputs_inventory_host: "{{ groups.get('fortiaigate', []) | first | default('') }}"
+    demo_outputs_inventory_access_host: >-
+      {{
+        hostvars[groups.get('fortiaigate', []) | first].ansible_host | default('')
+        if groups.get('fortiaigate', []) | length > 0
+        else ''
+      }}
+    demo_outputs_inventory_ssh_user: >-
+      {{
+        hostvars[groups.get('fortiaigate', []) | first].ansible_user | default(ansible_user | default('ubuntu'))
+        if groups.get('fortiaigate', []) | length > 0
+        else ansible_user | default('ubuntu')
+      }}
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "{{ demo_outputs_inventory_host }}"
+  #       - "{{ demo_outputs_inventory_access_host }}"
+
 - name: Set consolidated demo display facts
   ansible.builtin.set_fact:
     demo_outputs_access_host: >-
       {{
-        demo_outputs_public_ip_raw.stdout | trim
+        k3s_public_ip | trim
         if (
-          demo_outputs_public_ip_raw.rc == 0
-          and demo_outputs_public_ip_raw.stdout | default('') | trim | length > 0
+          demo_outputs_target_is_local | bool
+          and k3s_public_ip | default('', true) | trim | length > 0
         )
         else (
-          public_ip
-          if public_ip is defined and public_ip | default('', true) | length > 0
+          k3s_private_ip | trim
+          if (
+            demo_outputs_target_is_local | bool
+            and k3s_private_ip | default('', true) | trim | length > 0
+          )
           else (
-            ansible_host
-            if ansible_host is defined and ansible_host not in ['localhost', '127.0.0.1']
-            else ''
+            demo_outputs_public_ip_raw.stdout | trim
+            if (
+              demo_outputs_public_ip_raw.rc | default(1) == 0
+              and demo_outputs_public_ip_raw.stdout | default('') | trim | length > 0
+            )
+            else (
+              public_ip
+              if public_ip is defined and public_ip | default('', true) | length > 0
+              else (
+                demo_outputs_inventory_access_host
+                if demo_outputs_inventory_access_host | default('', true) | length > 0
+                else (
+                  ansible_host
+                  if ansible_host is defined and ansible_host not in ['localhost', '127.0.0.1']
+                  else ''
+                )
+              )
+            )
           )
         )
       }}
+    demo_outputs_provider_name: "{{ direct_model_provider | default('bedrock') }}"
+    demo_outputs_ollama_model_display: "{{ direct_model_ollama_model | default(ollama_model | default('unavailable')) }}"
+    demo_outputs_ollama_public_endpoint: "{{ direct_model_ollama_base_url | default(ollama_public_base_url | default('unavailable')) }}"
+    demo_outputs_ollama_private_endpoint: "{{ ollama_internal_base_url | default('unavailable') }}"
     demo_outputs_bedrock_model_display: >-
       {{
         direct_model_bedrock_model
@@ -232,28 +291,35 @@
       }}
     demo_outputs_ssh_command: >-
       {{
-        demo_outputs_ssh_command_raw.stdout | trim
+        'ssh ' ~ demo_outputs_inventory_ssh_user ~ '@' ~ demo_outputs_inventory_access_host
         if (
-          demo_outputs_ssh_command_raw.rc == 0
-          and demo_outputs_ssh_command_raw.stdout | default('') | trim | length > 0
+          demo_outputs_target_is_local | bool
+          and demo_outputs_inventory_access_host | default('', true) | length > 0
         )
-        else 'terraform -chdir=terraform/aws-ec2-k3s output ssh_command'
+        else (
+          demo_outputs_ssh_command_raw.stdout | trim
+          if (
+            demo_outputs_ssh_command_raw.rc | default(1) == 0
+            and demo_outputs_ssh_command_raw.stdout | default('') | trim | length > 0
+          )
+          else 'terraform -chdir=terraform/aws-ec2-k3s output ssh_command'
+        )
       }}
     demo_outputs_fortigate_admin_url: >-
       {{
         demo_outputs_fortigate_admin_url_raw.stdout | trim
         if (
-          demo_outputs_fortigate_admin_url_raw.rc == 0
+          demo_outputs_fortigate_admin_url_raw.rc | default(1) == 0
           and demo_outputs_fortigate_admin_url_raw.stdout | default('') | trim | length > 0
           and demo_outputs_fortigate_admin_url_raw.stdout | trim != 'null'
         )
-        else ''
+        else fortigate_admin_url | default('')
       }}
     demo_outputs_fortigate_instance_id: >-
       {{
         demo_outputs_fortigate_instance_id_raw.stdout | trim
         if (
-          demo_outputs_fortigate_instance_id_raw.rc == 0
+          demo_outputs_fortigate_instance_id_raw.rc | default(1) == 0
           and demo_outputs_fortigate_instance_id_raw.stdout | default('') | trim | length > 0
           and demo_outputs_fortigate_instance_id_raw.stdout | trim != 'null'
         )
@@ -263,17 +329,17 @@
       {{
         demo_outputs_fortiweb_admin_url_raw.stdout | trim
         if (
-          demo_outputs_fortiweb_admin_url_raw.rc == 0
+          demo_outputs_fortiweb_admin_url_raw.rc | default(1) == 0
           and demo_outputs_fortiweb_admin_url_raw.stdout | default('') | trim | length > 0
           and demo_outputs_fortiweb_admin_url_raw.stdout | trim != 'null'
         )
-        else ''
+        else fortiweb_admin_url | default('')
       }}
     demo_outputs_fortiweb_instance_id: >-
       {{
         demo_outputs_fortiweb_instance_id_raw.stdout | trim
         if (
-          demo_outputs_fortiweb_instance_id_raw.rc == 0
+          demo_outputs_fortiweb_instance_id_raw.rc | default(1) == 0
           and demo_outputs_fortiweb_instance_id_raw.stdout | default('') | trim | length > 0
           and demo_outputs_fortiweb_instance_id_raw.stdout | trim != 'null'
         )
@@ -282,6 +348,30 @@
   no_log: "{{ demo_outputs_show_secrets | bool }}"
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_model_display
+
+- name: Build direct model provider output facts
+  ansible.builtin.set_fact:
+    demo_outputs_direct_provider_lines: >-
+      {{
+        [
+          'Direct model provider:',
+          '  Provider: Ollama',
+          '  Model: ' ~ demo_outputs_ollama_model_display,
+          '  API endpoint/public: ' ~ demo_outputs_ollama_public_endpoint,
+          '  API endpoint/private: ' ~ demo_outputs_ollama_private_endpoint
+        ]
+        if demo_outputs_provider_name == 'ollama'
+        else [
+          'Bedrock direct provider:',
+          '  LLM model: ' ~ demo_outputs_bedrock_model_display,
+          '  Region: ' ~ demo_outputs_bedrock_region_display,
+          '  Access key ID: ' ~ demo_outputs_bedrock_access_key_id,
+          '  Secret access key: ' ~ demo_outputs_bedrock_secret_display
+        ]
+      }}
+  no_log: "{{ demo_outputs_show_secrets | bool }}"
+  # - ansible.builtin.debug:
+  #     var: demo_outputs_direct_provider_lines
 
 - name: Build appliance access output facts
   ansible.builtin.set_fact:
@@ -305,10 +395,16 @@
     demo_outputs_appliance_lines: >-
       {{
         demo_outputs_appliance_lines
-        + [
-          'FortiGate Admin: ' ~ demo_outputs_fortigate_admin_url,
-          'FortiGate Instance ID: ' ~ demo_outputs_fortigate_instance_id
-        ]
+        + (
+          ['FortiGate Admin: ' ~ demo_outputs_fortigate_admin_url]
+          if demo_outputs_fortigate_admin_url | default('', true) | length > 0
+          else []
+        )
+        + (
+          ['FortiGate Instance ID: ' ~ demo_outputs_fortigate_instance_id]
+          if demo_outputs_fortigate_instance_id | default('', true) | length > 0
+          else []
+        )
       }}
   when:
     - demo_outputs_fortigate_admin_url | default('', true) | length > 0
@@ -321,10 +417,16 @@
     demo_outputs_appliance_lines: >-
       {{
         demo_outputs_appliance_lines
-        + [
-          'FortiWeb Admin: ' ~ demo_outputs_fortiweb_admin_url,
-          'FortiWeb Instance ID: ' ~ demo_outputs_fortiweb_instance_id
-        ]
+        + (
+          ['FortiWeb Admin: ' ~ demo_outputs_fortiweb_admin_url]
+          if demo_outputs_fortiweb_admin_url | default('', true) | length > 0
+          else []
+        )
+        + (
+          ['FortiWeb Instance ID: ' ~ demo_outputs_fortiweb_instance_id]
+          if demo_outputs_fortiweb_instance_id | default('', true) | length > 0
+          else []
+        )
       }}
   when:
     - demo_outputs_fortiweb_admin_url | default('', true) | length > 0
@@ -499,20 +601,20 @@
 
 - name: Show consolidated demo outputs
   ansible.builtin.debug:
-    msg:
-      - "FortiAIGate demo configuration outputs"
-      - "Bedrock direct provider:"
-      - "  LLM model: {{ demo_outputs_bedrock_model_display }}"
-      - "  Region: {{ demo_outputs_bedrock_region_display }}"
-      - "  Access key ID: {{ demo_outputs_bedrock_access_key_id }}"
-      - "  Secret access key: {{ demo_outputs_bedrock_secret_display }}"
-      - "LiteLLM proxy provider:"
-      - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
-      - "  API key: {{ demo_outputs_litellm_api_key }}"
-      - "  UI username: {{ demo_outputs_litellm_ui_username }}"
-      - "  UI password: {{ demo_outputs_litellm_ui_password }}"
-      - "  Model name: {{ demo_outputs_litellm_model_name }}"
-      - "Note: the LiteLLM endpoint above is the in-cluster service URL for FortiAIGate or other Kubernetes workloads."
+    msg: >-
+      {{
+        ['FortiAIGate demo configuration outputs']
+        + demo_outputs_direct_provider_lines
+        + [
+          'LiteLLM proxy provider:',
+          '  API endpoint/private: ' ~ demo_outputs_litellm_api_endpoint,
+          '  API key: ' ~ demo_outputs_litellm_api_key,
+          '  UI username: ' ~ demo_outputs_litellm_ui_username,
+          '  UI password: ' ~ demo_outputs_litellm_ui_password,
+          '  Model name: ' ~ demo_outputs_litellm_model_name,
+          'Note: the LiteLLM endpoint above is the in-cluster service URL for FortiAIGate or other Kubernetes workloads.'
+        ]
+      }}
   no_log: "{{ demo_outputs_show_secrets | bool }}"
 
 - name: Show demo access URLs
@@ -546,10 +648,18 @@
 
 - name: Show SSH access instructions
   ansible.builtin.debug:
-    msg:
-      - "SSH access"
-      - "{{ demo_outputs_ssh_command }}"
-      - "If SSH fails, verify allowed_ingress_cidr, the EC2 key pair, and ssh_private_key_file before running Ansible."
+    msg: >-
+      {{
+        [
+          'SSH access',
+          demo_outputs_ssh_command
+        ]
+        + (
+          ['If SSH fails, verify the local generated inventory SSH user, key path, and SSH config for the k3s host.']
+          if demo_outputs_target_is_local | bool
+          else ['If SSH fails, verify allowed_ingress_cidr, the EC2 key pair, and ssh_private_key_file before running Ansible.']
+        )
+      }}
 
 - name: Show optional HTTPS access URLs
   ansible.builtin.debug:
@@ -560,18 +670,18 @@
 
 - name: Show consolidated demo outputs including requested secret
   ansible.builtin.debug:
-    msg:
-      - "FortiAIGate demo configuration outputs"
-      - "Bedrock direct provider:"
-      - "  LLM model: {{ demo_outputs_bedrock_model_display }}"
-      - "  Region: {{ demo_outputs_bedrock_region_display }}"
-      - "  Access key ID: {{ demo_outputs_bedrock_access_key_id }}"
-      - "  Secret access key: {{ demo_outputs_bedrock_secret_display }}"
-      - "LiteLLM proxy provider:"
-      - "  API endpoint/private: {{ demo_outputs_litellm_api_endpoint }}"
-      - "  API key: {{ demo_outputs_litellm_api_key }}"
-      - "  UI username: {{ demo_outputs_litellm_ui_username }}"
-      - "  UI password: {{ demo_outputs_litellm_ui_password }}"
-      - "  Model name: {{ demo_outputs_litellm_model_name }}"
-      - "Note: demo_outputs_show_secrets=true prints sensitive values into terminal scrollback."
+    msg: >-
+      {{
+        ['FortiAIGate demo configuration outputs']
+        + demo_outputs_direct_provider_lines
+        + [
+          'LiteLLM proxy provider:',
+          '  API endpoint/private: ' ~ demo_outputs_litellm_api_endpoint,
+          '  API key: ' ~ demo_outputs_litellm_api_key,
+          '  UI username: ' ~ demo_outputs_litellm_ui_username,
+          '  UI password: ' ~ demo_outputs_litellm_ui_password,
+          '  Model name: ' ~ demo_outputs_litellm_model_name,
+          'Note: demo_outputs_show_secrets=true prints sensitive values into terminal scrollback.'
+        ]
+      }}
   when: demo_outputs_show_secrets | bool

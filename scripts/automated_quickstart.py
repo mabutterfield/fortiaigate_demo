@@ -25,6 +25,13 @@ APPLIANCE_LOCAL_FILE_PAIRS = {
 }
 
 REQUIRED_COMMANDS = ["terraform", "aws", "ansible-playbook", "ansible-galaxy"]
+LOCAL_REQUIRED_COMMANDS = ["ansible-playbook", "ansible-galaxy"]
+LOCAL_INVENTORY = "ansible/inventory/local.generated.ini"
+LOCAL_GENERATED_FILES = [
+    "ansible/inventory/local.generated.ini",
+    "ansible/group_vars/local.generated.yml",
+    "ansible/group_vars/registry.generated.yml",
+]
 TERRAFORM_MODULES = [
     ("ECR registry", "terraform/aws-ecr"),
     ("AWS prep", "terraform/aws-prep"),
@@ -52,6 +59,10 @@ APPLIANCE_ANSIBLE_PLANS = {
             ("FortiWeb baseline configuration", "configure_fortiweb.yml"),
         ],
     },
+}
+LOCAL_APPLIANCE_INVENTORIES = {
+    "fortigate": "ansible/inventory/fortigate.local.generated.ini",
+    "fortiweb": "ansible/inventory/fortiweb.local.generated.ini",
 }
 APPLIANCE_COLLECTION_REQUIREMENTS = {
     "fortigate": {
@@ -87,6 +98,7 @@ APPLIANCE_LICENSES = {
 }
 APPLICATION_PLAYBOOKS = [
     ("FortiAIGate syslog collector", "deploy_fortiaigate_syslog_collector.yml", "status_fortiaigate_syslog_collector.yml"),
+    ("Ollama model service", "deploy_ollama.yml", "status_ollama.yml", "ollama_enabled"),
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
     ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
@@ -106,8 +118,11 @@ ANSIBLE_VAR_LOAD_ORDER = [
     "ansible/group_vars/system.yml",
     "ansible/group_vars/terraform.generated.yml",
     "ansible/group_vars/ecr.generated.yml",
+    "ansible/group_vars/registry.generated.yml",
     "ansible/group_vars/ports.generated.yml",
     "ansible/group_vars/fortiweb.generated.yml",
+    "ansible/group_vars/local.generated.yml",
+    "ansible/group_vars/local.secrets.yml",
     "ansible/group_vars/user.yml",
 ]
 
@@ -201,11 +216,12 @@ def check_host_os() -> None:
     print(f"Host OS {system} is untested for this workflow.")
 
 
-def check_requirements() -> None:
+def check_requirements(target: str = "aws") -> None:
     print_header("Checking Requirements")
     check_host_os()
+    required_commands = LOCAL_REQUIRED_COMMANDS if target == "local" else REQUIRED_COMMANDS
     missing = []
-    for command in REQUIRED_COMMANDS:
+    for command in required_commands:
         path = shutil.which(command)
         if path:
             print(f"{command}: {path}")
@@ -572,6 +588,15 @@ def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
 def get_yaml_bool(content: str, key: str, default: bool = False) -> bool:
     value = get_yaml_scalar(content, key, str(default).lower()).lower()
     return value in {"true", "yes", "on", "1"}
+
+
+def get_layered_yaml_scalar(key: str, default: str = "") -> str:
+    value = default
+    for rel_path in ANSIBLE_VAR_LOAD_ORDER:
+        path = REPO_ROOT / rel_path
+        if path.exists():
+            value = get_yaml_scalar(read_file(path), key, value)
+    return value
 
 
 def get_layered_yaml_bool(key: str, default: bool = False) -> bool:
@@ -1110,6 +1135,24 @@ def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
     return selected
 
 
+def selected_local_appliance_keys(args: argparse.Namespace) -> list[str]:
+    requested = set(requested_appliance_keys(args))
+    selected: list[str] = []
+    for appliance_key, inventory in LOCAL_APPLIANCE_INVENTORIES.items():
+        inventory_path = REPO_ROOT / inventory
+        if appliance_key in requested:
+            if not inventory_path.exists():
+                raise SystemExit(
+                    f"{appliance_key} was requested, but {inventory} does not exist. "
+                    "Run scripts/local_setup.py and choose that appliance, or omit the appliance flag."
+                )
+            selected.append(appliance_key)
+            continue
+        if inventory_path.exists():
+            selected.append(appliance_key)
+    return selected
+
+
 def configure_appliance_tfvars(appliance_keys: list[str]) -> None:
     if not appliance_keys:
         return
@@ -1508,6 +1551,7 @@ def run_ansible_playbook(
     playbook: str,
     *,
     inventory: str | None = None,
+    extra_vars: dict[str, str] | None = None,
     check: bool = True,
     capture: bool = False,
 ) -> subprocess.CompletedProcess[str]:
@@ -1515,6 +1559,10 @@ def run_ansible_playbook(
     if inventory:
         argv.extend(["-i", inventory])
     argv.append(f"ansible/playbooks/{playbook}")
+    effective_extra_vars = {"deployment_target": os.environ.get("FAIG_DEPLOYMENT_TARGET", "aws")}
+    effective_extra_vars.update(extra_vars or {})
+    for key, value in effective_extra_vars.items():
+        argv.extend(["-e", f"{key}={value}"])
     result = run_command(
         argv,
         check=False if capture else check,
@@ -1555,8 +1603,8 @@ def run_ansible_playbook_until_success(
         time.sleep(delay)
 
 
-def run_image_publishing(args: argparse.Namespace) -> None:
-    print_header("Ansible: ECR Image Publishing")
+def run_image_publishing(args: argparse.Namespace, *, inventory: str | None = None) -> None:
+    print_header("Ansible: Image Publishing")
     if args.yolo:
         print("Skipping image publishing because --yolo was set.")
         print("Deployments assume required images already exist in the registry.")
@@ -1588,14 +1636,26 @@ def run_image_publishing(args: argparse.Namespace) -> None:
         return
 
     if selection in {"fortiaigate", "all"}:
-        run_ansible_playbook("publish_images.yml")
+        publish_image_version = args.publish_image_version.strip()
+        if not publish_image_version:
+            default_publish_image_version = get_layered_yaml_scalar("fortiaigate_version", "")
+            publish_image_version = prompt_text(
+                "FortiAIGate image version to publish, or active for all active builds",
+                default_publish_image_version,
+            ).strip()
+        publish_extra_vars = {}
+        if publish_image_version.lower() not in {"", "active", "all-active"}:
+            publish_extra_vars["publish_image_version"] = publish_image_version
+        run_ansible_playbook("publish_images.yml", inventory=inventory, extra_vars=publish_extra_vars)
     if selection in {"chatbot", "all"}:
-        run_ansible_playbook("publish_chatbot_images.yml")
+        run_ansible_playbook("publish_chatbot_images.yml", inventory=inventory)
 
 
 def wait_for_fortiaigate_ready(
     delay_seconds: int,
     max_attempts: int,
+    *,
+    inventory: str | None = None,
 ) -> None:
     print_header("Ansible: FortiAIGate Status")
     attempts = max(1, max_attempts)
@@ -1603,7 +1663,7 @@ def wait_for_fortiaigate_ready(
 
     for attempt in range(1, attempts + 1):
         print(f"Checking FortiAIGate readiness, attempt {attempt}/{attempts}.")
-        result = run_ansible_playbook("status_fortiaigate.yml", check=False, capture=True)
+        result = run_ansible_playbook("status_fortiaigate.yml", inventory=inventory, check=False, capture=True)
         output = (result.stdout or "") + "\n" + (result.stderr or "")
 
         if "FortiAIGate status: READY" in output:
@@ -1624,44 +1684,44 @@ def wait_for_fortiaigate_ready(
         time.sleep(delay)
 
 
-def run_fortiaigate_status_once(label: str = "Ansible: FortiAIGate Status") -> None:
+def run_fortiaigate_status_once(label: str = "Ansible: FortiAIGate Status", *, inventory: str | None = None) -> None:
     print_header(label)
-    run_ansible_playbook("status_fortiaigate.yml", check=False)
+    run_ansible_playbook("status_fortiaigate.yml", inventory=inventory, check=False)
 
 
-def deploy_with_status(label: str, deploy_playbook: str, status_playbook: str) -> None:
+def deploy_with_status(label: str, deploy_playbook: str, status_playbook: str, *, inventory: str | None = None) -> None:
     print_header(f"Ansible: Deploy {label}")
-    run_ansible_playbook(deploy_playbook)
+    run_ansible_playbook(deploy_playbook, inventory=inventory)
     print_header(f"Ansible: Status {label}")
-    run_ansible_playbook(status_playbook, check=False)
+    run_ansible_playbook(status_playbook, inventory=inventory, check=False)
 
 
 def optional_playbook_enabled(enabled_key: str) -> bool:
     return get_layered_yaml_bool(enabled_key, False)
 
 
-def run_application_deployments(args: argparse.Namespace) -> None:
+def run_application_deployments(args: argparse.Namespace, *, inventory: str | None = None) -> None:
     for playbook_entry in APPLICATION_PLAYBOOKS:
         label, deploy_playbook, status_playbook, *optional_enabled_key = playbook_entry
         if optional_enabled_key and not optional_playbook_enabled(optional_enabled_key[0]):
             print_header(f"Ansible: Skip {label}")
             print(f"{optional_enabled_key[0]}=false; skipping {deploy_playbook}.")
             continue
-        deploy_with_status(label, deploy_playbook, status_playbook)
+        deploy_with_status(label, deploy_playbook, status_playbook, inventory=inventory)
 
     print_header("Ansible: Optional HTTPS Gateway")
     if args.yolo:
         print("Running optional HTTPS gateway playbook because --yolo was set.")
         print("The playbook should no-op when demo_https_gateway_enabled is false.")
-        run_ansible_playbook("deploy_demo_https_gateway.yml", check=False)
+        run_ansible_playbook("deploy_demo_https_gateway.yml", inventory=inventory, check=False)
     elif prompt_yes_no(
         "Run optional HTTPS gateway playbook now? Requires demo_https_gateway_enabled and Terraform-opened HTTPS ports",
         False,
     ):
-        run_ansible_playbook("deploy_demo_https_gateway.yml")
+        run_ansible_playbook("deploy_demo_https_gateway.yml", inventory=inventory)
 
     print_header("Ansible: Demo Outputs")
-    run_ansible_playbook("show_demo_outputs.yml", check=False)
+    run_ansible_playbook("show_demo_outputs.yml", inventory=inventory, check=False)
 
 
 def run_appliance_ansible_deployments(args: argparse.Namespace, appliance_keys: list[str]) -> None:
@@ -1672,7 +1732,7 @@ def run_appliance_ansible_deployments(args: argparse.Namespace, appliance_keys: 
     for appliance_key in appliance_keys:
         plan = APPLIANCE_ANSIBLE_PLANS[appliance_key]
         label = plan["label"]
-        inventory = plan["inventory"]
+        inventory = LOCAL_APPLIANCE_INVENTORIES.get(appliance_key) if args.target == "local" else plan["inventory"]
         status_playbook = plan["status"]
 
         run_ansible_playbook_until_success(
@@ -1691,45 +1751,81 @@ def run_appliance_ansible_deployments(args: argparse.Namespace, appliance_keys: 
         run_ansible_playbook(status_playbook, inventory=inventory, check=False)
 
 
-def run_post_application_validations(appliance_keys: list[str]) -> None:
+def run_post_application_validations(appliance_keys: list[str], *, inventory: str | None = None) -> None:
     if "fortiweb" not in appliance_keys:
         return
 
     print_header("Ansible: Validate Demo HTTP Paths")
-    run_ansible_playbook("validate_demo_http_paths.yml", check=False)
+    run_ansible_playbook("validate_demo_http_paths.yml", inventory=inventory, check=False)
 
 
-def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str]) -> None:
+def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inventory: str | None = None) -> None:
     print_header("Ansible Deployment")
     if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
         raise SystemExit("Stopped before Ansible execution.")
 
     faig_status_mode = args.faig_status_mode or "once"
 
-    run_image_publishing(args)
+    run_image_publishing(args, inventory=inventory)
 
     print_header("Ansible: Bootstrap k3s")
-    run_ansible_playbook("bootstrap_gpu_k3s.yml")
+    run_ansible_playbook("bootstrap_gpu_k3s.yml", inventory=inventory)
+    if args.target == "local":
+        require_local_gpu_assignment_after_bootstrap()
 
     print_header("Ansible: Deploy FortiAIGate")
-    run_ansible_playbook("deploy_fortiaigate.yml")
+    run_ansible_playbook("deploy_fortiaigate.yml", inventory=inventory)
     if faig_status_mode == "wait":
         wait_for_fortiaigate_ready(
             args.faig_status_delay,
             args.faig_status_retries,
+            inventory=inventory,
         )
     else:
-        run_fortiaigate_status_once("Ansible: FortiAIGate Status After Deploy")
+        run_fortiaigate_status_once("Ansible: FortiAIGate Status After Deploy", inventory=inventory)
 
     run_appliance_ansible_deployments(args, appliance_keys)
-    run_application_deployments(args)
-    run_post_application_validations(appliance_keys)
+    run_application_deployments(args, inventory=inventory)
+    run_post_application_validations(appliance_keys, inventory=inventory)
     if faig_status_mode == "once":
-        run_fortiaigate_status_once("Ansible: Final FortiAIGate Status")
+        run_fortiaigate_status_once("Ansible: Final FortiAIGate Status", inventory=inventory)
 
 
 def missing_user_profile_files() -> list[Path]:
     return [path for path in profile_tool.REQUIRED_PROFILE_FILES if not (REPO_ROOT / path).exists()]
+
+
+def missing_local_generated_files() -> list[str]:
+    return [path for path in LOCAL_GENERATED_FILES if not (REPO_ROOT / path).exists()]
+
+
+def ensure_local_generated_files() -> None:
+    missing = missing_local_generated_files()
+    if not missing:
+        return
+    raise SystemExit(
+        "Local deployment files are missing:\n- "
+        + "\n- ".join(missing)
+        + "\nRun scripts/local_setup.py first."
+    )
+
+
+def local_faig_gpu_uuids() -> list[str]:
+    path = REPO_ROOT / "ansible/group_vars/local.generated.yml"
+    if not path.exists():
+        return []
+    return get_yaml_list_strings(read_file(path), "local_faig_gpu_uuids")
+
+
+def require_local_gpu_assignment_after_bootstrap() -> None:
+    if local_faig_gpu_uuids():
+        return
+    raise SystemExit(
+        "Local k3s/GPU bootstrap completed, but no FortiAIGate GPU UUID is configured.\n"
+        "This usually means local_setup.py ran before NVIDIA drivers were usable.\n"
+        "Run scripts/local_setup.py again, select the FortiAIGate/Ollama GPUs, then rerun:\n"
+        "  python3 scripts/automated_quickstart.py --local"
+    )
 
 
 def run_profile_init() -> str:
@@ -1793,6 +1889,19 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Guided Terraform bootstrap for the FortiAIGate demo.")
     parser.add_argument(
+        "--target",
+        choices=["aws", "local"],
+        default="aws",
+        help="Deployment target. Default: aws.",
+    )
+    parser.add_argument(
+        "--local",
+        dest="target",
+        action="store_const",
+        const="local",
+        help="Shortcut for --target local. Uses generated local inventory/vars and skips AWS/Terraform.",
+    )
+    parser.add_argument(
         "--yolo",
         action="store_true",
         help=(
@@ -1836,6 +1945,14 @@ def parse_args() -> argparse.Namespace:
         "--skip-ansible",
         action="store_true",
         help="Stop after Terraform and EC2 status instead of running Ansible deployment.",
+    )
+    parser.add_argument(
+        "--publish-image-version",
+        default="",
+        help=(
+            "FortiAIGate image build version to publish when image publishing is selected, "
+            "for example 8.0.1. Use active to publish all active image catalog entries."
+        ),
     )
     parser.add_argument(
         "--include-fortigate",
@@ -1910,6 +2027,8 @@ def main() -> None:
     print(f"Repo root: {REPO_ROOT}")
     print("This script can run Terraform, publish images, bootstrap k3s, and deploy the demo.")
     print("Existing local tfvars/YAML values are used as prompt defaults when present.")
+    print(f"Deployment target: {args.target}")
+    os.environ["FAIG_DEPLOYMENT_TARGET"] = args.target
     if args.yolo:
         print("\nYOLO mode is enabled.")
         print("- Terraform apply uses -auto-approve.")
@@ -1923,11 +2042,45 @@ def main() -> None:
         for appliance_key in requested_appliances:
             print(f"- {appliance_key}")
 
-    check_requirements()
+    check_requirements(args.target)
     profile_action = ensure_user_profile(args)
     if profile_action == "export":
         return
     profile_tool.warn_legacy_files()
+
+    if args.target == "local":
+        ensure_local_generated_files()
+        appliance_keys = selected_local_appliance_keys(args)
+        if appliance_keys:
+            print_header("Local Appliance Configuration")
+            for appliance_key in appliance_keys:
+                print(f"- {appliance_key}: {LOCAL_APPLIANCE_INVENTORIES[appliance_key]}")
+        else:
+            print_header("Local Appliance Configuration")
+            print("No local FortiGate/FortiWeb inventories found. Appliance configuration will be skipped.")
+        ensure_appliance_collections(appliance_keys)
+        configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
+        if profile_action == "init":
+            print_header("LiteLLM Credentials")
+            print("Using LiteLLM credential values configured during profile initialization.")
+        elif profile_action == "import":
+            print_header("LiteLLM Credentials")
+            print("Using LiteLLM credential values from the imported user profile.")
+        else:
+            configure_litellm_credentials(noninteractive=args.yolo)
+        if not args.yolo:
+            prompt_profile_review()
+
+        print_header("Local Generated Files")
+        for path in LOCAL_GENERATED_FILES:
+            print(f"- {path}")
+        if args.skip_ansible:
+            print("\nStopped before Ansible because --skip-ansible was set.")
+            return
+        run_ansible_flow(args, appliance_keys, inventory=LOCAL_INVENTORY)
+        print_header("Automated Quick Start Complete")
+        print("Local Ansible deployment steps completed.")
+        return
 
     current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
     default_profile = get_tf_string(current_user_tfvars, "aws_profile")

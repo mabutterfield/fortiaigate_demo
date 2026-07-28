@@ -10,7 +10,10 @@
         - "{{ playbook_dir }}/../group_vars/system.yml"
         - "{{ playbook_dir }}/../group_vars/terraform.generated.yml"
         - "{{ playbook_dir }}/../group_vars/ecr.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/registry.generated.yml"
         - "{{ playbook_dir }}/../group_vars/ports.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/local.generated.yml"
+        - "{{ playbook_dir }}/../group_vars/local.secrets.yml"
         - "{{ playbook_dir }}/../group_vars/user.yml"
       when: item is file
 

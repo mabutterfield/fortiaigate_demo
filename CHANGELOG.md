@@ -5,6 +5,32 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added Phase 9 local hardware deployment foundations:
+  - `scripts/local_setup.py` generates ignored local inventory, registry, host,
+    appliance, GPU, and Ollama variables without changing the default AWS path
+  - `automated_quickstart.py --local` skips Terraform and uses the generated
+    local inventory
+  - Ollama can deploy in k3s with model preloading, optional GPU UUID pinning,
+    and a plain HTTP NodePort for trusted local-lab access
+  - NVIDIA driver bootstrap now supports local branch switching and validates
+    selected GPU UUID visibility
+  - FortiAIGate Triton can be pinned to the selected FAIG GPU UUID so mixed
+    legacy/current GPU hosts avoid unsupported TensorRT placements
+  - local FortiGate/FortiWeb onboarding now creates managed `apiadmin`
+    credentials during `local_setup.py` and stores only those managed
+    credentials in ignored local secrets
+- Added scenario-scoped MCP tool profiles:
+  - chatbot UI and `agent_probe.py` can expose only the MCP tools needed for
+    the selected scenario
+  - scenario profiles now declare `mcp.tool_profile`, and the scenario test
+    harness defaults to that profile
+  - added `support-ticket-triage` to cover customer, ticket, and generic policy
+    MCP tools without mixing them into HR, resume, menu, or FortiGate demos
+  - documented when LiteLLM, chatbot, and MCP redeploys are required for
+    scenario edits
+- Added curl replay payloads for each tracked scenario so FortiAIGate and
+  LiteLLM can be tested with spoofed MCP-like tool transcripts without running
+  the chatbot agent or MCP server.
 - Updated the HR MCP/DLP demo:
   - promoted the working HR Bot with MCP `demo-a` instructions into the
     tracked instruction examples

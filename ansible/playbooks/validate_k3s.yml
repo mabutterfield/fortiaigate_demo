@@ -11,9 +11,12 @@
           query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
-          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml')
-          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml')
-          + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml')
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/registry.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.secrets.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
   tasks:

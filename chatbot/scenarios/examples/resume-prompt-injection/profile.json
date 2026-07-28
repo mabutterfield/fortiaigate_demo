@@ -4,6 +4,7 @@
   "description": "Attack-fixture resume scenario for indirect prompt-injection and prompt-leakage behavior.",
   "instruction_file": "instructions.txt",
   "mcp": {
+    "tool_profile": "resume-prompt-injection",
     "required_tools": [
       "document_upload_simulation",
       "resume_search",
