@@ -115,11 +115,24 @@ FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generat
 ```
 
 To reset only the local generated vars and inventories in this checkout without
-touching the deployed lab, run:
+touching the deployed lab, export them. Export creates a backup archive and then
+removes the generated local files:
 
 ```bash
-python3 scripts/local_var_cleanup.py
+python3 scripts/local_var_cleanup.py export
 ```
+
+The default archive is `../local_vars_backup.tgz`. This archive may contain the
+managed FortiGate API token and FortiWeb admin password from
+`ansible/group_vars/local.secrets.yml`, so treat it as sensitive and keep it out
+of Git. To restore those generated local files later:
+
+```bash
+python3 scripts/local_var_cleanup.py import
+```
+
+Pass an explicit archive path to either action when you want a different backup
+location.
 
 When local appliance inventories exist, `automated_quickstart.py --local` uses
 the managed credentials created by `local_setup.py` and runs the same
