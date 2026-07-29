@@ -222,6 +222,11 @@ litellm_ui_password: litellm-demo-change-me
 # ollama_keep_alive: 60m
 # ollama_context_length: 32768
 
+# Optional FortiAIGate syslog collector.
+# Local labs can keep logs in a collector pod file without an AWS S3 bucket.
+# fortiaigate_syslog_collector_enabled: true
+# fortiaigate_syslog_output: file
+
 # Optional secondary UI.
 openwebui_enabled: false
 

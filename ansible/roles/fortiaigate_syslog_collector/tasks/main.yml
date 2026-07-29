@@ -1,7 +1,7 @@
 ---
 - name: Skip FortiAIGate syslog collector deployment when disabled
   ansible.builtin.debug:
-    msg: "fortiaigate_syslog_collector_enabled=false or no fortiaigate_syslog_bucket_name is available; skipping syslog collector deployment."
+    msg: "fortiaigate_syslog_collector_enabled=false; skipping syslog collector deployment."
   when: not fortiaigate_syslog_collector_enabled | bool
 
 - name: Validate FortiAIGate syslog collector variables
@@ -11,11 +11,22 @@
       - fortiaigate_syslog_release_name | length > 0
       - fortiaigate_syslog_service_port | int == 514
       - fortiaigate_syslog_container_port | int > 1024
+      - fortiaigate_syslog_output in ["s3", "file"]
+      - fortiaigate_syslog_output != "file" or fortiaigate_syslog_file_path | length > 0
+      - fortiaigate_syslog_output != "file" or fortiaigate_syslog_file_name | length > 0
+    fail_msg: "FortiAIGate syslog collector needs namespace, release name, UDP/514 service, unprivileged container port, and output mode s3 or file."
+  when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Validate FortiAIGate syslog S3 output variables
+  ansible.builtin.assert:
+    that:
       - fortiaigate_syslog_s3_bucket | length > 0
       - fortiaigate_syslog_s3_prefix | length > 0
       - aws_region | default('', true) | length > 0
     fail_msg: "FortiAIGate syslog collector needs namespace, release name, UDP/514 service, unprivileged container port, S3 bucket/prefix, and aws_region."
-  when: fortiaigate_syslog_collector_enabled | bool
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_output == "s3"
 
 - name: Render FortiAIGate syslog collector manifest
   ansible.builtin.template:

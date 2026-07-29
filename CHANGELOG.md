@@ -44,6 +44,12 @@ a "what's new" guide rather than a raw commit log.
   - direct local model tests print the loaded `ollama ps` table after the
     request so operators can confirm model, GPU placement, context, and unload
     timing
+- Enabled local FortiAIGate syslog collection without AWS prep:
+  - AWS deployments keep the existing Fluent Bit S3 archive output
+  - local deployments can use file output inside the collector pod at
+    `/logs/fortiaigate-syslog.jsonl`
+  - status and test playbooks now show/tail the local syslog file and validate
+    that synthetic UDP syslog messages are captured
 
 ## v0.9.0 - Local Deployment Support
 

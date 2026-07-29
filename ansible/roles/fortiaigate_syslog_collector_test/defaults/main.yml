@@ -1,8 +1,12 @@
 ---
-fortiaigate_syslog_collector_enabled: "{{ fortiaigate_syslog_bucket_name | default('', true) | string | length > 0 }}"
+fortiaigate_syslog_collector_enabled: "{{ (deployment_target | default('aws')) == 'local' or fortiaigate_syslog_bucket_name | default('', true) | string | length > 0 }}"
 fortiaigate_syslog_namespace: fortiaigate-logging
 fortiaigate_syslog_release_name: fortiaigate-syslog
+fortiaigate_syslog_output: "{{ 's3' if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0 else 'file' }}"
 fortiaigate_syslog_service_port: 514
+fortiaigate_syslog_file_path: /logs
+fortiaigate_syslog_file_name: fortiaigate-syslog.jsonl
+fortiaigate_syslog_tail_lines: 80
 fortiaigate_syslog_test_message: "phase8 syslog collector test"
-fortiaigate_syslog_test_wait_seconds: 35
-fortiaigate_syslog_test_check_s3: true
+fortiaigate_syslog_test_wait_seconds: "{{ 35 if fortiaigate_syslog_output == 's3' else 8 }}"
+fortiaigate_syslog_test_check_s3: "{{ fortiaigate_syslog_output == 's3' }}"

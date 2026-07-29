@@ -10,7 +10,8 @@ must support that port.
 FortiAIGate syslog UDP/514
   -> k3s ClusterIP service on UDP/514
       -> Fluent Bit pod on UDP/5514
-          -> S3 log archive bucket
+          -> AWS: S3 log archive bucket
+          -> local: file inside the collector container
 ```
 
 UDP/514 is workable. A Kubernetes Service can expose UDP/514 while the
@@ -23,9 +24,16 @@ ansible-playbook ansible/playbooks/deploy_fortiaigate_syslog_collector.yml
 ansible-playbook ansible/playbooks/status_fortiaigate_syslog_collector.yml
 ```
 
-The quickstart invokes the collector playbook automatically. The role no-ops
-unless `terraform/aws-prep` created `fortiaigate_syslog_bucket_name` and
-`terraform/aws-ec2-k3s` regenerated `ansible/group_vars/terraform.generated.yml`.
+The quickstart invokes the collector playbook automatically. AWS deployments use
+S3 output when `terraform/aws-prep` created `fortiaigate_syslog_bucket_name` and
+`terraform/aws-ec2-k3s` regenerated
+`ansible/group_vars/terraform.generated.yml`. Local deployments can enable the
+collector without AWS prep by setting:
+
+```yaml
+fortiaigate_syslog_collector_enabled: true
+fortiaigate_syslog_output: file
+```
 
 Current FortiAIGate builds accept an IP address, not an FQDN, for this syslog
 target. Configure FortiAIGate syslog to target the service ClusterIP shown by
@@ -47,6 +55,45 @@ used in the FortiAIGate GUI unless that UI later supports FQDN targets:
 ```text
 fortiaigate-syslog.fortiaigate-logging.svc.cluster.local:514/udp
 ```
+
+## Local File Mode
+
+Local file mode writes received syslog records inside the collector pod on a
+shared volume mounted by Fluent Bit and the `syslog-tail` sidecar. The default
+file path is:
+
+```text
+/logs/fortiaigate-syslog.jsonl
+```
+
+Use the status playbook to see the service target, file path, and recent file
+lines:
+
+```bash
+ansible-playbook -i ansible/inventory/local.generated.ini \
+  ansible/playbooks/status_fortiaigate_syslog_collector.yml
+```
+
+Tail the file directly from the workstation with:
+
+```bash
+ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 mike@jarvis \
+  sudo -n /usr/local/bin/kubectl -n fortiaigate-logging \
+  exec deployment/fortiaigate-syslog -c syslog-tail -- \
+  tail -f /logs/fortiaigate-syslog.jsonl
+```
+
+Run the test playbook to send a synthetic UDP syslog line and fail if the line
+does not appear in the collector file:
+
+```bash
+ansible-playbook -i ansible/inventory/local.generated.ini \
+  ansible/playbooks/test_fortiaigate_syslog_collector.yml
+```
+
+The local file lives on an `emptyDir` volume and is intended for active demo
+validation, not long-term preservation. It is lost if the collector pod is
+recreated. Use AWS S3 output for teardown-preserved archives.
 
 If FortiAIGate must send to the k3s node IP on UDP/514 instead of an internal
 service IP, future options are `hostNetwork`, `hostPort`, or a host-level UDP

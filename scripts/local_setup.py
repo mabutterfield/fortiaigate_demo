@@ -934,6 +934,13 @@ litellm_use_ollama_model_list: true
 litellm_ollama_base_url: "{{{{ ollama_internal_base_url | regex_replace('/v1/?$', '') }}}}"
 litellm_passthrough_model_alias: pass-ollama
 litellm_faig_backend_downstream_model: "{{{{ litellm_passthrough_model_alias }}}}"
+
+# Local syslog keeps FortiAIGate log collection in-cluster and writes to a file
+# inside the collector pod instead of requiring an AWS S3 archive bucket.
+fortiaigate_syslog_collector_enabled: true
+fortiaigate_syslog_output: file
+fortiaigate_syslog_test_check_s3: false
+fortiaigate_syslog_test_wait_seconds: 8
 """
 
 
