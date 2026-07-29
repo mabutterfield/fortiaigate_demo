@@ -36,6 +36,7 @@ reference, not a competing first-run path.
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
 | Scenario demo prompts and settings | [Scenarios](scenarios.md) |
+| Traffic generator | [Traffic Generator](traffic-generator.md) |
 | Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
 | FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
@@ -77,6 +78,9 @@ reference, not a competing first-run path.
 - `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes: passthrough, demo-a, and demo-b.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 - `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
+- `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
+  steady or burst chatbot/MCP traffic profiles with compact ignored metadata
+  under `docs/raw-output/traffic/`.
 - `scripts/export_fortiaigate_syslog.py`: syncs FortiAIGate syslog S3 objects into `FAIG/backups/` and reconstructs a combined JSONL archive.
 - `scripts/local_setup.py`: generates ignored local Ubuntu inventory, registry,
   GPU, Ollama, and optional local appliance vars for `--local` deployments.

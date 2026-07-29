@@ -14,6 +14,17 @@ FortiAIGate flow and guard profile, not a model change.
 | FAIG Scan | `/v1/demo-a/*` | All relevant detections enabled; no protections | `demo-a` |
 | FAIG Protect | `/v1/demo-b/*` | Active protection profile selected per scenario | `demo-a` |
 
+The important v1.0 demo mapping is:
+
+```text
+FAIG Demo-A entry point -> detect guard -> LiteLLM demo-a
+FAIG Demo-B entry point -> prevent/redact guard -> LiteLLM demo-a
+```
+
+Demo-B is a different FortiAIGate entry point and guard, not a different
+backend prompt/model. This keeps the comparison focused on detection versus
+prevention/redaction.
+
 Use GPT-OSS 20B through the LiteLLM `demo-a` profile unless a later model
 comparison produces a clearer recorded result.
 

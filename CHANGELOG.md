@@ -19,6 +19,22 @@ a "what's new" guide rather than a raw commit log.
   fresh deployment, AWS teardown, local fresh deployment, scenario baseline
   validation, and an optional FortiGate Application Control traffic-generation
   investigation.
+- Added `scripts/traffic_generator.py` for Phase 10 local-safe traffic:
+  - default `path_test` mode that prints the inferred FAIG target and curls
+    `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough` once from the workstation
+  - `steady` mode for persistent low-rate log/dashboard population
+  - `burst` mode for short high-rate load or DoS-style testing
+  - `--mode traffic` FAIG scan routing and active-slot scenario selection so sent
+    prompts match the scenario installed into `demo-a`/`demo-b`
+  - FAIG protect traffic now uses the `demo-b` entry point while keeping the
+    active scenario and backend LiteLLM model aligned to `demo-a`
+  - fixed-seed scenario traffic plans, compact ignored metadata, and
+    cloud/long-run safeguards
+  - blocked/redacted protected responses are counted as security dispositions
+    rather than request failures
+- Fixed `test_mcp.yml` local mode by adding an auto target mode that tests the
+  MCP NodePort from the local k3s host instead of requiring AWS Terraform
+  public-IP output.
 
 ## v0.9.0 - Local Deployment Support
 

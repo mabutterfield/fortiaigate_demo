@@ -18,6 +18,7 @@ checks and at least one AWS fresh deployment validation pass have succeeded.
 | AWS teardown | Pending | Requires a matching teardown after AWS validation. |
 | Local fresh deployment | Pending | Requires an intentional local run against the Ubuntu lab host. |
 | Scenario baseline | Pending | Requires live chatbot/MCP/route validation. |
+| Traffic generator | Partial live pass | `path_test` and a one-request local `faig-scan` traffic run passed; long steady/burst tuning remains pending. |
 | FortiGate application-control traffic investigation | Planned | Optional Phase 10 investigation; not a v1.0 release blocker unless selected for the recorded demo. |
 
 ## No-Apply Repository Health
@@ -29,6 +30,10 @@ python3 scripts/smoke_test.py
 python3 scripts/scenario_profiles.py validate
 python3 scripts/instruction_profiles.py validate
 python3 scripts/scenario_test_harness.py --help
+python3 scripts/traffic_generator.py --help
+python3 scripts/traffic_generator.py --dry-run
+python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario-source family --use-case steady --duration 60 --rate 6
+python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fastfood-ordering --use-case burst
 ```
 
 Expected coverage:
@@ -41,12 +46,13 @@ Expected coverage:
 | Terraform formatting | `terraform fmt -check` passes for tracked Terraform files. |
 | Ansible syntax | Tracked playbooks pass syntax checks without applying changes. |
 | Scenario metadata | Scenario and instruction profile validation passes. |
+| Traffic generator dry-runs | Default path test prints inferred targets without sending traffic; steady and burst traffic plans print request mix without sending traffic. |
 
 Result log:
 
 | Date | Result | Notes |
 |---|---|---|
-| 2026-07-29 | Passed | `python3 scripts/smoke_test.py`, `python3 scripts/scenario_profiles.py validate`, `python3 scripts/instruction_profiles.py validate`, and `python3 scripts/scenario_test_harness.py --help` passed. |
+| 2026-07-29 | Passed | `python3 scripts/smoke_test.py`, `python3 scripts/scenario_profiles.py validate`, `python3 scripts/instruction_profiles.py validate`, `python3 scripts/scenario_test_harness.py --help`, `python3 scripts/traffic_generator.py --help`, default path-test dry-run, and traffic-generator steady/burst dry-runs passed. |
 
 ## AWS Fresh Deployment
 
@@ -190,6 +196,58 @@ Result log:
 | Date | Scenario | Result | Notes |
 |---|---|---|---|
 | 2026-07-29 | baseline set | Pending | Live scenario validation is intentionally separate from this doc commit. |
+
+## Traffic Generator
+
+Use [Traffic Generator](traffic-generator.md) for command details.
+
+Steady use case:
+
+```bash
+python3 scripts/traffic_generator.py \
+  --mode traffic \
+  --target local \
+  --use-case steady \
+  --duration 3600 \
+  --rate 6 \
+  --route faig-scan \
+  --label local-dashboard-hour \
+  --yes
+```
+
+Burst use case:
+
+```bash
+python3 scripts/traffic_generator.py \
+  --mode traffic \
+  --target local \
+  --use-case burst \
+  --scenario fastfood-ordering \
+  --route direct \
+  --label local-burst-test \
+  --yes
+```
+
+Expected validation points:
+
+| Area | Expected result |
+|---|---|
+| Path test | No-argument default prints the inferred FAIG HTTPS endpoint and verifies `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough` once. |
+| Steady mode | Persistent but not excessive requests populate FortiAIGate charts and logs over time. |
+| Burst mode | Short high-rate traffic exercises load behavior and any DoS-style protections selected for the lab. |
+| Active-slot sync | Default live runs read `demo-a`/`demo-b` metadata and send scenarios matching the loaded instruction slot. |
+| Security dispositions | Blocked and redacted responses are counted as `security_disposition`, not as transport failures. |
+| Safeguards | AWS/public long or high-rate runs refuse without `--allow-cloud-long-run`. |
+| Output | `plan.json`, `events.jsonl`, and `summary.json` are written under ignored `docs/raw-output/traffic/<run-label>/`. |
+
+Result log:
+
+| Date | Use case | Result | Notes |
+|---|---|---|---|
+| 2026-07-29 | steady dry-run | Passed | Request mix printed without sending traffic. |
+| 2026-07-29 | burst dry-run | Passed | Request mix printed without sending traffic; cloud burst guard also refused execution without explicit opt-in. |
+| 2026-07-29 | path test | Passed | No-argument local run reached `https://192.168.248.80` from the workstation and returned HTTP 200 for `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough`. |
+| 2026-07-29 | scan smoke | Passed with warning | One clean `faig-scan` traffic request completed through the deployed chatbot pod. The running chatbot image did not support `--tool-profile`, so per-scenario MCP tool selection requires a chatbot image rebuild/redeploy. |
 
 ## FortiGate Application-Control Traffic Investigation
 

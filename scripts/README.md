@@ -31,6 +31,17 @@ Current scripts:
   response JSON under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
   Use `--run-label` to name a repeatable sweep; existing non-empty output
   directories are not overwritten unless `--overwrite-output` is supplied.
+- `traffic_generator.py`: validates FAIG paths and generates repeatable
+  chatbot/MCP traffic. With no arguments it runs a direct workstation curl
+  `path_test` against `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough`.
+  Scenario traffic uses `--mode traffic` and runs through the deployed chatbot
+  pod. Use `--use-case steady` for persistent low-rate dashboard/log population
+  and `--use-case burst` for short load or DoS-style testing. Traffic runs
+  default to FAIG `demo-a` scan traffic and read local slot metadata so sent
+  scenarios match the installed `demo-a`/`demo-b` instructions. It saves compact
+  metadata under ignored
+  `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
+  responses as security dispositions rather than transport failures.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the
