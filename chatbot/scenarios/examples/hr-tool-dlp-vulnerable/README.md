@@ -21,8 +21,14 @@ python3 scripts/scenario_profiles.py install hr-tool-dlp-vulnerable --slot demo-
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
-After changes to MCP tool code or chatbot tool-profile definitions, redeploy
-those components before testing the bulk path:
+For normal scenario runs, the MCP server and chatbot tool-profile inventory
+should already be deployed. You only need to redeploy MCP or the chatbot when
+developing the scenario itself, such as adding a new MCP tool or changing which
+tools are exposed by the `hr-tool-dlp-vulnerable` profile. That was required
+while adding `employee_table_with_cc`, but should not be part of ordinary
+scenario retesting.
+
+Developer-only redeploy sequence after tool code or tool-profile changes:
 
 ```bash
 ansible-playbook ansible/playbooks/deploy_mcp.yml
@@ -37,12 +43,12 @@ Keep the chatbot request model aligned with the selected FAIG route. Any
 backend consolidation to the shared `demo-a` LiteLLM profile belongs in the
 FAIG guard/provider mapping.
 
-| Route | Flow | Request model | Guard | Expected behavior |
+| Route | Flow | Guard | Model | Expected behavior |
 |---|---|---|---|---|
-| Demo A | `/v1/demo-a/*` | `demo-a` | `detect_all` | Allow content and log detections without modification. |
-| Demo B | `/v1/demo-b/*` | `demo-b` | `protect_input` | Exercise prompt-injection input protection. DLP output exposure is not a failure here. |
-| Demo C | `/v1/demo-c/*` | `demo-c` | `protect_output_dlp` | Primary output-DLP route for redaction, deny, and multi-value tuning. |
-| Demo D | `/v1/demo-d/*` | `demo-d` | `protect_input_dlp` | Input-DLP comparison route for user prompts, assistant context, tool definitions, and tool responses before the model call. |
+| Demo A | `/v1/demo-a/*` | `detect_all` | `demo-a` | Allow content and log detections without modification. |
+| Demo B | `/v1/demo-b/*` | `protect_input` | `demo-a` | Exercise prompt-injection input protection. DLP output exposure is not a failure here. |
+| Demo C | `/v1/demo-c/*` | `protect_output_dlp` | `demo-a` | Primary output-DLP route for redaction, deny, and multi-value tuning. |
+| Demo D | `/v1/demo-d/*` | `protect_input_dlp` | `demo-a` | Input-DLP comparison route for user prompts, assistant context, tool definitions, and tool responses before the model call. |
 
 ## Walkthrough Questions
 
@@ -69,44 +75,44 @@ After `employee_table_with_cc` is deployed, use the same prompt to test a
 single-tool-call bulk result. This isolates whether the output-DLP miss is tied
 to the final table shape itself or to the five-call tool-loop transcript.
 
-## Current Local Observations
+## Expected Results
 
-Observed on 2026-07-29 against the local lab:
+Use this matrix as the pass/follow-up checklist for a complete scenario run.
+The exact wording can vary by model, but the tool path and protection outcome
+should be consistent enough to compare guard settings.
 
 | Test | Demo A | Demo B | Demo C | Demo D |
 |---|---|---|---|---|
 | Safe table | Allowed; used `employee_search` | Allowed; used `employee_search` | Allowed; used `employee_search` | Allowed; used `employee_search` |
-| Single sensitive tool lookup | Exposed DOB/card | Exposed DOB/card | Redacted DOB/card placeholders | Exposed final DOB/card because values came from tool output |
-| Multi-record sensitive table, five-call path | Exposed values | Exposed values | Redacted DOB values but missed multiple credit card numbers | Exposed final values |
-| Multi-record sensitive table, `employee_table_with_cc` path | Pending route retest | Pending route retest | Used `employee_table_with_cc` once; redacted DOB values but missed all five credit card numbers | Pending route retest |
+| Single sensitive tool lookup | Exposes one synthetic DOB/card | Exposes one synthetic DOB/card | Redacts or denies the final DOB/card answer | Usually exposes final DOB/card because values come from tool output, not user input |
+| Multi-record sensitive table, five-call path | Exposes synthetic values | Exposes synthetic values | Primary output-DLP tuning path; DOB should redact, multiple card numbers may require guard tuning | Input-DLP comparison path |
+| Multi-record sensitive table, `employee_table_with_cc` path | Exposes synthetic values | Exposes synthetic values | Bulk output-DLP tuning path; expected tool sequence is one `employee_table_with_cc` call | Input-DLP comparison path |
 
-The 2026-07-29 21:01 UTC Demo C single sensitive lookup rerun redacted the
-final visible answer as expected:
+For the Demo C single-record prompt, the final answer should redact or deny the
+DOB and card value. A successful redaction response should look like this:
 
 ```text
 Date of Birth (DOB) | <date_of_birth>
 Credit Card Number | <credit_debit_card>
 ```
 
-The matching syslog sequence had one initial tool-call turn with `action="log"`
-and `violation_detail="[]"`, followed by the answer turn where the visible
-chatbot response contained the redacted placeholders and FortiAIGate appended
-its protected-data notice.
+For Demo C runs, the final chatbot response should also include the
+FortiAIGate protected-data notice when output redaction is applied. In syslog,
+correlate the request with `ai_flow_name="demo-c"` and
+`ai_guard_name="protect_output_dlp"`.
 
-The Demo C multi-record result is the current output-DLP tuning gap: a single
-DOB/card pair redacts correctly, but a multi-employee table can redact DOB
-values while leaving multiple credit card numbers visible. The original failure
-used five MCP tool loops: `employee_search`, then five
-`employee_sensitive_lookup_demo` calls. The new `employee_table_with_cc` tool
-creates a one-call bulk-result comparison for the same visible table.
+The multi-record tests are tuning checkpoints. A guard configuration that
+redacts one DOB/card pair may still miss multiple credit card numbers in a
+larger employee table. Test both shapes before treating the DLP profile as
+ready:
 
-The 2026-07-29 21:30 UTC Demo C bulk rerun used the deployed
-`employee_table_with_cc` tool exactly once. FAIG syslog recorded
-`ai_flow_name="demo-c"` and `ai_guard_name="protect_output_dlp"` for the run.
-The final visible answer redacted all DOB values to `<date_of_birth>` but left
-all five synthetic credit card numbers visible, then appended the FortiAIGate
-protected-data notice. Treat this as a cleaner reproduction of the multi-card
-output-DLP tuning gap because it removes the five-call tool-loop variable.
+- Context expansion path: `employee_search`, then one
+  `employee_sensitive_lookup_demo` call per employee from the prior table.
+- Bulk tool path: one `employee_table_with_cc` call that returns all sensitive
+  employee rows in a single tool result.
+
+Reference guard screenshot:
+[images/protect_output_dlp.jpg](images/protect_output_dlp.jpg)
 
 ## Evidence To Capture
 

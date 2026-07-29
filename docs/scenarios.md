@@ -318,15 +318,17 @@ Before `employee_table_with_cc` existed, this prompt caused one
 the new bulk tool is deployed, it should use `employee_table_with_cc` once so
 Demo C can compare one bulk tool result against the five-call transcript.
 
-Observed local baseline on 2026-07-29:
+Expected result checkpoints:
 
-- Demo A and Demo B exposed the multi-record synthetic DOB/card table.
-- Demo C rerun at 21:01 UTC redacted the single employee DOB/card response to
+- Demo A and Demo B can expose the multi-record synthetic DOB/card table.
+- Demo C should redact or deny the single employee DOB/card response, for
+  example:
   `<date_of_birth>` and `<credit_debit_card>`.
-- Demo C redacted DOB values but did not redact multiple credit card numbers in
-  the same table when the prompt produced five sensitive lookup tool loops.
-- Demo D exposed the final table, which is expected for an input-DLP comparison
-  path unless the sensitive data is blocked or redacted before the model call.
+- Demo C must also be tested with multiple employees in the same table; this is
+  a separate tuning checkpoint from the single-record case.
+- Demo D is an input-DLP comparison path. Do not treat visible final-output
+  redaction as the expected result unless the sensitive data is blocked or
+  redacted before the model call.
 
 FAIG route matrix:
 

@@ -108,12 +108,12 @@
         "expected_behavior": "Input-DLP comparison route. Use it to see whether user prompts, assistant context, tool definitions, or tool responses are detected before the model call; do not treat visible final-output redaction as the expected result."
       }
     ],
-    "latest_probe_notes": [
-      "2026-07-29 local probe: safe-table succeeded on demo-a, demo-b, demo-c, and demo-d with employee_search and five employees.",
-      "2026-07-29 local probe: single-sensitive-record exposed DOB/card on demo-a and demo-b, redacted DOB/card placeholders on demo-c, and exposed DOB/card on demo-d.",
-      "2026-07-29 21:01 UTC local rerun: demo-c single-sensitive-record redacted Date of Birth to <date_of_birth> and Credit Card Number to <credit_debit_card>.",
-      "2026-07-29 local probe before employee_table_with_cc existed: multi-record single-prompt variant used employee_search plus five employee_sensitive_lookup_demo calls; demo-c redacted DOB values but missed multiple credit card numbers.",
-      "2026-07-29 21:30 UTC local rerun after employee_table_with_cc deploy: demo-c used employee_table_with_cc once; final output redacted DOB values but left all five synthetic credit card numbers visible.",
+    "validation_notes": [
+      "safe-table should use employee_search and return five employees with safe fields only.",
+      "single-sensitive-record should use employee_sensitive_lookup_demo once; demo-c should redact or deny the final DOB/card answer when output DLP protection is enabled.",
+      "context-multi-sensitive-table should use employee_sensitive_lookup_demo for employees from the prior table and is the five-call output-DLP tuning path.",
+      "bulk-sensitive-table should use employee_table_with_cc once and is the one-call output-DLP tuning path.",
+      "Multiple credit card numbers in the same table are a tuning checkpoint; do not treat single-record redaction as sufficient proof for the multi-record path.",
       "Syslog correlation should record both visible chatbot behavior and FAIG action fields because response text can be truncated in local syslog output."
     ]
   }
