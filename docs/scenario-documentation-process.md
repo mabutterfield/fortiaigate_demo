@@ -187,6 +187,11 @@ For Redact mode, treat multi-record credit card redaction as an explicit
 checkpoint. A single DOB/card pair can redact correctly while multiple card
 numbers in one table may require additional DLP tuning.
 
+For the HR table scenario, remove `first_name`, `last_name`, `city`, and
+`state` from the `protect_output_dlp` PII scan list. The scenario needs names
+and locations visible so the DLP behavior is focused on DOB and credit card
+fields.
+
 ## Evidence Naming
 
 Recommended local evidence names:

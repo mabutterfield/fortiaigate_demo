@@ -238,6 +238,9 @@ FAIG protect guard:
 - `protect_output_dlp`.
 - Output only.
 - Default sensitivity and PII list.
+- Remove `first_name`, `last_name`, `city`, and `state` from the PII scan list
+  for the HR table scenario so names and locations stay readable while DOB and
+  card handling remain visible.
 - Tool calls enabled.
 - Run both Deny and Redact passes: Deny should block sensitive output, while
   Redact should allow the answer with sensitive values replaced by placeholders.

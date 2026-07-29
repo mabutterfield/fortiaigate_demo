@@ -61,6 +61,17 @@ For this scenario, run Demo C twice:
 Reference guard screenshot:
 [images/protect_output_dlp.jpg](images/protect_output_dlp.jpg)
 
+Per the reference screenshot, `protect_output_dlp` removes these PII types from
+the scan list for this scenario:
+
+- `first_name`
+- `last_name`
+- `city`
+- `state`
+
+This keeps employee names and locations readable while focusing the scenario on
+DOB and credit card handling.
+
 ## Test Prompts
 
 Run the prompts in this order for each route or guard mode being compared.
