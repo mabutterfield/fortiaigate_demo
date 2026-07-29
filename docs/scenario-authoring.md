@@ -117,8 +117,11 @@ Replay instructions are in [curl-payloads.md](curl-payloads.md).
 
 ## Deploy Boundary
 
-You do not need to redeploy MCP when switching scenario prompts or tool
-profiles. Redeploy MCP only when the shared tool service changes.
+Scenario-specific runbooks assume the MCP server and chatbot tool-profile
+inventory are already deployed. You do not need to redeploy MCP or the chatbot
+when switching scenario prompts, installing a scenario into a LiteLLM slot, or
+selecting another tool profile in the UI. Redeploy MCP or the chatbot only when
+developing the scenario implementation itself.
 
 | Change | Deploy |
 |---|---|

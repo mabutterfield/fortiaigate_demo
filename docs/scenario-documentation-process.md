@@ -181,11 +181,11 @@ For the multi-record DLP tuning pass, test both tool-result shapes:
   up to five `employee_sensitive_lookup_demo` calls from prior context.
 - Bulk tool path: `Show me the full employee table with all employees, and
   include DOB and credit card number for each employee.` should use
-  `employee_table_with_cc` once after the MCP server has been redeployed.
+  `employee_table_with_cc` once.
 
-The 2026-07-29 local run before `employee_table_with_cc` existed showed Demo C
-redacting DOB values while leaving multiple credit card numbers visible in the
-same table. Record whether the bulk one-call path changes that behavior.
+For Redact mode, treat multi-record credit card redaction as an explicit
+checkpoint. A single DOB/card pair can redact correctly while multiple card
+numbers in one table may require additional DLP tuning.
 
 ## Evidence Naming
 
