@@ -17,6 +17,25 @@ FortiAIGate flow and guard profile, not a model change.
 Use GPT-OSS 20B through the LiteLLM `demo-a` profile unless a later model
 comparison produces a clearer recorded result.
 
+## v1.0 Baseline Scenario Catalog
+
+Phase 10 release validation should start with this baseline set:
+
+| Scenario | Tool profile | Validation intent |
+|---|---|---|
+| `fastfood-ordering` | `fastfood-ordering` | Clean tool use plus text-only prompt-injection boundary |
+| `hr-tool-dlp-vulnerable` | `hr-tool-dlp-vulnerable` | Synthetic sensitive tool result for DLP output behavior |
+| `resume-screening-clean` | `resume-screening-clean` | Clean retrieval, telemetry, and route baseline |
+| `resume-prompt-injection` | `resume-prompt-injection` | Indirect prompt injection through retrieved document text |
+| `resume-cloud-tool-pivot-safe` | `resume-cloud-tool-pivot-safe` | Safe MCP tool-boundary comparison |
+| `resume-cloud-tool-pivot-vulnerable` | `resume-cloud-tool-pivot-vulnerable` | Vulnerable MCP tool-pivot comparison with synthetic cloud data |
+| `fortigate-operator` | `fortigate-operator` | Read-only FortiGate visibility when an appliance is present |
+| `support-ticket-triage` | `support-ticket-triage` | Customer/ticket/policy grounding and redaction checks |
+
+Supporting scenarios remain available for troubleshooting and future demo
+content, but the release notes should distinguish them from this baseline until
+they have a documented Phase 10 validation result.
+
 ## FAIG Flow And Guard Setup
 
 Use this as the GUI reference while configuring the recorded-demo flows.
@@ -251,9 +270,9 @@ These remain useful but should not distract from the first-draft recording.
 | `fortigate-operator` | Internal automation/read-only tools | Strong later story for read-only boundaries and hallucination avoidance. Not required for the first FAIG prompt/DLP recording. |
 | `resume-screening-clean` | Clean retrieval baseline | Best clean business-flow control for FAIG GUI telemetry. |
 
-## Phase 9 Traffic Generator Interface
+## Phase 10 Traffic Generator Interface
 
-The Phase 9 traffic generator should consume stable scenario metadata rather
+The Phase 10 traffic generator should consume stable scenario metadata rather
 than copying prompt wording into runtime code.
 
 Recommended event fields:

@@ -3,12 +3,25 @@
 This is the main documentation landing page for the FortiAIGate demo deployment.
 Start with one quick start, then use the topic docs for details and recovery.
 
+## TLDR Paths
+
+| Operator path | Use when | Start |
+|---|---|---|
+| AWS quickstart | You want the default supported demo on EC2 GPU, k3s, FortiAIGate, LiteLLM to Bedrock, chatbot, MCP, and appliances | `python3 scripts/automated_quickstart.py` |
+| Local hardware quickstart | You have an existing Ubuntu 24.04 GPU host and a reachable local/LAN registry | `python3 scripts/local_setup.py`, then `python3 scripts/automated_quickstart.py --local` |
+| Manual recovery | You need to inspect or rerun one Terraform or Ansible step | [Manual Quick Start](quickstart-manual.md) |
+
+The automated AWS quickstart is the primary operator walkthrough. The manual
+quickstart is intentionally a step-by-step recovery and troubleshooting
+reference, not a competing first-run path.
+
 ## Quick Starts
 
 | Goal | Document |
 |---|---|
-| Guided/scripted setup path | [Automated Quick Start](quickstart-automated.md) |
-| Step-by-step operator-run deployment | [Manual Quick Start](quickstart-manual.md) |
+| Default guided AWS setup path | [Automated Quick Start](quickstart-automated.md) |
+| Local Ubuntu GPU hardware path | [Automated Quick Start - Local Hardware Mode](quickstart-automated.md#local-hardware-mode) |
+| Step-by-step operator-run recovery path | [Manual Quick Start](quickstart-manual.md) |
 | End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
 
 ## Core Topics
@@ -28,6 +41,7 @@ Start with one quick start, then use the topic docs for details and recovery.
 | FortiGate appliance | [FortiGate](fortigate.md) |
 | FortiWeb appliance | [FortiWeb](fortiweb.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
+| Known issues and workarounds | [Known Issues](known-issues.md) |
 | Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
 
 ## FortiAIGate Setup
@@ -51,6 +65,8 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready.
 - `deploy_litellm.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the default demo application layer.
 - `deploy_openwebui.yml`: optionally deploys Open WebUI when `openwebui_enabled=true`.
+- `deploy_ollama.yml`, `status_ollama.yml`, and `validate_ollama.yml`: deploy,
+  inspect, and test in-cluster Ollama for local hardware mode.
 - `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the MCP demo tool server.
 - `deploy_fortiaigate_syslog_collector.yml`, `status_fortiaigate_syslog_collector.yml`, and `test_fortiaigate_syslog_collector.yml`: deploy, inspect, and send a synthetic UDP test message to the FortiAIGate syslog preservation collector.
 - `deploy_demo_https_gateway.yml`: adds self-signed HTTPS listeners for HTTP-only demo services when run and enabled.
@@ -61,5 +77,11 @@ Start with one quick start, then use the topic docs for details and recovery.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 - `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
 - `scripts/export_fortiaigate_syslog.py`: syncs FortiAIGate syslog S3 objects into `FAIG/backups/` and reconstructs a combined JSONL archive.
+- `scripts/local_setup.py`: generates ignored local Ubuntu inventory, registry,
+  GPU, Ollama, and optional local appliance vars for `--local` deployments.
+- `scripts/local_var_cleanup.py`: exports/imports/removes generated local vars
+  and inventories without committing them.
+- `scripts/smoke_test.py`: release-maintainer no-apply validation; operators do
+  not need it for a normal quickstart.
 
 Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.

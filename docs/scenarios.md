@@ -17,6 +17,28 @@ each profile documents which tools the scenario should use. The custom chatbot
 can expose a matching MCP tool profile so unrelated tools are not sent to the
 model during a recording.
 
+## v1.0 Baseline Set
+
+Use this baseline set for Phase 10 release validation and recorded-demo
+rehearsal unless a specific test plan says otherwise:
+
+| Scenario | Status | Primary use |
+|---|---|---|
+| `fastfood-ordering` | v1.0 baseline | Public, low-risk tool-use and prompt-injection boundary demo |
+| `hr-tool-dlp-vulnerable` | v1.0 baseline | Synthetic sensitive tool-result and output-DLP demo |
+| `resume-screening-clean` | v1.0 baseline | Clean retrieval and FAIG telemetry control |
+| `resume-prompt-injection` | v1.0 baseline | Indirect prompt injection through retrieved document content |
+| `resume-cloud-tool-pivot-safe` | v1.0 baseline | Safe MCP tool-boundary comparison |
+| `resume-cloud-tool-pivot-vulnerable` | v1.0 baseline | Vulnerable MCP tool-pivot comparison with synthetic cloud data |
+| `fortigate-operator` | v1.0 baseline when FortiGate is available | Read-only FortiGate visibility and no-write boundary |
+| `support-ticket-triage` | v1.0 baseline | Customer/ticket/policy tool grounding and redaction checks |
+
+Supporting scenarios such as `hr-policy-risk`, `hr-policy-rag-risk`,
+`menu-poisoning`, and explicit `resume-cloud-tool-pivot` remain useful for
+troubleshooting and future recordings, but they should not be presented as
+equally release-stable until they are included in the Phase 10 validation
+matrix.
+
 ## Prepare A Scenario
 
 List the available tracked scenarios:
@@ -77,6 +99,10 @@ Recommended baseline settings:
 | MCP path | Direct MCP for first validation |
 | Tool profile | Match the scenario ID unless the runbook says otherwise |
 | Max tool rounds | Default `3` |
+
+Each scenario section below lists the required chatbot settings that differ
+from these defaults. When the scenario requires more agent turns, set `Max tool
+rounds` to the documented value before testing.
 
 After direct validation works, repeat the same scenario through FAIG Static,
 FAIG Intelligent, or FortiWeb MCP paths to demonstrate the network/security
@@ -560,6 +586,17 @@ Validate scenario metadata before committing changes:
 python3 scripts/scenario_profiles.py validate
 python3 scripts/smoke_test.py
 ```
+
+Run a baseline headless validation after the scenario is installed and LiteLLM
+is redeployed:
+
+```bash
+python3 scripts/scenario_test_harness.py --scenario fastfood-ordering --run-label phase10-baseline
+```
+
+Use raw output only for release-maintainer validation. Saved raw prompt and
+response captures live under ignored `docs/raw-output/` and must not be
+committed.
 
 Validate the live Phase 8 document MCP retrieval path after `deploy_mcp.yml`:
 

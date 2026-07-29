@@ -12,6 +12,18 @@ The active installed instructions live under `chatbot/instructions/local/`.
 Those files are ignored by Git so they can be tuned during recording without
 changing the tracked examples.
 
+For v1.0 baseline scenarios, keep operator-facing settings explicit in the
+runbook whenever a profile changes:
+
+- instruction slot
+- model/profile or route
+- context mode
+- MCP enabled/disabled
+- MCP path
+- MCP tool profile
+- max tool rounds
+- expected tools and expected response marker
+
 ## Edit And Test Workflow
 
 1. Install the tracked scenario into a local slot:
@@ -27,6 +39,7 @@ changing the tracked examples.
    |---|---|
    | LLM profile | `demo-a` |
    | Use MCP tools | On |
+   | MCP path | Direct MCP first, then FortiWeb MCP only when the proxy path is configured |
    | Tool profile | `hr-tool-dlp-vulnerable` |
 
 3. Tune the local prompt if needed:

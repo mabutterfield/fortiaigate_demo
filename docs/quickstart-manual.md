@@ -1,6 +1,12 @@
 # Manual Quick Start
 
-This is the step-by-step manual deployment path for the FortiAIGate demo. Run these commands from the `fortiaigate_demo` repo root unless a step explicitly says otherwise.
+This is the step-by-step manual deployment and recovery path for the
+FortiAIGate demo. Use [Automated Quick Start](quickstart-automated.md) for a
+normal first run. Use this page when you need to inspect, rerun, or recover one
+Terraform or Ansible step.
+
+Run these commands from the `fortiaigate_demo` repo root unless a step
+explicitly says otherwise.
 
 ## Prerequisites
 
@@ -64,6 +70,25 @@ Local files you normally create or edit are intentionally not tracked:
 Never commit real `99-local.auto.tfvars`, Ansible secret vars, license files, private keys, kubeconfigs, certificates, API tokens, or generated credentials.
 
 ## Quick Start
+
+This section describes the AWS path. For local Ubuntu hardware mode, first run
+the local setup helper and then use the local inventory and deployment target
+for any manual playbook runs:
+
+```bash
+python3 scripts/local_setup.py
+FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
+  -i ansible/inventory/local.generated.ini \
+  ansible/playbooks/bootstrap_gpu_k3s.yml
+```
+
+Local mode skips Terraform, uses generated ignored local files, deploys Ollama
+in k3s as the default local provider through LiteLLM, and can onboard optional
+local FortiGate/FortiWeb appliances. Do not commit
+`ansible/inventory/local.generated.ini`,
+`ansible/group_vars/local.generated.yml`,
+`ansible/group_vars/local.secrets.yml`, generated appliance inventories, or
+local-var export archives.
 
 Run Quick Start commands from the `fortiaigate_demo` repo root unless a step
 explicitly says otherwise.
@@ -248,10 +273,10 @@ Set local values in `ansible/group_vars/user.yml`, especially:
 - license file list under the default `FAIG/licenses`, or a custom `license_source_dir`
 - `litellm_master_key`, `litellm_ui_username`, and `litellm_ui_password` placeholders before exposing LiteLLM
 
-The default direct model path remains Bedrock through the Terraform-created IAM
-profile. Direct provider/model overrides, Ollama endpoints, chatbot prompt
-source paths, and TLS certificate paths are advanced manual settings. Ollama
-settings are intentionally commented out until that workflow is built.
+The default AWS direct model path remains Bedrock through the Terraform-created
+IAM profile. Direct provider/model overrides, chatbot prompt source paths, and
+TLS certificate paths are advanced manual settings for AWS. Local mode uses the
+generated Ollama settings from `local_setup.py`.
 
 For AWS deployments, Terraform writes `aws_profile`, `aws_region`, SSH key
 details, CIDRs, and k3s host facts into
@@ -716,9 +741,9 @@ ansible-playbook ansible/playbooks/test_model_direct.yml
 
 The Bedrock direct test uses `scripts/bedrock_direct_test.py` to generate the AWS SigV4 signature at runtime. Run that script directly from the repo root when you want a local-only Bedrock API check; it prompts from the permitted Terraform model list unless `BEDROCK_MODEL` is set.
 
-The direct Ollama path is not part of the default build yet. Advanced users can
-set `direct_model_provider=ollama` and the related Ollama vars manually when
-testing that future workflow.
+The direct Ollama path is part of local hardware mode, not the default AWS
+Bedrock-direct provider test. Use [Ollama](ollama.md) for local deployment and
+validation commands.
 
 After the guard is configured, generate and run the first external chat test:
 
@@ -747,8 +772,9 @@ The default FAIG route matrix is seven endpoints: `passthrough`, `demo-a`,
 cases controlled by `fortiaigate_test_include_openwebui_endpoint` and
 `fortiaigate_test_include_all_header_route_profiles`.
 
-Ollama route testing is skipped by default. Include it only when the Ollama
-provider is deployed and configured in FortiAIGate:
+Ollama route testing is skipped by default for AWS. Include it only when the
+Ollama provider is deployed and the matching FortiAIGate provider/flow is
+configured:
 
 ```bash
 ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml \

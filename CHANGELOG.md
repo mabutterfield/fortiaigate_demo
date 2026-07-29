@@ -5,6 +5,21 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Started Phase 10 release hardening:
+  - aligned README and documentation entry points around the v1.0 support
+    contract
+  - documented AWS quickstart as the primary supported path and local Ubuntu
+    Ollama mode as a supported lab path
+  - centralized known issues and workarounds for slow NVIDIA downloads,
+    FortiAIGate GUI setup, FortiWeb MCP Security automation, and local Ollama
+    NodePort exposure
+  - marked the Phase 10 v1.0 baseline scenario set for validation and demo
+    rehearsal
+
+## v0.9.0 - Local Deployment Support
+
+Release date: 2026-07-29
+
 - Added Phase 9 local hardware deployment foundations:
   - `scripts/local_setup.py` generates ignored local inventory, registry, host,
     appliance, GPU, and Ollama variables without changing the default AWS path
