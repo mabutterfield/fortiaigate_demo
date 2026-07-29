@@ -405,6 +405,18 @@ chatbot_frontend_system_prompt_source_path: ""
 # defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
+fortiweb_mcp_http_base_url: >-
+  {{
+    (
+      'http://' ~ fortiweb_public_private_ip ~ ':' ~
+      (fortiweb_mcp_proxy_listen_port | default(demo_mcp_http_port | default(30084)) | string)
+    )
+    if (
+      fortiweb_mcp_proxy_enabled | default(false) | bool
+      and fortiweb_public_private_ip | default('') | string | length > 0
+    )
+    else ''
+  }}
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
