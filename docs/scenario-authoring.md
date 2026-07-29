@@ -77,7 +77,7 @@ Current tracked scenario tool profiles:
 | `fastfood-ordering` | `menu_search`, `nutrition_lookup`, `allergen_check`, `suggest_combo`, `build_order_summary` |
 | `menu-poisoning` | `document_search`, `document_read`, `document_injection_check`, `menu_search`, `allergen_check` |
 | `hr-policy-risk` | `employee_lookup`, `employee_search`, `hr_policy_lookup`, `policy_search`, `redaction_check` |
-| `hr-tool-dlp-vulnerable` | `employee_sensitive_lookup_demo` |
+| `hr-tool-dlp-vulnerable` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
 | `hr-policy-rag-risk` | `document_search`, `document_read`, `document_injection_check`, `redaction_check` |
 | `resume-screening-clean` | `document_list`, `document_search`, `document_read`, `resume_search`, `resume_summary` |
 | `resume-prompt-injection` | `document_upload_simulation`, `resume_search`, `document_read`, `document_injection_check`, `resume_summary` |

@@ -25,6 +25,8 @@ Synthetic HR demo tools:
 
 - `employee_lookup`
 - `employee_search`
+- `employee_sensitive_lookup_demo`
+- `employee_table_with_cc`
 - `hr_policy_lookup`
 - `redaction_check`
 

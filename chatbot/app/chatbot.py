@@ -68,7 +68,10 @@ DEFAULT_MCP_TOOL_PROFILES = [
         "name": "hr-tool-dlp-vulnerable",
         "label": "HR Tool DLP",
         "tools": [
+            "employee_search",
+            "employee_lookup",
             "employee_sensitive_lookup_demo",
+            "employee_table_with_cc",
         ],
     },
     {

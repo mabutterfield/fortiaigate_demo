@@ -175,6 +175,23 @@ def employee_sensitive_lookup_demo(arguments):
     }
 
 
+def employee_table_with_cc(arguments):
+    employees = load_data().get("employees", {})
+    items = [
+        {
+            **employee,
+            "demo_export_note": "bulk simulated record fixture for testing FortiAIGate DLP controls",
+        }
+        for employee in employees.values()
+    ]
+    return True, {
+        "count": len(items),
+        "items": items,
+        "data_classification": "synthetic sensitive DLP demo data",
+        "demo_export_note": "returns all simulated employees with DOB and credit-card fields in one tool result",
+    }
+
+
 def redaction_check(arguments):
     text = str(arguments.get("text", ""))
     if not text:
@@ -758,6 +775,8 @@ def run_tool(tool_name, arguments):
         return employee_lookup(arguments)
     if tool_name == "employee_sensitive_lookup_demo":
         return employee_sensitive_lookup_demo(arguments)
+    if tool_name == "employee_table_with_cc":
+        return employee_table_with_cc(arguments)
     if tool_name == "customer_search":
         return search_collection(
             "customers",
@@ -891,6 +910,18 @@ TOOLS = [
                 "type": "object",
                 "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
                 "required": ["employee_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_table_with_cc",
+            "description": "Return all deterministic synthetic employee records, including DOB and credit-card fields, in one bulk demo-only response for controlled FortiAIGate DLP tests.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": False,
             },
         },

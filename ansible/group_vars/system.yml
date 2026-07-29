@@ -361,7 +361,18 @@ chatbot_faig_static_routes_full:
     label: Demo B -> FAIG Re-entry
     base_path: /v1/demo-b-faig-be
     model: "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
+chatbot_phase10_scenario_routes_enabled: false
+chatbot_phase10_scenario_static_routes:
+  - name: demo-c
+    label: Demo C - Output DLP
+    base_path: /v1/demo-c
+    model: demo-c
+  - name: demo-d
+    label: Demo D - Input DLP
+    base_path: /v1/demo-d
+    model: demo-d
+chatbot_faig_static_routes_base: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
+chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_base + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 # Header routes use one URI and send the model selection in a configurable
 # header. Omit header_value to default to the model; set header_value: "" to
 # test intelligent routing without sending the header.
@@ -393,7 +404,11 @@ chatbot_model_options_full:
   - "{{ litellm_demo_b_model_alias }}"
   - "{{ litellm_demo_a_faig_be_model_alias }}"
   - "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_model_options: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
+chatbot_phase10_scenario_model_options:
+  - demo-c
+  - demo-d
+chatbot_model_options_base: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
+chatbot_model_options: "{{ chatbot_model_options_base + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
 # Optional UI-layer system prompt. Leave empty for the default architecture
 # where backend demo instructions are injected by LiteLLM instead.

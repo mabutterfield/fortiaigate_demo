@@ -50,6 +50,27 @@ a "what's new" guide rather than a raw commit log.
     `/logs/fortiaigate-syslog.jsonl`
   - status and test playbooks now show/tail the local syslog file and validate
     that synthetic UDP syslog messages are captured
+- Aligned Phase 10 scenario routing around stable FAIG flows:
+  - the default chatbot route surface remains passthrough, demo-a, and demo-b
+    for the supported quickstart path
+  - demo-c and demo-d are now documented as opt-in Phase 10 scenario routes
+    that can be exposed with `chatbot_phase10_scenario_routes_enabled: true`;
+    any shared backend mapping stays in the FAIG guard configuration
+  - FortiWeb MCP path selection now has a derived local/AWS base URL when the
+    FortiWeb proxy and front-end IP are present
+  - scenario docs now use `detect_all`, `protect_input`,
+    `protect_output_dlp`, and `protect_input_dlp`
+  - the HR Tool DLP profile now exposes safe employee search/lookup tools plus
+    the individual sensitive lookup tool for context-dependent output-DLP tests
+  - the HR Tool DLP scenario now documents the full demo-a through demo-d
+    walkthrough, including safe table, single sensitive record, and
+    multi-record context prompts with expected DLP behavior
+  - added a scenario-local detailed walkthrough for HR Tool DLP and linked it
+    from the base scenario runbook; the latest demo-c single-employee rerun
+    documents successful DOB/card placeholder redaction
+  - added the `employee_table_with_cc` MCP tool for a one-call bulk HR DLP
+    comparison against the earlier five-tool-loop table that redacted DOB but
+    missed multiple credit card numbers in Demo C
 
 ## v0.9.0 - Local Deployment Support
 

@@ -36,6 +36,7 @@ reference, not a competing first-run path.
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
 | Scenario demo prompts and settings | [Scenarios](scenarios.md) |
+| Scenario creation, tuning, and evidence process | [Scenario Documentation Process](scenario-documentation-process.md) |
 | Traffic generator | [Traffic Generator](traffic-generator.md) |
 | Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
 | FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
@@ -75,7 +76,8 @@ reference, not a competing first-run path.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
 - `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
-- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes: passthrough, demo-a, and demo-b.
+- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes:
+  passthrough, demo-a, and demo-b.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 - `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
 - `scripts/traffic_generator.py`: runs a default FAIG path test, then supports

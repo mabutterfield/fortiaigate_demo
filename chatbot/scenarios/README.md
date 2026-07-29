@@ -9,6 +9,13 @@ its recommended instruction text into an ignored local instruction slot such as
 `chatbot/instructions/local/demo-a/instructions.txt` or
 `chatbot/instructions/local/demo-b/instructions.txt`.
 
+Detailed scenario walkthroughs live inside each scenario folder when a scenario
+has moved beyond the generic prompt/profile summary.
+
+| Scenario | Detailed walkthrough |
+|---|---|
+| `hr-tool-dlp-vulnerable` | [examples/hr-tool-dlp-vulnerable/README.md](examples/hr-tool-dlp-vulnerable/README.md) |
+
 Use the helper from the repo root:
 
 ```bash

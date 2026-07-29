@@ -65,6 +65,17 @@ chatbot_faig_static_routes:
     label: Demo B -> FAIG Re-entry
     base_path: /v1/demo-b-faig-be
     model: "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
+chatbot_phase10_scenario_routes_enabled: false
+chatbot_phase10_scenario_static_routes:
+  - name: demo-c
+    label: Demo C - Output DLP
+    base_path: /v1/demo-c
+    model: demo-c
+  - name: demo-d
+    label: Demo D - Input DLP
+    base_path: /v1/demo-d
+    model: demo-d
+chatbot_faig_static_routes_effective: "{{ chatbot_faig_static_routes + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_faig_header_route: passthrough
 chatbot_faig_header_routes:
   - name: passthrough
@@ -90,6 +101,10 @@ chatbot_model_options:
   - "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
   - "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
   - "{{ litellm_ollama_model_alias | default('llama3.2:1b') }}"
+chatbot_phase10_scenario_model_options:
+  - demo-c
+  - demo-d
+chatbot_model_options_effective: "{{ chatbot_model_options + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
 chatbot_mcp_enabled: true
@@ -129,10 +144,11 @@ chatbot_instances:
     faig_base_url: "{{ chatbot_faig_base_url }}"
     faig_api_key: "{{ chatbot_faig_api_key }}"
     faig_static_route: "{{ chatbot_faig_static_route }}"
+    faig_static_routes: "{{ chatbot_faig_static_routes_effective }}"
     faig_header_route: "{{ chatbot_faig_header_route }}"
     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
-    model_options: "{{ chatbot_model_options }}"
+    model_options: "{{ chatbot_model_options_effective }}"
     frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"
     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"

@@ -19,6 +19,12 @@
 # redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
 # chatbot_faig_lite_mode: true
 
+# Optional Phase 10 scenario-development FAIG surface. This appends demo-c and
+# demo-d to the chatbot static-route picker and model picker without changing
+# the default supported quickstart surface. Configure matching FAIG flows and
+# guards manually before enabling this for scenario testing.
+# chatbot_phase10_scenario_routes_enabled: true
+
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
 fortiaigate_license_files:
