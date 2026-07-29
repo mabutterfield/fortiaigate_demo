@@ -29,6 +29,7 @@ reference, not a competing first-run path.
 | Topic | Document |
 |---|---|
 | Current working baseline | [Current Baseline](current-baseline.md) |
+| Release validation matrix | [Release Validation Matrix](release-validation-matrix.md) |
 | Architecture overview | [Architecture](architecture.md) |
 | AWS infrastructure and instance sizing | [AWS](aws.md) |
 | ECR repositories and image publishing | [ECR](ecr.md) |

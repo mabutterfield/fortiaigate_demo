@@ -111,6 +111,27 @@ so a static object can add a new object or override a generated one. Inbound
 NAT policies should define the VIP in `fortigate_vip_objects_static`, then
 reference that VIP name in the firewall policy `dstaddr`.
 
+## Phase 10 Traffic And Application-Control Testing
+
+Phase 10 should investigate a traffic-generator path that produces synthetic
+lab traffic through FortiGate so Application Control logs have useful demo
+events. The goal is to generate traffic that FortiGate classifies and logs, not
+to insert or falsify appliance log records.
+
+Candidate requirements:
+
+- route generated traffic through a FortiGate policy with traffic logging and
+  an Application Control profile enabled
+- include a traffic-generator run label in request metadata where practical,
+  such as a hostname, path, or user agent
+- preserve enough timestamp/run-label metadata to correlate FortiGate logs with
+  FortiAIGate and traffic-generator output
+- keep long-running cloud traffic behind explicit opt-in controls
+- keep all generated outputs under ignored raw-output or backup paths
+
+This is an investigation item unless the recorded demo selects a FortiGate
+application-control log story.
+
 `configure_fortigate_api_accounts.yml` creates a managed read-only profile
 named `FAIG_READ_ONLY` and a read-only API admin named `faig-readonly-api` by
 default. FortiGate only returns a generated API key once, so the play stores the

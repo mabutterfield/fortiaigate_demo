@@ -15,6 +15,10 @@ a "what's new" guide rather than a raw commit log.
     NodePort exposure
   - marked the Phase 10 v1.0 baseline scenario set for validation and demo
     rehearsal
+- Added the Phase 10 release validation matrix covering no-apply checks, AWS
+  fresh deployment, AWS teardown, local fresh deployment, scenario baseline
+  validation, and an optional FortiGate Application Control traffic-generation
+  investigation.
 
 ## v0.9.0 - Local Deployment Support
 
