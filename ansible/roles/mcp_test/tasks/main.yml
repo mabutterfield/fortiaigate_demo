@@ -1,4 +1,23 @@
 ---
+- name: Set MCP test deployment target fact
+  ansible.builtin.set_fact:
+    mcp_test_deployment_target: "{{ deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true)) }}"
+  # - ansible.builtin.debug:
+  #     var: mcp_test_deployment_target
+
+- name: Set effective MCP test target mode
+  ansible.builtin.set_fact:
+    mcp_test_effective_target_mode: >-
+      {{
+        'remote_localhost'
+        if mcp_test_target_mode == 'auto' and mcp_test_deployment_target == 'local'
+        else 'public_http'
+        if mcp_test_target_mode == 'auto'
+        else mcp_test_target_mode
+      }}
+  # - ansible.builtin.debug:
+  #     var: mcp_test_effective_target_mode
+
 - name: Read k3s public IP from Terraform output
   ansible.builtin.command:
     argv:
@@ -13,7 +32,8 @@
   delegate_to: localhost
   become: false
   when:
-    - mcp_test_target_mode == 'public_http'
+    - mcp_test_effective_target_mode == 'public_http'
+    - mcp_test_deployment_target == 'aws'
     - mcp_test_host_override | length == 0
     - mcp_test_base_url_override | length == 0
   # - ansible.builtin.debug:
@@ -22,8 +42,8 @@
 - name: Validate MCP test target mode
   ansible.builtin.assert:
     that:
-      - mcp_test_target_mode in ['public_http', 'remote_localhost']
-    fail_msg: "mcp_test_target_mode must be public_http or remote_localhost."
+      - mcp_test_effective_target_mode in ['public_http', 'remote_localhost']
+    fail_msg: "mcp_test_target_mode must be auto, public_http, or remote_localhost."
 
 - name: Set MCP test host fact
   ansible.builtin.set_fact:
@@ -35,8 +55,11 @@
         if mcp_test_host_override | length > 0
         else (
           '127.0.0.1'
-          if mcp_test_target_mode == 'remote_localhost'
+          if mcp_test_effective_target_mode == 'remote_localhost'
           else (
+            k3s_public_ip | default(k3s_private_ip | default(ansible_host | default(''))) | trim
+            if mcp_test_deployment_target == 'local'
+            else
             mcp_test_public_ip_raw.stdout | default('') | trim
             if mcp_test_public_ip_raw is defined and (mcp_test_public_ip_raw.rc | default(1)) == 0
             else ''
@@ -104,7 +127,7 @@
     timeout: "{{ mcp_test_timeout_seconds }}"
     validate_certs: "{{ mcp_test_validate_certs | bool }}"
   register: mcp_test_response
-  delegate_to: "{{ 'localhost' if mcp_test_target_mode == 'public_http' else inventory_hostname }}"
+  delegate_to: "{{ 'localhost' if mcp_test_effective_target_mode == 'public_http' else inventory_hostname }}"
   become: false
   # - ansible.builtin.debug:
   #     var: mcp_test_response.json
@@ -127,7 +150,7 @@
 
 - name: Show MCP test result
   ansible.builtin.debug:
-    msg: "{{ ['MCP test: ' ~ ('PASS' if mcp_test_ok else 'FAIL'), 'Target mode: ' ~ mcp_test_target_mode, 'URL: ' ~ mcp_test_url, 'Tool: ' ~ mcp_test_tool, 'Result:'] + mcp_test_result_lines }}"
+    msg: "{{ ['MCP test: ' ~ ('PASS' if mcp_test_ok else 'FAIL'), 'Target mode: ' ~ mcp_test_effective_target_mode, 'URL: ' ~ mcp_test_url, 'Tool: ' ~ mcp_test_tool, 'Result:'] + mcp_test_result_lines }}"
 
 - name: Fail when MCP tool call did not return ok=true
   ansible.builtin.fail:

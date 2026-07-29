@@ -1,5 +1,5 @@
 ---
-mcp_test_target_mode: public_http
+mcp_test_target_mode: auto
 mcp_test_aws_ec2_module_path: "{{ playbook_dir }}/../../terraform/aws-ec2-k3s"
 mcp_test_host_override: ""
 mcp_test_use_https: false

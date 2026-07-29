@@ -99,6 +99,12 @@ Run a single sample tool call:
 ansible-playbook playbooks/test_mcp.yml
 ```
 
+`test_mcp.yml` defaults to `mcp_test_target_mode=auto`. In AWS mode, auto uses
+the public k3s NodePort discovered from Terraform output. In local mode, auto
+tests from the k3s host against `http://127.0.0.1:<mcp-node-port>/mcp`, which
+avoids requiring the controller workstation to reach the local NodePort
+directly.
+
 Run deterministic Phase 8 document retrieval checks:
 
 ```bash
