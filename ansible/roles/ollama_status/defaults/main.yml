@@ -3,7 +3,7 @@ ollama_enabled: false
 ollama_namespace: ollama
 ollama_release_name: ollama
 ollama_models:
-  - llama3.1:8b
   - gpt-oss:20b
+  - llama3.1:8b
 ollama_model_pull_job_name: "{{ ollama_release_name }}-model-pull"
 ollama_status_fail_on_not_ready: false

@@ -219,6 +219,8 @@ litellm_ui_password: litellm-demo-change-me
 # in-cluster Ollama backend and use gpt-oss:20b by default.
 # ollama_base_url: http://<ollama-host>:11434/v1
 # ollama_model: gpt-oss:20b
+# ollama_keep_alive: 60m
+# ollama_context_length: 32768
 
 # Optional secondary UI.
 openwebui_enabled: false

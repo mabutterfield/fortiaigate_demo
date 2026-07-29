@@ -140,7 +140,7 @@ provider exists:
 
 ```yaml
 # ollama_base_url: http://<ollama-host>:11434/v1
-# ollama_model: llama3.2:1b
+# ollama_model: gpt-oss:20b
 # validate_faig_ollama_forwarding: true
 ```
 

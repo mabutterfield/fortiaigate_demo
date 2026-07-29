@@ -629,7 +629,7 @@ The script reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS
 
 If `terraform output -raw bedrock_secret_access_key` appears to end with `%` in an interactive zsh terminal, that `%` is zsh showing that the command did not print a trailing newline. It is not part of the secret. Command substitution in the `export` example above captures the secret value without that prompt marker. The Ansible playbook and direct script also trim surrounding whitespace from credential input before signing.
 
-The direct model playbook sends `Hello, is this thing on? Reply in one short sentence and include the name of the model answering.` and summarizes the provider response. Set `direct_model_provider=ollama` to use the same playbook against the configured Ollama endpoint.
+The direct model playbook sends `Hello, is this thing on? Reply in one short sentence and include the name of the model answering.` and summarizes the provider response. AWS runs use Bedrock direct by default. Local runs with `FAIG_DEPLOYMENT_TARGET=local` or the local generated inventory use the configured Ollama endpoint and skip Bedrock Terraform output and credential checks.
 
 After the guard is configured, run:
 

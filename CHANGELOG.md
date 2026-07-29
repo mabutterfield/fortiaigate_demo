@@ -35,6 +35,15 @@ a "what's new" guide rather than a raw commit log.
 - Fixed `test_mcp.yml` local mode by adding an auto target mode that tests the
   MCP NodePort from the local k3s host instead of requiring AWS Terraform
   public-IP output.
+- Hardened local Ollama model validation:
+  - local direct model tests now force Ollama and skip all Bedrock Terraform
+    output and credential checks when the local inventory or
+    `FAIG_DEPLOYMENT_TARGET=local` is used
+  - local Ollama defaults now prefer `gpt-oss:20b`, keep the loaded model warm
+    for 60 minutes, and set a 32768-token context length
+  - direct local model tests print the loaded `ollama ps` table after the
+    request so operators can confirm model, GPU placement, context, and unload
+    timing
 
 ## v0.9.0 - Local Deployment Support
 

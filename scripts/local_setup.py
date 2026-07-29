@@ -918,6 +918,8 @@ ollama_node_port_allowed_cidrs: "{{{{ local_access_cidrs }}}}"
 ollama_models:
   - gpt-oss:20b
 ollama_model: "{{{{ ollama_models[0] }}}}"
+ollama_keep_alive: 60m
+ollama_context_length: 32768
 ollama_internal_base_url: http://ollama.ollama.svc.cluster.local:11434/v1
 ollama_public_base_url: "http://{{{{ k3s_public_ip }}}}:{{{{ ollama_node_port }}}}/v1"
 ollama_base_url: "{{{{ ollama_internal_base_url }}}}"

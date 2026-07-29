@@ -13,8 +13,8 @@ ollama_node_port_allowed_cidrs:
   - "{{ lab_routed_cidr | default('0.0.0.0/0') }}"
 ollama_container_port: 11434
 ollama_models:
-  - llama3.1:8b
   - gpt-oss:20b
+  - llama3.1:8b
 ollama_model: "{{ ollama_models[0] }}"
 ollama_storage_class: local-path
 ollama_storage_size: 80Gi
@@ -28,7 +28,8 @@ ollama_cpu_request: "2"
 ollama_memory_request: 8Gi
 ollama_cpu_limit: "16"
 ollama_memory_limit: 48Gi
-ollama_keep_alive: 30m
+ollama_keep_alive: 60m
+ollama_context_length: 32768
 ollama_model_pull_job_name: "{{ ollama_release_name }}-model-pull"
 ollama_model_pull_wait: true
 ollama_model_pull_wait_timeout: 3600s

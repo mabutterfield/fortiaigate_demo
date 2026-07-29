@@ -62,6 +62,8 @@ Common variables:
 - `ollama_gpu_count`
 - `ollama_gpu_uuids`
 - `ollama_storage_size`
+- `ollama_keep_alive`
+- `ollama_context_length`
 - `direct_model_provider`
 - `direct_model_ollama_base_url`
 - `direct_model_ollama_model`
@@ -73,9 +75,11 @@ not be committed.
 ## Validation Boundary
 
 Use `validate_ollama.yml` and `test_model_direct.yml` for direct provider smoke
-tests. FortiAIGate forwarding validation remains disabled by default until the
-corresponding FortiAIGate provider, guard, and flow are configured manually in
-the GUI.
+tests. When `test_model_direct.yml` runs with the local inventory or
+`FAIG_DEPLOYMENT_TARGET=local`, it uses the configured Ollama endpoint and skips
+Bedrock credential checks. FortiAIGate forwarding validation remains disabled by
+default until the corresponding FortiAIGate provider, guard, and flow are
+configured manually in the GUI.
 
 Model/tool-calling behavior varies by local model. Small local models are useful
 for repeatable lab traffic and basic scenario rehearsals, but they may not call
@@ -92,4 +96,15 @@ Common model preference examples:
 # Ollama gpt-oss 20B
 # ollama_base_url: http://<ollama-host>:11434/v1
 # ollama_model: gpt-oss:20b
+# ollama_keep_alive: 60m
+# ollama_context_length: 32768
 ```
+
+`ollama_keep_alive` controls how long a loaded model remains in memory after a
+request. Local deployments default to `60m` so demo runs do not unload the model
+between short scenario tests.
+
+`gpt-oss:20b` advertises a 131072 token context length in Ollama, but local
+deployments default `ollama_context_length` to `32768` to avoid exhausting
+16GB-class GPU memory during demos. Increase it only after checking `ollama ps`
+and GPU memory headroom on the local host.

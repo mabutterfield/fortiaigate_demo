@@ -62,6 +62,8 @@ spec:
               value: /root/.ollama/models
             - name: OLLAMA_KEEP_ALIVE
               value: {{ ollama_keep_alive | to_json }}
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: {{ ollama_context_length | string | to_json }}
 {% if ollama_gpu_enabled | bool %}
             - name: NVIDIA_VISIBLE_DEVICES
               value: {{ ollama_gpu_uuids | join(',') | to_json }}
