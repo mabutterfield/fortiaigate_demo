@@ -29,7 +29,8 @@ FORTIWEB_LOCAL_INVENTORY = REPO_ROOT / "ansible/inventory/fortiweb.local.generat
 DEFAULT_K3S_CLUSTER_CIDR = "10.60.0.0/16"
 DEFAULT_K3S_SERVICE_CIDR = "10.70.0.0/16"
 DEFAULT_K3S_CLUSTER_DNS = "10.70.0.10"
-DEFAULT_REGISTRY = "jarvis:5000"
+DEFAULT_LOCAL_HOST = "linux_host"
+DEFAULT_REGISTRY = "docker_repo_host:5000"
 DEFAULT_LOCAL_APPLIANCE_ADMIN = "apiadmin"
 T4_COMPUTE_CAPABILITY = 7.5
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -1226,8 +1227,8 @@ def persist_appliance_result(result: ApplianceBootstrapResult) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate local FortiAIGate deployment inventory and vars.")
     parser.add_argument("--non-interactive", action="store_true", help="Use defaults where possible and do not prompt for optional appliances.")
-    parser.add_argument("--host", default="jarvis", help="Ubuntu host IP or DNS name. Default: jarvis.")
-    parser.add_argument("--alias", default="jarvis", help="Ansible host alias. Default: jarvis.")
+    parser.add_argument("--host", default=DEFAULT_LOCAL_HOST, help=f"Ubuntu host IP or DNS name. Default: {DEFAULT_LOCAL_HOST}.")
+    parser.add_argument("--alias", default=DEFAULT_LOCAL_HOST, help=f"Ansible host alias. Default: {DEFAULT_LOCAL_HOST}.")
     parser.add_argument("--user", default="ubuntu", help="Ubuntu SSH user. Default: ubuntu.")
     parser.add_argument("--ssh-key", default="", help="SSH private key path. Empty uses ssh-agent/default SSH config.")
     parser.add_argument("--lab-cidr", default="", help="Local routed CIDR, for example 192.168.50.0/24.")

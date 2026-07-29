@@ -176,8 +176,21 @@ For local registry publishing:
 ```bash
 ansible-playbook playbooks/publish_images.yml \
   -e registry_type=local \
-  -e local_registry=localhost:5000
+  -e local_registry=docker_repo_host:5000
 ```
+
+When the local registry uses plain HTTP, configure Docker on the publishing
+workstation to allow that exact host:port as an insecure registry. For Docker
+Desktop, add it under Docker Engine settings:
+
+```json
+{
+  "insecure-registries": ["docker_repo_host:5000"]
+}
+```
+
+Restart Docker after changing this setting. The value must match the generated
+`local_registry` host exactly, including FQDN versus short hostname.
 
 ## Immutable ECR Tag Behavior
 
