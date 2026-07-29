@@ -77,7 +77,7 @@ ansible-playbook -i ansible/inventory/local.generated.ini \
 Tail the file directly from the workstation with:
 
 ```bash
-ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 mike@jarvis \
+ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 <ansible_user>@<linux_host> \
   sudo -n /usr/local/bin/kubectl -n fortiaigate-logging \
   exec deployment/fortiaigate-syslog -c syslog-tail -- \
   tail -f /logs/fortiaigate-syslog.jsonl
