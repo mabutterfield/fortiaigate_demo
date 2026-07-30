@@ -5,6 +5,19 @@
   gather_facts: false
   become: false
   pre_tasks:
+    - name: Determine chatbot publish deployment target
+      ansible.builtin.set_fact:
+        chatbot_publish_playbook_deployment_target: >-
+          {{
+            lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim
+            if lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim | length > 0
+            else (
+              hostvars[(groups.get('fortiaigate', []) | first)].deployment_target | default(deployment_target | default('aws', true), true)
+              if (groups.get('fortiaigate', []) | length > 0)
+              else deployment_target | default('aws', true)
+            )
+          }}
+
     - name: Load environment, generated, and local group vars when present
       ansible.builtin.include_vars:
         file: "{{ item }}"
@@ -13,14 +26,17 @@
           query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/registry.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.secrets.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml') if chatbot_publish_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml') if chatbot_publish_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/registry.generated.yml') if chatbot_publish_playbook_deployment_target == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml') if chatbot_publish_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml') if chatbot_publish_playbook_deployment_target == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.secrets.yml') if chatbot_publish_playbook_deployment_target == 'local' else [])
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
+
+    - name: Set resolved chatbot publish deployment target
+      ansible.builtin.set_fact:
+        deployment_target: "{{ chatbot_publish_playbook_deployment_target }}"
   roles:
     - publish_chatbot_image
-
