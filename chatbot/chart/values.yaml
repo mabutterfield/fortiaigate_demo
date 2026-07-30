@@ -17,6 +17,12 @@ chatbot:
   appChecksum: ""
   directBaseUrl: ""
   directApiKey: not-used
+  fortigateLitellmBaseUrl: ""
+  fortigateLitellmApiKey: ""
+  fortigateOllamaBaseUrl: ""
+  fortigateOllamaApiKey: not-used
+  fortigateOllamaModel: gpt-oss:20b
+  fortigateOllamaModelOptions: ""
   faigBaseUrl: ""
   faigApiKey: not-used
   faigStaticRoute: demo-a

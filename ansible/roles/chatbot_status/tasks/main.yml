@@ -226,7 +226,7 @@
           'Chatbot status: ' ~ chatbot_status_state,
           'Instruction sets: ' ~ (chatbot_status_instruction_sets | length | string),
           'Instances ready: ' ~ (chatbot_status_ready_count | string) ~ '/' ~ (chatbot_status_total_count | string),
-          'Backend paths: Direct LiteLLM and FortiAIGate',
+          'Backend paths: Direct LiteLLM, optional FortiGate-to-LiteLLM, and FortiAIGate',
           'URLs:'
         ]
         + chatbot_status_url_lines

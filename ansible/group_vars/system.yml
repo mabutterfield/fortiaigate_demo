@@ -319,6 +319,12 @@ chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
 chatbot_direct_base_url: "{{ litellm_internal_base_url }}"
 chatbot_direct_api_key: "{{ litellm_master_key }}"
+chatbot_fortigate_litellm_base_url: ""
+chatbot_fortigate_litellm_api_key: "{{ chatbot_direct_api_key }}"
+chatbot_fortigate_ollama_base_url: ""
+chatbot_fortigate_ollama_api_key: not-used
+chatbot_fortigate_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
+chatbot_fortigate_ollama_model_options: "{{ ollama_models | default([chatbot_fortigate_ollama_model]) }}"
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
 faig_model_route_header_name: X-FAIG-Model-Route
@@ -452,6 +458,12 @@ chatbot_instances:
     node_port: "{{ demo_chatbot_http_port | default(30081) }}"
     direct_base_url: "{{ chatbot_direct_base_url }}"
     direct_api_key: "{{ chatbot_direct_api_key }}"
+    fortigate_litellm_base_url: "{{ chatbot_fortigate_litellm_base_url }}"
+    fortigate_litellm_api_key: "{{ chatbot_fortigate_litellm_api_key }}"
+    fortigate_ollama_base_url: "{{ chatbot_fortigate_ollama_base_url }}"
+    fortigate_ollama_api_key: "{{ chatbot_fortigate_ollama_api_key }}"
+    fortigate_ollama_model: "{{ chatbot_fortigate_ollama_model }}"
+    fortigate_ollama_model_options: "{{ chatbot_fortigate_ollama_model_options }}"
     faig_base_url: "{{ chatbot_faig_base_url }}"
     faig_api_key: "{{ chatbot_faig_api_key }}"
     faig_static_route: "{{ chatbot_faig_static_route }}"
@@ -475,7 +487,7 @@ chatbot_instances:
     show_context: "{{ chatbot_show_context }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct, FAIG Static, or FAIG Intelligent
+    provider_label: Direct, FortiGate, FAIG Static, or FAIG Intelligent
     ingress_host: ""
 
 # === MCP demo tools: ansible/playbooks/deploy_mcp.yml ===

@@ -89,12 +89,27 @@ ROUTE_CONFIGS = {
         "mcp_path": "fortiweb",
         "description": "Direct LiteLLM with FortiWeb-fronted MCP path",
     },
+    "fortigate-litellm": {
+        "provider": "fortigate-litellm",
+        "route": "demo-a",
+        "mcp_path": None,
+        "description": "Chatbot to FortiGate HTTP listener forwarding to LiteLLM",
+    },
+    "fortigate-ollama": {
+        "provider": "fortigate-ollama",
+        "route": "demo-a",
+        "mcp_path": None,
+        "model": "gpt-oss:20b",
+        "description": "Chatbot to FortiGate HTTP listener forwarding to Ollama",
+    },
 }
 
 SLOT_METADATA_ROOT = REPO_ROOT / "chatbot" / "instructions" / "local"
 ROUTE_SLOT_DEFAULTS = {
     "direct": "",
     "fortiweb-mcp": "",
+    "fortigate-litellm": "",
+    "fortigate-ollama": "demo-a",
     "faig-scan": "demo-a",
     "faig-protect": "demo-a",
 }
@@ -429,6 +444,7 @@ def terraform_output_raw(terraform_path: Path, output_name: str) -> str:
 def remote_agent_command(args: argparse.Namespace, item: dict[str, Any]) -> list[str]:
     route = ROUTE_CONFIGS[item["route"]]
     mcp_path = route["mcp_path"] or args.mcp_path
+    model = str(route.get("model") or args.model) if args.model == "demo-a" else args.model
     remote_parts = [
         "sudo",
         "kubectl",
@@ -446,7 +462,7 @@ def remote_agent_command(args: argparse.Namespace, item: dict[str, Any]) -> list
         "--route",
         route["route"],
         "--model",
-        args.model,
+        model,
         "--mcp-path",
         mcp_path,
         "--max-tool-rounds",

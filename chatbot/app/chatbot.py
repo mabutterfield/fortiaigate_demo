@@ -825,6 +825,17 @@ def agent_response(
 def main() -> None:
     direct_base_url = os.getenv("CHATBOT_DIRECT_BASE_URL", "").strip()
     direct_api_key = os.getenv("CHATBOT_DIRECT_API_KEY", "not-used")
+    fortigate_litellm_base_url = os.getenv("CHATBOT_FORTIGATE_LITELLM_BASE_URL", "").strip()
+    fortigate_litellm_api_key = os.getenv("CHATBOT_FORTIGATE_LITELLM_API_KEY", "").strip() or direct_api_key
+    fortigate_ollama_base_url = os.getenv("CHATBOT_FORTIGATE_OLLAMA_BASE_URL", "").strip()
+    fortigate_ollama_api_key = os.getenv("CHATBOT_FORTIGATE_OLLAMA_API_KEY", "").strip() or "not-used"
+    fortigate_ollama_model = os.getenv("CHATBOT_FORTIGATE_OLLAMA_MODEL", "gpt-oss:20b").strip() or "gpt-oss:20b"
+    fortigate_ollama_model_options = env_csv(
+        "CHATBOT_FORTIGATE_OLLAMA_MODEL_OPTIONS",
+        [fortigate_ollama_model],
+    )
+    if fortigate_ollama_model not in fortigate_ollama_model_options:
+        fortigate_ollama_model_options.insert(0, fortigate_ollama_model)
     faig_base_url = os.getenv("CHATBOT_FAIG_BASE_URL", "").strip()
     faig_api_key = os.getenv("CHATBOT_FAIG_API_KEY", "not-used")
     model = os.getenv("CHATBOT_MODEL", "auto")
@@ -889,11 +900,21 @@ def main() -> None:
 
     with st.sidebar:
         st.subheader("Backend")
+        provider_options = ["Direct LiteLLM"]
+        if fortigate_litellm_base_url:
+            provider_options.append("FortiGate -> LiteLLM")
+        if fortigate_ollama_base_url:
+            provider_options.append("FortiGate -> Ollama")
+        provider_options.extend(["FAIG Static Route", "FAIG Intelligent Route"])
         provider_path = st.radio(
             "Path",
-            ["Direct LiteLLM", "FAIG Static Route", "FAIG Intelligent Route"],
+            provider_options,
             index=0,
-            help="Direct sends to LiteLLM. FAIG static uses URI paths. FAIG intelligent uses one URI plus a routing header.",
+            help=(
+                "Direct sends to LiteLLM. FortiGate sends plain HTTP through "
+                "a FortiGate listener to LiteLLM or Ollama. FAIG static uses "
+                "URI paths. FAIG intelligent uses one URI plus a routing header."
+            ),
         )
         route_headers: dict[str, str] = {}
         if provider_path == "Direct LiteLLM":
@@ -906,6 +927,28 @@ def main() -> None:
                 help="Select an LLM instruction profile. Different profiles can inject different backend instructions.",
             )
             st.write("Backend instructions: LiteLLM profile")
+        elif provider_path == "FortiGate -> LiteLLM":
+            base_url = fortigate_litellm_base_url
+            api_key = fortigate_litellm_api_key
+            selected_model = st.selectbox(
+                "LLM profile",
+                model_options,
+                index=model_options.index(model),
+                help="Select a LiteLLM profile. Traffic is sent through the FortiGate HTTP listener before LiteLLM.",
+            )
+            st.write("Backend routing: FortiGate HTTP path to LiteLLM")
+            st.write(f"Route endpoint: `{base_url}`")
+        elif provider_path == "FortiGate -> Ollama":
+            base_url = fortigate_ollama_base_url
+            api_key = fortigate_ollama_api_key
+            selected_model = st.selectbox(
+                "Ollama model",
+                fortigate_ollama_model_options,
+                index=fortigate_ollama_model_options.index(fortigate_ollama_model),
+                help="Select an Ollama model. Traffic is sent through the FortiGate HTTP listener before Ollama.",
+            )
+            st.write("Backend routing: FortiGate HTTP path to Ollama")
+            st.write(f"Route endpoint: `{base_url}`")
         elif provider_path == "FAIG Static Route":
             route_names = [route["name"] for route in faig_static_routes]
             route_labels = {route["name"]: route["label"] for route in faig_static_routes}

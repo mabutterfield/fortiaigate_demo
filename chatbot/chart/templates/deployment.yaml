@@ -40,6 +40,24 @@ spec:
                 secretKeyRef:
                   name: {{ include "chatbot-demo.name" . }}
                   key: chatbot-direct-api-key
+            - name: CHATBOT_FORTIGATE_LITELLM_BASE_URL
+              value: {{ .Values.chatbot.fortigateLitellmBaseUrl | quote }}
+            - name: CHATBOT_FORTIGATE_LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-fortigate-litellm-api-key
+            - name: CHATBOT_FORTIGATE_OLLAMA_BASE_URL
+              value: {{ .Values.chatbot.fortigateOllamaBaseUrl | quote }}
+            - name: CHATBOT_FORTIGATE_OLLAMA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-fortigate-ollama-api-key
+            - name: CHATBOT_FORTIGATE_OLLAMA_MODEL
+              value: {{ .Values.chatbot.fortigateOllamaModel | quote }}
+            - name: CHATBOT_FORTIGATE_OLLAMA_MODEL_OPTIONS
+              value: {{ .Values.chatbot.fortigateOllamaModelOptions | quote }}
             - name: CHATBOT_FAIG_BASE_URL
               value: {{ .Values.chatbot.faigBaseUrl | quote }}
             - name: CHATBOT_FAIG_API_KEY

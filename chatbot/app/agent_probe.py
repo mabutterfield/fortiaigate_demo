@@ -14,7 +14,7 @@ import chatbot
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Probe one chatbot MCP-agent turn.")
     parser.add_argument("--prompt", required=True, help="User prompt to send.")
-    parser.add_argument("--provider", choices=["direct", "faig-static"], default="direct")
+    parser.add_argument("--provider", choices=["direct", "fortigate-litellm", "fortigate-ollama", "faig-static"], default="direct")
     parser.add_argument("--route", default="demo-a", help="FAIG static route name.")
     parser.add_argument("--model", default="", help="Override model/profile.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="direct")
@@ -108,6 +108,19 @@ def main() -> int:
         api_key = os.getenv("CHATBOT_DIRECT_API_KEY", "not-used")
         model = args.model or os.getenv("CHATBOT_MODEL", "demo-a")
         extra_headers: dict[str, str] = {}
+    elif args.provider == "fortigate-litellm":
+        base_url = os.getenv("CHATBOT_FORTIGATE_LITELLM_BASE_URL", "").strip()
+        api_key = (
+            os.getenv("CHATBOT_FORTIGATE_LITELLM_API_KEY", "").strip()
+            or os.getenv("CHATBOT_DIRECT_API_KEY", "not-used")
+        )
+        model = args.model or os.getenv("CHATBOT_MODEL", "demo-a")
+        extra_headers = {}
+    elif args.provider == "fortigate-ollama":
+        base_url = os.getenv("CHATBOT_FORTIGATE_OLLAMA_BASE_URL", "").strip()
+        api_key = os.getenv("CHATBOT_FORTIGATE_OLLAMA_API_KEY", "").strip() or "not-used"
+        model = args.model or os.getenv("CHATBOT_FORTIGATE_OLLAMA_MODEL", "gpt-oss:20b")
+        extra_headers = {}
     else:
         faig_base_url = os.getenv("CHATBOT_FAIG_BASE_URL", "").strip()
         default_route = os.getenv("CHATBOT_FAIG_STATIC_ROUTE", "demo-a")

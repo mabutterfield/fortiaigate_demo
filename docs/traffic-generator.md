@@ -58,6 +58,8 @@ matching scenario:
 | `faig-scan` | `chatbot/instructions/local/demo-a/metadata.json` |
 | `faig-protect` | `chatbot/instructions/local/demo-a/metadata.json` |
 | `direct` | the `--model` slot when it is `demo-a` or `demo-b` |
+| `fortigate-litellm` | the `--model` slot when it is `demo-a` or `demo-b` |
+| `fortigate-ollama` | `chatbot/instructions/local/demo-a/metadata.json`; backend model is the configured Ollama model, normally `gpt-oss:20b` |
 | `fortiweb-mcp` | the `--model` slot when it is `demo-a` or `demo-b` |
 
 This avoids sending a fast-food prompt to an HR instruction slot, or a resume
@@ -160,6 +162,8 @@ python3 scripts/traffic_generator.py \
 | Route | Behavior |
 |---|---|
 | `direct` | Chatbot to Direct LiteLLM with the selected MCP path. |
+| `fortigate-litellm` | Chatbot to a FortiGate HTTP listener forwarding to LiteLLM with the selected MCP path. Requires `chatbot_fortigate_litellm_base_url`. |
+| `fortigate-ollama` | Chatbot to a FortiGate HTTP listener forwarding to Ollama's OpenAI-compatible `/v1` API. Requires `chatbot_fortigate_ollama_base_url`. |
 | `faig-scan` | Chatbot to FortiAIGate static `demo-a` route with the selected MCP path. |
 | `faig-protect` | Chatbot to FortiAIGate static `demo-b` route with the selected MCP path. The manual FAIG mapping should point this Demo-B entry point at LiteLLM `demo-a` so only the FAIG guard changes. |
 | `fortiweb-mcp` | Chatbot to Direct LiteLLM with FortiWeb-fronted MCP. |
