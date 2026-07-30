@@ -5,6 +5,13 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added a FortiStore Product Advisor scenario for v1.0 prompt-injection and
+  token-wasting demos:
+  - uses deterministic synthetic product catalog data through narrow MCP tools
+    instead of external product docs or RAG
+  - documents Direct, Demo A detect-only, and Demo B input-protection behavior
+    with route, flow, guard, and model expectations
+  - marks the older fast-food ordering scenario as archived/unused for v1.0
 - Started Phase 10 release hardening:
   - aligned README and documentation entry points around the v1.0 support
     contract

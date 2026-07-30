@@ -77,6 +77,9 @@ def print_list() -> None:
         profile_path, profile = load_scenario(scenario_id)
         print(f"- {scenario_id}: {entry.get('display_name', profile.get('display_name', scenario_id))}")
         print(f"  path: {profile_path.relative_to(REPO_ROOT)}")
+        status = entry.get("status", profile.get("status", ""))
+        if status:
+            print(f"  status: {status}")
         description = profile.get("description", "")
         if description:
             print(f"  description: {description}")
@@ -85,6 +88,9 @@ def print_list() -> None:
 def print_scenario(profile_path: Path, profile: dict) -> None:
     print_header(profile.get("display_name", profile.get("id", "Scenario")))
     print(f"id: {profile.get('id')}")
+    status = profile.get("status", "")
+    if status:
+        print(f"status: {status}")
     print(f"description: {profile.get('description', '')}")
     print(f"instructions: {instruction_path(profile_path, profile).relative_to(REPO_ROOT)}")
 

@@ -41,6 +41,11 @@ Document and resume retrieval demo tools:
 - `document_upload_simulation`
 - `cloud_bucket_list_demo`
 
+FortiStore product-advisor demo tools:
+
+- `fortistore_product_search`
+- `fortistore_product_lookup`
+
 Fast food ordering demo tools:
 
 - `menu_search`
@@ -315,11 +320,14 @@ curl -X POST http://127.0.0.1:8000/mcp \
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
 these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
-The menu tools are deterministic and meant to show an ordering assistant flow
-without placing a real order. The FortiGate tools are read-only and intended to
-show the model using a real infrastructure data source. The HR tools use
-synthetic data and are intended to demonstrate safe lookup, redaction, and
-policy-boundary behavior.
+The FortiStore tools are deterministic and use synthetic product-advisor data
+for repeatable product-fit, prompt-injection, and token-wasting demos. They are
+not current Fortinet datasheets, pricing, or availability data. The menu tools
+are deterministic and meant to show an ordering assistant flow without placing
+a real order. The FortiGate tools are read-only and intended to show the model
+using a real infrastructure data source. The HR tools use synthetic data and
+are intended to demonstrate safe lookup, redaction, and policy-boundary
+behavior.
 
 ## Chatbot Tool Toggle
 

@@ -33,13 +33,21 @@ DEFAULT_MCP_TOOL_PROFILES = [
     },
     {
         "name": "fastfood-ordering",
-        "label": "Fast Food Ordering",
+        "label": "Fast Food Ordering (Archived)",
         "tools": [
             "menu_search",
             "nutrition_lookup",
             "allergen_check",
             "suggest_combo",
             "build_order_summary",
+        ],
+    },
+    {
+        "name": "fortistore-product-advisor",
+        "label": "FortiStore Product Advisor",
+        "tools": [
+            "fortistore_product_search",
+            "fortistore_product_lookup",
         ],
     },
     {

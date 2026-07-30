@@ -14,14 +14,15 @@ has moved beyond the generic prompt/profile summary.
 
 | Scenario | Detailed walkthrough |
 |---|---|
+| `fortistore-product-advisor` | [examples/fortistore-product-advisor/README.md](examples/fortistore-product-advisor/README.md) |
 | `hr-tool-dlp-vulnerable` | [examples/hr-tool-dlp-vulnerable/README.md](examples/hr-tool-dlp-vulnerable/README.md) |
 
 Use the helper from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show fastfood-ordering
-python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
+python3 scripts/scenario_profiles.py show fortistore-product-advisor
+python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
 python3 scripts/scenario_profiles.py validate
 ```
 

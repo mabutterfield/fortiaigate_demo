@@ -2,7 +2,13 @@
   "scenarios": {
     "fastfood-ordering": {
       "path": "fastfood-ordering/profile.json",
-      "display_name": "Fast Food Ordering Agent"
+      "display_name": "Fast Food Ordering Agent",
+      "status": "archived-unused"
+    },
+    "fortistore-product-advisor": {
+      "path": "fortistore-product-advisor/profile.json",
+      "display_name": "FortiStore Product Advisor",
+      "status": "v1.0 baseline"
     },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",

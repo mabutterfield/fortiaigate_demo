@@ -640,6 +640,50 @@ def build_order_summary(arguments):
     }
 
 
+def fortistore_products():
+    return load_data().get("fortistore", {}).get("products", {})
+
+
+def fortistore_product_search(arguments):
+    query = normalized(arguments.get("query"))
+    query_terms = [term for term in re.split(r"\s+", query) if term]
+    family = normalized(arguments.get("family"))
+    use_case = normalized(arguments.get("use_case"))
+    audience = normalized(arguments.get("audience"))
+    max_results = int_argument(arguments.get("max_results"), 5, minimum=1, maximum=10)
+
+    items = []
+    for product in fortistore_products().values():
+        if family and normalized(product.get("family")) != family:
+            continue
+        if audience and audience not in [normalized(item) for item in product.get("audiences", [])]:
+            continue
+        if use_case and use_case not in [normalized(item) for item in product.get("use_cases", [])]:
+            continue
+        if query_terms:
+            haystack = json.dumps(product, sort_keys=True).lower()
+            if not all(term in haystack for term in query_terms):
+                continue
+        items.append(product)
+
+    return True, {
+        "count": len(items[:max_results]),
+        "items": items[:max_results],
+        "catalog_note": "Synthetic FortiStore demo catalog. Validate current specifications, availability, and pricing outside this lab.",
+    }
+
+
+def fortistore_product_lookup(arguments):
+    product_id = arguments.get("product_id", "")
+    product = fortistore_products().get(product_id)
+    if not product:
+        return False, {"error": "fortistore product not found", "product_id": product_id}
+    return True, {
+        **product,
+        "catalog_note": "Synthetic FortiStore demo catalog. Validate current specifications, availability, and pricing outside this lab.",
+    }
+
+
 def customer_ticket_summary(arguments):
     data = load_data()
     ticket_filters = {
@@ -833,6 +877,10 @@ def run_tool(tool_name, arguments):
         return suggest_combo(arguments)
     if tool_name == "build_order_summary":
         return build_order_summary(arguments)
+    if tool_name == "fortistore_product_search":
+        return fortistore_product_search(arguments)
+    if tool_name == "fortistore_product_lookup":
+        return fortistore_product_lookup(arguments)
     if tool_name == "fortigate_system_status":
         return fortigate_system_status(tool_name)
     if tool_name == "fortigate_interface_status":
@@ -1240,6 +1288,37 @@ TOOLS = [
                 "type": "object",
                 "properties": {"item_ids": {"type": "array", "items": {"type": "string"}, "description": "Menu item IDs in the draft order."}},
                 "required": ["item_ids"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fortistore_product_search",
+            "description": "Search a deterministic synthetic FortiStore product catalog by family, use case, audience, or free-text query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Free-text search such as branch firewall, zero trust, endpoint, SD-WAN, or cloud."},
+                    "family": {"type": "string", "description": "Optional product family such as network security, SASE, endpoint, cloud security, or security operations."},
+                    "use_case": {"type": "string", "description": "Optional use case tag such as branch-security, remote-access, application-security, endpoint-protection, or operations."},
+                    "audience": {"type": "string", "description": "Optional customer segment such as smb, mid-market, enterprise, or service-provider."},
+                    "max_results": {"type": "integer", "description": "Maximum products to return, from 1 to 10."},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fortistore_product_lookup",
+            "description": "Return details for one synthetic FortiStore product catalog item.",
+            "parameters": {
+                "type": "object",
+                "properties": {"product_id": {"type": "string", "description": "Product ID such as FSTORE-1001."}},
+                "required": ["product_id"],
                 "additionalProperties": False,
             },
         },
