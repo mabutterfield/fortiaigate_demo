@@ -251,9 +251,11 @@ Result log:
 
 ## FortiGate Application-Control Traffic Investigation
 
-Phase 10 should investigate whether the local-safe traffic generator can
-produce synthetic traffic that is classified by FortiGate Application Control
-and therefore creates useful FortiGate app-control logs for the demo.
+Phase 10E investigates whether traffic from a VM behind FortiGate can produce
+synthetic traffic that is classified by FortiGate Application Control and
+therefore creates useful FortiGate app-control logs for the demo. It also
+defines separate inbound plain HTTP LLM paths through FortiGate to LiteLLM and
+Ollama for deep inspection comparison.
 
 This should generate lab traffic that causes FortiGate to log recognizable
 application-control events. It should not directly insert, forge, or present
@@ -264,10 +266,15 @@ Candidate validation points:
 | Area | Expected result |
 |---|---|
 | Traffic path | Traffic traverses a FortiGate policy with logging and an application-control profile enabled. |
+| Routed VM | Outbound AI app tests run direct/no-proxy from a VM or lab host behind FortiGate. |
+| Explicit proxy | Optional workstation proxy tests use a script-scoped explicit proxy URL rather than changing workstation routing or global proxy environment. |
+| LLM inspection | `http://<fgt-ip>:4000/v1` forwards to LiteLLM and/or `http://<fgt-ip>:11434/v1` forwards to Ollama; FortiGate records HTTP request evidence for a marked test prompt when the selected profile logs it. |
 | Synthetic identity | Requests include a clear lab label where possible, such as hostnames, paths, or user agents that identify the run. |
 | App-control evidence | FortiGate logs show application name/category/action fields for the generated flow. |
 | Correlation | Traffic-generator run label and timestamps can be correlated with FortiGate logs and FortiAIGate logs. |
 | Safeguards | Cloud/long-running traffic still requires explicit opt-in from the traffic generator. |
+
+Runbook: [FortiGate Traffic Demo](fortigate-proxy-demo.md)
 
 This is optional for v1.0 unless the recorded demo selects the FortiGate
 application-control log story.

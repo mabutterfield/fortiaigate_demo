@@ -38,10 +38,20 @@ Current scripts:
   pod. Use `--use-case steady` for persistent low-rate dashboard/log population
   and `--use-case burst` for short load or DoS-style testing. Traffic runs
   default to FAIG `demo-a` scan traffic and read local slot metadata so sent
-  scenarios match the installed `demo-a`/`demo-b` instructions. It saves compact
+  scenarios match the installed `demo-a`/`demo-b` instructions. Optional
+  FortiGate routes can send chatbot traffic through plain HTTP LiteLLM or
+  Ollama listeners when configured. It saves compact
   metadata under ignored
   `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
   responses as security dispositions rather than transport failures.
+- `fortigate_ai_app_proxy_touch.py`: touches known AI application endpoints
+  directly by default, or through a run-scoped FortiGate explicit proxy URL
+  when `--proxy-url` is supplied. It defaults to dry-run mode and requires
+  `--execute` before sending traffic, making it useful for FortiGate
+  Application Control log investigation without changing workstation proxy
+  environment variables. Built-in labels use FortiGuard-style GenAI
+  application names where practical, and GET mode avoids HTTP `Range` headers
+  unless `--range-request` is supplied.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

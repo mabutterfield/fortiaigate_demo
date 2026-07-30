@@ -42,6 +42,7 @@ reference, not a competing first-run path.
 | FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
 | Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
 | FortiGate appliance | [FortiGate](fortigate.md) |
+| FortiGate traffic demo | [FortiGate Traffic Demo](fortigate-proxy-demo.md) |
 | FortiWeb appliance | [FortiWeb](fortiweb.md) |
 | Ollama provider notes | [Ollama](ollama.md) |
 | Known issues and workarounds | [Known Issues](known-issues.md) |
@@ -82,7 +83,13 @@ reference, not a competing first-run path.
 - `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
 - `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
   steady or burst chatbot/MCP traffic profiles with compact ignored metadata
-  under `docs/raw-output/traffic/`.
+  under `docs/raw-output/traffic/`, including an optional FortiGate-to-LiteLLM
+  path when `chatbot_fortigate_litellm_base_url` is configured and an optional
+  FortiGate-to-Ollama path when `chatbot_fortigate_ollama_base_url` is
+  configured.
+- `scripts/fortigate_ai_app_proxy_touch.py`: touches AI application endpoints
+  directly by default, or through a run-scoped FortiGate explicit proxy URL, for
+  Application Control log investigation.
 - `scripts/export_fortiaigate_syslog.py`: syncs FortiAIGate syslog S3 objects into `FAIG/backups/` and reconstructs a combined JSONL archive.
 - `scripts/local_setup.py`: generates ignored local Ubuntu inventory, registry,
   GPU, Ollama, and optional local appliance vars for `--local` deployments.

@@ -125,6 +125,49 @@ fortigate_address_objects_static: []
 fortigate_service_objects_static: []
 fortigate_vip_objects_static: []
 
+# Optional Phase 10 plain HTTP LLM inspection paths. Disabled by default.
+# When enabled, the role generates:
+# - VIP_FAIG_LITELLM_HTTP_PROXY: port1 TCP 4000 -> k3s LiteLLM NodePort
+# - VIP_FAIG_OLLAMA_HTTP_PROXY: port1 TCP 11434 -> k3s Ollama NodePort
+# - matching custom services and inbound firewall policies
+fortigate_llm_proxy_enabled: false
+fortigate_llm_proxy_manage_services: true
+fortigate_llm_proxy_manage_vips: true
+fortigate_llm_proxy_manage_policies: true
+fortigate_llm_proxy_public_interface: "{{ fortigate_config_public_interface }}"
+fortigate_llm_proxy_backend_interface: "{{ fortigate_config_internal_interface }}"
+fortigate_llm_proxy_extip: "{{ fortigate_public_private_ip | default(fortigate_public_ip | default('')) }}"
+fortigate_llm_proxy_mappedip: "{{ k3s_private_ip | default(k3s_public_ip | default('')) }}"
+fortigate_llm_proxy_source_address: all
+fortigate_llm_proxy_schedule: always
+fortigate_llm_proxy_action: accept
+fortigate_llm_proxy_nat: disable
+fortigate_llm_proxy_status: enable
+fortigate_llm_proxy_logtraffic: all
+fortigate_llm_proxy_policy_id_base: 9400
+fortigate_llm_proxy_policy_common: {}
+fortigate_llm_proxy_builtin_services:
+  - ALL
+  - HTTP
+  - HTTPS
+fortigate_llm_proxy_paths:
+  - name: litellm
+    service_name: FAIG_LITELLM_LISTENER_4000
+    vip_name: VIP_FAIG_LITELLM_HTTP_PROXY
+    policy_name: allow-faig-litellm-http-proxy
+    policyid: "{{ fortigate_llm_proxy_policy_id_base | int }}"
+    extport: 4000
+    mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+    comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
+  - name: ollama
+    service_name: FAIG_OLLAMA_LISTENER_11434
+    vip_name: VIP_FAIG_OLLAMA_HTTP_PROXY
+    policy_name: allow-faig-ollama-http-proxy
+    policyid: "{{ fortigate_llm_proxy_policy_id_base | int + 1 }}"
+    extport: 11434
+    mappedport: "{{ ollama_node_port | default(30085) | int }}"
+    comment: "Phase 10 FortiGate plain HTTP Ollama inspection path"
+
 # Policies are intentionally empty by default. Add explicit policyid values in
 # user.yml when a FortiGate path should be active.
 fortigate_firewall_policies: []

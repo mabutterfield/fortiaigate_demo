@@ -26,6 +26,7 @@ REQUIRED_PATHS = [
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
     "scripts/instruction_profiles.py",
+    "scripts/fortigate_ai_app_proxy_touch.py",
     "scripts/scenario_profiles.py",
     "scripts/traffic_generator.py",
     "scripts/user_profile.py",
@@ -91,6 +92,7 @@ def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
         "scripts/instruction_profiles.py",
+        "scripts/fortigate_ai_app_proxy_touch.py",
         "scripts/scenario_profiles.py",
         "scripts/traffic_generator.py",
         "scripts/automated_quickstart.py",

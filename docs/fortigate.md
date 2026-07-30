@@ -100,8 +100,10 @@ Ansible vars.
 - FortiGuard automatic patch firmware upgrade setting
 - static FortiGate address objects generated from repo-owned public/private IPs
 - generated custom service objects for the demo k3s NodePort listeners
+- optional generated LiteLLM/Ollama LLM-inspection services, VIP objects, and
+  firewall policies when `fortigate_llm_proxy_enabled=true`
 - optional static address objects, static service objects, VIP objects, and
-  firewall policies
+  firewall policies for lab-specific additions or overrides
 
 System maps are pushed as one map. Address objects, service objects, VIP
 objects, and firewall policies are gathered from FortiGate first and only
@@ -113,24 +115,21 @@ reference that VIP name in the firewall policy `dstaddr`.
 
 ## Phase 10 Traffic And Application-Control Testing
 
-Phase 10 should investigate a traffic-generator path that produces synthetic
-lab traffic through FortiGate so Application Control logs have useful demo
-events. The goal is to generate traffic that FortiGate classifies and logs, not
-to insert or falsify appliance log records.
+Phase 10E adds an opt-in FortiGate traffic demo path. It has two manual-first
+tracks:
 
-Candidate requirements:
+- outbound AI application detection from a VM behind FortiGate using
+  `scripts/fortigate_ai_app_proxy_touch.py`
+- inbound plain HTTP LLM inspection through
+  `http://<fgt-ip>:4000/v1`, forwarded to LiteLLM
+- inbound plain HTTP LLM inspection through
+  `http://<fgt-ip>:11434/v1`, forwarded to Ollama
 
-- route generated traffic through a FortiGate policy with traffic logging and
-  an Application Control profile enabled
-- include a traffic-generator run label in request metadata where practical,
-  such as a hostname, path, or user agent
-- preserve enough timestamp/run-label metadata to correlate FortiGate logs with
-  FortiAIGate and traffic-generator output
-- keep long-running cloud traffic behind explicit opt-in controls
-- keep all generated outputs under ignored raw-output or backup paths
+The goal is to generate traffic that FortiGate classifies, inspects, and logs.
+Do not insert or falsify appliance log records. This path does not alter the
+default AWS quickstart, local quickstart, or FAIG scenario routing.
 
-This is an investigation item unless the recorded demo selects a FortiGate
-application-control log story.
+See [FortiGate Traffic Demo](fortigate-proxy-demo.md) for the current runbook.
 
 `configure_fortigate_api_accounts.yml` creates a managed read-only profile
 named `FAIG_READ_ONLY` and a read-only API admin named `faig-readonly-api` by

@@ -12,6 +12,21 @@ a "what's new" guide rather than a raw commit log.
   - documents Direct, Demo A detect-only, and Demo B input-protection behavior
     with route, flow, guard, and model expectations
   - marks the older fast-food ordering scenario as archived/unused for v1.0
+- Added Phase 10E FortiGate traffic-demo preparation:
+  - documented outbound AI application detection from a VM behind FortiGate and
+    inbound plain HTTP LLM inspection through
+    `http://<fgt-ip>:4000/v1`
+  - added a dry-run-by-default app-touch helper that sends direct/no-proxy
+    traffic by default, can use a run-scoped explicit proxy URL when requested,
+    uses FortiGuard-style GenAI target labels, avoids GET range requests by
+    default, and does not alter workstation proxy settings
+  - added an opt-in chatbot and traffic-generator path for
+    `chatbot -> FortiGate :4000 -> LiteLLM` plain HTTP inspection
+  - added an opt-in chatbot and traffic-generator path for
+    `chatbot -> FortiGate :11434 -> Ollama` plain HTTP inspection
+  - added disabled-by-default FortiGate role variables that can generate the
+    listener custom services, VIP objects, and inbound firewall policies for
+    the LiteLLM and Ollama inspection paths
 - Started Phase 10 release hardening:
   - aligned README and documentation entry points around the v1.0 support
     contract

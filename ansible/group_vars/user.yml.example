@@ -25,6 +25,49 @@
 # guards manually before enabling this for scenario testing.
 # chatbot_phase10_scenario_routes_enabled: true
 
+# Optional Phase 10 FortiGate LLM inspection path. Enable only after FortiGate
+# is configured to accept HTTP on the listener ports and forward/NAT to the
+# matching k3s NodePorts. The chatbot then shows additional FortiGate backend
+# paths without changing the default Direct LiteLLM or FAIG routes.
+# chatbot_fortigate_litellm_base_url: http://<fgt-ip>:4000/v1
+# chatbot_fortigate_ollama_base_url: http://<fgt-ip>:11434/v1
+
+# Optional FortiGate policy automation for the same Phase 10 plain HTTP LLM
+# inspection listeners. Disabled by default. Enable only after confirming the
+# public/internal interfaces, listener IP, and backend k3s node IP are correct
+# for the lab FortiGate.
+# fortigate_llm_proxy_enabled: true
+# fortigate_llm_proxy_extip: <fgt-listener-ip>
+# fortigate_llm_proxy_mappedip: <k3s-node-ip>
+# fortigate_llm_proxy_public_interface: port1
+# fortigate_llm_proxy_backend_interface: port2
+# fortigate_llm_proxy_manage_services: true
+# fortigate_llm_proxy_manage_vips: true
+# fortigate_llm_proxy_manage_policies: true
+#
+# If VIPs already exist, disable VIP management and override vip_name values to
+# match the existing FortiGate objects. Keep service_name values aligned with
+# the services referenced by the generated policies, or override policy fields
+# with policy_overrides.
+# fortigate_llm_proxy_manage_vips: false
+# fortigate_llm_proxy_paths:
+#   - name: litellm
+#     service_name: FAIG_LITELLM_LISTENER_4000
+#     vip_name: LiteLLM
+#     policy_name: allow-faig-litellm-http-proxy
+#     policyid: 9400
+#     extport: 4000
+#     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+#     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
+#   - name: ollama
+#     service_name: FAIG_OLLAMA_LISTENER_11434
+#     vip_name: Ollama
+#     policy_name: allow-faig-ollama-http-proxy
+#     policyid: 9401
+#     extport: 11434
+#     mappedport: "{{ ollama_node_port | default(30085) | int }}"
+#     comment: "Phase 10 FortiGate plain HTTP Ollama inspection path"
+
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
 fortiaigate_license_files:
