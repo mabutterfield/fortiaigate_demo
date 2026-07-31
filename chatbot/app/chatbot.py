@@ -431,8 +431,8 @@ def render_mcp_trace(trace: dict[str, Any]) -> None:
             st.json(event.get("result", {}))
 
 
-def render_mcp_trace_panel(placeholder: Any, trace: dict[str, Any], height: int) -> None:
-    with placeholder.container(height=height, border=False):
+def render_mcp_trace_panel(trace: dict[str, Any], height: int) -> None:
+    with st.container(height=height, border=False):
         render_mcp_trace(trace)
 
 
@@ -1056,6 +1056,11 @@ def main() -> None:
             st.write("Tool choice: model-selected")
             if streaming:
                 st.write("Streaming: off while MCP tools are enabled")
+        show_mcp_trace = st.checkbox(
+            "Show MCP tool trace",
+            value=False,
+            help="Show the latest MCP trace in a right-side pane. Hide it for full-width response tables.",
+        )
 
     if not base_url:
         st.error(f"{provider_path} base URL is not configured.")
@@ -1064,8 +1069,11 @@ def main() -> None:
         st.error(f"{mcp_path} base URL is not configured.")
         return
 
-    chat_col, trace_col = st.columns([5, 2], gap="large")
-    trace_placeholder = trace_col.empty()
+    if show_mcp_trace:
+        chat_col, trace_col = st.columns([5, 2], gap="large")
+    else:
+        chat_col = st.container()
+        trace_col = None
 
     with chat_col:
         for message in st.session_state.messages:
@@ -1080,7 +1088,9 @@ def main() -> None:
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
+        if show_mcp_trace and trace_col is not None:
+            with trace_col:
+                render_mcp_trace_panel(st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -1175,7 +1185,9 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    render_mcp_trace_panel(trace_placeholder, st.session_state.mcp_tool_trace, mcp_trace_height)
+    if show_mcp_trace and trace_col is not None:
+        with trace_col:
+            render_mcp_trace_panel(st.session_state.mcp_tool_trace, mcp_trace_height)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:
