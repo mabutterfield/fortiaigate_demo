@@ -5,13 +5,19 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
-- Added a FortiStore Product Advisor scenario for v1.0 prompt-injection and
-  token-wasting demos:
+- Added and archived an MCP-backed FortiStore Product Advisor scenario used
+  during Phase 10 prompt-injection and token-wasting tuning:
   - uses deterministic synthetic product catalog data through narrow MCP tools
     instead of external product docs or RAG
   - documents Direct, Demo A detect-only, and Demo B input-protection behavior
     with route, flow, guard, and model expectations
-  - marks the older fast-food ordering scenario as archived/unused for v1.0
+  - marks the older fast-food ordering and MCP-backed FortiStore scenarios as
+    archived/unused for the active v1.0 baseline
+- Added FortiStore Injection as the active v1.0 product-advisor injection lane:
+  - keeps normal backend-only behavior product-focused
+  - adds a toggleable chatbot frontend/system-prompt fixture for demonstrating
+    compromised UI-layer instruction injection
+  - supports headless validation with frontend instructions enabled or disabled
 - Added Phase 10E FortiGate traffic-demo preparation:
   - documented outbound AI application detection from a VM behind FortiGate and
     inbound plain HTTP LLM inspection through

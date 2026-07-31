@@ -545,6 +545,30 @@ demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 # NodePorts. Operators can set this false in ignored user.yml for direct-only
 # testing.
 fortiweb_mcp_proxy_enabled: true
+# Keep the repo default FortiWeb proxy build narrow so appliance deploy/config
+# time stays reasonable. The role still supports OpenWebUI, chatbot, demo home,
+# LiteLLM, and HTTPS gateway proxies; opt those back in from ignored user vars
+# when a recording specifically needs them.
+fortiweb_nodeport_proxy_enabled: "{{ fortiweb_mcp_proxy_enabled | bool }}"
+fortiweb_nodeport_proxy_http_paths:
+  - object_suffix: MCP_HTTP
+    service_name: "{{ fortiweb_mcp_proxy_service_name }}"
+    virtual_server_name: "{{ fortiweb_mcp_proxy_virtual_server_name }}"
+    server_pool_name: "{{ fortiweb_mcp_proxy_server_pool_name }}"
+    policy_name: "{{ fortiweb_mcp_proxy_policy_name }}"
+    listen_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    backend_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+fortiweb_nodeport_proxy_https_paths:
+  - object_suffix: MCP_HTTPS
+    listen_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    backend_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
 
 # === Fortinet appliance traffic paths: Phase 6 desired-state input ===
 # Empty by default so the direct public k3s demo path remains unchanged.

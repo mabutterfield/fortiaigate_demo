@@ -12,7 +12,7 @@ The employee data is synthetic and based on dlptest.com sample records.
 Install the scenario into the shared `demo-a` LiteLLM slot:
 
 ```bash
-python3 scripts/scenario_profiles.py install hr-tool-dlp-vulnerable --slot demo-a --force
+python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
@@ -35,7 +35,7 @@ Use these chatbot controls:
 |---|---|
 | LLM path | `FAIG Static Route` |
 | MCP path | `Direct MCP` first |
-| Tool profile | `hr-tool-dlp-vulnerable` |
+| Tool profile | `hr-tool-dlp` |
 | Context mode | `recent` |
 | Max tool rounds | `5` |
 

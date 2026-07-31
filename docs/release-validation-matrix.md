@@ -33,7 +33,7 @@ python3 scripts/scenario_test_harness.py --help
 python3 scripts/traffic_generator.py --help
 python3 scripts/traffic_generator.py --dry-run
 python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario-source family --use-case steady --duration 60 --rate 6
-python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fortistore-product-advisor --use-case burst
+python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fortistore-injection --use-case burst
 ```
 
 Expected coverage:
@@ -168,9 +168,8 @@ Baseline scenarios:
 
 | Scenario | Required tool profile | Required first path |
 |---|---|---|
-| `fortistore-product-advisor` | `fortistore-product-advisor` | Direct MCP |
-| `fortistore-v2` | none; MCP off | Direct LiteLLM |
-| `hr-tool-dlp-vulnerable` | `hr-tool-dlp-vulnerable` | Direct MCP |
+| `fortistore-injection` | none; MCP off | Direct LiteLLM |
+| `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP |
 
 Inactive legacy and in-progress scenario profiles remain in
 `chatbot/scenarios/examples/` but are hidden from default validation until
@@ -180,7 +179,7 @@ Headless example:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --paths direct \
   --mcp-path direct \
   --run-label phase10-baseline
@@ -221,7 +220,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target local \
   --use-case burst \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --route direct \
   --label local-burst-test \
   --yes

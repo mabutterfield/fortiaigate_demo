@@ -21,16 +21,18 @@ has moved beyond the generic prompt/profile summary.
 
 | Scenario | Detailed walkthrough |
 |---|---|
-| `fortistore-product-advisor` | [examples/fortistore-product-advisor/README.md](examples/fortistore-product-advisor/README.md) |
-| `fortistore-v2` | [examples/fortistore-v2/README.md](examples/fortistore-v2/README.md) |
-| `hr-tool-dlp-vulnerable` | [examples/hr-tool-dlp-vulnerable/README.md](examples/hr-tool-dlp-vulnerable/README.md) |
+| `fortistore-injection` | [examples/fortistore-injection/README.md](examples/fortistore-injection/README.md) |
+| `hr-tool-dlp` | [examples/hr-tool-dlp/README.md](examples/hr-tool-dlp/README.md) |
+
+The original MCP-backed FortiStore advisor remains under
+`examples/fortistore-product-advisor/` as a legacy reference.
 
 Use the helper from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show fortistore-product-advisor
-python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
+python3 scripts/scenario_profiles.py show fortistore-injection
+python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
 python3 scripts/scenario_profiles.py validate
 ```
 

@@ -1,10 +1,10 @@
 {
-  "id": "hr-tool-dlp-vulnerable",
+  "id": "hr-tool-dlp",
   "display_name": "HR Tool DLP Vulnerable",
   "description": "Controlled HR assistant scenario where a read-only MCP tool returns full simulated employee records for FortiAIGate DLP testing.",
   "instruction_file": "instructions.txt",
   "mcp": {
-    "tool_profile": "hr-tool-dlp-vulnerable",
+    "tool_profile": "hr-tool-dlp",
     "required_tools": [
       "employee_search",
       "employee_lookup",
@@ -35,7 +35,7 @@
     "chatbot_settings": {
       "llm_path": "FAIG Static Route",
       "mcp_path": "Direct MCP",
-      "tool_profile": "hr-tool-dlp-vulnerable",
+      "tool_profile": "hr-tool-dlp",
       "context_mode": "recent",
       "max_tool_rounds": 5
     },

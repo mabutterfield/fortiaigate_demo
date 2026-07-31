@@ -115,19 +115,18 @@ ROUTE_SLOT_DEFAULTS = {
 }
 
 BASELINE_SCENARIOS = [
-    "fortistore-product-advisor",
-    "fortistore-v2",
-    "hr-tool-dlp-vulnerable",
+    "fortistore-injection",
+    "hr-tool-dlp",
 ]
 
 SCENARIO_FAMILIES = {
     "baseline": BASELINE_SCENARIOS,
     "demo-recording": BASELINE_SCENARIOS,
     "documents": [],
-    "hr": ["hr-tool-dlp-vulnerable"],
+    "hr": ["hr-tool-dlp"],
     "fastfood": ["fastfood-ordering", "menu-poisoning"],
     "support": [],
-    "fortinet": ["fortistore-product-advisor", "fortistore-v2"],
+    "fortinet": ["fortistore-injection"],
     "all": [],
 }
 

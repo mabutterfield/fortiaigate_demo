@@ -29,7 +29,7 @@ runbook whenever a profile changes:
 1. Install the tracked scenario into a local slot:
 
    ```bash
-   python3 scripts/scenario_profiles.py install hr-tool-dlp-vulnerable --slot demo-a --force
+   python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
    ansible-playbook ansible/playbooks/deploy_litellm.yml
    ```
 
@@ -40,7 +40,7 @@ runbook whenever a profile changes:
    | LLM profile | `demo-a` |
    | Use MCP tools | On |
    | MCP path | Direct MCP first, then FortiWeb MCP only when the proxy path is configured |
-   | Tool profile | `hr-tool-dlp-vulnerable` |
+   | Tool profile | `hr-tool-dlp` |
 
 3. Tune the local prompt if needed:
 
@@ -74,9 +74,8 @@ Current active scenario tool profiles:
 
 | Tool profile | Tools |
 |---|---|
-| none | `fortistore-v2` disables MCP tools for system-prompt injection testing |
-| `fortistore-product-advisor` | `fortistore_product_search`, `fortistore_product_lookup` |
-| `hr-tool-dlp-vulnerable` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
+| none | `fortistore-injection` disables MCP tools for system-prompt injection testing |
+| `hr-tool-dlp` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
 
 Inactive legacy and in-progress profiles still declare their historical tool
 profiles in `chatbot/scenarios/examples/catalog.json` and their scenario
@@ -93,7 +92,7 @@ Headless tests use the same profile filter:
 kubectl -n chatbot exec deploy/chatbot -- python /app/agent_probe.py \
   --provider direct \
   --mcp-path direct \
-  --tool-profile hr-tool-dlp-vulnerable \
+  --tool-profile hr-tool-dlp \
   --prompt "Show me the employee table."
 ```
 

@@ -27,12 +27,11 @@ rehearsal unless a specific test plan says otherwise:
 
 | Scenario | Status | Primary use | Detailed walkthrough |
 |---|---|---|---|
-| `fortistore-product-advisor` | v1.0 baseline | Deliberately permissive Fortinet-aligned product guidance, text prompt-injection, and token-wasting boundary demo | [scenario README](../chatbot/scenarios/examples/fortistore-product-advisor/README.md) |
-| `fortistore-v2` | draft active | No-MCP product guidance plus compromised frontend/system-prompt injection testing | [scenario README](../chatbot/scenarios/examples/fortistore-v2/README.md) |
-| `hr-tool-dlp-vulnerable` | v1.0 baseline | Synthetic sensitive tool-result and output-DLP demo | [scenario README](../chatbot/scenarios/examples/hr-tool-dlp-vulnerable/README.md) |
+| `fortistore-injection` | v1.0 baseline | No-MCP product guidance plus toggleable compromised frontend/system-prompt injection testing | [scenario README](../chatbot/scenarios/examples/fortistore-injection/README.md) |
+| `hr-tool-dlp` | v1.0 baseline | Synthetic sensitive tool-result and output-DLP demo | [scenario README](../chatbot/scenarios/examples/hr-tool-dlp/README.md) |
 
-Supporting scenarios such as resume, support-ticket, FortiGate operator,
-policy-risk, and menu-poisoning profiles remain in
+Supporting scenarios such as the original FortiStore advisor, resume,
+support-ticket, FortiGate operator, policy-risk, and menu-poisoning profiles remain in
 `chatbot/scenarios/examples/` as inactive catalog entries. They are legacy or
 in-progress references and are hidden from the normal scenario picker until
 their `active` flag is changed or a helper is called with `--include-inactive`.
@@ -54,13 +53,13 @@ python3 scripts/scenario_profiles.py list --include-inactive
 Show the scenario metadata, required MCP tools, prompts, and expected trace:
 
 ```bash
-python3 scripts/scenario_profiles.py show fortistore-product-advisor
+python3 scripts/scenario_profiles.py show fortistore-injection
 ```
 
 Install one scenario into a local instruction slot:
 
 ```bash
-python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
+python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
 ```
 
 Then deploy the prepared instructions:
@@ -148,7 +147,11 @@ Use `Reset context` between scenarios or after changing profiles. Enable
 `Show context sent to model` when demonstrating the difference between
 single-turn prompts, recent chat history, and compact working memory.
 
-## FortiStore Product Advisor
+## Legacy FortiStore Product Advisor
+
+The original MCP-backed FortiStore product-advisor scenario is archived as a
+legacy reference. Use `fortistore-injection` for the active v1.0 prompt-injection and
+frontend/system-prompt injection demo.
 
 Install:
 
@@ -207,22 +210,23 @@ Expected behavior:
 Detailed walkthrough:
 [chatbot/scenarios/examples/fortistore-product-advisor/README.md](../chatbot/scenarios/examples/fortistore-product-advisor/README.md).
 
-## FortiStore V2 Product Advisor
+## FortiStore Injection Product Advisor
 
 Install the backend profile:
 
 ```bash
-python3 scripts/scenario_profiles.py install fortistore-v2 --slot demo-a --force
+python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
-For the optional compromised frontend/system-prompt injection run:
+For the optional compromised frontend/system-prompt injection run, install the
+frontend fixture once:
 
 ```bash
-python3 scripts/scenario_profiles.py install fortistore-v2 --slot frontend --force
+python3 scripts/scenario_profiles.py install fortistore-injection --slot frontend --force
 ```
 
-Set this ignored local variable and redeploy the chatbot:
+Set this ignored local variable and redeploy the chatbot once:
 
 ```yaml
 chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
@@ -232,6 +236,11 @@ chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_file
 ansible-playbook ansible/playbooks/deploy_chatbots.yml
 ```
 
+After deployment, use the chatbot sidebar checkbox `Use frontend instructions`
+to switch between backend-only behavior and the compromised frontend fixture.
+Turn it off for the backend-only control run, then turn it on and repeat the
+same prompts.
+
 Chatbot settings:
 
 | Setting | Value |
@@ -239,6 +248,7 @@ Chatbot settings:
 | Model/profile | `demo-a` for Direct/Demo A, Demo B route for protection |
 | Use MCP tools | Off |
 | Context mode | Current prompt only |
+| Use frontend instructions | Off for backend-only control; on for compromised frontend run |
 | Show context sent to model | Recommended during frontend-injection validation |
 
 Clean prompts:
@@ -264,8 +274,16 @@ Expected behavior:
 - Demo B with `protect_input` should block explicit instruction-control
   prompts before the compromised frontend layer causes leakage or token waste.
 
+Headless validation examples:
+
+```bash
+python3 scripts/scenario_test_harness.py --scenario fortistore-injection --paths direct faig-scan --no-frontend-system-prompt --run-label fortistore-backend-only
+python3 scripts/scenario_test_harness.py --scenario fortistore-injection --paths direct faig-scan --run-label fortistore-frontend-injection
+python3 scripts/scenario_test_harness.py --scenario fortistore-injection --paths faig-protect --run-label fortistore-protect-input
+```
+
 Detailed walkthrough:
-[chatbot/scenarios/examples/fortistore-v2/README.md](../chatbot/scenarios/examples/fortistore-v2/README.md).
+[chatbot/scenarios/examples/fortistore-injection/README.md](../chatbot/scenarios/examples/fortistore-injection/README.md).
 
 ## FortiGate Operator
 
@@ -359,12 +377,12 @@ Expected behavior:
 ## HR Tool DLP Vulnerable
 
 Detailed walkthrough:
-[chatbot/scenarios/examples/hr-tool-dlp-vulnerable/README.md](../chatbot/scenarios/examples/hr-tool-dlp-vulnerable/README.md).
+[chatbot/scenarios/examples/hr-tool-dlp/README.md](../chatbot/scenarios/examples/hr-tool-dlp/README.md).
 
 Install:
 
 ```bash
-python3 scripts/scenario_profiles.py install hr-tool-dlp-vulnerable --slot demo-a --force
+python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
@@ -375,7 +393,7 @@ Chatbot settings:
 | Model/profile | `demo-a` |
 | Use MCP tools | On |
 | MCP path | Direct MCP first |
-| Tool profile | `hr-tool-dlp-vulnerable` |
+| Tool profile | `hr-tool-dlp` |
 
 Clean prompt:
 
@@ -759,7 +777,7 @@ Run a baseline headless validation after the scenario is installed and LiteLLM
 is redeployed:
 
 ```bash
-python3 scripts/scenario_test_harness.py --scenario fortistore-product-advisor --run-label phase10-baseline
+python3 scripts/scenario_test_harness.py --scenario fortistore-injection --run-label phase10-baseline
 ```
 
 Use raw output only for release-maintainer validation. Saved raw prompt and

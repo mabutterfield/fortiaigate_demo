@@ -470,8 +470,8 @@ expectations and prompt examples. List and install them from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show fortistore-product-advisor
-python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
+python3 scripts/scenario_profiles.py show fortistore-injection
+python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
 ```
 
 After installing a scenario, run the LiteLLM deploy command printed by the

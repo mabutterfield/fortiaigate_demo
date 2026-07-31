@@ -77,7 +77,7 @@ python3 scripts/traffic_generator.py \
 
 python3 scripts/traffic_generator.py \
   --mode traffic \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --route direct \
   --dry-run
 ```
@@ -127,7 +127,7 @@ Dry run:
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case burst \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --route direct \
   --dry-run
 ```
@@ -139,7 +139,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target local \
   --use-case burst \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --route direct \
   --label local-burst-test \
   --yes
@@ -152,7 +152,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target aws \
   --use-case burst \
-  --scenario fortistore-product-advisor \
+  --scenario fortistore-injection \
   --route direct \
   --allow-cloud-long-run \
   --yes

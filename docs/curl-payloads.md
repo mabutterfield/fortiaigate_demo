@@ -35,7 +35,7 @@ curl -sS "$FAIG_URL/v1/demo-a/chat/completions" \
   -H "Authorization: Bearer $FAIG_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
-  < chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/attack-tool-result.json
+  < chatbot/scenarios/examples/hr-tool-dlp/curl-payloads/attack-tool-result.json
 ```
 
 Replay through the protect FAIG route:
@@ -45,7 +45,7 @@ curl -sS "$FAIG_URL/v1/demo-b/chat/completions" \
   -H "Authorization: Bearer $FAIG_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
-  < chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/attack-tool-result.json
+  < chatbot/scenarios/examples/hr-tool-dlp/curl-payloads/attack-tool-result.json
 ```
 
 Replay through direct LiteLLM:
@@ -58,7 +58,7 @@ curl -sS "$LITELLM_URL/v1/chat/completions" \
   -H "Authorization: Bearer $LITELLM_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
-  < chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/attack-tool-result.json
+  < chatbot/scenarios/examples/hr-tool-dlp/curl-payloads/attack-tool-result.json
 ```
 
 The same payload body can be used against Direct, FAIG Scan, and FAIG Protect.
@@ -77,7 +77,7 @@ Active scenario payload folders:
 
 | Scenario | Payload folder |
 |---|---|
-| `hr-tool-dlp-vulnerable` | `chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/` |
+| `hr-tool-dlp` | `chatbot/scenarios/examples/hr-tool-dlp/curl-payloads/` |
 
 Inactive legacy and in-progress scenario payload folders remain in place for
 reference and can be used after reactivating the scenario in

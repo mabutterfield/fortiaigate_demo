@@ -116,7 +116,7 @@ output guard, or both.
 
 ## HR Output-DLP Example
 
-Use this as the working template for `hr-tool-dlp-vulnerable`.
+Use this as the working template for `hr-tool-dlp`.
 
 Goal: reproduce and tune output-DLP behavior when MCP returns sensitive data
 that the model places into a response table.

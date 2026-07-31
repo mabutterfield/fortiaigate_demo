@@ -264,8 +264,8 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
   python3 scripts/scenario_profiles.py list
-  python3 scripts/scenario_profiles.py show fortistore-v2
-  python3 scripts/scenario_profiles.py install fortistore-v2 --slot demo-a --force
+  python3 scripts/scenario_profiles.py show fortistore-injection
+  python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
   python3 scripts/scenario_profiles.py list --include-inactive
   python3 scripts/scenario_profiles.py validate
 
@@ -287,9 +287,8 @@ after install:
         help="Install a scenario into a local instruction slot.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
-  python3 scripts/scenario_profiles.py install fortistore-v2 --slot demo-a --force
-  python3 scripts/scenario_profiles.py install hr-tool-dlp-vulnerable --slot demo-a --force
+  python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
+  python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 
 then deploy the prepared instructions:
   ansible-playbook ansible/playbooks/deploy_litellm.yml

@@ -9,13 +9,13 @@
     "fortistore-product-advisor": {
       "path": "fortistore-product-advisor/profile.json",
       "display_name": "FortiStore Product Advisor",
-      "status": "v1.0 baseline",
-      "active": true
+      "status": "legacy-archived",
+      "active": false
     },
-    "fortistore-v2": {
-      "path": "fortistore-v2/profile.json",
-      "display_name": "FortiStore V2 Product Advisor",
-      "status": "draft",
+    "fortistore-injection": {
+      "path": "fortistore-injection/profile.json",
+      "display_name": "FortiStore Injection Product Advisor",
+      "status": "v1.0 baseline",
       "active": true
     },
     "fortigate-operator": {
@@ -36,8 +36,8 @@
       "status": "in-progress-archived",
       "active": false
     },
-    "hr-tool-dlp-vulnerable": {
-      "path": "hr-tool-dlp-vulnerable/profile.json",
+    "hr-tool-dlp": {
+      "path": "hr-tool-dlp/profile.json",
       "display_name": "HR Tool DLP Vulnerable",
       "status": "v1.0 baseline",
       "active": true

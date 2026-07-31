@@ -45,7 +45,7 @@ DEFAULT_MCP_TOOL_PROFILES = [
     },
     {
         "name": "fortistore-product-advisor",
-        "label": "FortiStore Product Advisor",
+        "label": "FortiStore Product Advisor (Archived)",
         "tools": [
             "fortistore_product_search",
             "fortistore_product_lookup",
@@ -74,7 +74,7 @@ DEFAULT_MCP_TOOL_PROFILES = [
         ],
     },
     {
-        "name": "hr-tool-dlp-vulnerable",
+        "name": "hr-tool-dlp",
         "label": "HR Tool DLP",
         "tools": [
             "employee_search",
