@@ -45,23 +45,12 @@ Phase 10 release validation should start with this baseline set:
 |---|---|---|
 | `fortistore-product-advisor` | `fortistore-product-advisor` | Deliberately permissive Fortinet-aligned product guidance plus text prompt-injection and token-wasting boundary |
 | `hr-tool-dlp-vulnerable` | `hr-tool-dlp-vulnerable` | Synthetic sensitive tool result for DLP output behavior |
-| `resume-screening-clean` | `resume-screening-clean` | Clean retrieval, telemetry, and route baseline |
-| `resume-prompt-injection` | `resume-prompt-injection` | Indirect prompt injection through retrieved document text |
-| `resume-cloud-tool-pivot-safe` | `resume-cloud-tool-pivot-safe` | Safe MCP tool-boundary comparison |
-| `resume-cloud-tool-pivot-vulnerable` | `resume-cloud-tool-pivot-vulnerable` | Vulnerable MCP tool-pivot comparison with synthetic cloud data |
-| `fortigate-operator` | `fortigate-operator` | Read-only FortiGate visibility when an appliance is present |
-| `support-ticket-triage` | `support-ticket-triage` | Customer/ticket/policy grounding and redaction checks |
+| `fortistore-v2` | none; MCP off | Draft no-MCP comparison of strong backend product guidance versus compromised frontend/system-prompt injection |
 
 Supporting scenarios remain available for troubleshooting and future demo
-content, but the release notes should distinguish them from this baseline until
-they have a documented Phase 10 validation result. `fastfood-ordering` is
-archived/unused for v1.0; keep it available only for historical comparison.
-
-Draft expansion:
-
-| Scenario | Tool profile | Validation intent |
-|---|---|---|
-| `fortistore-v2` | none; MCP off | No-MCP comparison of strong backend product guidance versus compromised frontend/system-prompt injection. Do not promote into the baseline until the recorded behavior is reviewed. |
+content as inactive catalog entries. They stay in
+`chatbot/scenarios/examples/` for reference, but the normal picker, harness,
+and traffic generator ignore them until they are reactivated.
 
 ## FAIG Flow And Guard Setup
 
@@ -113,6 +102,12 @@ comparisons in editing.
 | MCP tool misuse | `/v1/demo-a/*` detect/log first; protect later after the unsafe tool call is proven | DLP redaction that hides whether the tool pivot occurred |
 
 ## Scenario Details
+
+Only scenarios with `"active": true` in
+`chatbot/scenarios/examples/catalog.json` are available to normal helper,
+harness, and traffic-generator commands. Older scenario sections below are kept
+as design/reference notes. Reactivate the catalog entry or use supported
+`--include-inactive` helper options before running an inactive scenario.
 
 ### 1. GUI Telemetry Baseline
 

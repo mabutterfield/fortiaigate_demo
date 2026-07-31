@@ -75,7 +75,11 @@ def write_json(path: Path, data: Any) -> None:
 
 def scenario_entry(scenario_id: str) -> tuple[Path, dict[str, Any]]:
     catalog = load_json(SCENARIO_CATALOG)
-    scenarios = catalog.get("scenarios", {})
+    scenarios = {
+        key: value
+        for key, value in catalog.get("scenarios", {}).items()
+        if value.get("active", True) is not False
+    }
     if scenario_id not in scenarios:
         available = ", ".join(sorted(scenarios))
         raise SystemExit(f"Unknown scenario '{scenario_id}'. Available: {available}")

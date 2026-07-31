@@ -115,28 +115,19 @@ ROUTE_SLOT_DEFAULTS = {
 }
 
 BASELINE_SCENARIOS = [
-    "fastfood-ordering",
+    "fortistore-product-advisor",
+    "fortistore-v2",
     "hr-tool-dlp-vulnerable",
-    "resume-screening-clean",
-    "resume-prompt-injection",
-    "resume-cloud-tool-pivot-safe",
-    "resume-cloud-tool-pivot-vulnerable",
-    "support-ticket-triage",
 ]
 
 SCENARIO_FAMILIES = {
     "baseline": BASELINE_SCENARIOS,
     "demo-recording": BASELINE_SCENARIOS,
-    "documents": [
-        "resume-screening-clean",
-        "resume-prompt-injection",
-        "resume-cloud-tool-pivot-safe",
-        "resume-cloud-tool-pivot-vulnerable",
-    ],
-    "hr": ["hr-tool-dlp-vulnerable", "hr-policy-risk", "hr-policy-rag-risk"],
+    "documents": [],
+    "hr": ["hr-tool-dlp-vulnerable"],
     "fastfood": ["fastfood-ordering", "menu-poisoning"],
-    "support": ["support-ticket-triage"],
-    "fortinet": ["fortigate-operator"],
+    "support": [],
+    "fortinet": ["fortistore-product-advisor", "fortistore-v2"],
     "all": [],
 }
 
@@ -203,7 +194,11 @@ def catalog_entries() -> dict[str, dict[str, Any]]:
     scenarios = catalog.get("scenarios", {})
     if not isinstance(scenarios, dict):
         raise SystemExit("Scenario catalog is missing a scenarios object")
-    return scenarios
+    return {
+        scenario_id: entry
+        for scenario_id, entry in scenarios.items()
+        if entry.get("active", True) is not False
+    }
 
 
 def load_profile(scenario_id: str, entries: dict[str, dict[str, Any]]) -> tuple[Path, dict[str, Any]]:
@@ -233,9 +228,16 @@ def selected_family_scenarios(args: argparse.Namespace, entries: dict[str, dict[
         return explicit
     family = args.scenario_family
     if family == "all":
-        return sorted(entries)
-    scenarios = SCENARIO_FAMILIES[family]
-    return [scenario for scenario in scenarios if scenario in entries]
+        selected = sorted(entries)
+    else:
+        scenarios = SCENARIO_FAMILIES[family]
+        selected = [scenario for scenario in scenarios if scenario in entries]
+    if not selected:
+        raise SystemExit(
+            f"Scenario family '{family}' has no active scenarios. "
+            "Reactivate a catalog entry or pass an active --scenario."
+        )
+    return selected
 
 
 def slot_metadata(slot: str) -> dict[str, Any]:

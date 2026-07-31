@@ -135,8 +135,12 @@ vars and local generated vars do not leak into each other. If you run local
 playbooks manually, pass the same target explicitly:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generated.ini ansible/playbooks/status_demo_home.yml
+FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i local ansible/playbooks/status_demo_home.yml
 ```
+
+The repo root `local` and `cloud` entries are tracked symlinks to the ignored
+generated inventories under `ansible/inventory/`. They shorten manual commands
+without committing generated inventory contents.
 
 To reset only the local generated vars and inventories in this checkout without
 touching the deployed lab, export them. Export creates a backup archive and then

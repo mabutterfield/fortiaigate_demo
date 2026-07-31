@@ -62,9 +62,10 @@ matching scenario:
 | `fortigate-ollama` | `chatbot/instructions/local/demo-a/metadata.json`; backend model is the configured Ollama model, normally `gpt-oss:20b` |
 | `fortiweb-mcp` | the `--model` slot when it is `demo-a` or `demo-b` |
 
-This avoids sending a fast-food prompt to an HR instruction slot, or a resume
-prompt to a DLP slot. If the local metadata is missing or you intentionally
-want a manual mix, use one of these forms:
+This avoids sending a FortiStore prompt to an HR instruction slot, or a DLP
+prompt to a product-advisor slot. Inactive catalog entries are ignored by
+normal selection. If the local metadata is missing or you intentionally want a
+manual mix, use one of these forms:
 
 ```bash
 python3 scripts/traffic_generator.py \
@@ -76,7 +77,7 @@ python3 scripts/traffic_generator.py \
 
 python3 scripts/traffic_generator.py \
   --mode traffic \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --route direct \
   --dry-run
 ```
@@ -126,7 +127,7 @@ Dry run:
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case burst \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --route direct \
   --dry-run
 ```
@@ -138,7 +139,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target local \
   --use-case burst \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --route direct \
   --label local-burst-test \
   --yes
@@ -151,7 +152,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target aws \
   --use-case burst \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --route direct \
   --allow-cloud-long-run \
   --yes

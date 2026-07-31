@@ -28,24 +28,14 @@ rehearsal unless a specific test plan says otherwise:
 | Scenario | Status | Primary use | Detailed walkthrough |
 |---|---|---|---|
 | `fortistore-product-advisor` | v1.0 baseline | Deliberately permissive Fortinet-aligned product guidance, text prompt-injection, and token-wasting boundary demo | [scenario README](../chatbot/scenarios/examples/fortistore-product-advisor/README.md) |
+| `fortistore-v2` | draft active | No-MCP product guidance plus compromised frontend/system-prompt injection testing | [scenario README](../chatbot/scenarios/examples/fortistore-v2/README.md) |
 | `hr-tool-dlp-vulnerable` | v1.0 baseline | Synthetic sensitive tool-result and output-DLP demo | [scenario README](../chatbot/scenarios/examples/hr-tool-dlp-vulnerable/README.md) |
-| `resume-screening-clean` | v1.0 baseline | Clean retrieval and FAIG telemetry control | Profile only |
-| `resume-prompt-injection` | v1.0 baseline | Indirect prompt injection through retrieved document content | Profile only |
-| `resume-cloud-tool-pivot-safe` | v1.0 baseline | Safe MCP tool-boundary comparison | Profile only |
-| `resume-cloud-tool-pivot-vulnerable` | v1.0 baseline | Vulnerable MCP tool-pivot comparison with synthetic cloud data | Profile only |
-| `fortigate-operator` | v1.0 baseline when FortiGate is available | Read-only FortiGate visibility and no-write boundary | Profile only |
-| `support-ticket-triage` | v1.0 baseline | Customer/ticket/policy tool grounding and redaction checks | Profile only |
 
-Supporting scenarios such as `hr-policy-risk`, `hr-policy-rag-risk`,
-`menu-poisoning`, and explicit `resume-cloud-tool-pivot` remain useful for
-troubleshooting and future recordings, but they should not be presented as
-equally release-stable until they are included in the Phase 10 validation
-matrix. `fastfood-ordering` is archived/unused for v1.0 and retained only for
-historical testing.
-
-`fortistore-v2` is a draft expansion for no-MCP product guidance and
-compromised frontend/system-prompt injection testing. Keep it separate from the
-v1.0 baseline until the recorded behavior is reviewed.
+Supporting scenarios such as resume, support-ticket, FortiGate operator,
+policy-risk, and menu-poisoning profiles remain in
+`chatbot/scenarios/examples/` as inactive catalog entries. They are legacy or
+in-progress references and are hidden from the normal scenario picker until
+their `active` flag is changed or a helper is called with `--include-inactive`.
 
 ## Prepare A Scenario
 
@@ -53,6 +43,12 @@ List the available tracked scenarios:
 
 ```bash
 python3 scripts/scenario_profiles.py list
+```
+
+Show inactive legacy/in-progress profiles too:
+
+```bash
+python3 scripts/scenario_profiles.py list --include-inactive
 ```
 
 Show the scenario metadata, required MCP tools, prompts, and expected trace:
@@ -273,6 +269,10 @@ Detailed walkthrough:
 
 ## FortiGate Operator
 
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
+
 Install:
 
 ```bash
@@ -314,6 +314,10 @@ Expected behavior:
   unavailable.
 
 ## HR Policy Risk
+
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
 
 Install:
 
@@ -437,6 +441,10 @@ Expected behavior:
 
 ## Resume Screening Clean Retrieval
 
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
+
 Install:
 
 ```bash
@@ -477,6 +485,10 @@ Expected behavior:
 
 ## Resume Prompt Injection
 
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
+
 Install:
 
 ```bash
@@ -511,6 +523,10 @@ Expected behavior:
   the final answer in the response path.
 
 ## Resume Cloud Tool Pivot
+
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
 
 Use the natural safe/vulnerable profiles for demos. Keep the original
 `resume-cloud-tool-pivot` profile for explicit validation when you need to
@@ -612,6 +628,10 @@ Expected behavior:
 
 ## HR Policy RAG Risk
 
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
+
 Install:
 
 ```bash
@@ -640,6 +660,10 @@ Expected behavior:
 - Tool profile: `hr-policy-rag-risk`.
 
 ## Support Ticket Triage
+
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
 
 Install:
 
@@ -678,6 +702,10 @@ Expected behavior:
 - User-provided sensitive-looking text is checked before public summarization.
 
 ## Menu Document Poisoning
+
+This scenario is currently inactive in `chatbot/scenarios/examples/catalog.json`.
+Reactivate it or use `--include-inactive` helper options before running the
+commands below.
 
 Install:
 

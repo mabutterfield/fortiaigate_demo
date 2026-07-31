@@ -69,6 +69,16 @@ production policy guidance.
 | Recover or inspect each step manually | [Manual Quick Start](docs/quickstart-manual.md) |
 | Understand the full deployment | [Full Documentation](docs/README.md) |
 
+Tracked inventory shortcuts are available at the repo root:
+
+```bash
+ansible-playbook -i local ansible/playbooks/status_demo_home.yml
+ansible-playbook -i cloud ansible/playbooks/status_demo_home.yml
+```
+
+`local` and `cloud` are symlinks to ignored generated inventories. Git stores
+only the symlink paths; the generated inventory contents remain local.
+
 ## Roadmap
 
 - Harden the v1.0 AWS and local validation matrix

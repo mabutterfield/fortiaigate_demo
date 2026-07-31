@@ -33,7 +33,7 @@ python3 scripts/scenario_test_harness.py --help
 python3 scripts/traffic_generator.py --help
 python3 scripts/traffic_generator.py --dry-run
 python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario-source family --use-case steady --duration 60 --rate 6
-python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fastfood-ordering --use-case burst
+python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fortistore-product-advisor --use-case burst
 ```
 
 Expected coverage:
@@ -168,20 +168,19 @@ Baseline scenarios:
 
 | Scenario | Required tool profile | Required first path |
 |---|---|---|
-| `fastfood-ordering` | `fastfood-ordering` | Direct MCP |
+| `fortistore-product-advisor` | `fortistore-product-advisor` | Direct MCP |
+| `fortistore-v2` | none; MCP off | Direct LiteLLM |
 | `hr-tool-dlp-vulnerable` | `hr-tool-dlp-vulnerable` | Direct MCP |
-| `resume-screening-clean` | `resume-screening-clean` | Direct MCP |
-| `resume-prompt-injection` | `resume-prompt-injection` | Direct MCP |
-| `resume-cloud-tool-pivot-safe` | `resume-cloud-tool-pivot-safe` | Direct MCP |
-| `resume-cloud-tool-pivot-vulnerable` | `resume-cloud-tool-pivot-vulnerable` | Direct MCP |
-| `fortigate-operator` | `fortigate-operator` | Direct MCP, skipped when FortiGate is absent |
-| `support-ticket-triage` | `support-ticket-triage` | Direct MCP |
+
+Inactive legacy and in-progress scenario profiles remain in
+`chatbot/scenarios/examples/` but are hidden from default validation until
+reactivated in `chatbot/scenarios/examples/catalog.json`.
 
 Headless example:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --paths direct \
   --mcp-path direct \
   --run-label phase10-baseline
@@ -222,7 +221,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --target local \
   --use-case burst \
-  --scenario fastfood-ordering \
+  --scenario fortistore-product-advisor \
   --route direct \
   --label local-burst-test \
   --yes

@@ -3,61 +3,86 @@
     "fastfood-ordering": {
       "path": "fastfood-ordering/profile.json",
       "display_name": "Fast Food Ordering Agent",
-      "status": "archived-unused"
+      "status": "legacy-archived",
+      "active": false
     },
     "fortistore-product-advisor": {
       "path": "fortistore-product-advisor/profile.json",
       "display_name": "FortiStore Product Advisor",
-      "status": "v1.0 baseline"
+      "status": "v1.0 baseline",
+      "active": true
     },
     "fortistore-v2": {
       "path": "fortistore-v2/profile.json",
       "display_name": "FortiStore V2 Product Advisor",
-      "status": "draft"
+      "status": "draft",
+      "active": true
     },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",
-      "display_name": "FortiGate Operator Assistant"
+      "display_name": "FortiGate Operator Assistant",
+      "status": "in-progress-archived",
+      "active": false
     },
     "support-ticket-triage": {
       "path": "support-ticket-triage/profile.json",
-      "display_name": "Support Ticket Triage Assistant"
+      "display_name": "Support Ticket Triage Assistant",
+      "status": "in-progress-archived",
+      "active": false
     },
     "hr-policy-risk": {
       "path": "hr-policy-risk/profile.json",
-      "display_name": "HR Policy Risk Assistant"
+      "display_name": "HR Policy Risk Assistant",
+      "status": "in-progress-archived",
+      "active": false
     },
     "hr-tool-dlp-vulnerable": {
       "path": "hr-tool-dlp-vulnerable/profile.json",
-      "display_name": "HR Tool DLP Vulnerable"
+      "display_name": "HR Tool DLP Vulnerable",
+      "status": "v1.0 baseline",
+      "active": true
     },
     "resume-screening-clean": {
       "path": "resume-screening-clean/profile.json",
-      "display_name": "Resume Screening Clean Retrieval"
+      "display_name": "Resume Screening Clean Retrieval",
+      "status": "in-progress-archived",
+      "active": false
     },
     "resume-prompt-injection": {
       "path": "resume-prompt-injection/profile.json",
-      "display_name": "Resume Prompt Injection"
+      "display_name": "Resume Prompt Injection",
+      "status": "in-progress-archived",
+      "active": false
     },
     "resume-cloud-tool-pivot": {
       "path": "resume-cloud-tool-pivot/profile.json",
-      "display_name": "Resume Cloud Tool Pivot"
+      "display_name": "Resume Cloud Tool Pivot",
+      "status": "in-progress-archived",
+      "active": false
     },
     "resume-cloud-tool-pivot-safe": {
       "path": "resume-cloud-tool-pivot-safe/profile.json",
-      "display_name": "Resume Cloud Tool Pivot Safe"
+      "display_name": "Resume Cloud Tool Pivot Safe",
+      "status": "in-progress-archived",
+      "active": false
     },
     "resume-cloud-tool-pivot-vulnerable": {
       "path": "resume-cloud-tool-pivot-vulnerable/profile.json",
-      "display_name": "Resume Cloud Tool Pivot Vulnerable"
+      "display_name": "Resume Cloud Tool Pivot Vulnerable",
+      "status": "in-progress-archived",
+      "active": false
     },
     "hr-policy-rag-risk": {
       "path": "hr-policy-rag-risk/profile.json",
-      "display_name": "HR Policy RAG Risk"
+      "display_name": "HR Policy RAG Risk",
+      "status": "in-progress-archived",
+      "active": false
     },
     "menu-poisoning": {
       "path": "menu-poisoning/profile.json",
-      "display_name": "Menu Document Poisoning"
+      "display_name": "Menu Document Poisoning",
+      "status": "in-progress-archived",
+      "active": false
     }
   }
 }

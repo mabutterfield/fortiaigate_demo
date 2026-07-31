@@ -78,7 +78,7 @@ for any manual playbook runs:
 ```bash
 python3 scripts/local_setup.py
 FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
-  -i ansible/inventory/local.generated.ini \
+  -i local \
   ansible/playbooks/bootstrap_gpu_k3s.yml
 ```
 
@@ -89,6 +89,18 @@ local FortiGate/FortiWeb appliances. Do not commit
 `ansible/group_vars/local.generated.yml`,
 `ansible/group_vars/local.secrets.yml`, generated appliance inventories, or
 local-var export archives.
+
+For shorter manual commands, the repo root includes tracked inventory
+shortcuts:
+
+| Shortcut | Target |
+|---|---|
+| `local` | `ansible/inventory/local.generated.ini` |
+| `cloud` | `ansible/inventory/aws.generated.ini` |
+
+Git stores these as symlink paths only. The generated inventory files remain
+ignored and must be created by local setup or Terraform before the shortcut can
+be used.
 
 Run Quick Start commands from the `fortiaigate_demo` repo root unless a step
 explicitly says otherwise.
@@ -458,11 +470,14 @@ expectations and prompt examples. List and install them from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show fastfood-ordering
-python3 scripts/scenario_profiles.py install fastfood-ordering --slot demo-b --force
+python3 scripts/scenario_profiles.py show fortistore-product-advisor
+python3 scripts/scenario_profiles.py install fortistore-product-advisor --slot demo-b --force
 ```
 
-After installing a scenario, run the LiteLLM deploy command printed by the helper.
+After installing a scenario, run the LiteLLM deploy command printed by the
+helper. Legacy and in-progress profiles are inactive in the scenario catalog;
+use `python3 scripts/scenario_profiles.py list --include-inactive` when you
+need to inspect them.
 
 Add more aliases by extending `litellm_models` and `litellm_instruction_profiles`
 in `ansible/group_vars/user.yml`, then rerun `deploy_litellm.yml`.

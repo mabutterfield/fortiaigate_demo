@@ -73,14 +73,21 @@ Every scenario has two payloads:
 | `clean-tool-result.json` | Baseline response with expected tool data. |
 | `attack-tool-result.json` | Boundary, DLP, prompt-injection, or tool-misuse path. |
 
-Tracked scenario payload folders:
+Active scenario payload folders:
+
+| Scenario | Payload folder |
+|---|---|
+| `hr-tool-dlp-vulnerable` | `chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/` |
+
+Inactive legacy and in-progress scenario payload folders remain in place for
+reference and can be used after reactivating the scenario in
+`chatbot/scenarios/examples/catalog.json`:
 
 | Scenario | Payload folder |
 |---|---|
 | `fastfood-ordering` | `chatbot/scenarios/examples/fastfood-ordering/curl-payloads/` |
 | `menu-poisoning` | `chatbot/scenarios/examples/menu-poisoning/curl-payloads/` |
 | `hr-policy-risk` | `chatbot/scenarios/examples/hr-policy-risk/curl-payloads/` |
-| `hr-tool-dlp-vulnerable` | `chatbot/scenarios/examples/hr-tool-dlp-vulnerable/curl-payloads/` |
 | `hr-policy-rag-risk` | `chatbot/scenarios/examples/hr-policy-rag-risk/curl-payloads/` |
 | `resume-screening-clean` | `chatbot/scenarios/examples/resume-screening-clean/curl-payloads/` |
 | `resume-prompt-injection` | `chatbot/scenarios/examples/resume-prompt-injection/curl-payloads/` |

@@ -9,6 +9,13 @@ its recommended instruction text into an ignored local instruction slot such as
 `chatbot/instructions/local/demo-a/instructions.txt` or
 `chatbot/instructions/local/demo-b/instructions.txt`.
 
+The scenario picker reads `examples/catalog.json`. Entries with
+`"active": false` are legacy, unused, or still in progress; their files stay in
+place for reference, but they are hidden from normal `list`, `install`,
+validation, harness, and traffic-generator selection. To use one for testing,
+either set `"active": true` in `examples/catalog.json` or call the scenario
+helper with `--include-inactive` where supported.
+
 Detailed scenario walkthroughs live inside each scenario folder when a scenario
 has moved beyond the generic prompt/profile summary.
 
