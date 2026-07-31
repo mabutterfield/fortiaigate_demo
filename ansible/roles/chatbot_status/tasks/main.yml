@@ -203,14 +203,21 @@
         chatbot_status_instance_lines
         + [
           item.name ~ ': '
-          ~ ('READY' if item.ready else 'NOT READY')
-          ~ ', Instruction set=' ~ item.instruction_set
-          ~ ', Provider=' ~ item.provider_label
-          ~ ', Helm release=' ~ ('present' if item.helm_present else 'missing')
-          ~ ', Pods ready=' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string)
-          ~ ', Pods (NAME READY STATUS RESTARTS AGE)=' ~ (item.pod_lines | join('; ') if item.pod_lines | length > 0 else 'none')
-          ~ ', Health HTTP status=' ~ (item.health_status | string)
-          ~ ', Problems=' ~ (item.problems | join(' | ') if item.problems | length > 0 else 'none')
+          ~ ('READY' if item.ready else 'NOT READY'),
+          '  Instruction set: ' ~ item.instruction_set,
+          '  Provider: ' ~ item.provider_label,
+          '  Helm release: ' ~ ('present' if item.helm_present else 'missing'),
+          '  Pods ready: ' ~ (item.ready_pods | string) ~ '/' ~ (item.pod_count | string),
+          '  Pods (NAME READY STATUS RESTARTS AGE):'
+        ]
+        + (
+          item.pod_lines | map('regex_replace', '^(.*)$', '    \1') | list
+          if item.pod_lines | length > 0
+          else ['    none']
+        )
+        + [
+          '  Health HTTP status: ' ~ (item.health_status | string),
+          '  Problems: ' ~ (item.problems | join(' | ') if item.problems | length > 0 else 'none')
         ]
       }}
   loop: "{{ chatbot_status_summary | default([]) }}"
