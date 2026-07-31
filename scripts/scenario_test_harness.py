@@ -229,6 +229,8 @@ def run_agent_probe(
         "--max-tokens",
         str(args.max_tokens),
     ]
+    if args.no_frontend_system_prompt:
+        remote_parts.append("--no-frontend-system-prompt")
     remote = " ".join(shlex.quote(part) for part in remote_parts)
     result = run_command([*ssh_base(inventory_host), remote], dry_run=args.dry_run)
     if args.dry_run:
@@ -389,6 +391,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         "model_profile": args.model_profile,
                         "mcp_path": args.mcp_path,
                         "tool_profile": tool_profile,
+                        "frontend_system_prompt_enabled": not args.no_frontend_system_prompt,
                         "prompt": prompt,
                     }
                     response = {
@@ -469,6 +472,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--no-frontend-system-prompt", action="store_true", help="Run probes without the chatbot-local frontend system prompt.")
     parser.add_argument("--inventory", type=Path, default=REPO_ROOT / "ansible" / "inventory" / "aws.generated.ini")
     parser.add_argument("--host-alias", default="faig-aws")
     parser.add_argument("--chatbot-namespace", default="chatbot")

@@ -113,6 +113,7 @@ chatbot_phase10_scenario_model_options:
 chatbot_model_options_effective: "{{ chatbot_model_options + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: ""
+chatbot_frontend_system_prompt_enabled: true
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8000') }}"
 chatbot_mcp_fortiweb_base_url: >-
@@ -162,6 +163,7 @@ chatbot_instances:
     model: "{{ chatbot_model }}"
     model_options: "{{ chatbot_model_options_effective }}"
     frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
+    frontend_system_prompt_enabled: "{{ chatbot_frontend_system_prompt_enabled }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"
     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"

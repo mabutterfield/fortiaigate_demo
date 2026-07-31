@@ -937,6 +937,10 @@ def main() -> None:
     page_title = os.getenv("CHATBOT_PAGE_TITLE", "AI Chatbot")
     header_title = os.getenv("CHATBOT_HEADER_TITLE", page_title)
     frontend_system_prompt = os.getenv("CHATBOT_FRONTEND_SYSTEM_PROMPT", "").strip()
+    frontend_system_prompt_enabled_default = (
+        bool(frontend_system_prompt)
+        and env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
+    )
     temperature = env_float("CHATBOT_TEMPERATURE", 0.0)
     max_tokens = env_int("CHATBOT_MAX_TOKENS", 4096)
     streaming = env_bool("CHATBOT_STREAMING", False)
@@ -1122,6 +1126,20 @@ def main() -> None:
             disabled=context_mode != "recent",
         )
         show_context = st.checkbox("Show context sent to model", value=show_context_default)
+        st.subheader("Frontend Instructions")
+        frontend_system_prompt_enabled = st.checkbox(
+            "Use frontend instructions",
+            value=frontend_system_prompt_enabled_default,
+            disabled=not bool(frontend_system_prompt),
+            help=(
+                "Adds the chatbot-local frontend system prompt to the request. "
+                "Turn this off to compare the backend profile without the UI-layer prompt."
+            ),
+        )
+        if frontend_system_prompt:
+            st.write("Frontend prompt: configured")
+        else:
+            st.write("Frontend prompt: not configured")
         if st.button("Reset context"):
             st.session_state.messages = []
             st.session_state.context_summary = ""
@@ -1193,8 +1211,13 @@ def main() -> None:
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
+    active_frontend_system_prompt = (
+        frontend_system_prompt
+        if frontend_system_prompt_enabled and frontend_system_prompt
+        else None
+    )
     prompt_messages = build_model_messages(
-        frontend_system_prompt or None,
+        active_frontend_system_prompt,
         st.session_state.messages,
         context_mode,
         int(context_window),

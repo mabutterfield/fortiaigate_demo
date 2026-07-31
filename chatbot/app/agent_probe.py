@@ -22,6 +22,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument(
+        "--no-frontend-system-prompt",
+        action="store_true",
+        help="Disable the configured chatbot-local frontend system prompt for this probe.",
+    )
     parser.add_argument("--summary", action="store_true", help="Print compact output for automated test sweeps.")
     parser.add_argument("--reply-max-chars", type=int, default=1200, help="Maximum reply chars in summary mode.")
     return parser.parse_args()
@@ -145,8 +150,14 @@ def main() -> int:
     if not mcp_base_url:
         raise RuntimeError(f"{args.mcp_path} MCP base URL is not configured")
 
+    frontend_system_prompt = os.getenv("CHATBOT_FRONTEND_SYSTEM_PROMPT", "").strip()
+    frontend_system_prompt_enabled = (
+        bool(frontend_system_prompt)
+        and not args.no_frontend_system_prompt
+        and chatbot.env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
+    )
     messages = chatbot.build_model_messages(
-        os.getenv("CHATBOT_FRONTEND_SYSTEM_PROMPT", "").strip() or None,
+        frontend_system_prompt if frontend_system_prompt_enabled else None,
         [{"role": "user", "content": args.prompt}],
         os.getenv("CHATBOT_CONTEXT_MODE", "recent"),
         int(os.getenv("CHATBOT_CONTEXT_WINDOW", "8")),
@@ -181,6 +192,7 @@ def main() -> int:
         "mcp_base_url": mcp_base_url,
         "tool_profile": tool_profile["name"],
         "tool_profile_label": tool_profile["label"],
+        "frontend_system_prompt_enabled": frontend_system_prompt_enabled,
         "reply": reply,
         "tool_names": [
             chatbot.tool_function_name(tool)
@@ -196,6 +208,7 @@ def main() -> int:
             "model": result["model"],
             "mcp_path": result["mcp_path"],
             "tool_profile": result["tool_profile"],
+            "frontend_system_prompt_enabled": result["frontend_system_prompt_enabled"],
             "reply": truncate(reply, args.reply_max_chars),
             "tool_sequence": [
                 event.get("tool") or event.get("name")

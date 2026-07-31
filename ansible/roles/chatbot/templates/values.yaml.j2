@@ -53,6 +53,7 @@ chatbot:
   pageTitle: "{{ item.title | default('Demo Chatbot', true) }}"
   headerTitle: "{{ item.header_title | default('FortiAIGate Demo Chatbot', true) }}"
   frontendSystemPrompt: {{ chatbot_effective_frontend_prompt | to_json }}
+  frontendSystemPromptEnabled: "{{ (item.frontend_system_prompt_enabled | default(chatbot_frontend_system_prompt_enabled) | bool) | ternary('true', 'false') }}"
   temperature: "{{ item.temperature | default('0.0', true) }}"
   maxTokens: "{{ item.max_tokens | default('4096', true) }}"
   streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"

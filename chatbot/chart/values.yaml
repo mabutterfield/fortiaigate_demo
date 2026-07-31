@@ -35,6 +35,7 @@ chatbot:
   pageTitle: AI Chatbot
   headerTitle: AI Chatbot
   frontendSystemPrompt: ""
+  frontendSystemPromptEnabled: "true"
   temperature: "0.0"
   maxTokens: "4096"
   streaming: "false"
