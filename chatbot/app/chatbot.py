@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from html import escape
 from typing import Any, Iterable
 
 import httpx
@@ -386,54 +387,111 @@ def summarize_tool_events(tool_events: list[dict[str, Any]], max_chars: int = 30
     return rendered
 
 
-def render_mcp_trace(trace: dict[str, Any]) -> None:
-    st.subheader("MCP Tool Trace")
+def html_json(value: Any) -> str:
+    return escape(json.dumps(value, indent=2, sort_keys=True, default=str))
+
+
+def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
+    max_height = max(240, height)
+    sections: list[str] = []
     if not trace:
-        st.write("No MCP tool trace yet.")
-        return
+        body = "<p>No MCP tool trace yet.</p>"
+    else:
+        endpoint = trace.get("endpoint", "")
+        tool_names = trace.get("tool_names") or []
+        missing_tool_names = trace.get("missing_tool_names") or []
+        tool_events = trace.get("tool_events") or []
 
-    st.write(f"Path: {trace.get('path', 'unknown')}")
-    if trace.get("tool_profile"):
-        st.write(f"Tool profile: {trace.get('tool_profile')}")
-    endpoint = trace.get("endpoint", "")
-    if endpoint:
-        st.write(f"Endpoint: `{endpoint}`")
+        sections.extend(
+            [
+                f"<p><strong>Path:</strong> {escape(str(trace.get('path', 'unknown')))}</p>",
+                f"<p><strong>Tool profile:</strong> {escape(str(trace.get('tool_profile', 'unknown')))}</p>",
+            ]
+        )
+        if endpoint:
+            sections.append(f"<p><strong>Endpoint:</strong> <code>{escape(str(endpoint))}</code></p>")
+        if tool_names:
+            tool_items = "".join(f"<li><code>{escape(str(tool_name))}</code></li>" for tool_name in tool_names)
+            sections.append(f"<details><summary>Available tools</summary><ul>{tool_items}</ul></details>")
+        if missing_tool_names:
+            missing_items = "".join(f"<li><code>{escape(str(tool_name))}</code></li>" for tool_name in missing_tool_names)
+            sections.append(f"<details><summary>Profile tools missing from MCP</summary><ul>{missing_items}</ul></details>")
+        if trace.get("error"):
+            sections.append(f"<div class=\"mcp-trace-error\">{escape(str(trace['error']))}</div>")
+        elif not tool_events:
+            sections.append("<p>The model did not request a tool call for the latest message.</p>")
+        else:
+            for index, event in enumerate(tool_events, start=1):
+                tool = escape(str(event.get("tool", "unknown")))
+                status_lines = []
+                if "ok" in event:
+                    status_lines.append(f"<p><strong>OK:</strong> <code>{escape(str(event.get('ok')))}</code></p>")
+                if event.get("http_status"):
+                    status_lines.append(f"<p><strong>HTTP status:</strong> <code>{escape(str(event.get('http_status')))}</code></p>")
+                sections.append(
+                    "<details>"
+                    f"<summary>{index}. {tool}</summary>"
+                    f"{''.join(status_lines)}"
+                    "<p><strong>Arguments</strong></p>"
+                    f"<pre>{html_json(event.get('arguments', {}))}</pre>"
+                    "<p><strong>Result</strong></p>"
+                    f"<pre>{html_json(event.get('result', {}))}</pre>"
+                    "</details>"
+                )
+        body = "\n".join(sections)
 
-    tool_names = trace.get("tool_names") or []
-    if tool_names:
-        with st.expander("Available tools", expanded=False):
-            for tool_name in tool_names:
-                st.write(f"`{tool_name}`")
-    missing_tool_names = trace.get("missing_tool_names") or []
-    if missing_tool_names:
-        with st.expander("Profile tools missing from MCP", expanded=False):
-            for tool_name in missing_tool_names:
-                st.write(f"`{tool_name}`")
-
-    if trace.get("error"):
-        st.error(trace["error"])
-        return
-
-    tool_events = trace.get("tool_events") or []
-    if not tool_events:
-        st.write("The model did not request a tool call for the latest message.")
-        return
-
-    for index, event in enumerate(tool_events, start=1):
-        with st.expander(f"{index}. {event.get('tool', 'unknown')}", expanded=False):
-            if "ok" in event:
-                st.write(f"OK: `{event.get('ok')}`")
-            if event.get("http_status"):
-                st.write(f"HTTP status: `{event.get('http_status')}`")
-            st.write("Arguments")
-            st.json(event.get("arguments", {}))
-            st.write("Result")
-            st.json(event.get("result", {}))
-
-
-def render_mcp_trace_panel(trace: dict[str, Any], height: int) -> None:
-    with st.container(height=height, border=False):
-        render_mcp_trace(trace)
+    st.markdown(
+        f"""
+        <style>
+          .mcp-trace-drawer {{
+            position: fixed;
+            top: 5.5rem;
+            right: 1rem;
+            width: min(38rem, calc(100vw - 2rem));
+            max-height: min({max_height}px, calc(100vh - 6.5rem));
+            overflow: auto;
+            z-index: 999999;
+            background: var(--background-color, #ffffff);
+            color: var(--text-color, #262730);
+            border: 1px solid rgba(128, 128, 128, 0.35);
+            border-radius: 8px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+            padding: 1rem;
+          }}
+          .mcp-trace-drawer h3 {{
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+          }}
+          .mcp-trace-drawer details {{
+            border-top: 1px solid rgba(128, 128, 128, 0.25);
+            padding: 0.65rem 0;
+          }}
+          .mcp-trace-drawer summary {{
+            cursor: pointer;
+            font-weight: 600;
+          }}
+          .mcp-trace-drawer pre {{
+            overflow: auto;
+            max-height: 18rem;
+            background: rgba(128, 128, 128, 0.12);
+            border-radius: 6px;
+            padding: 0.65rem;
+            font-size: 0.78rem;
+          }}
+          .mcp-trace-error {{
+            border-left: 4px solid #d92d20;
+            background: rgba(217, 45, 32, 0.12);
+            padding: 0.65rem;
+            margin-top: 0.75rem;
+          }}
+        </style>
+        <aside class="mcp-trace-drawer">
+          <h3>MCP Tool Trace</h3>
+          {body}
+        </aside>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def update_consolidated_context(
@@ -889,7 +947,6 @@ def main() -> None:
     faig_model_route_header_name = os.getenv("CHATBOT_FAIG_MODEL_ROUTE_HEADER_NAME", "X-FAIG-Model-Route").strip()
 
     st.set_page_config(page_title=page_title, layout="wide")
-    st.title(header_title)
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -897,6 +954,17 @@ def main() -> None:
         st.session_state.context_summary = ""
     if "mcp_tool_trace" not in st.session_state:
         st.session_state.mcp_tool_trace = {}
+    if "mcp_trace_drawer_open" not in st.session_state:
+        st.session_state.mcp_trace_drawer_open = False
+
+    _trace_spacer, trace_button_col = st.columns([0.86, 0.14])
+    with trace_button_col:
+        trace_button_label = "Hide MCP Trace" if st.session_state.mcp_trace_drawer_open else "MCP Trace"
+        if st.button(trace_button_label, use_container_width=True):
+            st.session_state.mcp_trace_drawer_open = not st.session_state.mcp_trace_drawer_open
+            st.rerun()
+
+    st.title(header_title)
 
     with st.sidebar:
         st.subheader("Backend")
@@ -1056,11 +1124,6 @@ def main() -> None:
             st.write("Tool choice: model-selected")
             if streaming:
                 st.write("Streaming: off while MCP tools are enabled")
-        show_mcp_trace = st.checkbox(
-            "Show MCP tool trace",
-            value=False,
-            help="Show the latest MCP trace in a right-side pane. Hide it for full-width response tables.",
-        )
 
     if not base_url:
         st.error(f"{provider_path} base URL is not configured.")
@@ -1069,11 +1132,7 @@ def main() -> None:
         st.error(f"{mcp_path} base URL is not configured.")
         return
 
-    if show_mcp_trace:
-        chat_col, trace_col = st.columns([5, 2], gap="large")
-    else:
-        chat_col = st.container()
-        trace_col = None
+    chat_col = st.container()
 
     with chat_col:
         for message in st.session_state.messages:
@@ -1088,9 +1147,8 @@ def main() -> None:
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        if show_mcp_trace and trace_col is not None:
-            with trace_col:
-                render_mcp_trace_panel(st.session_state.mcp_tool_trace, mcp_trace_height)
+        if st.session_state.mcp_trace_drawer_open:
+            render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -1185,9 +1243,8 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    if show_mcp_trace and trace_col is not None:
-        with trace_col:
-            render_mcp_trace_panel(st.session_state.mcp_tool_trace, mcp_trace_height)
+    if st.session_state.mcp_trace_drawer_open:
+        render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:
