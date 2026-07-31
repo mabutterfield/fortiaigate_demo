@@ -432,10 +432,10 @@ def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
                     "<details>"
                     f"<summary>{index}. {tool}</summary>"
                     f"{''.join(status_lines)}"
-                    "<p><strong>Arguments</strong></p>"
-                    f"<pre>{html_json(event.get('arguments', {}))}</pre>"
-                    "<p><strong>Result</strong></p>"
-                    f"<pre>{html_json(event.get('result', {}))}</pre>"
+                    "<p class=\"mcp-json-label\">Arguments</p>"
+                    f"<pre class=\"mcp-json-block\">{html_json(event.get('arguments', {}))}</pre>"
+                    "<p class=\"mcp-json-label\">Result</p>"
+                    f"<pre class=\"mcp-json-block\">{html_json(event.get('result', {}))}</pre>"
                     "</details>"
                 )
         body = "\n".join(sections)
@@ -451,16 +451,22 @@ def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
             max-height: min({max_height}px, calc(100vh - 6.5rem));
             overflow: auto;
             z-index: 999999;
-            background: var(--background-color, #ffffff);
+            background: #f4f5f7;
             color: var(--text-color, #262730);
-            border: 1px solid rgba(128, 128, 128, 0.35);
+            border: 1px solid rgba(80, 90, 110, 0.35);
+            border-left: 5px solid #2f80ed;
             border-radius: 8px;
             box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
             padding: 1rem;
           }}
           .mcp-trace-drawer h3 {{
             margin-top: 0;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.5rem;
+          }}
+          .mcp-trace-rule {{
+            border: 0;
+            border-top: 1px solid rgba(80, 90, 110, 0.35);
+            margin: 0.75rem 0;
           }}
           .mcp-trace-drawer details {{
             border-top: 1px solid rgba(128, 128, 128, 0.25);
@@ -470,13 +476,21 @@ def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
             cursor: pointer;
             font-weight: 600;
           }}
-          .mcp-trace-drawer pre {{
+          .mcp-json-label {{
+            margin: 0.7rem 0 0.25rem;
+            font-weight: 700;
+            color: #1f4e79;
+          }}
+          .mcp-json-block {{
             overflow: auto;
             max-height: 18rem;
-            background: rgba(128, 128, 128, 0.12);
+            background: #ffffff;
+            color: #17202a;
+            border: 1px solid rgba(80, 90, 110, 0.2);
             border-radius: 6px;
             padding: 0.65rem;
             font-size: 0.78rem;
+            line-height: 1.35;
           }}
           .mcp-trace-error {{
             border-left: 4px solid #d92d20;
@@ -484,9 +498,29 @@ def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
             padding: 0.65rem;
             margin-top: 0.75rem;
           }}
+          @media (prefers-color-scheme: dark) {{
+            .mcp-trace-drawer {{
+              background: #24272d;
+              color: #f2f4f7;
+              border-color: rgba(220, 225, 235, 0.22);
+              border-left-color: #58a6ff;
+            }}
+            .mcp-trace-rule {{
+              border-top-color: rgba(220, 225, 235, 0.22);
+            }}
+            .mcp-json-label {{
+              color: #9dccff;
+            }}
+            .mcp-json-block {{
+              background: #111418;
+              color: #f2f4f7;
+              border-color: rgba(220, 225, 235, 0.18);
+            }}
+          }}
         </style>
         <aside class="mcp-trace-drawer">
           <h3>MCP Tool Trace</h3>
+          <hr class="mcp-trace-rule">
           {body}
         </aside>
         """,
@@ -961,8 +995,14 @@ def main() -> None:
     with trace_button_col:
         trace_button_label = "Hide MCP Trace" if st.session_state.mcp_trace_drawer_open else "MCP Trace"
         if st.button(trace_button_label, use_container_width=True):
-            st.session_state.mcp_trace_drawer_open = not st.session_state.mcp_trace_drawer_open
-            st.rerun()
+            if st.session_state.mcp_trace_drawer_open:
+                st.session_state.mcp_trace_drawer_open = False
+                st.rerun()
+            elif st.session_state.mcp_tool_trace:
+                st.session_state.mcp_trace_drawer_open = True
+                st.rerun()
+            else:
+                st.toast("No MCP trace yet. Run a prompt with MCP tools enabled first.")
 
     st.title(header_title)
 
@@ -1143,11 +1183,12 @@ def main() -> None:
             st.session_state.messages = []
             st.session_state.context_summary = ""
             st.session_state.mcp_tool_trace = {}
+            st.session_state.mcp_trace_drawer_open = False
             st.rerun()
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        if st.session_state.mcp_trace_drawer_open:
+        if st.session_state.mcp_trace_drawer_open and st.session_state.mcp_tool_trace:
             render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
@@ -1219,6 +1260,7 @@ def main() -> None:
                         )
                     )
                     st.session_state.mcp_tool_trace = {}
+                    st.session_state.mcp_trace_drawer_open = False
                 else:
                     reply = single_response(
                         base_url,
@@ -1231,6 +1273,7 @@ def main() -> None:
                         route_headers,
                     )
                     st.session_state.mcp_tool_trace = {}
+                    st.session_state.mcp_trace_drawer_open = False
                     st.markdown(reply, unsafe_allow_html=True)
             except Exception as error:
                 reply = f"Request failed: {error}"
@@ -1243,7 +1286,7 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    if st.session_state.mcp_trace_drawer_open:
+    if st.session_state.mcp_trace_drawer_open and st.session_state.mcp_tool_trace:
         render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
