@@ -129,6 +129,43 @@
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_pull_token_result.rc
 
+- name: Build chatbot MCP tool profiles from installed scenarios
+  ansible.builtin.command:
+    argv: "{{ ['python3', playbook_dir ~ '/../../scripts/build_chatbot_mcp_profiles.py', '--slots'] + (chatbot_mcp_installed_tool_profile_slots | default(['demo-a', 'demo-b'], true) | list) + (['--include-debug-all-server-tools'] if chatbot_mcp_show_debug_all_server_tools | default(false) | bool else []) }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: chatbot_mcp_installed_tool_profiles_raw
+  when:
+    - chatbots_enabled | bool
+    - chatbot_mcp_tool_profiles_source | default('installed') == 'installed'
+  tags: [chatbot, chatbot_mcp_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_mcp_installed_tool_profiles_raw.stdout
+
+- name: Set effective chatbot MCP tool profile facts
+  ansible.builtin.set_fact:
+    chatbot_mcp_installed_tool_profiles_data: "{{ chatbot_mcp_installed_tool_profiles_raw.stdout | from_json }}"
+    chatbot_mcp_tool_profiles_effective: "{{ (chatbot_mcp_installed_tool_profiles_raw.stdout | from_json).profiles }}"
+    chatbot_mcp_tool_profile_effective: "{{ (chatbot_mcp_installed_tool_profiles_raw.stdout | from_json).default_profile }}"
+  when:
+    - chatbots_enabled | bool
+    - chatbot_mcp_tool_profiles_source | default('installed') == 'installed'
+  tags: [chatbot, chatbot_mcp_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_mcp_tool_profiles_effective
+
+- name: Use configured chatbot MCP tool profiles
+  ansible.builtin.set_fact:
+    chatbot_mcp_tool_profiles_effective: "{{ chatbot_mcp_tool_profiles }}"
+    chatbot_mcp_tool_profile_effective: "{{ chatbot_mcp_tool_profile }}"
+  when:
+    - chatbots_enabled | bool
+    - chatbot_mcp_tool_profiles_source | default('installed') != 'installed'
+  tags: [chatbot, chatbot_mcp_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_mcp_tool_profiles_effective
+
 - name: Fail when chatbot ECR pull token retrieval failed
   ansible.builtin.fail:
     msg: >-

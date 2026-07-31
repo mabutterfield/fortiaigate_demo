@@ -31,6 +31,7 @@ DEFAULT_MCP_TOOL_PROFILES = [
         "name": "all-tools",
         "label": "All tools",
         "tools": [],
+        "allow_all": True,
     },
     {
         "name": "fastfood-ordering",
@@ -255,13 +256,19 @@ def env_json_tool_profiles(name: str) -> list[dict[str, Any]]:
                 "name": profile_name,
                 "label": str(item.get("label") or profile_name).strip(),
                 "tools": tools,
+                "allow_all": bool(item.get("allow_all", False)),
             }
         )
     return profiles
 
 
-def build_mcp_tool_profiles(extra_profiles: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    profiles = [dict(profile) for profile in DEFAULT_MCP_TOOL_PROFILES]
+def build_mcp_tool_profiles(
+    extra_profiles: list[dict[str, Any]] | None = None,
+    *,
+    mode: str = "merge",
+) -> list[dict[str, Any]]:
+    normalized_mode = str(mode or "merge").strip().lower()
+    profiles = [] if normalized_mode == "replace" and extra_profiles else [dict(profile) for profile in DEFAULT_MCP_TOOL_PROFILES]
     profile_index = {profile["name"]: index for index, profile in enumerate(profiles)}
     for profile in extra_profiles or []:
         profile_name = profile["name"]
@@ -291,9 +298,11 @@ def filter_mcp_tools(
     tool_profiles: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
     profile = mcp_tool_profile_by_name(tool_profiles, tool_profile_name)
+    if profile.get("allow_all"):
+        return tools, []
     allowed_tools = profile.get("tools", [])
     if not allowed_tools:
-        return tools, []
+        return [], []
 
     allowed = set(allowed_tools)
     filtered = [
@@ -959,7 +968,10 @@ def main() -> None:
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)
     mcp_trace_height = max(240, env_int("CHATBOT_MCP_TRACE_HEIGHT", 720))
-    mcp_tool_profiles = build_mcp_tool_profiles(env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"))
+    mcp_tool_profiles = build_mcp_tool_profiles(
+        env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"),
+        mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
+    )
     mcp_tool_profile_names = [profile["name"] for profile in mcp_tool_profiles]
     mcp_default_tool_profile = os.getenv("CHATBOT_MCP_TOOL_PROFILE", "all-tools").strip() or "all-tools"
     if mcp_default_tool_profile not in mcp_tool_profile_names:

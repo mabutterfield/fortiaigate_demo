@@ -77,14 +77,29 @@ Current active scenario tool profiles:
 | none | `fortistore-injection` disables MCP tools for system-prompt injection testing |
 | `hr-tool-dlp` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
 
+During `deploy_chatbots.yml`, the chatbot role reads installed scenario
+metadata from the configured local slots, defaulting to `demo-a` and `demo-b`.
+It generates the MCP profile dropdown from those installed scenarios:
+
+- `all-tools` means all tools required by installed MCP-enabled scenarios.
+- Scenario-specific profiles expose only that scenario's required tools.
+- Archived or inactive profiles are not shown just because their files exist.
+- `debug-all-server-tools` exposes every MCP server tool only when
+  `chatbot_mcp_show_debug_all_server_tools: true` is set.
+
+Changing which scenario is installed normally needs only the relevant scenario
+install command and `deploy_chatbots.yml` to update the dropdown. Changing MCP
+tool code or data still requires `deploy_mcp.yml`. Changing chatbot filtering
+logic requires rebuilding/publishing the chatbot image.
+
 Inactive legacy and in-progress profiles still declare their historical tool
 profiles in `chatbot/scenarios/examples/catalog.json` and their scenario
 folders. They can be reactivated by changing their catalog entry to
 `"active": true` or inspected with `--include-inactive` options where
 supported.
 
-`all-tools` remains available for troubleshooting. `echo` is intentionally left
-out of scenario profiles because it is a connectivity test utility.
+`echo` is intentionally left out of scenario profiles because it is a
+connectivity test utility.
 
 Headless tests use the same profile filter:
 

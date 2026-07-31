@@ -111,6 +111,8 @@ spec:
               value: {{ .Values.chatbot.mcpMaxToolRounds | quote }}
             - name: CHATBOT_MCP_TOOL_PROFILE
               value: {{ .Values.chatbot.mcpToolProfile | quote }}
+            - name: CHATBOT_MCP_TOOL_PROFILE_MODE
+              value: {{ .Values.chatbot.mcpToolProfileMode | quote }}
             - name: CHATBOT_MCP_TOOL_PROFILES_JSON
               value: {{ .Values.chatbot.mcpToolProfilesJson | quote }}
             - name: CHATBOT_CONTEXT_MODE

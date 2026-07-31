@@ -48,6 +48,7 @@ chatbot:
   mcpVerifyTls: "false"
   mcpMaxToolRounds: "3"
   mcpToolProfile: all-tools
+  mcpToolProfileMode: merge
   mcpToolProfilesJson: ""
   contextMode: recent
   contextWindow: "8"

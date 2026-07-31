@@ -445,6 +445,17 @@ chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
 chatbot_mcp_tool_profile: all-tools
 chatbot_mcp_tool_profiles: []
+# Build chatbot MCP profiles from installed scenario metadata by default.
+# The generated all-tools profile means "all installed scenario tools", not
+# every tool exposed by the MCP server. Set
+# chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
+# troubleshooting profile.
+chatbot_mcp_tool_profiles_source: installed
+chatbot_mcp_tool_profile_mode: replace
+chatbot_mcp_installed_tool_profile_slots:
+  - demo-a
+  - demo-b
+chatbot_mcp_show_debug_all_server_tools: false
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500

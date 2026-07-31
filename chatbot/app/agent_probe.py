@@ -164,7 +164,8 @@ def main() -> int:
         "",
     )
     tool_profiles = chatbot.build_mcp_tool_profiles(
-        chatbot.env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON")
+        chatbot.env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"),
+        mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
     )
     reply, tool_events, tools = chatbot.agent_response(
         base_url=base_url,

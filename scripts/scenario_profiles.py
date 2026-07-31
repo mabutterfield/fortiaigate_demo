@@ -179,6 +179,8 @@ def install_scenario(
     else:
         shutil.copy2(source, destination)
 
+    mcp = dict(profile.get("mcp", {}))
+    mcp.setdefault("enabled", bool(mcp.get("tool_profile") or mcp.get("required_tools")))
     metadata = {
         "display_name": profile.get("display_name", scenario_id),
         "description": profile.get("description", ""),
@@ -186,6 +188,7 @@ def install_scenario(
         "source_type": "scenario",
         "scenario_id": scenario_id,
         "source": str(source.relative_to(REPO_ROOT)),
+        "mcp": mcp,
         "tool_profile": profile.get("mcp", {}).get("tool_profile", ""),
         "required_tools": profile.get("mcp", {}).get("required_tools", []),
         "updated_at": int(time.time()),
