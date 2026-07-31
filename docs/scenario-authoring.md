@@ -74,6 +74,7 @@ Current tracked scenario tool profiles:
 
 | Tool profile | Tools |
 |---|---|
+| none | `fortistore-v2` disables MCP tools for system-prompt injection testing |
 | `fortistore-product-advisor` | `fortistore_product_search`, `fortistore_product_lookup` |
 | `fastfood-ordering` | Archived/unused; `menu_search`, `nutrition_lookup`, `allergen_check`, `suggest_combo`, `build_order_summary` |
 | `menu-poisoning` | `document_search`, `document_read`, `document_injection_check`, `menu_search`, `allergen_check` |

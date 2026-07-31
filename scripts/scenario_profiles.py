@@ -62,8 +62,11 @@ def load_scenario(scenario_id: str) -> tuple[Path, dict]:
     return path, profile
 
 
-def instruction_path(profile_path: Path, profile: dict) -> Path:
-    path = profile_path.parent / profile.get("instruction_file", "instructions.txt")
+def instruction_path(profile_path: Path, profile: dict, *, slot: str | None = None) -> Path:
+    instruction_key = "instruction_file"
+    if slot and instruction_profiles.resolve_slot(slot) == "frontend" and profile.get("frontend_instruction_file"):
+        instruction_key = "frontend_instruction_file"
+    path = profile_path.parent / profile.get(instruction_key, "instructions.txt")
     if not path.exists():
         raise SystemExit(f"Missing scenario instruction file: {path}")
     return path
@@ -93,8 +96,12 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
         print(f"status: {status}")
     print(f"description: {profile.get('description', '')}")
     print(f"instructions: {instruction_path(profile_path, profile).relative_to(REPO_ROOT)}")
+    if profile.get("frontend_instruction_file"):
+        print(f"frontend instructions: {instruction_path(profile_path, profile, slot='frontend').relative_to(REPO_ROOT)}")
 
     mcp = profile.get("mcp", {})
+    if mcp.get("enabled") is False:
+        print("MCP tools: disabled")
     tool_profile = mcp.get("tool_profile", "")
     if tool_profile:
         print(f"MCP tool profile: {tool_profile}")
@@ -134,7 +141,7 @@ def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: b
     if not slot:
         raise SystemExit("Choose the target instruction slot with --slot, for example: --slot demo-b")
     target_slot = slot
-    source = instruction_path(profile_path, profile)
+    source = instruction_path(profile_path, profile, slot=target_slot)
     destination = instruction_profiles.slot_path(target_slot)
     if destination.exists() and not force:
         raise SystemExit(f"Target slot already exists: {destination}. Use --force to replace it.")
@@ -154,7 +161,7 @@ def install_scenario(scenario_id: str, *, slot: str | None, force: bool, link: b
         "source_type": "scenario",
         "scenario_id": scenario_id,
         "source": str(source.relative_to(REPO_ROOT)),
-        "tool_profile": profile.get("mcp", {}).get("tool_profile", scenario_id),
+        "tool_profile": profile.get("mcp", {}).get("tool_profile", ""),
         "required_tools": profile.get("mcp", {}).get("required_tools", []),
         "updated_at": int(time.time()),
     }
@@ -191,15 +198,21 @@ def validate_scenarios() -> None:
             instruction = instruction_path(profile_path, profile)
             if not instruction.read_text(encoding="utf-8").strip():
                 raise ValueError("instruction file is empty")
-            required_tools = profile.get("mcp", {}).get("required_tools", [])
-            if not required_tools:
+            mcp = profile.get("mcp", {})
+            mcp_enabled = bool(mcp.get("enabled", True))
+            required_tools = mcp.get("required_tools", [])
+            if mcp_enabled and not required_tools:
                 raise ValueError("required MCP tools are missing")
-            tool_profile = profile.get("mcp", {}).get("tool_profile", "")
+            tool_profile = mcp.get("tool_profile", "")
             if tool_profile and not isinstance(tool_profile, str):
                 raise ValueError("mcp.tool_profile must be a string")
             missing_tools = sorted(set(required_tools) - available_tools)
             if missing_tools:
                 raise ValueError(f"required MCP tools are not in shared MCP server: {', '.join(missing_tools)}")
+            if profile.get("frontend_instruction_file"):
+                frontend_instruction = instruction_path(profile_path, profile, slot="frontend")
+                if not frontend_instruction.read_text(encoding="utf-8").strip():
+                    raise ValueError("frontend instruction file is empty")
             payload_dir = profile_path.parent / "curl-payloads"
             for payload_path in sorted(payload_dir.glob("*.json")):
                 payload = read_json(payload_path)

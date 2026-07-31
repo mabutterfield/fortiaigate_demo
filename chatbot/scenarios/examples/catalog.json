@@ -10,6 +10,11 @@
       "display_name": "FortiStore Product Advisor",
       "status": "v1.0 baseline"
     },
+    "fortistore-v2": {
+      "path": "fortistore-v2/profile.json",
+      "display_name": "FortiStore V2 Product Advisor",
+      "status": "draft"
+    },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",
       "display_name": "FortiGate Operator Assistant"

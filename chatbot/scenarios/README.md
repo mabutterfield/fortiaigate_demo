@@ -15,6 +15,7 @@ has moved beyond the generic prompt/profile summary.
 | Scenario | Detailed walkthrough |
 |---|---|
 | `fortistore-product-advisor` | [examples/fortistore-product-advisor/README.md](examples/fortistore-product-advisor/README.md) |
+| `fortistore-v2` | [examples/fortistore-v2/README.md](examples/fortistore-v2/README.md) |
 | `hr-tool-dlp-vulnerable` | [examples/hr-tool-dlp-vulnerable/README.md](examples/hr-tool-dlp-vulnerable/README.md) |
 
 Use the helper from the repo root:
