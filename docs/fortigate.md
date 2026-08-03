@@ -100,8 +100,10 @@ Ansible vars.
 - FortiGuard automatic patch firmware upgrade setting
 - static FortiGate address objects generated from repo-owned public/private IPs
 - generated custom service objects for the demo k3s NodePort listeners
-- optional generated LiteLLM/Ollama LLM-inspection services, VIP objects, and
+- optional generated LiteLLM/FortiAIGate inspection services, VIP objects, and
   firewall policies when `fortigate_llm_proxy_enabled=true`
+- optional static route for the FortiGate AI-inspection path so AWS FortiGate
+  can reach k3s NodePorts through port2
 - optional static address objects, static service objects, VIP objects, and
   firewall policies for lab-specific additions or overrides
 
@@ -122,8 +124,8 @@ tracks:
   `scripts/fortigate_ai_app_proxy_touch.py`
 - inbound plain HTTP LLM inspection through
   `http://<fgt-ip>:4000/v1`, forwarded to LiteLLM
-- inbound plain HTTP LLM inspection through
-  `http://<fgt-ip>:11434/v1`, forwarded to Ollama
+- inbound HTTPS FortiAIGate inspection through
+  `https://<fgt-ip>/v1/...`, forwarded to the k3s HTTPS ingress
 
 The goal is to generate traffic that FortiGate classifies, inspects, and logs.
 Do not insert or falsify appliance log records. This path does not alter the

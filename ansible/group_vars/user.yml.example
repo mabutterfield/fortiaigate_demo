@@ -25,25 +25,15 @@
 # guards manually before enabling this for scenario testing.
 # chatbot_phase10_scenario_routes_enabled: true
 
-# Optional Phase 10 FortiGate LLM inspection path. Enable only after FortiGate
-# is configured to accept HTTP on the listener ports and forward/NAT to the
-# matching k3s NodePorts. The chatbot then shows additional FortiGate backend
-# paths without changing the default Direct LiteLLM or FAIG routes.
-# chatbot_fortigate_litellm_base_url: http://<fgt-ip>:4000/v1
-# chatbot_fortigate_ollama_base_url: http://<fgt-ip>:11434/v1
-
-# Optional FortiGate policy automation for the same Phase 10 plain HTTP LLM
-# inspection listeners. Disabled by default. Enable only after confirming the
-# public/internal interfaces, listener IP, and backend k3s node IP are correct
-# for the lab FortiGate.
+# Optional Phase 10 FortiGate AI inspection path. The FortiGate config role can
+# build cloud defaults from generated Terraform/inventory values with this
+# single switch: TCP 4000 to LiteLLM and TCP 443 to FortiAIGate HTTPS ingress.
 # fortigate_llm_proxy_enabled: true
-# fortigate_llm_proxy_extip: <fgt-listener-ip>
-# fortigate_llm_proxy_mappedip: <k3s-node-ip>
-# fortigate_llm_proxy_public_interface: port1
-# fortigate_llm_proxy_backend_interface: port2
-# fortigate_llm_proxy_manage_services: true
-# fortigate_llm_proxy_manage_vips: true
-# fortigate_llm_proxy_manage_policies: true
+#
+# Optional chatbot UI routing through those FortiGate listeners. Set these only
+# when the FortiGate listener IP is available to the chatbot deployment vars.
+# chatbot_fortigate_litellm_base_url: "http://{{ fortigate_public_private_ip }}:4000/v1"
+# chatbot_faig_base_url: "https://{{ fortigate_public_private_ip }}"
 #
 # If VIPs already exist, disable VIP management and override vip_name values to
 # match the existing FortiGate objects. Keep service_name values aligned with
@@ -59,14 +49,14 @@
 #     extport: 4000
 #     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
 #     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
-#   - name: ollama
-#     service_name: FAIG_OLLAMA_LISTENER_11434
-#     vip_name: Ollama
-#     policy_name: allow-faig-ollama-http-proxy
+#   - name: faig_https
+#     service_name: FAIG_HTTPS_LISTENER_443
+#     vip_name: FortiAIGateHTTPS
+#     policy_name: allow-faig-https-proxy
 #     policyid: 9401
-#     extport: 11434
-#     mappedport: "{{ ollama_node_port | default(30085) | int }}"
-#     comment: "Phase 10 FortiGate plain HTTP Ollama inspection path"
+#     extport: 443
+#     mappedport: 443
+#     comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
 
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
@@ -283,10 +273,10 @@ openwebui_enabled: false
 # fortiaigate_ssl_cert_path: /path/to/private/tls.crt
 # fortiaigate_ssl_key_path: /path/to/private/tls.key
 
-# Advanced manual override for a UI-layer system prompt. Leave commented for
-# the default architecture where backend demo instructions are injected by
-# LiteLLM instead.
+# Advanced manual override for a UI-layer system prompt. By default the
+# chatbot packages the local frontend slot and starts with the UI checkbox off.
 # chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
+# chatbot_frontend_system_prompt_enabled: false
 
 # Advanced manual HTTPS gateway certificate paths.
 # demo_https_gateway_cert_local_path: /path/to/private/tls.crt

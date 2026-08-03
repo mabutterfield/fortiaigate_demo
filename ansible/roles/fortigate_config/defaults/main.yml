@@ -7,6 +7,7 @@ fortigate_config_enable_system_global: true
 fortigate_config_enable_system_settings: true
 fortigate_config_enable_password_policy: true
 fortigate_config_enable_fortiguard: true
+fortigate_config_enable_static_routes: true
 fortigate_config_enable_addresses: true
 fortigate_config_enable_services: true
 fortigate_config_enable_vips: true
@@ -124,11 +125,12 @@ fortigate_dynamic_service_sources:
 fortigate_address_objects_static: []
 fortigate_service_objects_static: []
 fortigate_vip_objects_static: []
+fortigate_static_routes_static: []
 
-# Optional Phase 10 plain HTTP LLM inspection paths. Disabled by default.
+# Optional Phase 10 FortiGate AI proxy paths. Disabled by default.
 # When enabled, the role generates:
 # - VIP_FAIG_LITELLM_HTTP_PROXY: port1 TCP 4000 -> k3s LiteLLM NodePort
-# - VIP_FAIG_OLLAMA_HTTP_PROXY: port1 TCP 11434 -> k3s Ollama NodePort
+# - VIP_FAIG_HTTPS_PROXY: port1 TCP 443 -> k3s HTTPS ingress
 # - matching custom services and inbound firewall policies
 fortigate_llm_proxy_enabled: false
 fortigate_llm_proxy_manage_services: true
@@ -141,7 +143,9 @@ fortigate_llm_proxy_mappedip: "{{ k3s_private_ip | default(k3s_public_ip | defau
 fortigate_llm_proxy_source_address: all
 fortigate_llm_proxy_schedule: always
 fortigate_llm_proxy_action: accept
-fortigate_llm_proxy_nat: disable
+# SNAT keeps cloud VIP forwarding symmetric when a chatbot pod or external
+# client sends traffic through FortiGate to a k3s NodePort.
+fortigate_llm_proxy_nat: enable
 fortigate_llm_proxy_status: enable
 fortigate_llm_proxy_logtraffic: all
 fortigate_llm_proxy_policy_id_base: 9400
@@ -159,14 +163,41 @@ fortigate_llm_proxy_paths:
     extport: 4000
     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
-  - name: ollama
-    service_name: FAIG_OLLAMA_LISTENER_11434
-    vip_name: VIP_FAIG_OLLAMA_HTTP_PROXY
-    policy_name: allow-faig-ollama-http-proxy
+  - name: faig_https
+    service_name: FAIG_HTTPS_LISTENER_443
+    vip_name: VIP_FAIG_HTTPS_PROXY
+    policy_name: allow-faig-https-proxy
     policyid: "{{ fortigate_llm_proxy_policy_id_base | int + 1 }}"
-    extport: 11434
-    mappedport: "{{ ollama_node_port | default(30085) | int }}"
-    comment: "Phase 10 FortiGate plain HTTP Ollama inspection path"
+    extport: 443
+    mappedport: 443
+    comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
+
+# Optional route used by the Phase 10 proxy path to reach k3s through the
+# FortiGate internal interface in AWS. Connected subnet routes remain more
+# specific than this VPC route.
+fortigate_static_route_vpc_enabled: "{{ fortigate_llm_proxy_enabled | bool }}"
+fortigate_static_route_vpc_seq_num: 9200
+fortigate_static_route_vpc_destination: "{{ aws_vpc_cidr | default('10.20.0.0/16') }}"
+fortigate_static_route_vpc_gateway: "{{ (aws_fortigate_internal_subnet_cidr | default('10.20.20.0/24')) | regex_replace('\\.[0-9]+/.*$', '.1') }}"
+fortigate_static_route_vpc_device: "{{ fortigate_llm_proxy_backend_interface }}"
+fortigate_static_routes: >-
+  {{
+    (
+      [
+        {
+          'seq_num': fortigate_static_route_vpc_seq_num | int,
+          'dst': fortigate_static_route_vpc_destination,
+          'gateway': fortigate_static_route_vpc_gateway,
+          'device': fortigate_static_route_vpc_device,
+          'status': 'enable',
+          'comment': 'FAIG managed VPC route for FortiGate LLM proxy path'
+        }
+      ]
+      if fortigate_static_route_vpc_enabled | bool
+      else []
+    )
+    + fortigate_static_routes_static
+  }}
 
 # Policies are intentionally empty by default. Add explicit policyid values in
 # user.yml when a FortiGate path should be active.

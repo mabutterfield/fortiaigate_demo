@@ -8,9 +8,9 @@ local quickstart behavior.
 
 1. Generate real FortiGate Application Control evidence by touching several AI
    application endpoints from a VM behind FortiGate.
-2. Show FortiGate deep inspection on plain HTTP LLM traffic by routing chatbot or
-   curl traffic to FortiGate listener ports, then forwarding that traffic to
-   LiteLLM or Ollama.
+2. Show FortiGate inspection on inbound AI traffic by routing chatbot or curl
+   traffic to FortiGate listener ports, then forwarding that traffic to LiteLLM
+   or FortiAIGate.
 
 The default quickstarts do not enable these paths. Operators can either build
 the FortiGate objects manually or opt in to the Ansible-generated objects after
@@ -125,10 +125,12 @@ may classify only the browser/proxy transaction. If Application Control still
 shows generic `HTTPS.Browser` or browser signatures with deep inspection, prefer
 the routed VM path.
 
-## Inbound Plain HTTP LLM Inspection
+## Inbound AI Inspection
 
-Use this path to show FortiGate inspecting LLM request and response content
-without FAIG in the middle.
+Use these paths to show FortiGate handling AI traffic before it reaches the
+model or FortiAIGate. The LiteLLM path is plain HTTP for straightforward LLM
+content inspection. The FortiAIGate path is HTTPS and is useful for testing
+FortiGate TLS/deep-inspection behavior before traffic reaches FAIG.
 
 LiteLLM target path:
 
@@ -136,19 +138,31 @@ LiteLLM target path:
 chatbot or curl -> http://<fgt-ip>:4000/v1 -> FortiGate policy/NAT/proxy -> LiteLLM /v1
 ```
 
-Ollama target path:
+FortiAIGate target path:
 
 ```text
-chatbot or curl -> http://<fgt-ip>:11434/v1 -> FortiGate policy/NAT/proxy -> Ollama /v1
+chatbot or curl -> https://<fgt-ip>/v1/<flow> -> FortiGate policy/NAT/proxy -> FortiAIGate HTTPS ingress
 ```
 
-After FortiGate is manually configured, enable the chatbot path in ignored
+After FortiGate is configured, enable optional chatbot routing in ignored
 `ansible/group_vars/user.yml`:
 
 ```yaml
 chatbot_fortigate_litellm_base_url: http://<fgt-ip>:4000/v1
-chatbot_fortigate_ollama_base_url: http://<fgt-ip>:11434/v1
+chatbot_faig_base_url: https://<fgt-ip>
 ```
+
+For AWS, prefer FortiGate port1's private IP for chatbot/pod traffic:
+
+```yaml
+chatbot_fortigate_litellm_base_url: "http://{{ fortigate_public_private_ip }}:4000/v1"
+chatbot_faig_base_url: "https://{{ fortigate_public_private_ip }}"
+```
+
+Using the FortiGate public EIP for these listener ports requires separate AWS
+security-group exposure for TCP `4000`. TCP `443` is already part of the
+FortiGate management security-group defaults, but the FortiGate admin service
+uses `8443` in this demo so `443` can be used for the FAIG VIP.
 
 Then redeploy the chatbot:
 
@@ -156,27 +170,27 @@ Then redeploy the chatbot:
 ansible-playbook ansible/playbooks/deploy_chatbots.yml
 ```
 
-The chatbot sidebar will show `FortiGate -> LiteLLM` and/or
-`FortiGate -> Ollama` backend paths when their base URLs are configured. The
-LiteLLM path sends normal LiteLLM model/profile names such as `demo-a`,
-`demo-b`, or `pass-ollama`. The Ollama path defaults to `gpt-oss:20b` and uses
-Ollama's OpenAI-compatible `/v1` API.
+The chatbot sidebar shows `FortiGate -> LiteLLM` when
+`chatbot_fortigate_litellm_base_url` is configured. FAIG Static and FAIG
+Intelligent routes use `chatbot_faig_base_url`; setting that to the FortiGate
+HTTPS listener sends the normal `/v1/passthrough`, `/v1/demo-a`, and
+`/v1/demo-b` traffic through FortiGate before FAIG.
 
 FortiGate manual setup:
 
 | Area | Requirement |
 |---|---|
-| Listener | FortiGate accepts HTTP on `<fgt-ip>:4000` for LiteLLM and/or `<fgt-ip>:11434` for Ollama. |
+| Listener | FortiGate accepts HTTP on `<fgt-ip>:4000` for LiteLLM and HTTPS on `<fgt-ip>:443` for FortiAIGate. |
 | Forwarding | Traffic is forwarded or NATed to the matching backend service. |
 | Policy | Traditional firewall policy permits the source to the listener and enables logging. |
-| Security profiles | Apply the desired profiles for HTTP inspection/logging. |
+| Security profiles | Apply the desired profiles for HTTP inspection/logging, and TLS inspection when testing the FAIG HTTPS path. |
 | Scope | Keep this as a FortiGate inspection demo, not a FAIG guard test. |
 
 Basic curl validation:
 
 ```bash
 curl -sS http://<fgt-ip>:4000/v1/models
-curl -sS http://<fgt-ip>:11434/v1/models
+curl -ksS https://<fgt-ip>/v1/passthrough/models
 ```
 
 Chat completion validation:
@@ -218,18 +232,6 @@ python3 scripts/traffic_generator.py \
   --dry-run
 ```
 
-For the Ollama listener:
-
-```bash
-python3 scripts/traffic_generator.py \
-  --mode traffic \
-  --route fortigate-ollama \
-  --use-case steady \
-  --duration 30 \
-  --rate 2 \
-  --dry-run
-```
-
 Remove `--dry-run` after confirming the route plan. The traffic-generator route
 uses the deployed chatbot pod. The LiteLLM route path is:
 
@@ -237,27 +239,26 @@ uses the deployed chatbot pod. The LiteLLM route path is:
 chatbot pod -> FortiGate :4000 -> LiteLLM
 ```
 
-The Ollama route path is:
+For FAIG route testing through FortiGate, set `chatbot_faig_base_url` to the
+FortiGate HTTPS listener and use the normal FAIG Static route choices in the
+chatbot or traffic generator:
 
 ```text
-chatbot pod -> FortiGate :11434 -> Ollama
+chatbot pod -> FortiGate :443 -> FortiAIGate HTTPS ingress
 ```
 
 ## Optional Ansible-Managed FortiGate Objects
 
-The FortiGate role can generate the basic listener services, VIP objects, and
-inbound firewall policies for the two Phase 10 LLM inspection paths. This is
-off by default.
+The FortiGate role can generate the basic listener services, VIP objects, static
+route, and inbound firewall policies for the two Phase 10 cloud inspection
+paths. This is off by default.
 
-Enable it in ignored `ansible/group_vars/user.yml` after confirming the
-interface and IP mapping:
+For AWS cloud labs, this single ignored variable is enough for the FortiGate
+config role to resolve the listener IP, k3s backend IP, ports, static route,
+VIPs, and policies from generated Terraform and FortiGate inventory values:
 
 ```yaml
 fortigate_llm_proxy_enabled: true
-fortigate_llm_proxy_public_interface: port1
-fortigate_llm_proxy_backend_interface: port2
-fortigate_llm_proxy_extip: <fgt-listener-ip>
-fortigate_llm_proxy_mappedip: <k3s-node-ip>
 ```
 
 Fresh labs can leave these management flags at their defaults:
@@ -268,8 +269,21 @@ fortigate_llm_proxy_manage_vips: true
 fortigate_llm_proxy_manage_policies: true
 ```
 
-If the listener VIPs already exist, keep them in place and disable generated
-VIP management:
+In AWS, the role also creates a VPC static route through port2 when
+`fortigate_llm_proxy_enabled=true`:
+
+```yaml
+fortigate_static_route_vpc_enabled: true
+fortigate_static_route_vpc_destination: "{{ aws_vpc_cidr }}"
+fortigate_static_route_vpc_gateway: "{{ aws_fortigate_internal_subnet_cidr | regex_replace('\\.[0-9]+/.*$', '.1') }}"
+```
+
+The generated proxy policy uses `nat: enable` by default so replies from k3s
+NodePorts return through FortiGate instead of taking the k3s host's normal
+public-subnet route.
+
+If listener VIPs already exist, keep them in place and disable generated VIP
+management:
 
 ```yaml
 fortigate_llm_proxy_manage_vips: false
@@ -282,27 +296,36 @@ fortigate_llm_proxy_paths:
     extport: 4000
     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
-  - name: ollama
-    service_name: FAIG_OLLAMA_LISTENER_11434
-    vip_name: Ollama
-    policy_name: allow-faig-ollama-http-proxy
+  - name: faig_https
+    service_name: FAIG_HTTPS_LISTENER_443
+    vip_name: FortiAIGateHTTPS
+    policy_name: allow-faig-https-proxy
     policyid: 9401
-    extport: 11434
-    mappedport: "{{ ollama_node_port | default(30085) | int }}"
-    comment: "Phase 10 FortiGate plain HTTP Ollama inspection path"
+    extport: 443
+    mappedport: 443
+    comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
 ```
 
 Generated objects:
 
-| Object type | LiteLLM | Ollama |
+| Object type | LiteLLM | FortiAIGate |
 |---|---|---|
-| Service | `FAIG_LITELLM_LISTENER_4000` | `FAIG_OLLAMA_LISTENER_11434` |
-| VIP | `VIP_FAIG_LITELLM_HTTP_PROXY` | `VIP_FAIG_OLLAMA_HTTP_PROXY` |
-| Policy | `allow-faig-litellm-http-proxy` | `allow-faig-ollama-http-proxy` |
-| Listener | TCP `4000` | TCP `11434` |
-| Backend | k3s LiteLLM NodePort | k3s Ollama NodePort |
+| Service | `FAIG_LITELLM_LISTENER_4000` | `FAIG_HTTPS_LISTENER_443` |
+| VIP | `VIP_FAIG_LITELLM_HTTP_PROXY` | `VIP_FAIG_HTTPS_PROXY` |
+| Policy | `allow-faig-litellm-http-proxy` | `allow-faig-https-proxy` |
+| Listener | TCP `4000` | TCP `443` |
+| Backend | k3s LiteLLM NodePort | k3s HTTPS ingress |
 
 Run a check first:
+
+```bash
+ansible-playbook -i ansible/inventory/fortigate.generated.ini \
+  ansible/playbooks/configure_fortigate.yml \
+  -e fortigate_llm_proxy_enabled=true \
+  --check
+```
+
+For a local FortiGate inventory:
 
 ```bash
 ansible-playbook -i ansible/inventory/fortigate.local.generated.ini \

@@ -84,9 +84,9 @@ reference, not a competing first-run path.
 - `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
   steady or burst chatbot/MCP traffic profiles with compact ignored metadata
   under `docs/raw-output/traffic/`, including an optional FortiGate-to-LiteLLM
-  path when `chatbot_fortigate_litellm_base_url` is configured and an optional
-  FortiGate-to-Ollama path when `chatbot_fortigate_ollama_base_url` is
-  configured.
+  path when `chatbot_fortigate_litellm_base_url` is configured and optional
+  FAIG static routes through FortiGate when `chatbot_faig_base_url` points to
+  the FortiGate HTTPS listener.
 - `scripts/fortigate_ai_app_proxy_touch.py`: touches AI application endpoints
   directly by default, or through a run-scoped FortiGate explicit proxy URL, for
   Application Control log investigation.

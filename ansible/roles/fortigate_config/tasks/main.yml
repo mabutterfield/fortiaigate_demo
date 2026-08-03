@@ -88,6 +88,17 @@
   # - ansible.builtin.debug:
   #     var: fortigate_policy_current_raw
 
+- name: Gather current FortiGate static routes
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: router_static
+  register: fortigate_static_route_current_raw
+  check_mode: false
+  when: fortigate_config_enable_static_routes | bool
+  tags: [fortigate_config, fortigate_routes]
+  # - ansible.builtin.debug:
+  #     var: fortigate_static_route_current_raw
+
 - name: Set current FortiGate maps
   ansible.builtin.set_fact:
     fortigate_address_current_by_name: >-
@@ -124,6 +135,15 @@
         )
       }}
     fortigate_policy_current_ids: "{{ (fortigate_policy_current_raw.meta.results | default([])) | map(attribute='policyid') | map('string') | list }}"
+    fortigate_static_route_current_by_seq: >-
+      {{
+        dict(
+          (fortigate_static_route_current_raw.meta.results | default([]))
+          | map(attribute='seq-num')
+          | map('string')
+          | zip(fortigate_static_route_current_raw.meta.results | default([]))
+        )
+      }}
   tags: [fortigate_config]
   # - ansible.builtin.debug:
   #     msg:
@@ -317,6 +337,7 @@
     fortigate_service_objects_by_name: {}
     fortigate_vip_objects_by_name: {}
     fortigate_policy_objects_by_id: {}
+    fortigate_static_routes_desired: []
   tags: [fortigate_config]
 
 - name: Merge generated FortiGate address objects
@@ -401,6 +422,7 @@
     fortigate_service_objects_desired: "{{ fortigate_service_objects_by_name | dict2items | map(attribute='value') | list }}"
     fortigate_vip_objects_desired: "{{ fortigate_vip_objects_by_name | dict2items | map(attribute='value') | list }}"
     fortigate_firewall_policies_desired: "{{ fortigate_policy_objects_by_id | dict2items | map(attribute='value') | list }}"
+    fortigate_static_routes_desired: "{{ fortigate_static_routes | default([]) }}"
   tags: [fortigate_config]
   # - ansible.builtin.debug:
   #     msg:
@@ -408,6 +430,7 @@
   #       - "Desired service objects: {{ fortigate_service_objects_desired | map(attribute='name') | list }}"
   #       - "Desired VIP objects: {{ fortigate_vip_objects_desired | map(attribute='name') | list }}"
   #       - "Desired policies: {{ fortigate_firewall_policies_desired | map(attribute='name') | list }}"
+  #       - "Desired static routes: {{ fortigate_static_routes_desired | map(attribute='seq_num') | list }}"
 
 - name: Configure FortiGate global settings
   fortinet.fortios.fortios_system_global:
@@ -448,6 +471,38 @@
   tags: [fortigate_config, fortigate_system]
   # - ansible.builtin.debug:
   #     var: fortigate_system_fortiguard_apply
+
+- name: Configure FortiGate static routes when different
+  fortinet.fortios.fortios_router_static:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    router_static: "{{ item }}"
+  vars:
+    fortigate_static_route_key: "{{ item.seq_num | string }}"
+    fortigate_static_route_current: "{{ fortigate_static_route_current_by_seq[fortigate_static_route_key] | default({}) }}"
+    fortigate_static_route_needs_update: >-
+      {{
+        fortigate_config_force_apply | bool
+        or fortigate_static_route_key not in fortigate_static_route_current_by_seq
+        or fortigate_static_route_current.dst | default('') | string != item.dst | string
+        or fortigate_static_route_current.gateway | default('') | string != item.gateway | string
+        or fortigate_static_route_current.device | default('') | string != item.device | string
+        or fortigate_static_route_current.status | default('enable') | string != item.status | default('enable') | string
+      }}
+  loop: "{{ fortigate_static_routes_desired }}"
+  loop_control:
+    label: "{{ item.seq_num }} {{ item.dst }} via {{ item.gateway }} {{ item.device }}"
+  when:
+    - fortigate_config_enable_static_routes | bool
+    - item.seq_num is defined
+    - item.dst | default('') | string | length > 0
+    - item.gateway | default('') | string | length > 0
+    - item.device | default('') | string | length > 0
+    - fortigate_static_route_needs_update | bool
+  register: fortigate_static_route_apply
+  tags: [fortigate_config, fortigate_routes]
+  # - ansible.builtin.debug:
+  #     var: fortigate_static_route_apply
 
 - name: Configure FortiGate address objects when different
   fortinet.fortios.fortios_firewall_address:
@@ -620,6 +675,7 @@
       - "Desired custom services: {{ fortigate_service_objects_desired | length }}"
       - "Desired VIP objects: {{ fortigate_vip_objects_desired | length }}"
       - "Desired firewall policies: {{ fortigate_firewall_policies_desired | length }}"
+      - "Desired static routes: {{ fortigate_static_routes_desired | length }}"
       - "System global managed: {{ fortigate_config_enable_system_global | bool }}"
       - "System settings managed: {{ fortigate_config_enable_system_settings | bool }}"
       - "Password policy managed: {{ fortigate_config_enable_password_policy | bool }}"
