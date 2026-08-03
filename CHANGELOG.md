@@ -17,22 +17,25 @@ a "what's new" guide rather than a raw commit log.
   - keeps normal backend-only behavior product-focused
   - adds a toggleable chatbot frontend/system-prompt fixture for demonstrating
     compromised UI-layer instruction injection
+  - packages the local frontend instruction slot by default when present, with
+    the chatbot UI checkbox starting off for backend-only behavior
   - supports headless validation with frontend instructions enabled or disabled
 - Added Phase 10E FortiGate traffic-demo preparation:
   - documented outbound AI application detection from a VM behind FortiGate and
-    inbound plain HTTP LLM inspection through
-    `http://<fgt-ip>:4000/v1`
+    inbound inspection through `http://<fgt-ip>:4000/v1` for LiteLLM and
+    `https://<fgt-ip>/v1/...` for FortiAIGate
   - added a dry-run-by-default app-touch helper that sends direct/no-proxy
     traffic by default, can use a run-scoped explicit proxy URL when requested,
     uses FortiGuard-style GenAI target labels, avoids GET range requests by
     default, and does not alter workstation proxy settings
   - added an opt-in chatbot and traffic-generator path for
     `chatbot -> FortiGate :4000 -> LiteLLM` plain HTTP inspection
-  - added an opt-in chatbot and traffic-generator path for
-    `chatbot -> FortiGate :11434 -> Ollama` plain HTTP inspection
   - added disabled-by-default FortiGate role variables that can generate the
     listener custom services, VIP objects, and inbound firewall policies for
-    the LiteLLM and Ollama inspection paths
+    the LiteLLM and FortiAIGate inspection paths
+  - added FortiGate static-route management and default SNAT for the optional
+    AI inspection VIP policies so the path is more suitable for AWS k3s
+    NodePort forwarding
 - Started Phase 10 release hardening:
   - aligned README and documentation entry points around the v1.0 support
     contract
@@ -47,6 +50,13 @@ a "what's new" guide rather than a raw commit log.
   fresh deployment, AWS teardown, local fresh deployment, scenario baseline
   validation, and an optional FortiGate Application Control traffic-generation
   investigation.
+- Improved release smoke-test ergonomics:
+  - quickstart now defaults to continuing into Ansible image publishing and
+    deployment after Terraform confirmation
+  - image publishing prompts now warn that FortiAIGate/all publishing can take
+    significant time and show a best-effort ECR tag preflight
+  - release validation docs now remind maintainers to bump or explicitly
+    confirm `chatbot_image_tag` for branch-version releases
 - Added `scripts/traffic_generator.py` for Phase 10 local-safe traffic:
   - default `path_test` mode that prints the inferred FAIG target and curls
     `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough` once from the workstation
