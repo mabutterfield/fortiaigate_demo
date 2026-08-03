@@ -152,16 +152,28 @@
     demo_home_fortiaigate_url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
     demo_home_admin_links:
       - label: "FortiAIGate UI"
+        title: "FortiAIGate UI"
+        transport: "HTTPS"
+        fortiweb: false
         url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
     demo_home_litellm_url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
     demo_home_links:
       - label: "Demo Home HTTP"
+        title: "Demo Home"
+        transport: "HTTP"
+        fortiweb: false
         url: "http://{{ demo_home_host }}:{{ demo_home_node_port }}"
     demo_home_litellm_links:
       - label: "LiteLLM Admin UI HTTP"
+        title: "LiteLLM"
+        transport: "HTTP"
+        fortiweb: false
         url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
     demo_home_mcp_links:
       - label: "MCP Demo Tools HTTP"
+        title: "MCP Tools"
+        transport: "HTTP"
+        fortiweb: false
         url: "http://{{ demo_home_host }}:{{ mcp_node_port | default(demo_mcp_http_port | default(30084)) }}/tools"
     demo_home_openwebui_display_links: []
     demo_home_chatbot_display_links: []
@@ -175,6 +187,9 @@
   vars:
     demo_home_link:
       label: "FortiGate Admin"
+      title: "FortiGate Admin"
+      transport: "HTTPS"
+      fortiweb: false
       url: "{{ demo_home_fortigate_effective_admin_url }}"
   when:
     - demo_home_enabled | bool
@@ -189,6 +204,9 @@
   vars:
     demo_home_link:
       label: "FortiWeb Admin"
+      title: "FortiWeb Admin"
+      transport: "HTTPS"
+      fortiweb: false
       url: "{{ demo_home_fortiweb_effective_admin_url }}"
   when:
     - demo_home_enabled | bool
@@ -203,6 +221,9 @@
   vars:
     demo_home_link:
       label: "Demo Home HTTP via FortiWeb"
+      title: "Demo Home"
+      transport: "HTTP"
+      fortiweb: true
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ demo_home_node_port }}"
   when:
     - demo_home_enabled | bool
@@ -217,6 +238,9 @@
   vars:
     demo_home_link:
       label: "LiteLLM Admin UI HTTP via FortiWeb"
+      title: "LiteLLM"
+      transport: "HTTP"
+      fortiweb: true
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
   when:
     - demo_home_enabled | bool
@@ -231,6 +255,9 @@
   vars:
     demo_home_link:
       label: "MCP Demo Tools HTTP via FortiWeb"
+      title: "MCP Tools (FortiWeb)"
+      transport: "HTTP"
+      fortiweb: true
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ mcp_node_port | default(demo_mcp_http_port | default(30084)) }}/tools"
   when:
     - demo_home_enabled | bool
@@ -245,6 +272,9 @@
   vars:
     demo_home_link:
       label: "Demo Home HTTPS"
+      title: "Demo Home"
+      transport: "HTTPS"
+      fortiweb: false
       url: "https://{{ demo_home_host }}:{{ demo_https_gateway_demo_home_https_port }}"
   when:
     - demo_home_enabled | bool
@@ -258,6 +288,9 @@
   vars:
     demo_home_link:
       label: "Demo Home HTTPS via FortiWeb"
+      title: "Demo Home"
+      transport: "HTTPS"
+      fortiweb: true
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_demo_home_https_port }}"
   when:
     - demo_home_enabled | bool
@@ -273,6 +306,9 @@
   vars:
     demo_home_link:
       label: "LiteLLM Admin UI HTTPS"
+      title: "LiteLLM"
+      transport: "HTTPS"
+      fortiweb: false
       url: "https://{{ demo_home_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
   when:
     - demo_home_enabled | bool
@@ -286,6 +322,9 @@
   vars:
     demo_home_link:
       label: "LiteLLM Admin UI HTTPS via FortiWeb"
+      title: "LiteLLM"
+      transport: "HTTPS"
+      fortiweb: true
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
   when:
     - demo_home_enabled | bool
@@ -301,6 +340,9 @@
   vars:
     demo_home_link:
       label: "MCP Demo Tools HTTPS"
+      title: "MCP Tools"
+      transport: "HTTPS"
+      fortiweb: false
       url: "https://{{ demo_home_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_home_enabled | bool
@@ -314,6 +356,9 @@
   vars:
     demo_home_link:
       label: "MCP Demo Tools HTTPS via FortiWeb"
+      title: "MCP Tools (FortiWeb)"
+      transport: "HTTPS"
+      fortiweb: true
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_home_enabled | bool
@@ -332,6 +377,9 @@
         [
           {
             'label': 'OpenWebUI ' ~ item.name ~ ' HTTP',
+            'title': 'OpenWebUI ' ~ item.name,
+            'transport': 'HTTP',
+            'fortiweb': false,
             'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
           }
         ]
@@ -339,6 +387,9 @@
           [
             {
               'label': 'OpenWebUI ' ~ item.name ~ ' HTTP via FortiWeb',
+              'title': 'OpenWebUI ' ~ item.name,
+              'transport': 'HTTP',
+              'fortiweb': true,
               'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
             }
           ]
@@ -349,6 +400,9 @@
           [
             {
               'label': 'OpenWebUI ' ~ item.name ~ ' HTTPS',
+              'title': 'OpenWebUI ' ~ item.name,
+              'transport': 'HTTPS',
+              'fortiweb': false,
               'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
             }
           ]
@@ -359,6 +413,9 @@
           [
             {
               'label': 'OpenWebUI ' ~ item.name ~ ' HTTPS via FortiWeb',
+              'title': 'OpenWebUI ' ~ item.name,
+              'transport': 'HTTPS',
+              'fortiweb': true,
               'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
             }
           ]
@@ -385,6 +442,9 @@
           [
             {
               'label': item.name ~ ' HTTPS (' ~ (item.provider_label | default('Model')) ~ ')',
+              'title': 'FortiAIGate Demo Chatbot',
+              'transport': 'HTTPS',
+              'fortiweb': false,
               'url': 'https://' ~ demo_home_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
             }
           ]
@@ -395,6 +455,9 @@
           [
             {
               'label': item.name ~ ' HTTPS via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
+              'title': 'FortiAIGate Demo Chatbot',
+              'transport': 'HTTPS',
+              'fortiweb': true,
               'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
             }
           ]
@@ -406,6 +469,9 @@
         + [
           {
             'label': item.name ~ ' HTTP (' ~ (item.provider_label | default('Model')) ~ ')',
+            'title': 'FortiAIGate Demo Chatbot',
+            'transport': 'HTTP',
+            'fortiweb': false,
             'url': 'http://' ~ demo_home_host ~ ':' ~ (item.node_port | string)
           }
         ]
@@ -413,6 +479,9 @@
           [
             {
               'label': item.name ~ ' HTTP via FortiWeb (' ~ (item.provider_label | default('Model')) ~ ')',
+              'title': 'FortiAIGate Demo Chatbot',
+              'transport': 'HTTP',
+              'fortiweb': true,
               'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
             }
           ]
@@ -429,11 +498,8 @@
   ansible.builtin.set_fact:
     demo_home_openwebui_links: "{{ demo_home_openwebui_display_links | default([]) }}"
     demo_home_chatbot_links: "{{ demo_home_chatbot_display_links | default([]) }}"
-    demo_home_litellm_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_litellm_links | map(attribute='label') | join(' ')) }}"
-    demo_home_mcp_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_mcp_links | map(attribute='label') | join(' ')) }}"
-    demo_home_home_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_links | map(attribute='label') | join(' ')) }}"
-    demo_home_openwebui_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_openwebui_display_links | default([]) | map(attribute='label') | join(' ')) }}"
-    demo_home_chatbot_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_chatbot_display_links | default([]) | map(attribute='label') | join(' ')) }}"
+    demo_home_mcp_direct_links: "{{ demo_home_mcp_links | selectattr('fortiweb', 'equalto', false) | list }}"
+    demo_home_mcp_fortiweb_links: "{{ demo_home_mcp_links | selectattr('fortiweb', 'equalto', true) | list }}"
   when: demo_home_enabled | bool
   # - ansible.builtin.debug:
   #     var: demo_home_openwebui_links

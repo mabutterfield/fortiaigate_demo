@@ -40,32 +40,9 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
     }
-    .link-matrix {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
-      gap: 12px;
-      align-items: stretch;
-    }
-    .group-heading {
-      padding: 0 2px 2px;
-      color: #3d4852;
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .group-heading.direct {
-      grid-column: 1 / 3;
-    }
-    .group-heading.fortiweb {
-      grid-column: 3 / 5;
-      border-left: 2px solid #b8c2cc;
-      padding-left: 14px;
-    }
-    .fortiweb-cell {
-      border-left: 2px solid #b8c2cc;
-      padding-left: 12px;
-    }
     a.card {
       display: block;
+      min-height: 86px;
       padding: 14px 16px;
       border: 1px solid #d8dee4;
       border-radius: 6px;
@@ -79,202 +56,114 @@
     .label {
       display: block;
       font-weight: 650;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
+    .meta,
     .url {
       display: block;
       color: #5c6670;
       font-size: 13px;
+      line-height: 1.35;
       overflow-wrap: anywhere;
     }
-    @media (max-width: 900px) {
-      .link-matrix {
-        grid-template-columns: repeat(2, minmax(180px, 1fr));
-      }
-      .group-heading.direct,
-      .group-heading.fortiweb {
-        grid-column: 1 / 3;
-      }
-      .group-heading.fortiweb,
-      .fortiweb-cell {
-        border-left: 0;
-        padding-left: 0;
-      }
-      .group-heading.fortiweb {
-        border-top: 2px solid #b8c2cc;
-        padding-top: 12px;
-      }
+    .meta {
+      margin-bottom: 2px;
     }
+{% if demo_home_extra_css | default('', true) | length > 0 %}
+{{ demo_home_extra_css }}
+{% endif %}
   </style>
 </head>
 <body>
+{% macro link_card(link) -%}
+        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
+          <span class="label">{{ link.title | default(link.label) }}</span>
+{% if link.transport | default('', true) | length > 0 %}
+          <span class="meta">via {{ link.transport }}</span>
+{% endif %}
+          <span class="url">{{ link.url }}</span>
+        </a>
+{%- endmacro %}
   <main>
     <h1>{{ demo_home_page_title }}</h1>
-    <p class="subtle">Direct model paths and FortiAIGate-inspected paths for this lab.</p>
+    <p class="subtle">{{ demo_home_subtitle }}</p>
 
+{% if demo_home_admin_links | length > 0 %}
     <section>
-      <h2>Fortinet Admin</h2>
+      <h2>{{ demo_home_section_titles.admin | default('Fortinet Admin') }}</h2>
       <div class="grid">
 {% for link in demo_home_admin_links %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
+{{ link_card(link) }}
 {% endfor %}
       </div>
     </section>
-
-    <section>
-      <h2>LiteLLM</h2>
-      <div class="link-matrix">
-        <div class="group-heading direct">LiteLLM</div>
-{% if demo_home_litellm_fortiweb_links_present | default(false) %}
-        <div class="group-heading fortiweb">LiteLLM Via FortiWeb</div>
 {% endif %}
+
+{% if demo_home_litellm_links | length > 0 %}
+    <section>
+      <h2>{{ demo_home_section_titles.litellm | default('LiteLLM') }}</h2>
+      <div class="grid">
 {% for link in demo_home_litellm_links %}
-{% if 'via FortiWeb' not in link.label %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
-{% endif %}
+{{ link_card(link) }}
 {% endfor %}
-{% if demo_home_litellm_fortiweb_links_present | default(false) %}
-{% for link in demo_home_litellm_links %}
-{% if 'via FortiWeb' in link.label %}
-        <div class="fortiweb-cell">
-          <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="label">{{ link.label }}</span>
-            <span class="url">{{ link.url }}</span>
-          </a>
-        </div>
-{% endif %}
-{% endfor %}
-{% endif %}
       </div>
     </section>
+{% endif %}
 
+{% if demo_home_mcp_direct_links | length > 0 %}
     <section>
-      <h2>MCP Tools</h2>
-      <div class="link-matrix">
-        <div class="group-heading direct">MCP Tools</div>
-{% if demo_home_mcp_fortiweb_links_present | default(false) %}
-        <div class="group-heading fortiweb">MCP Tools Via FortiWeb</div>
-{% endif %}
-{% for link in demo_home_mcp_links %}
-{% if 'via FortiWeb' not in link.label %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
-{% endif %}
+      <h2>{{ demo_home_section_titles.mcp | default('MCP Tools') }}</h2>
+      <div class="grid">
+{% for link in demo_home_mcp_direct_links %}
+{{ link_card(link) }}
 {% endfor %}
-{% if demo_home_mcp_fortiweb_links_present | default(false) %}
-{% for link in demo_home_mcp_links %}
-{% if 'via FortiWeb' in link.label %}
-        <div class="fortiweb-cell">
-          <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="label">{{ link.label }}</span>
-            <span class="url">{{ link.url }}</span>
-          </a>
-        </div>
-{% endif %}
-{% endfor %}
-{% endif %}
       </div>
     </section>
+{% endif %}
 
+{% if demo_home_mcp_fortiweb_links | length > 0 %}
     <section>
-      <h2>Demo Home</h2>
-      <div class="link-matrix">
-        <div class="group-heading direct">Demo Home</div>
-{% if demo_home_home_fortiweb_links_present | default(false) %}
-        <div class="group-heading fortiweb">Demo Home Via FortiWeb</div>
-{% endif %}
-{% for link in demo_home_links %}
-{% if 'via FortiWeb' not in link.label %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
-{% endif %}
+      <h2>{{ demo_home_section_titles.mcp_fortiweb | default('MCP Tools (FortiWeb)') }}</h2>
+      <div class="grid">
+{% for link in demo_home_mcp_fortiweb_links %}
+{{ link_card(link) }}
 {% endfor %}
-{% if demo_home_home_fortiweb_links_present | default(false) %}
-{% for link in demo_home_links %}
-{% if 'via FortiWeb' in link.label %}
-        <div class="fortiweb-cell">
-          <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="label">{{ link.label }}</span>
-            <span class="url">{{ link.url }}</span>
-          </a>
-        </div>
-{% endif %}
-{% endfor %}
-{% endif %}
       </div>
     </section>
+{% endif %}
+
+{% if demo_home_links | length > 0 %}
+    <section>
+      <h2>{{ demo_home_section_titles.demo_home | default('Demo Home') }}</h2>
+      <div class="grid">
+{% for link in demo_home_links %}
+{{ link_card(link) }}
+{% endfor %}
+      </div>
+    </section>
+{% endif %}
 
 {% if demo_home_openwebui_links | length > 0 %}
     <section>
-      <h2>Open WebUI</h2>
-      <div class="link-matrix">
-        <div class="group-heading direct">Open WebUI</div>
-{% if demo_home_openwebui_fortiweb_links_present | default(false) %}
-        <div class="group-heading fortiweb">Open WebUI Via FortiWeb</div>
-{% endif %}
+      <h2>{{ demo_home_section_titles.openwebui | default('Open WebUI') }}</h2>
+      <div class="grid">
 {% for link in demo_home_openwebui_links %}
-{% if 'via FortiWeb' not in link.label %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
-{% endif %}
+{{ link_card(link) }}
 {% endfor %}
-{% if demo_home_openwebui_fortiweb_links_present | default(false) %}
-{% for link in demo_home_openwebui_links %}
-{% if 'via FortiWeb' in link.label %}
-        <div class="fortiweb-cell">
-          <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="label">{{ link.label }}</span>
-            <span class="url">{{ link.url }}</span>
-          </a>
-        </div>
-{% endif %}
-{% endfor %}
-{% endif %}
       </div>
     </section>
 {% endif %}
 
+{% if demo_home_chatbot_links | length > 0 %}
     <section>
-      <h2>Chatbots</h2>
-      <div class="link-matrix">
-        <div class="group-heading direct">Chatbots</div>
-{% if demo_home_chatbot_fortiweb_links_present | default(false) %}
-        <div class="group-heading fortiweb">Chatbots Via FortiWeb</div>
-{% endif %}
+      <h2>{{ demo_home_section_titles.chatbot | default('FortiAIGate Demo Chatbot') }}</h2>
+      <div class="grid">
 {% for link in demo_home_chatbot_links %}
-{% if 'via FortiWeb' not in link.label %}
-        <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-          <span class="label">{{ link.label }}</span>
-          <span class="url">{{ link.url }}</span>
-        </a>
-{% endif %}
+{{ link_card(link) }}
 {% endfor %}
-{% if demo_home_chatbot_fortiweb_links_present | default(false) %}
-{% for link in demo_home_chatbot_links %}
-{% if 'via FortiWeb' in link.label %}
-        <div class="fortiweb-cell">
-          <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="label">{{ link.label }}</span>
-            <span class="url">{{ link.url }}</span>
-          </a>
-        </div>
-{% endif %}
-{% endfor %}
-{% endif %}
       </div>
     </section>
+{% endif %}
   </main>
 </body>
 </html>
