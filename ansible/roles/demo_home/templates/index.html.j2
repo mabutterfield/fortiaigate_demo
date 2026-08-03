@@ -99,6 +99,17 @@
     </section>
 {% endif %}
 
+{% if demo_home_chatbot_links | length > 0 %}
+    <section>
+      <h2>{{ demo_home_section_titles.chatbot | default('FortiAIGate Demo Chatbot') }}</h2>
+      <div class="grid">
+{% for link in demo_home_chatbot_links %}
+{{ link_card(link) }}
+{% endfor %}
+      </div>
+    </section>
+{% endif %}
+
 {% if demo_home_litellm_links | length > 0 %}
     <section>
       <h2>{{ demo_home_section_titles.litellm | default('LiteLLM') }}</h2>
@@ -154,16 +165,6 @@
     </section>
 {% endif %}
 
-{% if demo_home_chatbot_links | length > 0 %}
-    <section>
-      <h2>{{ demo_home_section_titles.chatbot | default('FortiAIGate Demo Chatbot') }}</h2>
-      <div class="grid">
-{% for link in demo_home_chatbot_links %}
-{{ link_card(link) }}
-{% endfor %}
-      </div>
-    </section>
-{% endif %}
   </main>
 </body>
 </html>
