@@ -136,6 +136,17 @@
   #       - "FortiGate admin URL available: {{ demo_home_fortigate_effective_admin_url | length > 0 }}"
   #       - "FortiWeb admin URL available: {{ demo_home_fortiweb_effective_admin_url | length > 0 }}"
 
+- name: Set demo home FortiWeb proxy availability facts
+  ansible.builtin.set_fact:
+    demo_home_fortiweb_http_proxy_suffixes: "{{ fortiweb_nodeport_proxy_http_paths | default([]) | map(attribute='object_suffix') | list }}"
+    demo_home_fortiweb_https_proxy_suffixes: "{{ fortiweb_nodeport_proxy_https_paths | default([]) | map(attribute='object_suffix') | list }}"
+    demo_home_fortiweb_proxy_available: "{{ demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0 and fortiweb_nodeport_proxy_enabled | default(false) | bool }}"
+  when: demo_home_enabled | bool
+  # - ansible.builtin.debug:
+  #     msg:
+  #       - "FortiWeb HTTP proxy suffixes: {{ demo_home_fortiweb_http_proxy_suffixes }}"
+  #       - "FortiWeb HTTPS proxy suffixes: {{ demo_home_fortiweb_https_proxy_suffixes }}"
+
 - name: Build demo home link facts
   ansible.builtin.set_fact:
     demo_home_fortiaigate_url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
@@ -195,8 +206,8 @@
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ demo_home_node_port }}"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'DEMO_HOME_HTTP' in demo_home_fortiweb_http_proxy_suffixes"
   # - ansible.builtin.debug:
   #     var: demo_home_links
 
@@ -209,8 +220,8 @@
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'LITELLM_HTTP' in demo_home_fortiweb_http_proxy_suffixes"
   # - ansible.builtin.debug:
   #     var: demo_home_litellm_links
 
@@ -223,8 +234,8 @@
       url: "http://{{ demo_home_fortiweb_effective_host }}:{{ mcp_node_port | default(demo_mcp_http_port | default(30084)) }}/tools"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'MCP_HTTP' in demo_home_fortiweb_http_proxy_suffixes"
   # - ansible.builtin.debug:
   #     var: demo_home_mcp_links
 
@@ -250,8 +261,8 @@
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_demo_home_https_port }}"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'DEMO_HOME_HTTPS' in demo_home_fortiweb_https_proxy_suffixes"
     - demo_https_gateway_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_links
@@ -278,8 +289,8 @@
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_litellm_https_port }}/ui/"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'LITELLM_HTTPS' in demo_home_fortiweb_https_proxy_suffixes"
     - demo_https_gateway_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_litellm_links
@@ -306,8 +317,8 @@
       url: "https://{{ demo_home_fortiweb_effective_host }}:{{ demo_https_gateway_mcp_https_port }}/tools"
   when:
     - demo_home_enabled | bool
-    - demo_home_fortiweb_enabled | bool
-    - demo_home_fortiweb_effective_host | default('', true) | length > 0
+    - demo_home_fortiweb_proxy_available | default(false) | bool
+    - "'MCP_HTTPS' in demo_home_fortiweb_https_proxy_suffixes"
     - demo_https_gateway_enabled | default(false) | bool
   # - ansible.builtin.debug:
   #     var: demo_home_mcp_links
@@ -331,7 +342,7 @@
               'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
             }
           ]
-          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          if demo_home_fortiweb_proxy_available | default(false) | bool and 'OPENWEBUI_HTTP' in demo_home_fortiweb_http_proxy_suffixes
           else []
         )
         + (
@@ -351,8 +362,8 @@
               'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_openwebui_https_port | string)
             }
           ]
-          if demo_home_fortiweb_enabled | bool
-          and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          if demo_home_fortiweb_proxy_available | default(false) | bool
+          and 'OPENWEBUI_HTTPS' in demo_home_fortiweb_https_proxy_suffixes
           and demo_https_gateway_enabled | default(false) | bool
           else []
         )
@@ -387,8 +398,8 @@
               'url': 'https://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (demo_https_gateway_chatbot_https_port | string)
             }
           ]
-          if demo_home_fortiweb_enabled | bool
-          and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          if demo_home_fortiweb_proxy_available | default(false) | bool
+          and 'CHATBOT_HTTPS' in demo_home_fortiweb_https_proxy_suffixes
           and demo_https_gateway_enabled | default(false) | bool
           else []
         )
@@ -405,7 +416,7 @@
               'url': 'http://' ~ demo_home_fortiweb_effective_host ~ ':' ~ (item.node_port | string)
             }
           ]
-          if demo_home_fortiweb_enabled | bool and demo_home_fortiweb_effective_host | default('', true) | length > 0
+          if demo_home_fortiweb_proxy_available | default(false) | bool and 'CHATBOT_HTTP' in demo_home_fortiweb_http_proxy_suffixes
           else []
         )
       }}
@@ -418,6 +429,11 @@
   ansible.builtin.set_fact:
     demo_home_openwebui_links: "{{ demo_home_openwebui_display_links | default([]) }}"
     demo_home_chatbot_links: "{{ demo_home_chatbot_display_links | default([]) }}"
+    demo_home_litellm_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_litellm_links | map(attribute='label') | join(' ')) }}"
+    demo_home_mcp_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_mcp_links | map(attribute='label') | join(' ')) }}"
+    demo_home_home_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_links | map(attribute='label') | join(' ')) }}"
+    demo_home_openwebui_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_openwebui_display_links | default([]) | map(attribute='label') | join(' ')) }}"
+    demo_home_chatbot_fortiweb_links_present: "{{ 'via FortiWeb' in (demo_home_chatbot_display_links | default([]) | map(attribute='label') | join(' ')) }}"
   when: demo_home_enabled | bool
   # - ansible.builtin.debug:
   #     var: demo_home_openwebui_links

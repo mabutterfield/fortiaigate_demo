@@ -128,7 +128,9 @@
       <h2>LiteLLM</h2>
       <div class="link-matrix">
         <div class="group-heading direct">LiteLLM</div>
+{% if demo_home_litellm_fortiweb_links_present | default(false) %}
         <div class="group-heading fortiweb">LiteLLM Via FortiWeb</div>
+{% endif %}
 {% for link in demo_home_litellm_links %}
 {% if 'via FortiWeb' not in link.label %}
         <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
@@ -137,6 +139,7 @@
         </a>
 {% endif %}
 {% endfor %}
+{% if demo_home_litellm_fortiweb_links_present | default(false) %}
 {% for link in demo_home_litellm_links %}
 {% if 'via FortiWeb' in link.label %}
         <div class="fortiweb-cell">
@@ -147,6 +150,7 @@
         </div>
 {% endif %}
 {% endfor %}
+{% endif %}
       </div>
     </section>
 
@@ -154,7 +158,9 @@
       <h2>MCP Tools</h2>
       <div class="link-matrix">
         <div class="group-heading direct">MCP Tools</div>
+{% if demo_home_mcp_fortiweb_links_present | default(false) %}
         <div class="group-heading fortiweb">MCP Tools Via FortiWeb</div>
+{% endif %}
 {% for link in demo_home_mcp_links %}
 {% if 'via FortiWeb' not in link.label %}
         <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
@@ -163,6 +169,7 @@
         </a>
 {% endif %}
 {% endfor %}
+{% if demo_home_mcp_fortiweb_links_present | default(false) %}
 {% for link in demo_home_mcp_links %}
 {% if 'via FortiWeb' in link.label %}
         <div class="fortiweb-cell">
@@ -173,6 +180,7 @@
         </div>
 {% endif %}
 {% endfor %}
+{% endif %}
       </div>
     </section>
 
@@ -180,7 +188,9 @@
       <h2>Demo Home</h2>
       <div class="link-matrix">
         <div class="group-heading direct">Demo Home</div>
+{% if demo_home_home_fortiweb_links_present | default(false) %}
         <div class="group-heading fortiweb">Demo Home Via FortiWeb</div>
+{% endif %}
 {% for link in demo_home_links %}
 {% if 'via FortiWeb' not in link.label %}
         <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
@@ -189,6 +199,7 @@
         </a>
 {% endif %}
 {% endfor %}
+{% if demo_home_home_fortiweb_links_present | default(false) %}
 {% for link in demo_home_links %}
 {% if 'via FortiWeb' in link.label %}
         <div class="fortiweb-cell">
@@ -199,6 +210,7 @@
         </div>
 {% endif %}
 {% endfor %}
+{% endif %}
       </div>
     </section>
 
@@ -207,7 +219,9 @@
       <h2>Open WebUI</h2>
       <div class="link-matrix">
         <div class="group-heading direct">Open WebUI</div>
+{% if demo_home_openwebui_fortiweb_links_present | default(false) %}
         <div class="group-heading fortiweb">Open WebUI Via FortiWeb</div>
+{% endif %}
 {% for link in demo_home_openwebui_links %}
 {% if 'via FortiWeb' not in link.label %}
         <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
@@ -216,6 +230,7 @@
         </a>
 {% endif %}
 {% endfor %}
+{% if demo_home_openwebui_fortiweb_links_present | default(false) %}
 {% for link in demo_home_openwebui_links %}
 {% if 'via FortiWeb' in link.label %}
         <div class="fortiweb-cell">
@@ -226,6 +241,7 @@
         </div>
 {% endif %}
 {% endfor %}
+{% endif %}
       </div>
     </section>
 {% endif %}
@@ -234,7 +250,9 @@
       <h2>Chatbots</h2>
       <div class="link-matrix">
         <div class="group-heading direct">Chatbots</div>
+{% if demo_home_chatbot_fortiweb_links_present | default(false) %}
         <div class="group-heading fortiweb">Chatbots Via FortiWeb</div>
+{% endif %}
 {% for link in demo_home_chatbot_links %}
 {% if 'via FortiWeb' not in link.label %}
         <a class="card" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
@@ -243,6 +261,7 @@
         </a>
 {% endif %}
 {% endfor %}
+{% if demo_home_chatbot_fortiweb_links_present | default(false) %}
 {% for link in demo_home_chatbot_links %}
 {% if 'via FortiWeb' in link.label %}
         <div class="fortiweb-cell">
@@ -253,6 +272,7 @@
         </div>
 {% endif %}
 {% endfor %}
+{% endif %}
       </div>
     </section>
   </main>
