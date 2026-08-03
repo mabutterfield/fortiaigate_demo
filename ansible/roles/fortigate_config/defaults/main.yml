@@ -148,6 +148,7 @@ fortigate_llm_proxy_action: accept
 fortigate_llm_proxy_nat: enable
 fortigate_llm_proxy_status: enable
 fortigate_llm_proxy_logtraffic: all
+fortigate_llm_proxy_logtraffic_start: enable
 fortigate_llm_proxy_policy_id_base: 9400
 fortigate_llm_proxy_policy_common: {}
 fortigate_llm_proxy_builtin_services:
@@ -158,12 +159,17 @@ fortigate_llm_proxy_paths:
   - name: litellm
     service_name: FAIG_LITELLM_LISTENER_4000
     policy_service_name: FAIG_LITELLM_BACKEND_30083
-    policy_service_port: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+    policy_service_ports:
+      - 4000
+      - "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
     vip_name: VIP_FAIG_LITELLM_HTTP_PROXY
     policy_name: allow-faig-litellm-http-proxy
     policyid: "{{ fortigate_llm_proxy_policy_id_base | int }}"
     extport: 4000
     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+    utm_status: enable
+    ssl_ssh_profile: certificate-inspection
+    application_list: default
     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
   - name: faig_https
     service_name: FAIG_HTTPS_LISTENER_443
@@ -172,6 +178,9 @@ fortigate_llm_proxy_paths:
     policyid: "{{ fortigate_llm_proxy_policy_id_base | int + 1 }}"
     extport: 443
     mappedport: 443
+    utm_status: enable
+    ssl_ssh_profile: custom-deep-inspection
+    application_list: default
     comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
 
 # Optional route used by the Phase 10 proxy path to reach k3s through the

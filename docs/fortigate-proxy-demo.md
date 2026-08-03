@@ -181,8 +181,8 @@ FortiGate manual setup:
 |---|---|
 | Listener | FortiGate accepts HTTP on `<fgt-ip>:4000` for LiteLLM and HTTPS on `<fgt-ip>:443` for FortiAIGate. |
 | Forwarding | Traffic is forwarded or NATed to the matching backend service. |
-| Policy | Traditional firewall policy permits the source to the listener and enables logging. |
-| Security profiles | Apply the desired profiles for HTTP inspection/logging, and TLS inspection when testing the FAIG HTTPS path. |
+| Policy | Traditional firewall policy permits the source to the listener and enables full traffic logging. |
+| Security profiles | LiteLLM HTTP uses SSL/SSH profile `certificate-inspection` plus Application Control `default`; FAIG HTTPS uses SSL/SSH profile `custom-deep-inspection` plus Application Control `default`. |
 | Scope | Keep this as a FortiGate inspection demo, not a FAIG guard test. |
 
 Basic curl validation:
@@ -191,6 +191,10 @@ Basic curl validation:
 curl -sS http://<fgt-ip>:4000/v1/models
 curl -ksS https://<fgt-ip>/v1/passthrough/models
 ```
+
+Use `-k` only for this lab FAIG HTTPS path when FortiGate deep inspection or
+the backend gateway presents a certificate chain your workstation does not
+trust.
 
 Chat completion validation:
 
@@ -290,12 +294,17 @@ fortigate_llm_proxy_paths:
   - name: litellm
     service_name: FAIG_LITELLM_LISTENER_4000
     policy_service_name: FAIG_LITELLM_BACKEND_30083
-    policy_service_port: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+    policy_service_ports:
+      - 4000
+      - "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
     vip_name: LiteLLM
     policy_name: allow-faig-litellm-http-proxy
     policyid: 9400
     extport: 4000
     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
+    utm_status: enable
+    ssl_ssh_profile: certificate-inspection
+    application_list: default
     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
   - name: faig_https
     service_name: FAIG_HTTPS_LISTENER_443
@@ -304,6 +313,9 @@ fortigate_llm_proxy_paths:
     policyid: 9401
     extport: 443
     mappedport: 443
+    utm_status: enable
+    ssl_ssh_profile: custom-deep-inspection
+    application_list: default
     comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
 ```
 
@@ -312,7 +324,7 @@ Generated objects:
 | Object type | LiteLLM | FortiAIGate |
 |---|---|---|
 | Listener service | `FAIG_LITELLM_LISTENER_4000` | `FAIG_HTTPS_LISTENER_443` |
-| Policy service | `FAIG_LITELLM_BACKEND_30083` | `FAIG_HTTPS_LISTENER_443` |
+| Policy service | `FAIG_LITELLM_BACKEND_30083`, TCP `4000 30083` by default | `FAIG_HTTPS_LISTENER_443` |
 | VIP | `VIP_FAIG_LITELLM_HTTP_PROXY` | `VIP_FAIG_HTTPS_PROXY` |
 | Policy | `allow-faig-litellm-http-proxy` | `allow-faig-https-proxy` |
 | Listener | TCP `4000` | TCP `443` |

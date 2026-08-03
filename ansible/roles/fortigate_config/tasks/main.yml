@@ -258,7 +258,7 @@
   vars:
     fortigate_generated_policy_service_object:
       name: "{{ item.policy_service_name }}"
-      tcp_portrange: "{{ item.policy_service_port | string }}"
+      tcp_portrange: "{{ (item.policy_service_ports | default([item.policy_service_port | default('')])) | reject('equalto', '') | map('string') | unique | join(' ') }}"
       comment: "{{ item.comment }} translated destination"
   loop: "{{ fortigate_llm_proxy_paths }}"
   loop_control:
@@ -269,7 +269,7 @@
     - fortigate_llm_proxy_manage_services | bool
     - item.policy_service_name | default('') | string | length > 0
     - item.policy_service_name | string != item.service_name | string
-    - item.policy_service_port | default('') | string | length > 0
+    - (item.policy_service_ports | default([item.policy_service_port | default('')])) | reject('equalto', '') | list | length > 0
   tags: [fortigate_config, fortigate_services, fortigate_llm_proxy]
   # - ansible.builtin.debug:
   #     var: fortigate_generated_service_objects
@@ -315,10 +315,18 @@
         + [
           fortigate_generated_firewall_policy
           | combine(fortigate_llm_proxy_policy_common, recursive=True)
+          | combine(fortigate_generated_firewall_policy_security_profiles, recursive=True)
           | combine(item.policy_overrides | default({}), recursive=True)
         ]
       }}
   vars:
+    fortigate_generated_firewall_policy_security_profiles: >-
+      {{
+        {}
+        | combine(({'utm_status': item.utm_status} if item.utm_status is defined else {}), recursive=True)
+        | combine(({'ssl_ssh_profile': item.ssl_ssh_profile} if item.ssl_ssh_profile is defined else {}), recursive=True)
+        | combine(({'application_list': item.application_list} if item.application_list is defined else {}), recursive=True)
+      }}
     fortigate_generated_firewall_policy:
       policyid: "{{ item.policyid | int }}"
       name: "{{ item.policy_name }}"
@@ -335,6 +343,7 @@
       service:
         - name: "{{ item.policy_service_name | default(item.service_name) }}"
       logtraffic: "{{ fortigate_llm_proxy_logtraffic }}"
+      logtraffic_start: "{{ fortigate_llm_proxy_logtraffic_start }}"
       nat: "{{ fortigate_llm_proxy_nat }}"
       status: "{{ fortigate_llm_proxy_status }}"
       comments: "{{ item.comment }}"

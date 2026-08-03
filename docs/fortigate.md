@@ -127,6 +127,21 @@ tracks:
 - inbound HTTPS FortiAIGate inspection through
   `https://<fgt-ip>/v1/...`, forwarded to the k3s HTTPS ingress
 
+When `fortigate_llm_proxy_enabled=true`, Ansible generates the listener VIPs
+and policies with full traffic logging, Application Control profile `default`,
+and SSL/SSH inspection profiles selected for the path:
+
+| Path | Listener | Backend | SSL/SSH profile | Application Control |
+|---|---|---|---|---|
+| LiteLLM HTTP | `TCP/4000` | k3s LiteLLM NodePort, default `30083` | `certificate-inspection` | `default` |
+| FAIG HTTPS | `TCP/443` | k3s HTTPS ingress `443` | `custom-deep-inspection` | `default` |
+
+The LiteLLM policy service includes both `4000` and the translated backend
+NodePort so policy matching remains useful while testing FortiGate VIP/NAT
+behavior. The FAIG HTTPS path may present an untrusted certificate to test
+clients; use explicit TLS verification disablement, such as `curl -k`, only for
+this lab path.
+
 The goal is to generate traffic that FortiGate classifies, inspects, and logs.
 Do not insert or falsify appliance log records. This path does not alter the
 default AWS quickstart, local quickstart, or FAIG scenario routing.

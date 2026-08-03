@@ -267,7 +267,7 @@ Candidate validation points:
 | Traffic path | Traffic traverses a FortiGate policy with logging and an application-control profile enabled. |
 | Routed VM | Outbound AI app tests run direct/no-proxy from a VM or lab host behind FortiGate. |
 | Explicit proxy | Optional workstation proxy tests use a script-scoped explicit proxy URL rather than changing workstation routing or global proxy environment. |
-| AI inspection | `http://<fgt-ip>:4000/v1` forwards to LiteLLM and `https://<fgt-ip>/v1/...` forwards to FortiAIGate; FortiGate records request evidence for a marked test prompt when the selected profile logs it. |
+| AI inspection | `http://<fgt-ip>:4000/v1` forwards to LiteLLM with `certificate-inspection`; `https://<fgt-ip>/v1/...` forwards to FortiAIGate with `custom-deep-inspection`. Both policies use Application Control `default` and full traffic logging. |
 | Synthetic identity | Requests include a clear lab label where possible, such as hostnames, paths, or user agents that identify the run. |
 | App-control evidence | FortiGate logs show application name/category/action fields for the generated flow. |
 | Correlation | Traffic-generator run label and timestamps can be correlated with FortiGate logs and FortiAIGate logs. |
