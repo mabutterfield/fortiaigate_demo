@@ -74,6 +74,7 @@ Required validation points:
 |---|---|---|
 | AWS identity/profile | quickstart caller-identity check | Valid profile before Terraform. |
 | ECR create/import | quickstart ECR state report | Existing repositories imported or new repositories created intentionally. |
+| Chatbot image tag | `chatbot_image_tag` in repo/user vars | Branch-version releases intentionally bump or confirm the chatbot tag before publishing. |
 | AWS prep | Terraform apply output | IAM, EIPs, S3 syslog resources when enabled, and generated vars created. |
 | EC2 k3s foundation | EC2 READY check and `validate_k3s.yml` | Instance, system status, Kubernetes, DNS, NVIDIA runtime are healthy. |
 | FortiGate | `status_fortigate.yml`, `configure_fortigate.yml` | Appliance reachable; managed objects compare/apply cleanly when enabled. |
@@ -252,8 +253,8 @@ Result log:
 Phase 10E investigates whether traffic from a VM behind FortiGate can produce
 synthetic traffic that is classified by FortiGate Application Control and
 therefore creates useful FortiGate app-control logs for the demo. It also
-defines separate inbound plain HTTP LLM paths through FortiGate to LiteLLM and
-Ollama for deep inspection comparison.
+defines separate inbound paths through FortiGate to LiteLLM and FortiAIGate for
+deep inspection comparison.
 
 This should generate lab traffic that causes FortiGate to log recognizable
 application-control events. It should not directly insert, forge, or present
@@ -266,7 +267,7 @@ Candidate validation points:
 | Traffic path | Traffic traverses a FortiGate policy with logging and an application-control profile enabled. |
 | Routed VM | Outbound AI app tests run direct/no-proxy from a VM or lab host behind FortiGate. |
 | Explicit proxy | Optional workstation proxy tests use a script-scoped explicit proxy URL rather than changing workstation routing or global proxy environment. |
-| LLM inspection | `http://<fgt-ip>:4000/v1` forwards to LiteLLM and/or `http://<fgt-ip>:11434/v1` forwards to Ollama; FortiGate records HTTP request evidence for a marked test prompt when the selected profile logs it. |
+| AI inspection | `http://<fgt-ip>:4000/v1` forwards to LiteLLM and `https://<fgt-ip>/v1/...` forwards to FortiAIGate; FortiGate records request evidence for a marked test prompt when the selected profile logs it. |
 | Synthetic identity | Requests include a clear lab label where possible, such as hostnames, paths, or user agents that identify the run. |
 | App-control evidence | FortiGate logs show application name/category/action fields for the generated flow. |
 | Correlation | Traffic-generator run label and timestamps can be correlated with FortiGate logs and FortiAIGate logs. |

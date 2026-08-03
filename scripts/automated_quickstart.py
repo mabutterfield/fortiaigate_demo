@@ -608,6 +608,17 @@ def get_layered_yaml_bool(key: str, default: bool = False) -> bool:
     return value
 
 
+def get_layered_yaml_list_strings(key: str) -> list[str]:
+    values: list[str] = []
+    for rel_path in ANSIBLE_VAR_LOAD_ORDER:
+        path = REPO_ROOT / rel_path
+        if path.exists():
+            next_values = get_yaml_list_strings(read_file(path), key)
+            if next_values:
+                values = next_values
+    return values
+
+
 def set_yaml_scalar(content: str, key: str, value: str) -> str:
     replacement = f"{key}: {value}"
     pattern = rf"(?m)^\s*{re.escape(key)}:\s*.*$"
@@ -1603,6 +1614,144 @@ def run_ansible_playbook_until_success(
         time.sleep(delay)
 
 
+def resolve_layered_scalar_reference(value: str, default: str = "") -> str:
+    stripped = value.strip()
+    if not stripped:
+        return default
+    simple_reference = re.fullmatch(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}", stripped)
+    if simple_reference:
+        return get_layered_yaml_scalar(simple_reference.group(1), default)
+    default_filter = re.fullmatch(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\(['\"]([^'\"]+)['\"]\)\s*\}\}", stripped)
+    if default_filter:
+        return get_layered_yaml_scalar(default_filter.group(1), default_filter.group(2))
+    if "{{" in stripped or "}}" in stripped:
+        return default
+    return stripped
+
+
+def ecr_tag_status(aws_profile: str, aws_region: str, repository_name: str, image_tag: str) -> tuple[str, str]:
+    result = subprocess.run(
+        [
+            "aws",
+            "ecr",
+            "describe-images",
+            "--profile",
+            aws_profile,
+            "--region",
+            aws_region,
+            "--repository-name",
+            repository_name,
+            "--image-ids",
+            f"imageTag={image_tag}",
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode == 0:
+        return "present", ""
+    stderr = result.stderr or ""
+    if "ImageNotFoundException" in stderr:
+        return "missing", "tag missing"
+    if "RepositoryNotFoundException" in stderr:
+        return "missing", "repository missing"
+    detail = stderr.strip().splitlines()[-1] if stderr.strip() else f"aws exited {result.returncode}"
+    return "unknown", detail
+
+
+def expected_fortiaigate_ecr_tags() -> list[tuple[str, str]]:
+    repo_prefix = resolve_layered_scalar_reference(
+        get_layered_yaml_scalar("repo_prefix", ""),
+        resolve_layered_scalar_reference(get_layered_yaml_scalar("ecr_repo_prefix", ""), "fortiaigate"),
+    )
+    app_tag = resolve_layered_scalar_reference(
+        get_layered_yaml_scalar("fortiaigate_image_tag", ""),
+        resolve_layered_scalar_reference(get_layered_yaml_scalar("image_tag", ""), ""),
+    )
+    triton_model_tag = resolve_layered_scalar_reference(get_layered_yaml_scalar("fortiaigate_triton_model_image_tag", ""), "")
+    triton_image_tag = resolve_layered_scalar_reference(get_layered_yaml_scalar("fortiaigate_triton_image_tag", ""), "")
+    target_repos = get_layered_yaml_list_strings("publish_target_repos")
+    target_repo_filter = {repo.strip() for repo in target_repos if repo.strip()}
+
+    entries = [
+        ("api", app_tag),
+        ("core", app_tag),
+        ("webui", app_tag),
+        ("scanner", app_tag),
+        ("logd", app_tag),
+        ("license_manager", app_tag),
+        ("triton-models", triton_model_tag),
+        ("custom-triton", triton_image_tag),
+    ]
+    if target_repo_filter:
+        entries = [entry for entry in entries if entry[0] in target_repo_filter]
+
+    return [(f"{repo_prefix}/{repo}", tag) for repo, tag in entries if repo_prefix and tag]
+
+
+def expected_chatbot_ecr_tag() -> tuple[str, str] | None:
+    repo_prefix = resolve_layered_scalar_reference(
+        get_layered_yaml_scalar("repo_prefix", ""),
+        resolve_layered_scalar_reference(get_layered_yaml_scalar("ecr_repo_prefix", ""), "fortiaigate"),
+    )
+    chatbot_tag = resolve_layered_scalar_reference(get_layered_yaml_scalar("chatbot_image_tag", ""), "")
+    if not repo_prefix or not chatbot_tag:
+        return None
+    return f"{repo_prefix}/chatbot-basic", chatbot_tag
+
+
+def show_ecr_image_publish_preflight() -> None:
+    print("Image publishing can take a long time when FortiAIGate images are selected.")
+    print("FortiAIGate/all publishing may load and compare large image archives before deciding whether to skip.")
+    print("Choose chatbot only when you only changed the chatbot UI or agent code.")
+
+    registry_type = resolve_layered_scalar_reference(get_layered_yaml_scalar("registry_type", "ecr"), "ecr")
+    if registry_type != "ecr":
+        print(f"Registry preflight: skipped for registry_type={registry_type}; quickstart only checks ECR tags.")
+        return
+
+    aws_profile = get_layered_yaml_scalar("aws_profile", "")
+    aws_region = get_layered_yaml_scalar("aws_region", "")
+    if not aws_profile or not aws_region:
+        print("ECR preflight: skipped because aws_profile/aws_region are not available yet.")
+        return
+
+    targets: list[tuple[str, str, str]] = []
+    chatbot_target = expected_chatbot_ecr_tag()
+    if chatbot_target:
+        targets.append(("chatbot", chatbot_target[0], chatbot_target[1]))
+    targets.extend(("fortiaigate", repository, tag) for repository, tag in expected_fortiaigate_ecr_tags())
+
+    if not targets:
+        print("ECR preflight: no target tags could be inferred from current vars.")
+        return
+
+    print("ECR target tag preflight:")
+    grouped_counts = {
+        "chatbot": {"present": 0, "missing": 0, "unknown": 0},
+        "fortiaigate": {"present": 0, "missing": 0, "unknown": 0},
+    }
+    for group, repository, tag in targets:
+        status, detail = ecr_tag_status(aws_profile, aws_region, repository, tag)
+        grouped_counts.setdefault(group, {"present": 0, "missing": 0, "unknown": 0})
+        grouped_counts[group][status] += 1
+        suffix = f" ({detail})" if detail else ""
+        print(f"- {group}: {repository}:{tag} -> {status}{suffix}")
+
+    chatbot_counts = grouped_counts.get("chatbot", {})
+    fortiaigate_counts = grouped_counts.get("fortiaigate", {})
+    if chatbot_counts.get("missing", 0) == 0 and chatbot_counts.get("unknown", 0) == 0:
+        print("Chatbot image tag appears to exist already; publish chatbot only if you changed chatbot code.")
+    if fortiaigate_counts.get("missing", 0) == 0 and fortiaigate_counts.get("unknown", 0) == 0:
+        print("All inferred FortiAIGate image tags appear to exist already; avoid FortiAIGate/all publishing unless you are changing image contents.")
+    elif fortiaigate_counts.get("missing", 0) > 0:
+        print("One or more FortiAIGate tags are missing; FortiAIGate/all publishing may be needed.")
+    if chatbot_counts.get("unknown", 0) or fortiaigate_counts.get("unknown", 0):
+        print("Some ECR checks were unknown. This is advisory only; the publish playbooks perform final validation.")
+
+
 def run_image_publishing(args: argparse.Namespace, *, inventory: str | None = None) -> None:
     print_header("Ansible: Image Publishing")
     if args.yolo:
@@ -1610,11 +1759,13 @@ def run_image_publishing(args: argparse.Namespace, *, inventory: str | None = No
         print("Deployments assume required images already exist in the registry.")
         return
 
+    show_ecr_image_publish_preflight()
+    print()
     print("Choose which images to publish now:")
-    print("1. none (default)")
-    print("2. chatbot only")
-    print("3. FortiAIGate only")
-    print("4. all")
+    print("1. none (default, fastest when required images already exist)")
+    print("2. chatbot only (usually quick; use for chatbot UI/agent changes)")
+    print("3. FortiAIGate only (can take significant time; avoid unless FAIG images are missing or changed)")
+    print("4. all (can take significant time; avoid unless both chatbot and FAIG images need publishing)")
     while True:
         selection = prompt_text("Image publishing selection", "none").strip().lower()
         if selection in {"", "1", "n", "none", "no", "skip"}:
@@ -1756,12 +1907,12 @@ def run_post_application_validations(appliance_keys: list[str], *, inventory: st
         return
 
     print_header("Ansible: Validate Demo HTTP Paths")
-    run_ansible_playbook("validate_demo_http_paths.yml", inventory=inventory, check=False)
+    run_ansible_playbook("validate_demo_http_paths.yml", inventory=inventory)
 
 
 def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inventory: str | None = None) -> None:
     print_header("Ansible Deployment")
-    if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", False):
+    if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", True):
         raise SystemExit("Stopped before Ansible execution.")
 
     faig_status_mode = args.faig_status_mode or "once"
