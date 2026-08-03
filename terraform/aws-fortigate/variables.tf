@@ -199,6 +199,12 @@ variable "fortigate_enable_icmp" {
   default     = true
 }
 
+variable "fortigate_public_listener_tcp_ports" {
+  type        = list(number)
+  description = "Additional trusted-public TCP listener ports exposed on the FortiGate public ENI security group. Port 4000 supports the optional Phase 10 LiteLLM proxy path."
+  default     = [4000]
+}
+
 variable "fortigate_api_admin" {
   type        = string
   description = "FortiGate API administrator name."

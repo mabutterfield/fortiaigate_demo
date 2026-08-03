@@ -43,6 +43,8 @@
 # fortigate_llm_proxy_paths:
 #   - name: litellm
 #     service_name: FAIG_LITELLM_LISTENER_4000
+#     policy_service_name: FAIG_LITELLM_BACKEND_30083
+#     policy_service_port: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
 #     vip_name: LiteLLM
 #     policy_name: allow-faig-litellm-http-proxy
 #     policyid: 9400

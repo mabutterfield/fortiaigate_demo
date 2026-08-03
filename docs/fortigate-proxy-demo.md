@@ -159,10 +159,9 @@ chatbot_fortigate_litellm_base_url: "http://{{ fortigate_public_private_ip }}:40
 chatbot_faig_base_url: "https://{{ fortigate_public_private_ip }}"
 ```
 
-Using the FortiGate public EIP for these listener ports requires separate AWS
-security-group exposure for TCP `4000`. TCP `443` is already part of the
-FortiGate management security-group defaults, but the FortiGate admin service
-uses `8443` in this demo so `443` can be used for the FAIG VIP.
+The AWS FortiGate security group exposes TCP `4000` and `443` from trusted
+public CIDRs by default. The FortiGate admin service uses `8443` in this demo,
+so `443` can be used for the FAIG VIP.
 
 Then redeploy the chatbot:
 
@@ -290,6 +289,8 @@ fortigate_llm_proxy_manage_vips: false
 fortigate_llm_proxy_paths:
   - name: litellm
     service_name: FAIG_LITELLM_LISTENER_4000
+    policy_service_name: FAIG_LITELLM_BACKEND_30083
+    policy_service_port: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
     vip_name: LiteLLM
     policy_name: allow-faig-litellm-http-proxy
     policyid: 9400
@@ -310,7 +311,8 @@ Generated objects:
 
 | Object type | LiteLLM | FortiAIGate |
 |---|---|---|
-| Service | `FAIG_LITELLM_LISTENER_4000` | `FAIG_HTTPS_LISTENER_443` |
+| Listener service | `FAIG_LITELLM_LISTENER_4000` | `FAIG_HTTPS_LISTENER_443` |
+| Policy service | `FAIG_LITELLM_BACKEND_30083` | `FAIG_HTTPS_LISTENER_443` |
 | VIP | `VIP_FAIG_LITELLM_HTTP_PROXY` | `VIP_FAIG_HTTPS_PROXY` |
 | Policy | `allow-faig-litellm-http-proxy` | `allow-faig-https-proxy` |
 | Listener | TCP `4000` | TCP `443` |

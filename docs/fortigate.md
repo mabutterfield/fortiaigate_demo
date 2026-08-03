@@ -163,6 +163,11 @@ ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes through
 `fortigate_admin_timeout_minutes`.
 
+The FortiGate AWS security group also exposes TCP `4000` from trusted public
+CIDRs by default for the optional Phase 10 LiteLLM proxy listener. Override
+`fortigate_public_listener_tcp_ports` in ignored FortiGate tfvars only when the
+lab needs a different public listener set.
+
 Set `fortigate_license_mode = "fortiflex_token"` and
 `fortigate_fortiflex_token` in ignored `terraform/aws-fortigate/99-local.auto.tfvars`
 to inject a FortiFlex token through cloud-init. Token changes replace the

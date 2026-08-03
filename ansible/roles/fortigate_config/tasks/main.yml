@@ -252,6 +252,28 @@
   # - ansible.builtin.debug:
   #     var: fortigate_generated_service_objects
 
+- name: Build generated FortiGate LLM proxy policy services
+  ansible.builtin.set_fact:
+    fortigate_generated_service_objects: "{{ (fortigate_generated_service_objects | default([])) + [fortigate_generated_policy_service_object] }}"
+  vars:
+    fortigate_generated_policy_service_object:
+      name: "{{ item.policy_service_name }}"
+      tcp_portrange: "{{ item.policy_service_port | string }}"
+      comment: "{{ item.comment }} translated destination"
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.policy_service_name | default(item.service_name) }}"
+  when:
+    - fortigate_config_enable_services | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_services | bool
+    - item.policy_service_name | default('') | string | length > 0
+    - item.policy_service_name | string != item.service_name | string
+    - item.policy_service_port | default('') | string | length > 0
+  tags: [fortigate_config, fortigate_services, fortigate_llm_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_service_objects
+
 - name: Build generated FortiGate LLM proxy VIP objects
   ansible.builtin.set_fact:
     fortigate_generated_vip_objects: "{{ (fortigate_generated_vip_objects | default([])) + [fortigate_generated_vip_object] }}"
@@ -311,7 +333,7 @@
       action: "{{ fortigate_llm_proxy_action }}"
       schedule: "{{ fortigate_llm_proxy_schedule }}"
       service:
-        - name: "{{ item.service_name }}"
+        - name: "{{ item.policy_service_name | default(item.service_name) }}"
       logtraffic: "{{ fortigate_llm_proxy_logtraffic }}"
       nat: "{{ fortigate_llm_proxy_nat }}"
       status: "{{ fortigate_llm_proxy_status }}"
