@@ -571,12 +571,12 @@ model, or the chain can loop. LiteLLM treats the re-entry URI as an
 OpenAI-compatible base URL, so `/v1/passthrough` receives
 `/v1/passthrough/chat/completions`.
 
-When a frontend-layer prompt is intentionally needed, set either
-`chatbot_frontend_system_prompt` or
-`chatbot_frontend_system_prompt_source_path` in `ansible/group_vars/user.yml`.
-The tracked example file is
-`chatbot/instructions/examples/chatbot-frontend.instructions.txt`; active
-local prompt files belong under ignored `chatbot/instructions/local/`.
+When a frontend-layer prompt is intentionally needed, install or edit the local
+frontend instruction slot and redeploy the chatbot. The default deployment
+packages that slot when present, but starts with `Use frontend instructions`
+off in the chatbot UI. The tracked example file is
+`chatbot/instructions/examples/chatbot-frontend.instructions.txt`; active local
+prompt files belong under ignored `chatbot/instructions/local/`.
 
 Check readiness separately:
 

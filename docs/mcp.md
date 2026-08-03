@@ -376,9 +376,11 @@ shows `Direct MCP`, confirm the FortiWeb generated vars include
 `fortiweb_public_private_ip` and redeploy the chatbot after FortiWeb is
 configured.
 
-Chatbot frontend instructions are disabled by default because backend demo
-instructions normally live in LiteLLM profiles. To intentionally add a
-browser/UI-layer system prompt, set one of:
+Chatbot frontend instructions are available but disabled by default because
+backend demo instructions normally live in LiteLLM profiles. The default
+deployment packages the local frontend slot when present and starts with the
+`Use frontend instructions` checkbox off. To intentionally override the prompt
+source, set one of:
 
 ```yaml
 chatbot_frontend_system_prompt: "Inline system prompt text"

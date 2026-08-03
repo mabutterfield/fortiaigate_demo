@@ -416,10 +416,11 @@ chatbot_phase10_scenario_model_options:
 chatbot_model_options_base: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
 chatbot_model_options: "{{ chatbot_model_options_base + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
-# Optional UI-layer system prompt. Leave empty for the default architecture
-# where backend demo instructions are injected by LiteLLM instead.
-chatbot_frontend_system_prompt_source_path: ""
-# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
+# Optional UI-layer system prompt. The local frontend slot is packaged into the
+# chatbot when present, but the UI checkbox starts off so backend-only behavior
+# remains the default.
+chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
+chatbot_frontend_system_prompt_enabled: false
 # MCP tools are enabled in the browser UI by default. The current default path
 # is direct chatbot -> MCP. When terraform/aws-fortiweb has generated
 # ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url

@@ -52,29 +52,19 @@ python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a 
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
-For the compromised frontend run, install the frontend fixture and configure
-the chatbot to load the frontend slot:
+For the compromised frontend run, install the frontend fixture and redeploy the
+chatbot:
 
 ```bash
 python3 scripts/scenario_profiles.py install fortistore-injection --slot frontend --force
-```
-
-Set this ignored local variable before deploying the chatbot:
-
-```yaml
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-```
-
-Then deploy the chatbot:
-
-```bash
 ansible-playbook ansible/playbooks/deploy_chatbots.yml
 ```
 
-The chatbot UI includes a `Use frontend instructions` checkbox. Leave it off
-for the backend-only control run, then turn it on to activate the compromised
-frontend fixture. This avoids reinstalling or redeploying between the two
-comparisons once the frontend slot has been deployed.
+The chatbot packages the local frontend slot by default when present, but the
+UI starts with `Use frontend instructions` off. Leave it off for the
+backend-only control run, then turn it on to activate the compromised frontend
+fixture. This avoids reinstalling or redeploying between the two comparisons
+once the frontend slot has been deployed.
 
 ## Chatbot Settings
 

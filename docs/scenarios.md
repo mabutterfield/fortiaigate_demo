@@ -220,26 +220,18 @@ ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
 For the optional compromised frontend/system-prompt injection run, install the
-frontend fixture once:
+frontend fixture once and redeploy the chatbot:
 
 ```bash
 python3 scripts/scenario_profiles.py install fortistore-injection --slot frontend --force
-```
-
-Set this ignored local variable and redeploy the chatbot once:
-
-```yaml
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-```
-
-```bash
 ansible-playbook ansible/playbooks/deploy_chatbots.yml
 ```
 
-After deployment, use the chatbot sidebar checkbox `Use frontend instructions`
-to switch between backend-only behavior and the compromised frontend fixture.
-Turn it off for the backend-only control run, then turn it on and repeat the
-same prompts.
+The default chatbot deployment packages the local frontend slot when present,
+but starts with `Use frontend instructions` off. After deployment, use that
+checkbox to switch between backend-only behavior and the compromised frontend
+fixture. Turn it off for the backend-only control run, then turn it on and
+repeat the same prompts.
 
 Chatbot settings:
 

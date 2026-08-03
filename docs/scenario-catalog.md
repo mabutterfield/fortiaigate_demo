@@ -218,12 +218,13 @@ Frontend-injection setup for the vulnerable run:
 
 ```bash
 python3 scripts/scenario_profiles.py install fortistore-injection --slot frontend --force
+ansible-playbook ansible/playbooks/deploy_chatbots.yml
 ```
 
-Set `chatbot_frontend_system_prompt_source_path` in ignored local vars to
-`{{ chatbot_instruction_profile_files.frontend.local_path }}` and redeploy the
-chatbot. Remove or blank that variable and redeploy to return to backend-only
-behavior.
+The chatbot packages the local frontend slot by default when present, but
+starts with `Use frontend instructions` off. Use the UI checkbox to switch
+between backend-only behavior and the compromised frontend run without changing
+local vars or redeploying again.
 
 Prompt set:
 
