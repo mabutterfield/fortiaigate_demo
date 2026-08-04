@@ -191,6 +191,7 @@ def install_scenario(
         "mcp": mcp,
         "tool_profile": profile.get("mcp", {}).get("tool_profile", ""),
         "required_tools": profile.get("mcp", {}).get("required_tools", []),
+        "chatbot_demo_profiles": profile.get("chatbot_demo_profiles", []),
         "updated_at": int(time.time()),
     }
     instruction_profiles.write_json(instruction_profiles.metadata_path_for_instruction(destination), metadata)

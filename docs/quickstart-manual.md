@@ -548,6 +548,13 @@ The chatbot has three backend modes:
   `demo-a` and `demo-b` send the configurable `faig_model_route_header_name`
   header, default `X-FAIG-Model-Route`.
 
+The chatbot defaults to the detailed operator UI. Installed scenario metadata
+can also populate a simplified presenter UI where one `Demo Profile` dropdown
+applies the path, route, context, frontend-instruction, and MCP settings.
+Changing simplified profiles after the chatbot image supports this feature only
+requires `deploy_chatbots.yml`; chatbot code changes still require publishing a
+new chatbot image first.
+
 Backend demo instructions are normally injected by LiteLLM so FortiAIGate can
 inspect the user-visible request before those backend-only demo instructions
 are added.

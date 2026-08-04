@@ -22,6 +22,7 @@ runbook whenever a profile changes:
 - MCP path
 - MCP tool profile
 - max tool rounds
+- simplified chatbot demo profiles
 - expected tools and expected response marker
 
 ## Edit And Test Workflow
@@ -91,6 +92,45 @@ Changing which scenario is installed normally needs only the relevant scenario
 install command and `deploy_chatbots.yml` to update the dropdown. Changing MCP
 tool code or data still requires `deploy_mcp.yml`. Changing chatbot filtering
 logic requires rebuilding/publishing the chatbot image.
+
+## Simplified Chatbot Profiles
+
+The chatbot has two UI modes:
+
+- `Detailed`: the default operator/debug view with explicit controls for path,
+  route, model/profile, context, frontend instructions, and MCP tools.
+- `Simplified`: a presenter view where one `Demo Profile` dropdown applies the
+  path, route, model/profile, context, frontend instruction, and MCP settings.
+
+Scenario `profile.json` files can define `chatbot_demo_profiles`. During
+`deploy_chatbots.yml`, the chatbot role reads installed scenario metadata from
+`chatbot_simplified_profile_slots`, defaulting to `demo-a`, `demo-b`, and
+`frontend`, and passes those presets to the app. Existing installed scenarios
+can also pick up tracked preset changes from their scenario ID on the next
+chatbot deploy.
+
+Example profile:
+
+```json
+{
+  "id": "hr-dlp-output-protect",
+  "label": "HR DLP - Output Protect",
+  "provider_path": "faig-static",
+  "route": "demo-c",
+  "mcp_enabled": true,
+  "mcp_path": "direct",
+  "mcp_tool_profile": "hr-tool-dlp",
+  "mcp_max_tool_rounds": 5,
+  "frontend_system_prompt_enabled": false,
+  "context_mode": "recent",
+  "context_window": 8
+}
+```
+
+Use intent-based labels such as `Detect Only`, `Input Protect`, or `Output DLP`
+instead of exposing internal route names. Route IDs such as `demo-a` and
+`demo-c` are implementation details and can be renamed later without changing
+the presenter-facing dropdown labels.
 
 Inactive legacy and in-progress profiles still declare their historical tool
 profiles in `chatbot/scenarios/examples/catalog.json` and their scenario

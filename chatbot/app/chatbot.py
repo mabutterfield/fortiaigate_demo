@@ -183,6 +183,16 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def coerce_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 def env_float(name: str, default: float) -> float:
     try:
         return float(os.getenv(name, str(default)))
@@ -262,6 +272,40 @@ def env_json_tool_profiles(name: str) -> list[dict[str, Any]]:
     return profiles
 
 
+def env_json_demo_profiles(name: str) -> list[dict[str, Any]]:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{name} is not valid JSON: {exc}") from exc
+    if isinstance(parsed, dict):
+        parsed = [
+            {"id": key, **profile}
+            for key, profile in parsed.items()
+            if isinstance(profile, dict)
+        ]
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"{name} must be a JSON list or object")
+
+    profiles = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise RuntimeError(f"{name} entries must be JSON objects")
+        profile_id = str(item.get("id", "")).strip()
+        if not profile_id:
+            raise RuntimeError(f"{name} entries require a non-empty id")
+        profile = dict(item)
+        profile["id"] = profile_id
+        profile["label"] = str(profile.get("label") or profile_id).strip()
+        profile["provider_path"] = normalize_provider_path(str(profile.get("provider_path") or "Direct LiteLLM"))
+        profile["context_mode"] = normalize_context_mode(str(profile.get("context_mode") or "recent"))
+        profile["mcp_path"] = normalize_mcp_path(str(profile.get("mcp_path") or "direct"))
+        profiles.append(profile)
+    return profiles
+
+
 def build_mcp_tool_profiles(
     extra_profiles: list[dict[str, Any]] | None = None,
     *,
@@ -330,6 +374,70 @@ def normalize_context_mode(value: str) -> str:
         "summary": "consolidated",
     }
     return aliases.get(normalized, "recent")
+
+
+def normalize_provider_path(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "direct": "Direct LiteLLM",
+        "direct-litellm": "Direct LiteLLM",
+        "litellm": "Direct LiteLLM",
+        "fortigate": "FortiGate -> LiteLLM",
+        "fortigate-litellm": "FortiGate -> LiteLLM",
+        "fgt-litellm": "FortiGate -> LiteLLM",
+        "fortigate-ollama": "FortiGate -> Ollama",
+        "fgt-ollama": "FortiGate -> Ollama",
+        "faig-static": "FAIG Static Route",
+        "faig-static-route": "FAIG Static Route",
+        "static": "FAIG Static Route",
+        "faig-intelligent": "FAIG Intelligent Route",
+        "faig-intelligent-route": "FAIG Intelligent Route",
+        "intelligent": "FAIG Intelligent Route",
+    }
+    return aliases.get(normalized, value or "Direct LiteLLM")
+
+
+def normalize_mcp_path(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
+    if normalized in {"fortiweb", "fortiweb-mcp", "mcp-fortiweb"}:
+        return "fortiweb"
+    return "direct"
+
+
+def clear_chat_state() -> None:
+    st.session_state.messages = []
+    st.session_state.context_summary = ""
+    st.session_state.mcp_tool_trace = {}
+    st.session_state.mcp_trace_drawer_open = False
+
+
+def demo_profile_available(
+    profile: dict[str, Any],
+    *,
+    provider_options: list[str],
+    direct_base_url: str,
+    fortigate_litellm_base_url: str,
+    fortigate_ollama_base_url: str,
+    faig_base_url: str,
+    faig_static_routes: list[dict[str, Any]],
+    faig_header_routes: list[dict[str, Any]],
+) -> bool:
+    provider_path = normalize_provider_path(str(profile.get("provider_path") or "Direct LiteLLM"))
+    if provider_path not in provider_options:
+        return False
+    if provider_path == "Direct LiteLLM":
+        return bool(direct_base_url)
+    if provider_path == "FortiGate -> LiteLLM":
+        return bool(fortigate_litellm_base_url)
+    if provider_path == "FortiGate -> Ollama":
+        return bool(fortigate_ollama_base_url)
+    if provider_path == "FAIG Static Route":
+        route_name = str(profile.get("route") or profile.get("faig_static_route") or "").strip()
+        return bool(faig_base_url) and route_name in {str(route.get("name")) for route in faig_static_routes}
+    if provider_path == "FAIG Intelligent Route":
+        route_name = str(profile.get("route") or profile.get("faig_header_route") or "").strip()
+        return bool(faig_base_url) and route_name in {str(route.get("name")) for route in faig_header_routes}
+    return False
 
 
 def visible_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -655,6 +763,66 @@ def apply_faig_header_route(
         if header_value:
             headers[header_name] = header_value
     return routed_base_url, routed_model, headers
+
+
+def route_by_name(routes: list[dict[str, Any]], route_name: str) -> dict[str, Any]:
+    for route in routes:
+        if route.get("name") == route_name:
+            return route
+    available = ", ".join(str(route.get("name")) for route in routes)
+    raise RuntimeError(f"Unknown route '{route_name}'. Available: {available}")
+
+
+def resolve_backend_selection(
+    provider_path: str,
+    *,
+    direct_base_url: str,
+    direct_api_key: str,
+    fortigate_litellm_base_url: str,
+    fortigate_litellm_api_key: str,
+    fortigate_ollama_base_url: str,
+    fortigate_ollama_api_key: str,
+    faig_base_url: str,
+    faig_api_key: str,
+    selected_model: str,
+    selected_route_name: str,
+    fortigate_ollama_model: str,
+    faig_static_routes: list[dict[str, Any]],
+    faig_header_routes: list[dict[str, Any]],
+    faig_model_route_header_name: str,
+) -> tuple[str, str, str, dict[str, str], str]:
+    normalized_provider = normalize_provider_path(provider_path)
+    if normalized_provider == "Direct LiteLLM":
+        return direct_base_url, direct_api_key, selected_model, {}, "Backend instructions: LiteLLM profile"
+    if normalized_provider == "FortiGate -> LiteLLM":
+        return (
+            fortigate_litellm_base_url,
+            fortigate_litellm_api_key,
+            selected_model,
+            {},
+            "Backend routing: FortiGate HTTP path to LiteLLM",
+        )
+    if normalized_provider == "FortiGate -> Ollama":
+        return (
+            fortigate_ollama_base_url,
+            fortigate_ollama_api_key,
+            fortigate_ollama_model,
+            {},
+            "Backend routing: FortiGate HTTP path to Ollama",
+        )
+    if normalized_provider == "FAIG Static Route":
+        selected_route = route_by_name(faig_static_routes, selected_route_name)
+        base_url, model, headers = apply_faig_static_route(faig_base_url, selected_route)
+        return base_url, faig_api_key, model, headers, "Backend routing: FAIG URI path"
+    if normalized_provider == "FAIG Intelligent Route":
+        selected_route = route_by_name(faig_header_routes, selected_route_name)
+        base_url, model, headers = apply_faig_header_route(
+            faig_base_url,
+            selected_route,
+            faig_model_route_header_name,
+        )
+        return base_url, faig_api_key, model, headers, "Backend routing: FAIG intelligent"
+    raise RuntimeError(f"Unsupported provider path: {provider_path}")
 
 
 def stream_response(
@@ -995,6 +1163,10 @@ def main() -> None:
         "/v1/intelligent",
     )
     faig_model_route_header_name = os.getenv("CHATBOT_FAIG_MODEL_ROUTE_HEADER_NAME", "X-FAIG-Model-Route").strip()
+    ui_mode_default = os.getenv("CHATBOT_UI_MODE", "detailed").strip().lower()
+    if ui_mode_default not in {"detailed", "simplified"}:
+        ui_mode_default = "detailed"
+    simplified_demo_profiles = env_json_demo_profiles("CHATBOT_SIMPLIFIED_PROFILES_JSON")
 
     st.set_page_config(page_title=page_title, layout="wide")
 
@@ -1023,177 +1195,278 @@ def main() -> None:
     st.title(header_title)
 
     with st.sidebar:
-        st.subheader("Backend")
         provider_options = ["Direct LiteLLM"]
         if fortigate_litellm_base_url:
             provider_options.append("FortiGate -> LiteLLM")
         if fortigate_ollama_base_url:
             provider_options.append("FortiGate -> Ollama")
         provider_options.extend(["FAIG Static Route", "FAIG Intelligent Route"])
-        provider_path = st.radio(
-            "Path",
-            provider_options,
-            index=0,
-            help=(
-                "Direct sends to LiteLLM. FortiGate sends plain HTTP through "
-                "a FortiGate listener to LiteLLM or Ollama. FAIG static uses "
-                "URI paths. FAIG intelligent uses one URI plus a routing header."
-            ),
-        )
+        available_simplified_demo_profiles = [
+            profile
+            for profile in simplified_demo_profiles
+            if demo_profile_available(
+                profile,
+                provider_options=provider_options,
+                direct_base_url=direct_base_url,
+                fortigate_litellm_base_url=fortigate_litellm_base_url,
+                fortigate_ollama_base_url=fortigate_ollama_base_url,
+                faig_base_url=faig_base_url,
+                faig_static_routes=faig_static_routes,
+                faig_header_routes=faig_header_routes,
+            )
+        ]
         route_headers: dict[str, str] = {}
-        if provider_path == "Direct LiteLLM":
-            base_url = direct_base_url
-            api_key = direct_api_key
-            selected_model = st.selectbox(
-                "LLM profile",
-                model_options,
-                index=model_options.index(model),
-                help="Select an LLM instruction profile. Different profiles can inject different backend instructions.",
+        ui_mode_options = ["Detailed"]
+        if available_simplified_demo_profiles:
+            ui_mode_options.insert(0, "Simplified")
+        ui_mode_index = 0
+        if ui_mode_default == "detailed" and "Detailed" in ui_mode_options:
+            ui_mode_index = ui_mode_options.index("Detailed")
+        elif ui_mode_default == "simplified" and "Simplified" in ui_mode_options:
+            ui_mode_index = ui_mode_options.index("Simplified")
+        ui_mode = st.radio("Interface", ui_mode_options, index=ui_mode_index)
+
+        if ui_mode == "Simplified":
+            st.subheader("Demo Profile")
+            profile_ids = [profile["id"] for profile in available_simplified_demo_profiles]
+            profile_labels = {profile["id"]: profile["label"] for profile in available_simplified_demo_profiles}
+            selected_profile_id = st.selectbox(
+                "Profile",
+                profile_ids,
+                format_func=lambda profile_id: profile_labels.get(profile_id, profile_id),
+                key="simplified_demo_profile_id",
             )
-            st.write("Backend instructions: LiteLLM profile")
-        elif provider_path == "FortiGate -> LiteLLM":
-            base_url = fortigate_litellm_base_url
-            api_key = fortigate_litellm_api_key
-            selected_model = st.selectbox(
-                "LLM profile",
-                model_options,
-                index=model_options.index(model),
-                help="Select a LiteLLM profile. Traffic is sent through the FortiGate HTTP listener before LiteLLM.",
+            previous_profile_id = st.session_state.get("active_simplified_demo_profile_id")
+            if previous_profile_id is None:
+                st.session_state.active_simplified_demo_profile_id = selected_profile_id
+            elif previous_profile_id != selected_profile_id:
+                clear_chat_state()
+                st.session_state.active_simplified_demo_profile_id = selected_profile_id
+                st.rerun()
+
+            selected_demo_profile = next(profile for profile in available_simplified_demo_profiles if profile["id"] == selected_profile_id)
+            provider_path = normalize_provider_path(str(selected_demo_profile.get("provider_path") or "Direct LiteLLM"))
+            selected_route_name = str(
+                selected_demo_profile.get("route")
+                or selected_demo_profile.get("faig_static_route")
+                or selected_demo_profile.get("faig_header_route")
+                or faig_static_default_route
+            ).strip()
+            selected_model = str(selected_demo_profile.get("model") or model).strip()
+            selected_ollama_model = str(selected_demo_profile.get("ollama_model") or fortigate_ollama_model).strip()
+            base_url, api_key, selected_model, route_headers, backend_summary = resolve_backend_selection(
+                provider_path,
+                direct_base_url=direct_base_url,
+                direct_api_key=direct_api_key,
+                fortigate_litellm_base_url=fortigate_litellm_base_url,
+                fortigate_litellm_api_key=fortigate_litellm_api_key,
+                fortigate_ollama_base_url=fortigate_ollama_base_url,
+                fortigate_ollama_api_key=fortigate_ollama_api_key,
+                faig_base_url=faig_base_url,
+                faig_api_key=faig_api_key,
+                selected_model=selected_model,
+                selected_route_name=selected_route_name,
+                fortigate_ollama_model=selected_ollama_model,
+                faig_static_routes=faig_static_routes,
+                faig_header_routes=faig_header_routes,
+                faig_model_route_header_name=faig_model_route_header_name,
             )
-            st.write("Backend routing: FortiGate HTTP path to LiteLLM")
-            st.write(f"Route endpoint: `{base_url}`")
-        elif provider_path == "FortiGate -> Ollama":
-            base_url = fortigate_ollama_base_url
-            api_key = fortigate_ollama_api_key
-            selected_model = st.selectbox(
-                "Ollama model",
-                fortigate_ollama_model_options,
-                index=fortigate_ollama_model_options.index(fortigate_ollama_model),
-                help="Select an Ollama model. Traffic is sent through the FortiGate HTTP listener before Ollama.",
+            context_mode = normalize_context_mode(str(selected_demo_profile.get("context_mode") or context_default_mode))
+            context_window = int(selected_demo_profile.get("context_window") or context_window_default)
+            show_context = coerce_bool(selected_demo_profile.get("show_context"), show_context_default)
+            frontend_system_prompt_enabled = (
+                coerce_bool(selected_demo_profile.get("frontend_system_prompt_enabled"), False)
+                and bool(frontend_system_prompt)
             )
-            st.write("Backend routing: FortiGate HTTP path to Ollama")
-            st.write(f"Route endpoint: `{base_url}`")
-        elif provider_path == "FAIG Static Route":
-            route_names = [route["name"] for route in faig_static_routes]
-            route_labels = {route["name"]: route["label"] for route in faig_static_routes}
-            route_index = route_names.index(faig_static_default_route) if faig_static_default_route in route_names else 0
-            selected_route_name = st.selectbox(
-                "LLM profile",
-                route_names,
-                index=route_index,
-                format_func=lambda route_name: route_labels.get(route_name, route_name),
-                help="Select an LLM instruction profile. FAIG static routing uses the selected profile to construct the route-specific URI path.",
-            )
-            selected_route = next(route for route in faig_static_routes if route["name"] == selected_route_name)
-            base_url, selected_model, route_headers = apply_faig_static_route(faig_base_url, selected_route)
-            api_key = faig_api_key
-            st.write("Backend routing: FAIG URI path")
-            st.write(f"Selected LLM profile: `{selected_model}`")
-            st.write(f"Route endpoint: `{base_url}`")
-        else:
-            route_names = [route["name"] for route in faig_header_routes]
-            route_labels = {route["name"]: route["label"] for route in faig_header_routes}
-            route_index = route_names.index(faig_header_default_route) if faig_header_default_route in route_names else 0
-            selected_route_name = st.selectbox(
-                "LLM profile",
-                route_names,
-                index=route_index,
-                format_func=lambda route_name: route_labels.get(route_name, route_name),
-                help="Select an LLM instruction profile. FAIG intelligent routing sends the selected profile as route metadata.",
-            )
-            selected_route = next(route for route in faig_header_routes if route["name"] == selected_route_name)
-            base_url, selected_model, route_headers = apply_faig_header_route(
-                faig_base_url,
-                selected_route,
-                faig_model_route_header_name,
-            )
-            api_key = faig_api_key
-            st.write("Backend routing: FAIG intelligent")
-            st.write(f"Selected LLM profile: `{selected_model}`")
-            st.write(f"Route endpoint: `{base_url}`")
-            if route_headers:
-                st.write(
-                    "Route header: "
-                    + ", ".join([f"`{key}: {value}`" for key, value in route_headers.items()])
-                )
+            mcp_enabled = coerce_bool(selected_demo_profile.get("mcp_enabled"), mcp_enabled_default)
+            mcp_path_key = normalize_mcp_path(str(selected_demo_profile.get("mcp_path") or mcp_default_path))
+            if mcp_path_key == "fortiweb" and mcp_fortiweb_base_url:
+                mcp_path = "FortiWeb MCP"
+                mcp_base_url = mcp_fortiweb_base_url
             else:
-                st.write("Route header: none")
-        st.write(f"Streaming: {'on' if streaming else 'off'}")
-        st.subheader("Context")
-        context_keys = list(CONTEXT_MODE_OPTIONS.keys())
-        context_labels = [CONTEXT_MODE_OPTIONS[key] for key in context_keys]
-        context_default_index = context_keys.index(context_default_mode) if context_default_mode in context_keys else 1
-        selected_context_label = st.radio(
-            "Context mode",
-            context_labels,
-            index=context_default_index,
-        )
-        context_mode = context_keys[context_labels.index(selected_context_label)]
-        context_window = st.number_input(
-            "Context messages",
-            min_value=1,
-            max_value=24,
-            value=min(context_window_default, 24),
-            step=1,
-            disabled=context_mode != "recent",
-        )
-        show_context = st.checkbox("Show context sent to model", value=show_context_default)
-        st.subheader("Frontend Instructions")
-        frontend_system_prompt_enabled = st.checkbox(
-            "Use frontend instructions",
-            value=frontend_system_prompt_enabled_default,
-            disabled=not bool(frontend_system_prompt),
-            help=(
-                "Adds the chatbot-local frontend system prompt to the request. "
-                "Turn this off to compare the backend profile without the UI-layer prompt."
-            ),
-        )
-        if frontend_system_prompt:
-            st.write("Frontend prompt: configured")
+                mcp_path = "Direct MCP"
+                mcp_base_url = mcp_direct_base_url
+            mcp_tool_profile = str(selected_demo_profile.get("mcp_tool_profile") or mcp_default_tool_profile).strip()
+            if mcp_tool_profile not in mcp_tool_profile_names:
+                logger.warning("Simplified profile %s references unknown MCP profile %s; using %s", selected_profile_id, mcp_tool_profile, mcp_default_tool_profile)
+                mcp_tool_profile = mcp_default_tool_profile
+            mcp_max_tool_rounds = int(selected_demo_profile.get("mcp_max_tool_rounds") or mcp_max_tool_rounds)
+
+            st.write(backend_summary)
+            st.write(f"Path: `{provider_path}`")
+            if provider_path.startswith("FAIG"):
+                st.write(f"Route: `{selected_route_name}`")
+            st.write(f"Model/profile: `{selected_model}`")
+            st.write(f"Frontend instructions: {'on' if frontend_system_prompt_enabled else 'off'}")
+            st.write(f"Context: `{CONTEXT_MODE_OPTIONS.get(context_mode, context_mode)}`")
+            st.write(f"MCP: {'on' if mcp_enabled else 'off'}")
+            if mcp_enabled:
+                profile_label = mcp_tool_profile_by_name(mcp_tool_profiles, mcp_tool_profile)["label"]
+                st.write(f"Tool profile: `{profile_label}`")
         else:
-            st.write("Frontend prompt: not configured")
-        if st.button("Reset context"):
-            st.session_state.messages = []
-            st.session_state.context_summary = ""
-            st.rerun()
-        if context_mode == "consolidated":
-            with st.expander("Consolidated memory", expanded=False):
-                st.write(st.session_state.context_summary or "No compact context yet.")
-        st.subheader("MCP Tools")
-        mcp_enabled = st.checkbox("Use MCP tools", value=mcp_enabled_default)
-        mcp_path_options = ["Direct MCP"]
-        if mcp_fortiweb_base_url:
-            mcp_path_options.append("FortiWeb MCP")
-        mcp_path_index = 0
-        if mcp_default_path == "fortiweb" and "FortiWeb MCP" in mcp_path_options:
-            mcp_path_index = 1
-        mcp_path = st.radio("MCP path", mcp_path_options, index=mcp_path_index, disabled=not mcp_enabled)
-        mcp_base_url = mcp_direct_base_url if mcp_path == "Direct MCP" else mcp_fortiweb_base_url
-        mcp_tool_profile_index = (
-            mcp_tool_profile_names.index(mcp_default_tool_profile)
-            if mcp_default_tool_profile in mcp_tool_profile_names
-            else 0
-        )
-        mcp_tool_profile = st.selectbox(
-            "Tool profile",
-            mcp_tool_profile_names,
-            index=mcp_tool_profile_index,
-            disabled=not mcp_enabled,
-            format_func=lambda profile_name: mcp_tool_profile_by_name(mcp_tool_profiles, profile_name)["label"],
-        )
-        mcp_max_tool_rounds = st.number_input(
-            "Max tool rounds",
-            min_value=1,
-            max_value=8,
-            value=mcp_max_tool_rounds,
-            step=1,
-            disabled=not mcp_enabled,
-        )
-        if mcp_enabled:
-            st.write(f"MCP endpoint: `{mcp_base_url or 'not configured'}`")
-            st.write("Tool choice: model-selected")
-            if streaming:
-                st.write("Streaming: off while MCP tools are enabled")
+            st.subheader("Backend")
+            provider_path = st.radio(
+                "Path",
+                provider_options,
+                index=0,
+                help=(
+                    "Direct sends to LiteLLM. FortiGate sends plain HTTP through "
+                    "a FortiGate listener to LiteLLM or Ollama. FAIG static uses "
+                    "URI paths. FAIG intelligent uses one URI plus a routing header."
+                ),
+            )
+            if provider_path == "Direct LiteLLM":
+                base_url = direct_base_url
+                api_key = direct_api_key
+                selected_model = st.selectbox(
+                    "LLM profile",
+                    model_options,
+                    index=model_options.index(model),
+                    help="Select an LLM instruction profile. Different profiles can inject different backend instructions.",
+                )
+                st.write("Backend instructions: LiteLLM profile")
+            elif provider_path == "FortiGate -> LiteLLM":
+                base_url = fortigate_litellm_base_url
+                api_key = fortigate_litellm_api_key
+                selected_model = st.selectbox(
+                    "LLM profile",
+                    model_options,
+                    index=model_options.index(model),
+                    help="Select a LiteLLM profile. Traffic is sent through the FortiGate HTTP listener before LiteLLM.",
+                )
+                st.write("Backend routing: FortiGate HTTP path to LiteLLM")
+                st.write(f"Route endpoint: `{base_url}`")
+            elif provider_path == "FortiGate -> Ollama":
+                base_url = fortigate_ollama_base_url
+                api_key = fortigate_ollama_api_key
+                selected_model = st.selectbox(
+                    "Ollama model",
+                    fortigate_ollama_model_options,
+                    index=fortigate_ollama_model_options.index(fortigate_ollama_model),
+                    help="Select an Ollama model. Traffic is sent through the FortiGate HTTP listener before Ollama.",
+                )
+                st.write("Backend routing: FortiGate HTTP path to Ollama")
+                st.write(f"Route endpoint: `{base_url}`")
+            elif provider_path == "FAIG Static Route":
+                route_names = [route["name"] for route in faig_static_routes]
+                route_labels = {route["name"]: route["label"] for route in faig_static_routes}
+                route_index = route_names.index(faig_static_default_route) if faig_static_default_route in route_names else 0
+                selected_route_name = st.selectbox(
+                    "LLM profile",
+                    route_names,
+                    index=route_index,
+                    format_func=lambda route_name: route_labels.get(route_name, route_name),
+                    help="Select an LLM instruction profile. FAIG static routing uses the selected profile to construct the route-specific URI path.",
+                )
+                selected_route = next(route for route in faig_static_routes if route["name"] == selected_route_name)
+                base_url, selected_model, route_headers = apply_faig_static_route(faig_base_url, selected_route)
+                api_key = faig_api_key
+                st.write("Backend routing: FAIG URI path")
+                st.write(f"Selected LLM profile: `{selected_model}`")
+                st.write(f"Route endpoint: `{base_url}`")
+            else:
+                route_names = [route["name"] for route in faig_header_routes]
+                route_labels = {route["name"]: route["label"] for route in faig_header_routes}
+                route_index = route_names.index(faig_header_default_route) if faig_header_default_route in route_names else 0
+                selected_route_name = st.selectbox(
+                    "LLM profile",
+                    route_names,
+                    index=route_index,
+                    format_func=lambda route_name: route_labels.get(route_name, route_name),
+                    help="Select an LLM instruction profile. FAIG intelligent routing sends the selected profile as route metadata.",
+                )
+                selected_route = next(route for route in faig_header_routes if route["name"] == selected_route_name)
+                base_url, selected_model, route_headers = apply_faig_header_route(
+                    faig_base_url,
+                    selected_route,
+                    faig_model_route_header_name,
+                )
+                api_key = faig_api_key
+                st.write("Backend routing: FAIG intelligent")
+                st.write(f"Selected LLM profile: `{selected_model}`")
+                st.write(f"Route endpoint: `{base_url}`")
+                if route_headers:
+                    st.write(
+                        "Route header: "
+                        + ", ".join([f"`{key}: {value}`" for key, value in route_headers.items()])
+                    )
+                else:
+                    st.write("Route header: none")
+            st.write(f"Streaming: {'on' if streaming else 'off'}")
+            st.subheader("Context")
+            context_keys = list(CONTEXT_MODE_OPTIONS.keys())
+            context_labels = [CONTEXT_MODE_OPTIONS[key] for key in context_keys]
+            context_default_index = context_keys.index(context_default_mode) if context_default_mode in context_keys else 1
+            selected_context_label = st.radio(
+                "Context mode",
+                context_labels,
+                index=context_default_index,
+            )
+            context_mode = context_keys[context_labels.index(selected_context_label)]
+            context_window = st.number_input(
+                "Context messages",
+                min_value=1,
+                max_value=24,
+                value=min(context_window_default, 24),
+                step=1,
+                disabled=context_mode != "recent",
+            )
+            show_context = st.checkbox("Show context sent to model", value=show_context_default)
+            st.subheader("Frontend Instructions")
+            frontend_system_prompt_enabled = st.checkbox(
+                "Use frontend instructions",
+                value=frontend_system_prompt_enabled_default,
+                disabled=not bool(frontend_system_prompt),
+                help=(
+                    "Adds the chatbot-local frontend system prompt to the request. "
+                    "Turn this off to compare the backend profile without the UI-layer prompt."
+                ),
+            )
+            if frontend_system_prompt:
+                st.write("Frontend prompt: configured")
+            else:
+                st.write("Frontend prompt: not configured")
+            if st.button("Reset context"):
+                clear_chat_state()
+                st.rerun()
+            if context_mode == "consolidated":
+                with st.expander("Consolidated memory", expanded=False):
+                    st.write(st.session_state.context_summary or "No compact context yet.")
+            st.subheader("MCP Tools")
+            mcp_enabled = st.checkbox("Use MCP tools", value=mcp_enabled_default)
+            mcp_path_options = ["Direct MCP"]
+            if mcp_fortiweb_base_url:
+                mcp_path_options.append("FortiWeb MCP")
+            mcp_path_index = 0
+            if mcp_default_path == "fortiweb" and "FortiWeb MCP" in mcp_path_options:
+                mcp_path_index = 1
+            mcp_path = st.radio("MCP path", mcp_path_options, index=mcp_path_index, disabled=not mcp_enabled)
+            mcp_base_url = mcp_direct_base_url if mcp_path == "Direct MCP" else mcp_fortiweb_base_url
+            mcp_tool_profile_index = (
+                mcp_tool_profile_names.index(mcp_default_tool_profile)
+                if mcp_default_tool_profile in mcp_tool_profile_names
+                else 0
+            )
+            mcp_tool_profile = st.selectbox(
+                "Tool profile",
+                mcp_tool_profile_names,
+                index=mcp_tool_profile_index,
+                disabled=not mcp_enabled,
+                format_func=lambda profile_name: mcp_tool_profile_by_name(mcp_tool_profiles, profile_name)["label"],
+            )
+            mcp_max_tool_rounds = st.number_input(
+                "Max tool rounds",
+                min_value=1,
+                max_value=8,
+                value=mcp_max_tool_rounds,
+                step=1,
+                disabled=not mcp_enabled,
+            )
+            if mcp_enabled:
+                st.write(f"MCP endpoint: `{mcp_base_url or 'not configured'}`")
+                st.write("Tool choice: model-selected")
+                if streaming:
+                    st.write("Streaming: off while MCP tools are enabled")
 
     if not base_url:
         st.error(f"{provider_path} base URL is not configured.")

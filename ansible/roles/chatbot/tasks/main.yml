@@ -197,6 +197,41 @@
   # - ansible.builtin.debug:
   #     var: chatbot_mcp_tool_profiles_effective
 
+- name: Build simplified chatbot demo profiles from installed scenarios
+  ansible.builtin.command:
+    argv: "{{ ['python3', playbook_dir ~ '/../../scripts/build_chatbot_demo_profiles.py', '--slots'] + (chatbot_simplified_profile_slots | default(['demo-a', 'demo-b', 'frontend'], true) | list) }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: chatbot_simplified_installed_profiles_raw
+  when:
+    - chatbots_enabled | bool
+    - chatbot_simplified_profiles_source | default('installed') == 'installed'
+  tags: [chatbot, chatbot_simplified_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_simplified_installed_profiles_raw.stdout
+
+- name: Set effective simplified chatbot demo profile facts
+  ansible.builtin.set_fact:
+    chatbot_simplified_installed_profiles_data: "{{ chatbot_simplified_installed_profiles_raw.stdout | from_json }}"
+    chatbot_simplified_profiles_effective: "{{ (chatbot_simplified_installed_profiles_raw.stdout | from_json).profiles }}"
+  when:
+    - chatbots_enabled | bool
+    - chatbot_simplified_profiles_source | default('installed') == 'installed'
+  tags: [chatbot, chatbot_simplified_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_simplified_profiles_effective
+
+- name: Use configured simplified chatbot demo profiles
+  ansible.builtin.set_fact:
+    chatbot_simplified_profiles_effective: "{{ chatbot_simplified_profiles }}"
+  when:
+    - chatbots_enabled | bool
+    - chatbot_simplified_profiles_source | default('installed') != 'installed'
+  tags: [chatbot, chatbot_simplified_profiles]
+  # - ansible.builtin.debug:
+  #     var: chatbot_simplified_profiles_effective
+
 - name: Fail when chatbot ECR pull token retrieval failed
   ansible.builtin.fail:
     msg: >-

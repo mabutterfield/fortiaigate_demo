@@ -13,6 +13,48 @@
       "Synthetic FortiStore product knowledge embedded in instructions.txt"
     ]
   },
+  "chatbot_demo_profiles": [
+    {
+      "id": "fortistore-direct-backend",
+      "label": "FortiStore - Backend Only",
+      "provider_path": "direct",
+      "model": "demo-a",
+      "mcp_enabled": false,
+      "frontend_system_prompt_enabled": false,
+      "context_mode": "current",
+      "context_window": 1
+    },
+    {
+      "id": "fortistore-direct-frontend-injection",
+      "label": "FortiStore - Frontend Injection",
+      "provider_path": "direct",
+      "model": "demo-a",
+      "mcp_enabled": false,
+      "frontend_system_prompt_enabled": true,
+      "context_mode": "current",
+      "context_window": 1
+    },
+    {
+      "id": "fortistore-detect-only",
+      "label": "FortiStore - Detect Only",
+      "provider_path": "faig-static",
+      "route": "demo-a",
+      "mcp_enabled": false,
+      "frontend_system_prompt_enabled": true,
+      "context_mode": "current",
+      "context_window": 1
+    },
+    {
+      "id": "fortistore-input-protect",
+      "label": "FortiStore - Input Protect",
+      "provider_path": "faig-static",
+      "route": "demo-b",
+      "mcp_enabled": false,
+      "frontend_system_prompt_enabled": true,
+      "context_mode": "current",
+      "context_window": 1
+    }
+  ],
   "clean_prompts": [
     "Tell me about FortiGate for a mid-sized branch office.",
     "Which products help secure remote users and cloud applications?",

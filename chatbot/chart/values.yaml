@@ -50,6 +50,8 @@ chatbot:
   mcpToolProfile: all-tools
   mcpToolProfileMode: merge
   mcpToolProfilesJson: ""
+  uiMode: detailed
+  simplifiedProfilesJson: ""
   contextMode: recent
   contextWindow: "8"
   contextSummaryMaxChars: "1500"

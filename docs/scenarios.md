@@ -78,17 +78,23 @@ Scenario installs do not require an MCP redeploy. Use this deploy matrix:
 | Change | Deploy |
 |---|---|
 | Install or edit `demo-a`, `demo-b`, or `frontend` instructions | `ansible-playbook ansible/playbooks/deploy_litellm.yml` |
-| Change chatbot UI, agent loop, or default tool-profile vars | publish chatbot image if needed, then `ansible-playbook ansible/playbooks/deploy_chatbots.yml` |
+| Change installed scenario simplified profiles or chatbot tool-profile vars | `ansible-playbook ansible/playbooks/deploy_chatbots.yml` |
+| Change chatbot UI or agent loop code | publish chatbot image, then `ansible-playbook ansible/playbooks/deploy_chatbots.yml` |
 | Change MCP tool code, schemas, fixture data, documents, or FortiGate secret wiring | `ansible-playbook ansible/playbooks/deploy_mcp.yml` |
 | Only switch the selected tool profile in the chatbot UI | No redeploy |
 
 ## Common Chatbot Settings
 
-Use the custom chatbot UI for scenario demos because it exposes LLM path,
-profile, and MCP controls:
+Use the custom chatbot UI for scenario demos:
 
 - HTTP: `http://<k3s-public-ip>:30081`
 - HTTPS gateway, when deployed: `https://<k3s-public-ip>:30444`
+
+The chatbot defaults to `Detailed` mode, which exposes LLM path, profile,
+context, frontend-instruction, and MCP controls for tuning and debugging. When
+installed scenarios provide simplified presets, switch the sidebar `Interface`
+control to `Simplified` and choose a single `Demo Profile`; switching profiles
+clears the current conversation and MCP trace.
 
 Recommended baseline settings:
 

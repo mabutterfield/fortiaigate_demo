@@ -115,6 +115,10 @@ spec:
               value: {{ .Values.chatbot.mcpToolProfileMode | quote }}
             - name: CHATBOT_MCP_TOOL_PROFILES_JSON
               value: {{ .Values.chatbot.mcpToolProfilesJson | quote }}
+            - name: CHATBOT_UI_MODE
+              value: {{ .Values.chatbot.uiMode | quote }}
+            - name: CHATBOT_SIMPLIFIED_PROFILES_JSON
+              value: {{ .Values.chatbot.simplifiedProfilesJson | quote }}
             - name: CHATBOT_CONTEXT_MODE
               value: {{ .Values.chatbot.contextMode | quote }}
             - name: CHATBOT_CONTEXT_WINDOW
