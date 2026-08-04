@@ -44,14 +44,17 @@ Current scripts:
   metadata under ignored
   `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
   responses as security dispositions rather than transport failures.
-- `fortigate_ai_app_proxy_touch.py`: touches known AI application endpoints
-  directly by default, or through a run-scoped FortiGate explicit proxy URL
-  when `--proxy-url` is supplied. It defaults to dry-run mode and requires
-  `--execute` before sending traffic, making it useful for FortiGate
-  Application Control log investigation without changing workstation proxy
-  environment variables. Built-in labels use FortiGuard-style GenAI
+- `fortigate_ai_app_proxy_touch.py`: touches known AI application, MCP, and
+  Bedrock endpoints directly by default, or through a run-scoped FortiGate
+  explicit proxy URL when `--proxy-url` is supplied. It defaults to dry-run
+  mode and requires `--execute` before sending traffic, making it useful for
+  FortiGate Application Control log investigation without changing workstation
+  proxy environment variables. Built-in labels use FortiGuard-style GenAI
   application names where practical, and GET mode avoids HTTP `Range` headers
-  unless `--range-request` is supplied.
+  unless `--range-request` is supplied. Use `--target-set mcp` for remote MCP
+  initialize, `tools/list`, or `tools/call` probes and `--target-set bedrock`
+  for a signed Bedrock Runtime Converse probe using AWS credential environment
+  variables.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

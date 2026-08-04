@@ -47,7 +47,7 @@ FortiGate manual setup:
 Preview the built-in targets:
 
 ```bash
-python3 scripts/fortigate_ai_app_proxy_touch.py --list-apps
+python3 scripts/fortigate_ai_app_proxy_touch.py --list-targets
 ```
 
 Built-in target labels use FortiGuard-style application names where practical,
@@ -124,6 +124,170 @@ The explicit proxy path is useful for connectivity and policy testing, but it
 may classify only the browser/proxy transaction. If Application Control still
 shows generic `HTTPS.Browser` or browser signatures with deep inspection, prefer
 the routed VM path.
+
+### MCP And Bedrock Probe Targets
+
+Use these optional target sets when FortiGate needs evidence for MCP or AWS
+Bedrock application signatures. Run them from the routed VM behind FortiGate
+when possible so FortiGate sees normal client-to-internet traffic.
+
+Copy the script to the temporary Ubuntu test VM when the repo is on the
+workstation:
+
+```bash
+scp scripts/fortigate_ai_app_proxy_touch.py \
+  mike@192.168.248.10:~/fortigate_ai_app_proxy_touch.py
+```
+
+Remote MCP probes send an unauthenticated JSON-RPC `initialize` request. HTTP
+401, 403, 404, or protocol errors can still be useful FortiGate evidence
+because the request reached the real MCP host.
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --execute \
+  --insecure \
+  --yes
+```
+
+For GitHub MCP, export a GitHub token on the test VM and run a real MCP
+`tools/list` sequence. This sends `initialize`, `notifications/initialized`,
+and `tools/list` JSON-RPC requests. The token is read from the named
+environment variable and is not printed by the script.
+
+```bash
+read -rs GITHUB_MCP_TOKEN; echo
+export GITHUB_MCP_TOKEN
+
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tools-list \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --execute \
+  --insecure \
+  --yes
+```
+
+After `tools/list` works, send read-only GitHub MCP `tools/call` probes. These
+examples assume the token has read access to repository metadata and contents
+for `mabutterfield/aws-demos`.
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tool-call \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --mcp-tool get_me \
+  --mcp-arguments-json '{}' \
+  --execute \
+  --insecure \
+  --yes
+```
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tool-call \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --mcp-tool list_branches \
+  --mcp-arguments-json '{"owner":"mabutterfield","repo":"aws-demos","perPage":5}' \
+  --execute \
+  --insecure \
+  --yes
+```
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tool-call \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --mcp-tool list_commits \
+  --mcp-arguments-json '{"owner":"mabutterfield","repo":"aws-demos","perPage":3}' \
+  --execute \
+  --insecure \
+  --yes
+```
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tool-call \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --mcp-tool get_file_contents \
+  --mcp-arguments-json '{"owner":"mabutterfield","repo":"aws-demos","path":"README.md"}' \
+  --execute \
+  --insecure \
+  --yes
+```
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --mcp-target GitHub.MCP \
+  --mcp-mode tool-call \
+  --mcp-token-env GITHUB_MCP_TOKEN \
+  --mcp-tool search_code \
+  --mcp-arguments-json '{"query":"repo:mabutterfield/aws-demos terraform"}' \
+  --execute \
+  --insecure \
+  --yes
+```
+
+FortiGate deep-inspection logs should show JSON-RPC `tools/call`, the selected
+tool name, and the argument object when the HTTPS session is decrypted.
+
+Default MCP targets:
+
+| Label | Endpoint |
+|---|---|
+| `GitHub.MCP` | `https://api.githubcopilot.com/mcp/` |
+| `GitLab.MCP` | `https://gitlab.com/api/v4/mcp` |
+| `AWS.MCP` | `https://aws-mcp.us-east-1.api.aws/mcp` |
+
+Bedrock probes send a real signed Bedrock Runtime Converse request. This
+requires temporary AWS credentials on the VM and may incur a small model charge.
+Do not write the credentials into repo files, shell history snippets, or
+tracked documentation. Successful Bedrock runs print the assistant response
+text plus usage and latency metadata when the response body contains them. The
+default Bedrock response budget is 256 output tokens because reasoning models
+can consume a small 64-token budget before returning visible text.
+
+```bash
+read -r AWS_ACCESS_KEY_ID
+read -rs AWS_SECRET_ACCESS_KEY; echo
+read -rs AWS_SESSION_TOKEN; echo
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+export AWS_REGION=us-east-1
+export BEDROCK_MODEL_ID=openai.gpt-oss-20b-1:0
+
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set bedrock \
+  --bedrock-prompt "tell me a dad joke" \
+  --execute \
+  --insecure \
+  --yes
+```
+
+If the credentials are long-lived rather than session credentials, omit
+`AWS_SESSION_TOKEN`. The script prints whether the three AWS credential
+environment variables are present, but it does not print their values.
+
+MCP and Bedrock can be combined in one run:
+
+```bash
+python3 ~/fortigate_ai_app_proxy_touch.py \
+  --target-set mcp \
+  --target-set bedrock \
+  --execute \
+  --insecure \
+  --yes
+```
 
 ## Inbound AI Inspection
 
