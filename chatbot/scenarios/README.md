@@ -1,46 +1,66 @@
 # Scenario Profiles
 
-Scenario profiles package repeatable demo content without replacing instruction
-profiles. They do not deploy separate MCP servers; every scenario uses the
-same shared MCP service and declares its expected tools in `required_tools`.
+Status: Phase 10 transitional scenario set.
 
-Tracked scenario examples live under `examples/`. Installing a scenario copies
-its recommended instruction text into an ignored local instruction slot such as
-`chatbot/instructions/local/demo-a/instructions.txt` or
-`chatbot/instructions/local/demo-b/instructions.txt`.
+Scenario profiles package repeatable demo instructions, MCP tool expectations,
+and prompt examples. They do not deploy separate MCP servers; every scenario
+uses the same shared MCP service and declares its expected tools in
+`required_tools`.
 
-The scenario picker reads `examples/catalog.json`. Entries with
-`"active": false` are legacy, unused, or still in progress; their files stay in
-place for reference, but they are hidden from normal `list`, `install`,
-validation, harness, and traffic-generator selection. To use one for testing,
-either set `"active": true` in `examples/catalog.json` or call the scenario
-helper with `--include-inactive` where supported.
+Tracked Phase 10 active scenarios and Phase 11 candidate scenarios live under
+`examples/`. Archived or legacy scenarios live under the repo-level
+`archived_scenarios/` directory. The catalog remains at `examples/catalog.json`
+and can point at either location.
 
-Detailed scenario walkthroughs live inside each scenario folder when a scenario
-has moved beyond the generic prompt/profile summary.
+Phase 10 still installs scenarios into compatibility instruction slots such as
+`demo-a`, `demo-b`, and `frontend`. Phase 11 is expected to replace that model
+with scenario-owned paths and generated scenario metadata.
 
-| Scenario | Detailed walkthrough |
-|---|---|
-| `fortistore-injection` | [examples/fortistore-injection/README.md](examples/fortistore-injection/README.md) |
-| `hr-tool-dlp` | [examples/hr-tool-dlp/README.md](examples/hr-tool-dlp/README.md) |
+## Current Scenario Sets
 
-The original MCP-backed FortiStore advisor remains under
-`examples/fortistore-product-advisor/` as a legacy reference.
+The current working set is intentionally small.
+
+Phase 10 active scenarios:
+
+| Scenario | Location | Purpose |
+|---|---|---|
+| FortiStore Injection | `examples/fortistore-injection/` | Product-advisor prompt-injection and frontend/system-prompt injection demo |
+| HR Tool DLP | `examples/hr-tool-dlp/` | MCP tool-result output-DLP demo |
+
+Phase 11 candidate scenarios:
+
+| Scenario family | Location | Purpose |
+|---|---|---|
+| FortiGate Operator | `examples/fortigate-operator/` | Read-only FortiGate operations assistant candidate |
+| HR Resume | `examples/resume-*/` | Resume screening, indirect prompt injection, and tool-pivot candidates |
+
+All other scenario folders have been moved to `archived_scenarios/` and marked
+inactive in `examples/catalog.json`.
+
+## Commands
 
 Use the helper from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show fortistore-injection
-python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
+python3 scripts/scenario_profiles.py list --include-inactive
+python3 scripts/scenario_profiles.py show hr-tool-dlp
+python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 python3 scripts/scenario_profiles.py validate
+```
+
+Inactive archived scenarios can still be inspected for reference:
+
+```bash
+python3 scripts/scenario_profiles.py show fastfood-ordering --include-inactive
 ```
 
 Instruction profiles remain the place to fine-tune local wording after a
 scenario has been installed.
 
-Operator-facing prompts, recommended chatbot settings, and expected demo
-behavior are documented in `docs/scenarios.md`. Editing workflow, tool-profile
-selection, and deploy boundaries are documented in
-`docs/scenario-authoring.md`. Raw curl replay payloads are documented in
-`docs/curl-payloads.md`.
+## Related Docs
+
+- Operator-facing scenario guidance: `docs/scenarios.md`
+- Scenario editing and deploy boundaries: `docs/scenario-authoring.md`
+- Scenario creation/evidence process: `docs/scenario-documentation-process.md`
+- Archived scenario notes: `archived_scenarios/README.md`

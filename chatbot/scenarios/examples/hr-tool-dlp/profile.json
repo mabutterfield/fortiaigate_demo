@@ -3,6 +3,7 @@
   "display_name": "HR Tool DLP Vulnerable",
   "description": "Controlled HR assistant scenario where a read-only MCP tool returns full simulated employee records for FortiAIGate DLP testing.",
   "instruction_file": "instructions.txt",
+  "status": "phase10-active",
   "mcp": {
     "tool_profile": "hr-tool-dlp",
     "required_tools": [

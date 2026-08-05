@@ -3,7 +3,7 @@
   "display_name": "FortiStore Product Advisor",
   "description": "Overly helpful Fortinet-aligned product advisor demo for clean product guidance, text prompt injection, and token-wasting misuse attempts.",
   "instruction_file": "instructions.txt",
-  "status": "v1.0 baseline",
+  "status": "legacy-archived",
   "mcp": {
     "tool_profile": "fortistore-product-advisor",
     "required_tools": [

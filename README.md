@@ -35,6 +35,14 @@ The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes 
 
 See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
 
+## Phase 10 Documentation Status
+
+Phase 10 is the final pre-Phase-11 stabilization pass. The current runtime still
+uses compatibility names such as `demo-a` and `demo-b` for LiteLLM profiles,
+chatbot paths, and FortiAIGate route testing. Phase 11 is planned as the v1.0
+baseline and will replace that model with scenario-owned paths and generated
+scenario metadata.
+
 ## High-Level Architecture
 
 ```text
@@ -48,7 +56,7 @@ Operator workstation
   -> appliance paths: FortiGate baseline objects/read-only MCP tools, FortiWeb reverse-proxy NodePorts
 ```
 
-## v1.0 Supported Paths
+## Phase 10 Supported Paths
 
 | Path | Support level | Notes |
 |---|---|---|
@@ -56,9 +64,9 @@ Operator workstation
 | Local Ubuntu quickstart | Supported lab path | Existing Ubuntu 24.04 GPU host, local/LAN registry, generated local inventory, in-cluster Ollama, optional local FortiGate/FortiWeb onboarding |
 | Manual quickstart | Troubleshooting/recovery path | Same components as quickstart, run step by step when the guided script is not the right tool |
 
-FortiAIGate provider, flow, route, and guard setup in the GUI is still manual
-for v1.0. Scenario content is synthetic repeatable demo material, not
-production policy guidance.
+FortiAIGate provider, flow, route, and guard setup in the GUI is still manual.
+Scenario content is synthetic repeatable demo material, not production policy
+guidance.
 
 ## Choose Your Path
 
@@ -81,9 +89,12 @@ only the symlink paths; the generated inventory contents remain local.
 
 ## Roadmap
 
-- Harden the v1.0 AWS and local validation matrix
-- Add a local-safe long-running traffic generator for demo recordings
-- Expand FortiGate/FortiWeb traffic-path policies after the baseline
+- Complete Phase 10 release-hardening validation without treating current
+  `demo-a`/`demo-b` names as final
+- Use Phase 11 as the v1.0 baseline for scenario-owned naming and generated
+  scenario metadata
+- Expand FortiGate/FortiWeb traffic-path policy generation after the Phase 11
+  scenario matrix design lands
 - Move Terraform state to a remote backend when the workflow leaves local lab mode
 - Automate FortiAIGate provider setup when a supported API is identified
 - Add cleanup and recovery runbooks for failed Helm releases and license resets

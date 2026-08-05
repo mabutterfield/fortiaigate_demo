@@ -1,6 +1,8 @@
 # Scenario Authoring Guide
 
-Scenario profiles live under `chatbot/scenarios/examples/<scenario-id>/`.
+Phase 10 is transitional. Current candidate scenario profiles live under
+`chatbot/scenarios/examples/<scenario-id>/`. Archived scenario profiles live
+under `archived_scenarios/<scenario-id>/` and are inactive in the catalog.
 Each scenario has:
 
 - `profile.json`: tracked metadata, prompt examples, expected traces, data
@@ -12,8 +14,9 @@ The active installed instructions live under `chatbot/instructions/local/`.
 Those files are ignored by Git so they can be tuned during recording without
 changing the tracked examples.
 
-For v1.0 baseline scenarios, keep operator-facing settings explicit in the
-runbook whenever a profile changes:
+For Phase 10 candidate scenarios, keep operator-facing settings explicit in the
+runbook whenever a profile changes. Phase 11 is planned as the v1.0 baseline
+and should replace compatibility slots with generated scenario metadata.
 
 - instruction slot
 - model/profile or route
@@ -30,7 +33,7 @@ runbook whenever a profile changes:
 1. Install the tracked scenario into a local slot:
 
    ```bash
-   python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
+   python3 scripts/scenario_profiles.py install fortigate-operator --slot demo-a --force
    ansible-playbook ansible/playbooks/deploy_litellm.yml
    ```
 
@@ -41,7 +44,7 @@ runbook whenever a profile changes:
    | LLM profile | `demo-a` |
    | Use MCP tools | On |
    | MCP path | Direct MCP first, then FortiWeb MCP only when the proxy path is configured |
-   | Tool profile | `hr-tool-dlp` |
+| Tool profile | `fortigate-operator` |
 
 3. Tune the local prompt if needed:
 
@@ -71,12 +74,18 @@ schemas before they are sent to the model.
 Use one scenario ID per tool profile where practical. Keep profiles narrow so
 the model sees only tools that support the current story.
 
-Current active scenario tool profiles:
+Current active/candidate scenario tool profiles:
 
 | Tool profile | Tools |
 |---|---|
-| none | `fortistore-injection` disables MCP tools for system-prompt injection testing |
+| none | `fortistore-injection` disables MCP tools for product-advisor prompt-injection testing |
 | `hr-tool-dlp` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
+| `fortigate-operator` | read-only FortiGate status/configuration tools |
+| `resume-screening-clean` | resume/document retrieval tools |
+| `resume-prompt-injection` | resume/document retrieval tools with attack fixture |
+| `resume-cloud-tool-pivot` | resume/document retrieval plus synthetic cloud inventory tools |
+| `resume-cloud-tool-pivot-safe` | safe comparison profile for resume tool-pivot testing |
+| `resume-cloud-tool-pivot-vulnerable` | vulnerable comparison profile for resume tool-pivot testing |
 
 During `deploy_chatbots.yml`, the chatbot role reads installed scenario
 metadata from the configured local slots, defaulting to `demo-a` and `demo-b`.
@@ -113,14 +122,14 @@ Example profile:
 
 ```json
 {
-  "id": "hr-dlp-output-protect",
-  "label": "HR DLP - Output Protect",
+  "id": "fortigate-operator-direct",
+  "label": "FortiGate Operator - Direct",
   "provider_path": "faig-static",
-  "route": "demo-c",
+  "route": "demo-a",
   "mcp_enabled": true,
   "mcp_path": "direct",
-  "mcp_tool_profile": "hr-tool-dlp",
-  "mcp_max_tool_rounds": 5,
+  "mcp_tool_profile": "fortigate-operator",
+  "mcp_max_tool_rounds": 3,
   "frontend_system_prompt_enabled": false,
   "context_mode": "recent",
   "context_window": 8
@@ -132,10 +141,11 @@ instead of exposing internal route names. Route IDs such as `demo-a` and
 `demo-c` are implementation details and can be renamed later without changing
 the presenter-facing dropdown labels.
 
-Inactive legacy and in-progress profiles still declare their historical tool
-profiles in `chatbot/scenarios/examples/catalog.json` and their scenario
-folders. They can be reactivated by changing their catalog entry to
-`"active": true` or inspected with `--include-inactive` options where
+Inactive legacy profiles still declare their historical tool profiles in
+`chatbot/scenarios/examples/catalog.json`, but most files now live under
+`archived_scenarios/`. They can be reactivated by moving or copying the folder
+back under `chatbot/scenarios/examples/`, updating the catalog path, and setting
+`"active": true`. They can be inspected with `--include-inactive` options where
 supported.
 
 `echo` is intentionally left out of scenario profiles because it is a
@@ -147,8 +157,8 @@ Headless tests use the same profile filter:
 kubectl -n chatbot exec deploy/chatbot -- python /app/agent_probe.py \
   --provider direct \
   --mcp-path direct \
-  --tool-profile hr-tool-dlp \
-  --prompt "Show me the employee table."
+  --tool-profile fortigate-operator \
+  --prompt "Show me the FortiGate system status."
 ```
 
 `scripts/scenario_test_harness.py` defaults `--tool-profile` from

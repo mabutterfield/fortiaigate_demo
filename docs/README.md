@@ -3,6 +3,11 @@
 This is the main documentation landing page for the FortiAIGate demo deployment.
 Start with one quick start, then use the topic docs for details and recovery.
 
+Status: Phase 10 documentation is transitional. The current runtime still uses
+compatibility names such as `demo-a` and `demo-b`. Phase 11 is planned as the
+v1.0 baseline and will replace that with scenario-owned paths and generated
+scenario metadata.
+
 ## TLDR Paths
 
 | Operator path | Use when | Start |
@@ -35,7 +40,7 @@ reference, not a competing first-run path.
 | ECR repositories and image publishing | [ECR](ecr.md) |
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
-| Scenario demo prompts and settings | [Scenarios](scenarios.md) |
+| Scenario demo prompts and candidate set | [Scenarios](scenarios.md) |
 | Scenario creation, tuning, and evidence process | [Scenario Documentation Process](scenario-documentation-process.md) |
 | Traffic generator | [Traffic Generator](traffic-generator.md) |
 | Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
@@ -98,4 +103,7 @@ reference, not a competing first-run path.
 - `scripts/smoke_test.py`: release-maintainer no-apply validation; operators do
   not need it for a normal quickstart.
 
-Internal build notes, experiments, and progress notes should live outside this Git repo in the parent FAIG workspace.
+Internal build notes, experiments, and progress notes should live outside this
+Git repo in the parent FAIG workspace. Phase 11 scenario-matrix planning also
+lives in the parent workspace until the implementation shape is ready for repo
+documentation.

@@ -1,8 +1,12 @@
 # Scenario Documentation Process
 
-Use this process whenever a Phase 10 scenario is created, tuned, or validated.
-The goal is to keep each scenario repeatable while leaving the core quickstart
-path unchanged.
+Use this process whenever a Phase 10 candidate scenario is created, tuned, or
+validated. The goal is to keep each scenario repeatable while leaving the core
+quickstart path unchanged.
+
+Status: transitional / pre-Phase-11. Phase 11 is planned as the v1.0 baseline
+and should replace the compatibility `demo-a`/`demo-b` route model with
+scenario-owned paths and generated scenario metadata.
 
 ## Terms
 
@@ -64,10 +68,11 @@ At minimum, record:
 - Guard screenshot filenames or links when screenshots are captured.
 - Known tuning gaps, especially where deny/redact behavior is inconsistent.
 
-Use scenario folders under `chatbot/scenarios/examples/<scenario-id>/` for
-portable profile content. Use docs for runbook-level guidance and validation
-summaries. Do not commit generated local variables, secrets, raw credentials, or
-large local-only captures.
+Use `chatbot/scenarios/examples/<scenario-id>/` for current candidate scenario
+content. Archived scenario content lives under `archived_scenarios/` and should
+be moved or copied back into the examples tree before reactivation. Use docs for
+runbook-level guidance and validation summaries. Do not commit generated local
+variables, secrets, raw credentials, or large local-only captures.
 
 ## Workflow
 
@@ -115,6 +120,10 @@ context. This determines whether the active guard should be an input guard,
 output guard, or both.
 
 ## HR Output-DLP Example
+
+Status: Phase 10 active scenario and Phase 11 review candidate. Keep this
+example as tuning history until Phase 11 decides whether HR DLP remains in the
+v1.0 scenario matrix.
 
 Use this as the working template for `hr-tool-dlp`.
 

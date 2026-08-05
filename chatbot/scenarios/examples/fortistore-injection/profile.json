@@ -4,7 +4,7 @@
   "description": "No-MCP Fortinet-aligned product advisor for comparing normal product guidance, user prompt injection, token wasting, and compromised frontend/system prompt injection.",
   "instruction_file": "instructions.txt",
   "frontend_instruction_file": "frontend-injection.instructions.txt",
-  "status": "v1.0 baseline",
+  "status": "phase10-active",
   "mcp": {
     "enabled": false,
     "tool_profile": "",

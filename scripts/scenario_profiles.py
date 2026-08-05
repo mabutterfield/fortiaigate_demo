@@ -68,7 +68,7 @@ def scenario_path(scenario_id: str, *, include_inactive: bool = False) -> Path:
     if scenario_id not in scenarios:
         available = ", ".join(sorted(scenarios))
         raise SystemExit(f"Unknown active scenario: {scenario_id}. Available: {available}")
-    return EXAMPLES_ROOT / scenarios[scenario_id]["path"]
+    return (EXAMPLES_ROOT / scenarios[scenario_id]["path"]).resolve()
 
 
 def load_scenario(scenario_id: str, *, include_inactive: bool = False) -> tuple[Path, dict]:

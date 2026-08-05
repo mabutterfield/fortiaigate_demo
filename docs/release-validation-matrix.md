@@ -163,27 +163,35 @@ Result log:
 |---|---|---|
 | 2026-07-29 | Pending | Do not interrupt a live local run; record results after the current operator-owned pass completes. |
 
-## Scenario Baseline
+## Scenario Candidate Validation
 
-Baseline scenarios:
+Phase 10 scenario validation covers the two current active scenarios plus the
+candidate set for Phase 11. Phase 11 is planned to define the final v1.0
+scenario-owned path matrix.
 
 | Scenario | Required tool profile | Required first path |
 |---|---|---|
 | `fortistore-injection` | none; MCP off | Direct LiteLLM |
 | `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP |
+| `fortigate-operator` | `fortigate-operator` | Direct MCP |
+| `resume-screening-clean` | `resume-screening-clean` | Direct MCP |
+| `resume-prompt-injection` | `resume-prompt-injection` | Direct MCP |
+| `resume-cloud-tool-pivot` | `resume-cloud-tool-pivot` | Direct MCP |
+| `resume-cloud-tool-pivot-safe` | `resume-cloud-tool-pivot-safe` | Direct MCP |
+| `resume-cloud-tool-pivot-vulnerable` | `resume-cloud-tool-pivot-vulnerable` | Direct MCP |
 
-Inactive legacy and in-progress scenario profiles remain in
-`chatbot/scenarios/examples/` but are hidden from default validation until
+Archived legacy scenario profiles live in `archived_scenarios/` and are hidden
+from default validation until moved back into `chatbot/scenarios/examples/` and
 reactivated in `chatbot/scenarios/examples/catalog.json`.
 
 Headless example:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
-  --scenario fortistore-injection \
+  --scenario hr-tool-dlp \
   --paths direct \
   --mcp-path direct \
-  --run-label phase10-baseline
+  --run-label phase10-active
 ```
 
 Run each scenario through direct first. Repeat through `faig-scan`,

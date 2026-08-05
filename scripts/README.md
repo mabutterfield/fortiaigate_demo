@@ -19,11 +19,12 @@ Current scripts:
   `chatbot/instructions/local/`. Examples and their metadata remain tracked
   under `chatbot/instructions/examples/`. Run it without a subcommand to open a
   menu-driven wizard for changing one slot at a time.
-- `scenario_profiles.py`: lists, validates, shows, and installs tracked demo
-  scenario profiles from `chatbot/scenarios/examples/` into local instruction
-  slots. Scenario profiles package repeatable demo instructions, MCP tool
-  expectations, clean prompts, and attack prompts while still leaving local
-  instruction slots editable.
+- `scenario_profiles.py`: lists, validates, shows, and installs active or
+  candidate scenario profiles from `chatbot/scenarios/examples/` into local
+  instruction slots. Inactive archived profiles remain inspectable through the
+  catalog with `--include-inactive`. Scenario profiles package repeatable demo
+  instructions, MCP tool expectations, clean prompts, and attack prompts while
+  still leaving local instruction slots editable.
 - `scenario_test_harness.py`: runs Phase 8 scenario prompts through the
   deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
   and FAIG protect paths. It can optionally install a scenario profile,

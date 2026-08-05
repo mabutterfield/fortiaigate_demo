@@ -5,6 +5,15 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
+  - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
+    generated scenario metadata, and the replacement for `demo-a`/`demo-b`
+    terminology
+  - active scenario examples now keep FortiStore Injection and HR Tool DLP,
+    while FortiGate Operator and the HR Resume family are marked as Phase 11
+    candidates
+  - legacy or paused scenarios were moved to `archived_scenarios/` while
+    remaining inspectable through inactive catalog entries
 - Added and archived an MCP-backed FortiStore Product Advisor scenario used
   during Phase 10 prompt-injection and token-wasting tuning:
   - uses deterministic synthetic product catalog data through narrow MCP tools
@@ -12,8 +21,8 @@ a "what's new" guide rather than a raw commit log.
   - documents Direct, Demo A detect-only, and Demo B input-protection behavior
     with route, flow, guard, and model expectations
   - marks the older fast-food ordering and MCP-backed FortiStore scenarios as
-    archived/unused for the active v1.0 baseline
-- Added FortiStore Injection as the active v1.0 product-advisor injection lane:
+    archived/unused for the Phase 10 active set
+- Added FortiStore Injection as the active Phase 10 product-advisor injection lane:
   - keeps normal backend-only behavior product-focused
   - adds a toggleable chatbot frontend/system-prompt fixture for demonstrating
     compromised UI-layer instruction injection
@@ -44,8 +53,8 @@ a "what's new" guide rather than a raw commit log.
   - centralized known issues and workarounds for slow NVIDIA downloads,
     FortiAIGate GUI setup, FortiWeb MCP Security automation, and local Ollama
     NodePort exposure
-  - marked the Phase 10 v1.0 baseline scenario set for validation and demo
-    rehearsal
+  - marked the Phase 10 scenario set for validation and demo rehearsal while
+    deferring final v1.0 scenario naming to Phase 11
 - Added the Phase 10 release validation matrix covering no-apply checks, AWS
   fresh deployment, AWS teardown, local fresh deployment, scenario baseline
   validation, and an optional FortiGate Application Control traffic-generation

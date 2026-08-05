@@ -46,11 +46,15 @@ rendered user-data from these experiments.
 Quickstart deploys FortiAIGate, LiteLLM, chatbot, MCP, demo home, and appliance
 baselines, then prints the values needed for FortiAIGate GUI setup. Provider,
 flow, route, and guard configuration in the FortiAIGate GUI remains a manual
-v1.0 boundary.
+Phase 10 boundary.
 
 Use [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) for the current
 manual steps and [Scenario Catalog Matrix](scenario-catalog.md) for the
 recorded-demo route and guard expectations.
+
+Phase 11 is planned as the v1.0 baseline and should replace compatibility
+`demo-a`/`demo-b` naming with generated scenario-owned paths and scenario
+metadata.
 
 ## FortiWeb MCP Security Automation Is Deferred
 
@@ -69,4 +73,3 @@ Local hardware mode exposes Ollama on a plain HTTP NodePort for validation and
 operator convenience. Stock Ollama does not provide built-in API authentication.
 Keep that NodePort restricted to a trusted lab network and do not expose it to
 the internet.
-
