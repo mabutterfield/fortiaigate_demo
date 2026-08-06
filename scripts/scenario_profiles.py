@@ -14,8 +14,9 @@ from pathlib import Path
 
 try:
     import instruction_profiles
+    import scenario_local
 except ModuleNotFoundError:
-    from scripts import instruction_profiles
+    from scripts import instruction_profiles, scenario_local
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -861,6 +862,108 @@ def validate_scenarios(
         raise SystemExit(1)
 
 
+def validate_local_matrix(store: scenario_local.LocalScenarioStore) -> None:
+    state = store.load_state()
+    available_tools = shared_mcp_tool_names()
+    global_symbols: dict[str, dict[str, str]] = {
+        "model_alias": {},
+        "route_uri": {},
+        "guard_name": {},
+        "chatbot_profile": {},
+        "frontend_profile": {},
+    }
+    errors: list[str] = []
+    for entry in state["installed_scenarios"]:
+        scenario_id = str(entry["scenario_id"])
+        profile_path = store.scenario_path(scenario_id) / "profile.json"
+        if not profile_path.is_file():
+            errors.append(f"{scenario_id}: installed profile is missing: {profile_path}")
+            continue
+        try:
+            profile = read_json(profile_path)
+            profile_errors, symbols = baseline_profile_validation(
+                scenario_id,
+                profile_path,
+                profile,
+                available_tools,
+            )
+            errors.extend(f"{scenario_id}: {error}" for error in profile_errors)
+            errors.extend(
+                f"{scenario_id}: {error}"
+                for error in register_generated_symbols(global_symbols, scenario_id, symbols)
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append(f"{scenario_id}: cannot read installed profile: {exc}")
+    if errors:
+        raise scenario_local.LocalScenarioError(
+            "Installed scenario validation failed:\n- " + "\n- ".join(errors)
+        )
+
+
+def validate_baseline_source(scenario_id: str, profile_path: Path, profile: dict) -> None:
+    errors, _symbols = baseline_profile_validation(
+        scenario_id,
+        profile_path,
+        profile,
+        shared_mcp_tool_names(),
+    )
+    if errors:
+        raise scenario_local.LocalScenarioError(
+            f"Tracked scenario {scenario_id} is invalid:\n- " + "\n- ".join(errors)
+        )
+
+
+def print_installed_status(store: scenario_local.LocalScenarioStore) -> None:
+    status = store.list_installed()
+    print_header("Installed Scenario Profiles")
+    if not status["installed_scenarios"]:
+        print("No scenarios are installed.")
+    for entry in status["installed_scenarios"]:
+        print(f"- {entry['scenario_id']}")
+        print(f"  local path: {entry['local_path']}")
+        print(f"  local status: {'modified' if entry['local_modified'] else 'unchanged'}")
+        if not entry["local_exists"]:
+            print("  warning: local package is missing; use update --force to restore it")
+        if not entry["source_exists"]:
+            print("  source status: missing")
+        elif entry["source_update_available"]:
+            print("  source status: update available; local files were not changed")
+        else:
+            print("  source status: matches installed source")
+    for orphan in status["orphan_packages"]:
+        print(f"warning: unregistered local package: {orphan}")
+    if status["stale_faig_objects"]:
+        stale_count = sum(
+            len(entry.get("entry_points", []))
+            for entry in status["stale_faig_objects"]
+        )
+        print(f"stale FAIG objects awaiting acknowledgement: {stale_count}")
+
+
+def print_operation_status(result: dict) -> None:
+    if result.get("warning"):
+        print(f"warning: {result['warning']}")
+    status = result.get("status")
+    if isinstance(status, dict):
+        print(f"scenario: {status.get('scenario_id', '')}")
+        print(f"local path: {status.get('local_path', '')}")
+        print(f"local modified: {str(bool(status.get('local_modified'))).lower()}")
+        print(
+            "source update available: "
+            + str(bool(status.get("source_update_available"))).lower()
+        )
+    if result.get("backup_path"):
+        print(f"backup: {result['backup_path']}")
+    if result.get("archive_path"):
+        print(f"removed package archive: {result['archive_path']}")
+    stale_entry_points = result.get("stale_entry_points", [])
+    for entry_point in stale_entry_points:
+        print(
+            "stale FAIG object: "
+            f"{entry_point.get('uri')} guard={entry_point.get('suggested_guard_name')}"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Manage tracked demo scenario profiles.",
@@ -868,12 +971,15 @@ def parse_args() -> argparse.Namespace:
         epilog="""examples:
   python3 scripts/scenario_profiles.py list
   python3 scripts/scenario_profiles.py show fortistore-injection
-  python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
+  python3 scripts/scenario_profiles.py add fortistore-injection
+  python3 scripts/scenario_profiles.py list-installed
+  python3 scripts/scenario_profiles.py show-matrix
+  python3 scripts/scenario_profiles.py render-work-order
   python3 scripts/scenario_profiles.py list --include-inactive
   python3 scripts/scenario_profiles.py validate
 
-after install:
-  ansible-playbook ansible/playbooks/deploy_litellm.yml
+Phase 11 add/remove state is not consumed by Ansible until matrix integration.
+The old install --slot command remains temporarily for Phase 10 runtime testing.
 """,
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -909,39 +1015,144 @@ then deploy the prepared instructions:
     validate_parser = subparsers.add_parser("validate", help="Validate Phase 11 baseline scenario profiles.")
     validate_parser.add_argument("--include-candidates", action="store_true", help="Also validate future candidate profiles with the legacy checks.")
     validate_parser.add_argument("--include-inactive", action="store_true", help="Also validate candidate and archived profiles with the legacy checks.")
+
+    add_parser = subparsers.add_parser(
+        "add",
+        help="Install an editable local copy of a Phase 11 baseline scenario.",
+    )
+    add_parser.add_argument("scenario", help="Baseline scenario ID.")
+
+    update_parser = subparsers.add_parser(
+        "update",
+        help="Inspect or explicitly replace an installed scenario from its tracked example.",
+    )
+    update_parser.add_argument("scenario", help="Installed baseline scenario ID.")
+    update_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Back up the editable local package and replace it from the tracked example.",
+    )
+
+    remove_parser = subparsers.add_parser(
+        "remove",
+        help="Remove an installed scenario and archive its editable local package.",
+    )
+    remove_parser.add_argument("scenario", help="Installed scenario ID.")
+
+    subparsers.add_parser(
+        "list-installed",
+        help="List installed scenarios, local modifications, and source updates.",
+    )
+    subparsers.add_parser(
+        "show-matrix",
+        help="Show the Phase 2 generated matrix preview for installed scenarios.",
+    )
+
+    work_order_parser = subparsers.add_parser(
+        "render-work-order",
+        help="Render the FAIG GUI work order for installed and stale scenario objects.",
+    )
+    work_order_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional ignored output path. Without this option, print to stdout.",
+    )
+    work_order_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing output file.",
+    )
+
+    acknowledge_parser = subparsers.add_parser(
+        "ack-stale",
+        help="Acknowledge manually removed stale FAIG objects.",
+    )
+    acknowledge_parser.add_argument(
+        "scenario",
+        nargs="?",
+        help="Scenario whose stale FAIG records were handled.",
+    )
+    acknowledge_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Acknowledge every recorded stale FAIG object.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.command in {None, "list"}:
-        print_list(
-            include_inactive=getattr(args, "include_inactive", False),
-            include_candidates=getattr(args, "include_candidates", False),
-        )
-    elif args.command == "show":
-        profile_path, profile = load_scenario(
-            args.scenario,
-            include_inactive=args.include_inactive,
-            include_candidates=args.include_candidates,
-        )
-        print_scenario(profile_path, profile)
-    elif args.command == "install":
-        install_scenario(
-            args.scenario,
-            slot=args.slot,
-            force=args.force,
-            link=args.link,
-            include_inactive=args.include_inactive,
-            include_candidates=args.include_candidates,
-        )
-    elif args.command == "validate":
-        validate_scenarios(
-            include_inactive=args.include_inactive,
-            include_candidates=args.include_candidates,
-        )
-    else:
-        raise SystemExit(f"Unknown command: {args.command}")
+    store = scenario_local.LocalScenarioStore()
+    try:
+        if args.command in {None, "list"}:
+            print_list(
+                include_inactive=getattr(args, "include_inactive", False),
+                include_candidates=getattr(args, "include_candidates", False),
+            )
+        elif args.command == "show":
+            profile_path, profile = load_scenario(
+                args.scenario,
+                include_inactive=args.include_inactive,
+                include_candidates=args.include_candidates,
+            )
+            print_scenario(profile_path, profile)
+        elif args.command == "install":
+            install_scenario(
+                args.scenario,
+                slot=args.slot,
+                force=args.force,
+                link=args.link,
+                include_inactive=args.include_inactive,
+                include_candidates=args.include_candidates,
+            )
+        elif args.command == "validate":
+            validate_scenarios(
+                include_inactive=args.include_inactive,
+                include_candidates=args.include_candidates,
+            )
+        elif args.command == "add":
+            profile_path, profile = load_scenario(args.scenario)
+            validate_baseline_source(args.scenario, profile_path, profile)
+            result = store.add(args.scenario, profile_path)
+            print_operation_status(result)
+            if result.get("changed"):
+                print("next: deploy LiteLLM and chatbot after matrix integration is enabled")
+        elif args.command == "update":
+            profile_path, profile = load_scenario(args.scenario)
+            validate_baseline_source(args.scenario, profile_path, profile)
+            result = store.update(
+                args.scenario,
+                profile_path,
+                force=args.force,
+            )
+            print_operation_status(result)
+        elif args.command == "remove":
+            result = store.remove(args.scenario)
+            print_operation_status(result)
+            print("FAIG GUI objects are not deleted automatically.")
+        elif args.command == "list-installed":
+            print_installed_status(store)
+        elif args.command == "show-matrix":
+            validate_local_matrix(store)
+            print(json.dumps(store.matrix_summary(), indent=2, sort_keys=True))
+        elif args.command == "render-work-order":
+            validate_local_matrix(store)
+            if args.output:
+                output_path = store.write_work_order(args.output, force=args.force)
+                print(f"wrote: {scenario_local.relative_to_repo(output_path)}")
+            else:
+                print(store.render_work_order())
+        elif args.command == "ack-stale":
+            if not args.scenario and not args.all:
+                raise scenario_local.LocalScenarioError(
+                    "Choose a scenario ID or use --all to acknowledge stale objects"
+                )
+            result = store.acknowledge_stale(None if args.all else args.scenario)
+            print(f"acknowledged stale records: {result['acknowledged']}")
+        else:
+            raise SystemExit(f"Unknown command: {args.command}")
+    except scenario_local.LocalScenarioError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

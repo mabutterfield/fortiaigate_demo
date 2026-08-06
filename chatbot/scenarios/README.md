@@ -46,7 +46,58 @@ The two Phase 11 baseline profiles use `schema_version: 2` and the generation
 contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
 their current pre-migration format until they are selected for future work.
 
-## Commands
+## Phase 11 Local Scenario Lifecycle
+
+Install editable, ignored local copies from the repo root:
+
+```bash
+python3 scripts/scenario_profiles.py add fortistore-injection
+python3 scripts/scenario_profiles.py add hr-tool-dlp
+python3 scripts/scenario_profiles.py list-installed
+python3 scripts/scenario_profiles.py show-matrix
+python3 scripts/scenario_profiles.py render-work-order
+```
+
+Installed packages live under `chatbot/scenarios/local/<scenario-id>/`. Edit
+the local `instructions.txt`, profile, or frontend instruction files without
+changing the tracked example. Normal commands and `git pull` never overwrite
+these local files.
+
+Check for tracked-template or local changes without overwriting anything:
+
+```bash
+python3 scripts/scenario_profiles.py update fortistore-injection
+```
+
+Explicitly replace a local package from the tracked example:
+
+```bash
+python3 scripts/scenario_profiles.py update fortistore-injection --force
+```
+
+Forced update first moves the existing package into the ignored
+`chatbot/scenarios/local/_backups/` tree. Pulling updated examples does not
+update an installed scenario until this explicit command is run.
+
+Remove a scenario from installed state:
+
+```bash
+python3 scripts/scenario_profiles.py remove fortistore-injection
+python3 scripts/scenario_profiles.py render-work-order
+```
+
+Removal archives the editable package under the ignored `_removed/` tree and
+records its FAIG paths as stale. FAIG GUI objects are never deleted
+automatically. After manually removing stale objects, acknowledge them with:
+
+```bash
+python3 scripts/scenario_profiles.py ack-stale fortistore-injection
+```
+
+The Phase 2 matrix preview and work order are not consumed by Ansible yet.
+LiteLLM and chatbot deployment integration follows in the next phases.
+
+## Catalog And Compatibility Commands
 
 Use the helper from the repo root:
 
@@ -58,6 +109,9 @@ python3 scripts/scenario_profiles.py show hr-tool-dlp
 python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 python3 scripts/scenario_profiles.py validate
 ```
+
+`install --slot` is the temporary Phase 10 compatibility workflow. New Phase
+11 work should use `add` and the ignored local scenario packages above.
 
 Inactive archived scenarios can still be inspected for reference:
 

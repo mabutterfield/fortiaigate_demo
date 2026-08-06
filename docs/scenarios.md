@@ -11,6 +11,12 @@ This page documents the current active Phase 10 set, the Phase 11 candidate
 set, and where archived material lives. It intentionally avoids a full rewrite
 into the Phase 11 scenario matrix model until that implementation exists.
 
+Phase 11 schema and safe local scenario lifecycle foundations now exist. The
+new `add`, `update`, `remove`, `list-installed`, `show-matrix`, and
+`render-work-order` commands prepare ignored editable scenario packages, but
+Ansible does not consume the generated matrix yet. Continue using the
+compatibility slot workflow below for the current live Phase 10 runtime.
+
 ## Current Scenario Sets
 
 Phase 10 active scenarios:
@@ -218,7 +224,8 @@ Deferred to Phase 11 / v1.0 baseline:
 
 - scenario matrix architecture,
 - `demo-a`/`demo-b` naming replacement,
-- generated scenario install/remove workflow,
+- generated LiteLLM/chatbot runtime integration for the implemented local
+  scenario install/remove workflow,
 - generated LiteLLM/chatbot/MCP/FAIG work orders,
 - generated FortiGate and FortiWeb path options when enabled,
 - full documentation information architecture refresh.

@@ -5,6 +5,17 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Started the Phase 11 scenario-matrix v1.0 foundation:
+  - classified only FortiStore Injection and HR Tool DLP as baseline scenarios,
+    while preserving the six surviving future candidates without migrating
+    their profile packages
+  - added a strict scenario profile v2 schema with scenario-owned Detect and
+    protection roles, frontend profiles, MCP defaults, and disabled FAIG chain
+  - added ignored editable local scenario packages with safe add, status,
+    explicit backed-up update, recoverable remove, and stale FAIG object
+    tracking
+  - added deterministic Phase 2 matrix preview and FAIG work-order commands;
+    Ansible runtime consumption follows in later Phase 11 work
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`
