@@ -96,6 +96,27 @@ fixture data, documents, or FortiGate secret wiring changed.
 | Change MCP tool code, schemas, fixture data, documents, or FortiGate secret wiring | `ansible-playbook ansible/playbooks/deploy_mcp.yml` |
 | Only switch the selected tool profile in the chatbot UI | No redeploy |
 
+## Headless Scenario Tests
+
+The Phase 11 harness resolves route names, model aliases, frontend profiles,
+MCP defaults, tool profiles, and tool-round limits from installed scenarios.
+Select the scenario and semantic path role rather than a demo-letter slot:
+
+```bash
+python3 scripts/scenario_test_harness.py \
+  --scenario hr-tool-dlp \
+  --path-role output-dlp-redact
+
+python3 scripts/scenario_test_harness.py \
+  --scenario fortistore-injection \
+  --path-role direct \
+  --frontend-profile fortistore-injection-compromised
+```
+
+Use `--mcp-path fortiweb` to test the advanced MCP alternate without creating
+duplicate simplified profiles. The old `--paths` and slot installer options are
+Phase 10 compatibility controls only.
+
 ## Common Chatbot Settings
 
 Use the custom chatbot UI for scenario demos:

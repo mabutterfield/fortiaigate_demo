@@ -21,6 +21,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+try:
+    import scenario_local
+    import scenario_matrix
+    import scenario_profiles
+    import scenario_test_harness
+except ModuleNotFoundError:
+    from scripts import (
+        scenario_local,
+        scenario_matrix,
+        scenario_profiles,
+        scenario_test_harness,
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG = REPO_ROOT / "chatbot" / "scenarios" / "examples" / "catalog.json"
@@ -130,7 +143,7 @@ SCENARIO_FAMILIES = {
     "all": [],
 }
 
-PATH_TEST_CASES = [
+LEGACY_PATH_TEST_CASES = [
     {
         "name": "demo-a",
         "path": "/v1/demo-a",
@@ -174,11 +187,81 @@ def load_json(path: Path) -> dict[str, Any]:
     return data
 
 
+def installed_runtime() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    store = scenario_local.LocalScenarioStore()
+    try:
+        scenario_profiles.validate_local_matrix(store)
+        matrix = scenario_matrix.build_scenario_matrix(store.matrix_summary())
+        profiles = {
+            entry["scenario_id"]: load_json(
+                store.scenario_path(entry["scenario_id"]) / "profile.json"
+            )
+            for entry in store.load_state()["installed_scenarios"]
+        }
+    except (
+        OSError,
+        scenario_local.LocalScenarioError,
+        scenario_matrix.ScenarioMatrixError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+    if not profiles:
+        raise SystemExit(
+            "No Phase 11 scenarios are installed. Run scenario_profiles.py add first."
+        )
+    return matrix, profiles
+
+
+def selected_installed_scenarios(
+    args: argparse.Namespace,
+    profiles: dict[str, dict[str, Any]],
+) -> list[str]:
+    explicit = parse_csv_values(args.scenario)
+    if explicit:
+        unknown = [scenario for scenario in explicit if scenario not in profiles]
+        if unknown:
+            raise SystemExit(
+                "Scenario(s) are not installed: " + ", ".join(unknown)
+            )
+        return explicit
+    if args.scenario_family in {"baseline", "demo-recording", "all"}:
+        return sorted(profiles)
+    family = SCENARIO_FAMILIES[args.scenario_family]
+    selected = [scenario for scenario in family if scenario in profiles]
+    if not selected:
+        raise SystemExit(
+            f"Scenario family '{args.scenario_family}' has no installed scenarios."
+        )
+    return selected
+
+
+def matrix_path_configs(
+    args: argparse.Namespace,
+    matrix: dict[str, Any],
+    scenario_ids: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    roles = parse_csv_values(args.path_role) or ["direct", "detect"]
+    return {
+        scenario_id: scenario_test_harness.scenario_path_configs(
+            matrix,
+            scenario_id,
+            roles,
+        )
+        for scenario_id in scenario_ids
+    }
+
+
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
 
 
 def append_jsonl(path: Path, data: Any) -> None:
@@ -260,8 +343,9 @@ def slot_for_route(args: argparse.Namespace, route: str) -> str:
     configured = ROUTE_SLOT_DEFAULTS[route]
     if configured:
         return configured
-    if args.model in {"demo-a", "demo-b"}:
-        return args.model
+    compatibility_model = args.model or "demo-a"
+    if compatibility_model in {"demo-a", "demo-b"}:
+        return compatibility_model
     raise SystemExit(
         f"Route {route} uses model/profile {args.model}, which is not a local scenario slot. "
         "Pass --scenario explicitly or use --model demo-a/demo-b."
@@ -345,27 +429,59 @@ def build_plan(
     args: argparse.Namespace,
     profiles: dict[str, dict[str, Any]],
     route_scenarios: dict[str, str] | None = None,
+    path_configs_by_scenario: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     rng = random.Random(args.seed)
     scenarios = list(profiles)
-    routes = selected_routes(args)
+    routes = selected_routes(args) if path_configs_by_scenario is None else []
     choices_by_scenario = {
         scenario: prompt_choices(profile, args.traffic_profile)
         for scenario, profile in profiles.items()
     }
     total = request_count(args.duration, args.rate)
+    lanes = [
+        (scenario_id, path_config)
+        for scenario_id, path_configs in (path_configs_by_scenario or {}).items()
+        for path_config in path_configs
+    ]
     plan: list[dict[str, Any]] = []
     for index in range(total):
-        route = rng.choice(routes)
-        scenario_id = route_scenarios[route] if route_scenarios else rng.choice(scenarios)
+        if lanes:
+            scenario_id, path_config = rng.choice(lanes)
+            route = path_config["path_role"]
+        else:
+            route = rng.choice(routes)
+            scenario_id = route_scenarios[route] if route_scenarios else rng.choice(scenarios)
+            legacy_route = ROUTE_CONFIGS[route]
+            path_config = {
+                "path_role": route,
+                "provider": legacy_route["provider"],
+                "route": legacy_route["route"],
+                "model": str(legacy_route.get("model") or args.model or "demo-a"),
+                "mcp_enabled": True,
+                "mcp_path": legacy_route["mcp_path"] or args.mcp_path or "direct",
+                "tool_profile": "",
+                "max_tool_rounds": args.max_tool_rounds or 3,
+                "frontend_instruction_profile": args.frontend_profile,
+                "description": legacy_route["description"],
+            }
         prompt_choice = weighted_choice(rng, choices_by_scenario[scenario_id])
         profile = profiles[scenario_id]
-        tool_profile = args.tool_profile or str(profile.get("mcp", {}).get("tool_profile") or scenario_id)
+        tool_profile = (
+            args.tool_profile
+            or path_config["tool_profile"]
+            or (
+                str(profile.get("mcp", {}).get("tool_profile") or scenario_id)
+                if path_config["mcp_enabled"]
+                else ""
+            )
+        )
         plan.append(
             {
                 "request_id": f"req-{index + 1:05d}",
                 "scenario": scenario_id,
                 "route": route,
+                "path_config": path_config,
                 "prompt_kind": prompt_choice["kind"],
                 "prompt_index": prompt_choice["index"],
                 "prompt_id": f"{prompt_choice['kind']}-{prompt_choice['index'] + 1:02d}",
@@ -443,9 +559,9 @@ def terraform_output_raw(terraform_path: Path, output_name: str) -> str:
 
 
 def remote_agent_command(args: argparse.Namespace, item: dict[str, Any]) -> list[str]:
-    route = ROUTE_CONFIGS[item["route"]]
-    mcp_path = route["mcp_path"] or args.mcp_path
-    model = str(route.get("model") or args.model) if args.model == "demo-a" else args.model
+    path_config = item["path_config"]
+    mcp_path = args.mcp_path or path_config["mcp_path"]
+    model = args.model or path_config["model"]
     remote_parts = [
         "sudo",
         "kubectl",
@@ -459,22 +575,30 @@ def remote_agent_command(args: argparse.Namespace, item: dict[str, Any]) -> list
         "--prompt",
         item["prompt"],
         "--provider",
-        route["provider"],
-        "--route",
-        route["route"],
+        path_config["provider"],
         "--model",
         model,
         "--mcp-path",
         mcp_path,
         "--max-tool-rounds",
-        str(args.max_tool_rounds),
+        str(args.max_tool_rounds or path_config["max_tool_rounds"]),
         "--temperature",
         str(args.temperature),
         "--max-tokens",
         str(args.max_tokens),
     ]
-    if args.agent_probe_supports_tool_profile:
+    if path_config["route"]:
+        remote_parts.extend(["--route", path_config["route"]])
+    if not path_config["mcp_enabled"]:
+        remote_parts.append("--no-mcp")
+    if args.agent_probe_supports_tool_profile and item["tool_profile"]:
         remote_parts.extend(["--tool-profile", item["tool_profile"]])
+    frontend_profile = (
+        args.frontend_profile
+        or path_config["frontend_instruction_profile"]
+    )
+    if frontend_profile:
+        remote_parts.extend(["--frontend-profile", frontend_profile])
     return remote_parts
 
 
@@ -644,7 +768,7 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
     print(f"rate_per_minute: {args.rate}")
     print(f"concurrency: {args.concurrency}")
     print(f"estimated_requests: {len(plan)}")
-    print(f"output: {args.output_dir.relative_to(REPO_ROOT)}")
+    print(f"output: {display_path(args.output_dir)}")
     print(f"scenario_source: {args.scenario_source}")
     by_scenario = Counter(item["scenario"] for item in plan)
     by_route = Counter(item["route"] for item in plan)
@@ -676,8 +800,8 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
 
 
 def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    route = ROUTE_CONFIGS[item["route"]]
-    mcp_path = route["mcp_path"] or args.mcp_path
+    path_config = item["path_config"]
+    mcp_path = args.mcp_path or path_config["mcp_path"]
     return {
         "timestamp": now_iso(),
         "request_id": item["request_id"],
@@ -687,15 +811,17 @@ def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: di
         "endpoint_type": "provided" if args.endpoint else "chatbot-pod-agent-probe",
         "endpoint": args.endpoint,
         "route": item["route"],
-        "provider": route["provider"],
-        "provider_route": route["route"],
+        "path_role": path_config["path_role"],
+        "provider": path_config["provider"],
+        "provider_route": path_config["route"],
         "traffic_profile": args.traffic_profile,
         "scenario_id": item["scenario"],
         "prompt_id": item["prompt_id"],
         "prompt_kind": item["prompt_kind"],
-        "model_alias": args.model,
+        "model_alias": args.model or path_config["model"],
         "agent_model": result.get("agent_model", ""),
         "agent_base_url": result.get("agent_base_url", ""),
+        "mcp_enabled": path_config["mcp_enabled"],
         "mcp_path": mcp_path,
         "agent_mcp_base_url": result.get("agent_mcp_base_url", ""),
         "mcp_tool_profile": item["tool_profile"],
@@ -732,7 +858,7 @@ def write_run_summary(
         "seed": args.seed,
         "traffic_profile": args.traffic_profile,
         "use_case": args.use_case,
-        "routes": parse_csv_values(args.route) or ["faig-scan"],
+        "path_roles": sorted({item["path_config"]["path_role"] for item in plan}),
         "model_alias": args.model,
         "mcp_path": args.mcp_path,
         "planned_requests": len(plan),
@@ -748,7 +874,7 @@ def write_run_summary(
         "security_disposition_counts": dict(Counter(event["security_disposition"] for event in events)),
         "error_counts": dict(Counter(event["error_class"] for event in errors)),
         "raw_prompt_response_saved": False,
-        "events_file": None if args.summary_only else str((args.output_dir / "events.jsonl").relative_to(REPO_ROOT)),
+        "events_file": None if args.summary_only else display_path(args.output_dir / "events.jsonl"),
     }
     write_json(args.output_dir / "summary.json", summary)
 
@@ -771,7 +897,25 @@ def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: 
             "traffic_profile": args.traffic_profile,
             "use_case": args.use_case,
             "requests": [
-                {key: item[key] for key in ("request_id", "scenario", "route", "prompt_kind", "prompt_id", "tool_profile")}
+                {
+                    key: item[key]
+                    for key in (
+                        "request_id",
+                        "scenario",
+                        "route",
+                        "prompt_kind",
+                        "prompt_id",
+                        "tool_profile",
+                    )
+                }
+                | {
+                    "provider": item["path_config"]["provider"],
+                    "provider_route": item["path_config"]["route"],
+                    "model": item["path_config"]["model"],
+                    "mcp_enabled": item["path_config"]["mcp_enabled"],
+                    "mcp_path": item["path_config"]["mcp_path"],
+                    "frontend_instruction_profile": item["path_config"]["frontend_instruction_profile"],
+                }
                 for item in plan
             ],
         },
@@ -816,13 +960,13 @@ def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: 
                 future.cancel()
             print("Interrupted; writing partial summary.", file=sys.stderr)
     write_run_summary(args, plan, events, started_at, "interrupted" if interrupted else "completed")
-    print(f"summary: {(args.output_dir / 'summary.json').relative_to(REPO_ROOT)}")
+    print(f"summary: {display_path(args.output_dir / 'summary.json')}")
 
 
 def path_test_passthrough_model(args: argparse.Namespace) -> str:
     if args.path_test_passthrough_model:
         return args.path_test_passthrough_model
-    return "pass-ollama" if args.target == "local" else "pass-bedrock"
+    return "pass-model"
 
 
 def inferred_path_test_base_url(args: argparse.Namespace) -> str:
@@ -855,13 +999,46 @@ def path_test_url(base_url: str, path: str) -> str:
     return f"{base_url.rstrip('/')}{normalized_path.rstrip('/')}/chat/completions"
 
 
-def path_test_cases(args: argparse.Namespace) -> list[dict[str, str]]:
+def path_test_cases(
+    args: argparse.Namespace,
+    matrix: dict[str, Any],
+) -> list[dict[str, str]]:
+    if args.legacy_routes:
+        base_cases = LEGACY_PATH_TEST_CASES
+    else:
+        base_cases = [
+            {
+                "name": str(route["name"]),
+                "path": str(route["base_path"]),
+                "role": str(route.get("role") or route["name"]),
+                "model": str(route.get("model") or "pass-model"),
+                "prompt": (
+                    f"Path test for {route['base_path']}. "
+                    f"Reply with only: ok {route['name']}"
+                ),
+            }
+            for route in matrix.get("chatbot_faig_static_routes", [])
+        ]
     requested = parse_csv_values(args.path_test_path)
-    cases = PATH_TEST_CASES
+    cases = base_cases
     if requested:
-        requested_names = {item if item.startswith("/v1/") else f"/v1/{item.strip('/')}" for item in requested}
-        cases = [case for case in PATH_TEST_CASES if case["path"] in requested_names]
-        missing = sorted(requested_names - {case["path"] for case in cases})
+        requested_names = {item.strip() for item in requested}
+        cases = [
+            case
+            for case in base_cases
+            if case["path"] in requested_names
+            or case["name"] in requested_names
+            or case.get("role") in requested_names
+        ]
+        matched = {
+            requested_name
+            for requested_name in requested_names
+            if any(
+                requested_name in {case["path"], case["name"], case.get("role")}
+                for case in cases
+            )
+        }
+        missing = sorted(requested_names - matched)
         if missing:
             raise SystemExit(f"Unknown path test path(s): {', '.join(missing)}")
     passthrough_model = path_test_passthrough_model(args)
@@ -1027,10 +1204,11 @@ def print_path_test_header(args: argparse.Namespace, cases: list[dict[str, str]]
 
 
 def run_path_tests(args: argparse.Namespace) -> int:
+    matrix, _profiles = installed_runtime()
     inventory_host = None
     if args.path_test_execution == "chatbot-pod":
         inventory_host = parse_inventory(args.inventory, args.host_alias)
-    cases = path_test_cases(args)
+    cases = path_test_cases(args, matrix)
     print_path_test_header(args, cases)
     if args.dry_run:
         print("dry-run: no path requests sent")
@@ -1071,17 +1249,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scenario", action="append", help="Scenario ID. Can be repeated or comma-separated.")
     parser.add_argument(
         "--scenario-source",
-        choices=["active-slot", "family", "explicit"],
-        default="active-slot",
-        help="Scenario selection source. active-slot maps each route/model slot to installed local scenario metadata.",
+        choices=["installed", "active-slot", "family", "explicit"],
+        default="installed",
+        help="Scenario selection source. installed uses ignored Phase 11 local packages; active-slot is Phase 10 compatibility.",
     )
     parser.add_argument("--scenario-family", choices=sorted(SCENARIO_FAMILIES), default="baseline")
     parser.add_argument("--traffic-profile", choices=["clean", "attack", "mixed"], default="mixed")
-    parser.add_argument("--route", action="append", help="Route label. Can be repeated or comma-separated. Defaults to faig-scan so FAIG logs are populated.")
-    parser.add_argument("--model", default="demo-a", help="Chatbot model/profile alias passed to agent_probe.py.")
-    parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="direct")
-    parser.add_argument("--tool-profile", default="", help="Override MCP tool profile for every request. Defaults to scenario metadata.")
-    parser.add_argument("--max-tool-rounds", type=int, default=3)
+    parser.add_argument("--path-role", action="append", help="Phase 11 path role. Can be repeated or comma-separated; defaults to direct and detect.")
+    parser.add_argument("--route", action="append", help="Phase 10 compatibility route label. Use --path-role for Phase 11.")
+    parser.add_argument("--model", default="", help="Override the matrix-derived chatbot model alias.")
+    parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="", help="Override the matrix-derived MCP path.")
+    parser.add_argument("--tool-profile", default="", help="Override the matrix-derived MCP tool profile for every request.")
+    parser.add_argument("--frontend-profile", default="", help="Override the matrix-derived frontend instruction profile.")
+    parser.add_argument("--max-tool-rounds", type=int, default=0, help="Override profile tool rounds; zero uses the matrix value.")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--inventory", type=Path, default=None, help="Ansible inventory. Defaults by --target.")
@@ -1091,6 +1271,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-test-base-url", default="", help="Base URL for path_test. Defaults to the target's inferred external FAIG HTTPS endpoint.")
     parser.add_argument("--path-test-execution", choices=["direct", "chatbot-pod"], default="direct")
     parser.add_argument("--path-test-path", action="append", help="Path to test. Can be repeated or comma-separated.")
+    parser.add_argument("--legacy-routes", action="store_true", help="Use Phase 10 demo-a/demo-b path-test cases.")
     parser.add_argument("--path-test-timeout", type=int, default=60)
     parser.add_argument("--path-test-passthrough-model", default="", help="Override passthrough model for path_test.")
     parser.add_argument("--path-test-verify-tls", action="store_true", help="Verify TLS certificates for direct path_test curl requests.")
@@ -1105,6 +1286,10 @@ def parse_args() -> argparse.Namespace:
     apply_use_case_defaults(args)
     if args.scenario:
         args.scenario_source = "explicit"
+    if args.path_role and args.route:
+        raise SystemExit("Use --path-role or Phase 10 --route, not both")
+    if args.route and args.scenario_source != "active-slot":
+        raise SystemExit("Phase 10 --route requires --scenario-source active-slot")
     if args.concurrency < 1:
         raise SystemExit("--concurrency must be at least 1")
     if args.concurrency > 4:
@@ -1124,21 +1309,39 @@ def main() -> int:
     args = parse_args()
     if args.mode == "path_test":
         return run_path_tests(args)
-    entries = catalog_entries()
-    routes = selected_routes(args)
-    route_scenarios: dict[str, str] | None = None
     if args.scenario_source == "active-slot":
-        route_scenarios = active_slot_scenarios(args, routes, entries)
+        entries = catalog_entries()
+        routes = selected_routes(args)
+        route_scenarios: dict[str, str] | None = active_slot_scenarios(
+            args,
+            routes,
+            entries,
+        )
         scenario_ids = sorted(set(route_scenarios.values()))
+        profiles: dict[str, dict[str, Any]] = {}
+        for scenario_id in scenario_ids:
+            _path, profile = load_profile(scenario_id, entries)
+            profiles[scenario_id] = profile
+        plan = build_plan(args, profiles, route_scenarios)
     else:
-        scenario_ids = selected_family_scenarios(args, entries)
-    profiles: dict[str, dict[str, Any]] = {}
-    for scenario_id in scenario_ids:
-        _path, profile = load_profile(scenario_id, entries)
-        profiles[scenario_id] = profile
+        matrix, installed_profiles = installed_runtime()
+        scenario_ids = selected_installed_scenarios(args, installed_profiles)
+        profiles = {
+            scenario_id: installed_profiles[scenario_id]
+            for scenario_id in scenario_ids
+        }
+        path_configs_by_scenario = matrix_path_configs(
+            args,
+            matrix,
+            scenario_ids,
+        )
+        plan = build_plan(
+            args,
+            profiles,
+            path_configs_by_scenario=path_configs_by_scenario,
+        )
     if not profiles:
         raise SystemExit("No scenarios selected")
-    plan = build_plan(args, profiles, route_scenarios)
     cloud_guard(args, plan)
     print_plan(args, plan, profiles)
     if args.dry_run:

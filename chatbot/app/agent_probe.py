@@ -15,10 +15,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Probe one chatbot MCP-agent turn.")
     parser.add_argument("--prompt", required=True, help="User prompt to send.")
     parser.add_argument("--provider", choices=["direct", "fortigate-litellm", "fortigate-ollama", "faig-static"], default="direct")
-    parser.add_argument("--route", default="demo-a", help="FAIG static route name.")
-    parser.add_argument("--model", default="", help="Override model/profile.")
+    parser.add_argument("--route", default="", help="FAIG static route name. Defaults to the deployed canonical route.")
+    parser.add_argument("--model", default="", help="Override the deployed canonical model/profile.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="direct")
-    parser.add_argument("--tool-profile", default="all-tools", help="MCP tool profile to expose to the model.")
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help="Run a normal chat completion without exposing MCP tools.",
+    )
+    parser.add_argument("--tool-profile", default="", help="MCP tool profile to expose. Defaults to the deployed scenario profile.")
+    parser.add_argument(
+        "--frontend-profile",
+        default="",
+        help="Named frontend instruction profile. Defaults to the deployed selection.",
+    )
     parser.add_argument("--max-tool-rounds", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
@@ -111,7 +121,7 @@ def main() -> int:
     if args.provider == "direct":
         base_url = os.getenv("CHATBOT_DIRECT_BASE_URL", "").strip()
         api_key = os.getenv("CHATBOT_DIRECT_API_KEY", "not-used")
-        model = args.model or os.getenv("CHATBOT_MODEL", "demo-a")
+        model = args.model or os.getenv("CHATBOT_MODEL", "pass-model")
         extra_headers: dict[str, str] = {}
     elif args.provider == "fortigate-litellm":
         base_url = os.getenv("CHATBOT_FORTIGATE_LITELLM_BASE_URL", "").strip()
@@ -119,7 +129,7 @@ def main() -> int:
             os.getenv("CHATBOT_FORTIGATE_LITELLM_API_KEY", "").strip()
             or os.getenv("CHATBOT_DIRECT_API_KEY", "not-used")
         )
-        model = args.model or os.getenv("CHATBOT_MODEL", "demo-a")
+        model = args.model or os.getenv("CHATBOT_MODEL", "pass-model")
         extra_headers = {}
     elif args.provider == "fortigate-ollama":
         base_url = os.getenv("CHATBOT_FORTIGATE_OLLAMA_BASE_URL", "").strip()
@@ -128,13 +138,14 @@ def main() -> int:
         extra_headers = {}
     else:
         faig_base_url = os.getenv("CHATBOT_FAIG_BASE_URL", "").strip()
-        default_route = os.getenv("CHATBOT_FAIG_STATIC_ROUTE", "demo-a")
+        default_route = os.getenv("CHATBOT_FAIG_STATIC_ROUTE", "passthrough")
         routes = chatbot.build_faig_routes(
             default_route,
             env_json_list("CHATBOT_FAIG_STATIC_ROUTES_JSON"),
             f"/v1/{default_route}",
         )
-        route = route_by_name(routes, args.route)
+        route_name = args.route or default_route
+        route = route_by_name(routes, route_name)
         base_url, model, extra_headers = chatbot.apply_faig_static_route(faig_base_url, route)
         if args.model:
             model = args.model
@@ -147,15 +158,38 @@ def main() -> int:
     )
     if not base_url:
         raise RuntimeError(f"{args.provider} base URL is not configured")
-    if not mcp_base_url:
+    if not args.no_mcp and not mcp_base_url:
         raise RuntimeError(f"{args.mcp_path} MCP base URL is not configured")
 
-    frontend_system_prompt = os.getenv("CHATBOT_FRONTEND_SYSTEM_PROMPT", "").strip()
-    frontend_system_prompt_enabled = (
-        bool(frontend_system_prompt)
-        and not args.no_frontend_system_prompt
-        and chatbot.env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
+    legacy_frontend_system_prompt = os.getenv(
+        "CHATBOT_FRONTEND_SYSTEM_PROMPT", ""
+    ).strip()
+    frontend_profiles = chatbot.build_frontend_instruction_profiles(
+        chatbot.env_json_frontend_profiles(
+            "CHATBOT_FRONTEND_INSTRUCTION_PROFILES_JSON"
+        ),
+        legacy_frontend_system_prompt,
     )
+    frontend_profile_name = args.frontend_profile.strip()
+    if not frontend_profile_name:
+        frontend_profile_name = os.getenv(
+            "CHATBOT_FRONTEND_INSTRUCTION_PROFILE", ""
+        ).strip()
+    if not frontend_profile_name:
+        frontend_profile_name = (
+            "legacy"
+            if legacy_frontend_system_prompt
+            and chatbot.env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
+            else "none"
+        )
+    if args.no_frontend_system_prompt:
+        frontend_profile_name = "none"
+    frontend_profile = chatbot.frontend_profile_by_id(
+        frontend_profiles,
+        frontend_profile_name,
+    )
+    frontend_system_prompt = str(frontend_profile.get("instruction") or "")
+    frontend_system_prompt_enabled = bool(frontend_system_prompt)
     messages = chatbot.build_model_messages(
         frontend_system_prompt if frontend_system_prompt_enabled else None,
         [{"role": "user", "content": args.prompt}],
@@ -163,36 +197,65 @@ def main() -> int:
         int(os.getenv("CHATBOT_CONTEXT_WINDOW", "8")),
         "",
     )
-    tool_profiles = chatbot.build_mcp_tool_profiles(
-        chatbot.env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"),
-        mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
-    )
-    reply, tool_events, tools = chatbot.agent_response(
-        base_url=base_url,
-        api_key=api_key,
-        model=model,
-        messages=messages,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
-        verify_tls=os.getenv("CHATBOT_VERIFY_TLS", "").lower() in {"1", "true", "yes", "on"},
-        mcp_base_url=mcp_base_url,
-        mcp_timeout_seconds=int(os.getenv("CHATBOT_MCP_TIMEOUT_SECONDS", "10")),
-        mcp_verify_tls=os.getenv("CHATBOT_MCP_VERIFY_TLS", "").lower() in {"1", "true", "yes", "on"},
-        max_tool_rounds=args.max_tool_rounds,
-        extra_headers=extra_headers,
-        mcp_tool_profile=args.tool_profile,
-        mcp_tool_profiles=tool_profiles,
-    )
-    tool_profile = chatbot.mcp_tool_profile_by_name(tool_profiles, args.tool_profile)
+    tool_profile_name = ""
+    tool_profile: dict[str, Any] = {"name": "", "label": "MCP disabled"}
+    tool_events: list[dict[str, Any]] = []
+    tools: list[dict[str, Any]] = []
+    verify_tls = os.getenv("CHATBOT_VERIFY_TLS", "").lower() in {
+        "1", "true", "yes", "on"
+    }
+    if args.no_mcp:
+        reply = chatbot.single_response(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            messages=messages,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            verify_tls=verify_tls,
+            extra_headers=extra_headers,
+        )
+    else:
+        tool_profiles = chatbot.build_mcp_tool_profiles(
+            chatbot.env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"),
+            mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
+        )
+        tool_profile_name = args.tool_profile.strip() or os.getenv(
+            "CHATBOT_MCP_TOOL_PROFILE", ""
+        ).strip()
+        if not tool_profile_name:
+            tool_profile_name = str(tool_profiles[0]["name"])
+        tool_profile = chatbot.mcp_tool_profile_by_name(
+            tool_profiles,
+            tool_profile_name,
+        )
+        reply, tool_events, tools = chatbot.agent_response(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            messages=messages,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            verify_tls=verify_tls,
+            mcp_base_url=mcp_base_url,
+            mcp_timeout_seconds=int(os.getenv("CHATBOT_MCP_TIMEOUT_SECONDS", "10")),
+            mcp_verify_tls=os.getenv("CHATBOT_MCP_VERIFY_TLS", "").lower() in {"1", "true", "yes", "on"},
+            max_tool_rounds=args.max_tool_rounds,
+            extra_headers=extra_headers,
+            mcp_tool_profile=tool_profile_name,
+            mcp_tool_profiles=tool_profiles,
+        )
     result = {
         "provider": args.provider,
-        "route": args.route if args.provider == "faig-static" else None,
+        "route": route_name if args.provider == "faig-static" else None,
         "base_url": base_url,
         "model": model,
         "mcp_path": args.mcp_path,
-        "mcp_base_url": mcp_base_url,
+        "mcp_enabled": not args.no_mcp,
+        "mcp_base_url": mcp_base_url if not args.no_mcp else "",
         "tool_profile": tool_profile["name"],
         "tool_profile_label": tool_profile["label"],
+        "frontend_instruction_profile": frontend_profile_name,
         "frontend_system_prompt_enabled": frontend_system_prompt_enabled,
         "reply": reply,
         "tool_names": [
@@ -208,7 +271,9 @@ def main() -> int:
             "route": result["route"],
             "model": result["model"],
             "mcp_path": result["mcp_path"],
+            "mcp_enabled": result["mcp_enabled"],
             "tool_profile": result["tool_profile"],
+            "frontend_instruction_profile": result["frontend_instruction_profile"],
             "frontend_system_prompt_enabled": result["frontend_system_prompt_enabled"],
             "reply": truncate(reply, args.reply_max_chars),
             "tool_sequence": [

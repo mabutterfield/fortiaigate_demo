@@ -277,7 +277,7 @@ chatbot_publish_enabled: true
 # the same tag can be rebuilt and pushed. Set this false if you want tag bumps
 # for every changed chatbot image.
 chatbot_publish_overwrite_existing_tag: true
-chatbot_image_tag: v0.5.2
+chatbot_image_tag: v0.5.3
 chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
 chatbot_image_pull_policy: Always
 # EC2 GPU nodes are x86_64. Keep this as linux/amd64 when publishing from

@@ -32,6 +32,14 @@ a "what's new" guide rather than a raw commit log.
     desired and an installed appliance endpoint is available; FortiGate LLM
     routes remain disabled while that path is still under development
   - published chatbot image `v0.5.2` for the new matrix-driven runtime
+  - updated the scenario harness and traffic generator to resolve installed
+    scenarios by canonical path role, model alias, frontend profile, MCP path,
+    scoped tool profile, and tool-round settings from the same matrix
+  - updated the in-container agent probe to support MCP-disabled requests and
+    named frontend profiles without defaulting to `demo-a` or `all-tools`, and
+    published the result as chatbot image `v0.5.3`
+  - retained explicit Phase 10 `--paths`, `--route`, and active-slot modes for
+    old test invocations without using them as Phase 11 defaults
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

@@ -11,8 +11,9 @@ runs `kubectl exec` against the chatbot deployment, and exercises the
 chatbot-owned MCP agent loop.
 
 With no arguments, the generator runs a direct workstation `curl` path test
-against the inferred FortiAIGate HTTPS endpoint. This validates that the three
-baseline FAIG paths answer before any scenario traffic is sent:
+against the inferred FortiAIGate HTTPS endpoint. The tested paths and request
+models come from the installed Phase 11 scenario matrix, including canonical
+`/v1/passthrough` with `pass-model`:
 
 ```bash
 python3 scripts/traffic_generator.py
@@ -25,21 +26,22 @@ target: local
 target base URL: https://192.168.248.80/v1/
 mode: path_test
 execution: workstation curl
-paths: /v1/demo-a, /v1/demo-b, /v1/passthrough
+paths: /v1/fortistore-injection/detect, ..., /v1/hr-tool-dlp/output-dlp-redact, /v1/passthrough
 Results:
-/v1/demo-a: working (HTTP 200, model=demo-a)
-/v1/demo-b: working (HTTP 200, model=demo-a)
-/v1/passthrough: working (HTTP 200, model=pass-ollama)
+/v1/fortistore-injection/detect: working (HTTP 200, model=fortistore-injection)
+/v1/hr-tool-dlp/detect: working (HTTP 200, model=hr-tool-dlp)
+/v1/passthrough: working (HTTP 200, model=pass-model)
 ```
 
 Use `--path-test-base-url` to test a specific FortiAIGate, FortiGate proxy, or
 FortiWeb proxy endpoint. Use `--path-test-execution chatbot-pod` only when you
 intentionally want to test from inside the cluster against Kubernetes DNS.
 
-Scenario traffic requires `--mode traffic`. It sends FAIG static `demo-a`
-traffic (`--route faig-scan`) by default so FortiAIGate logs and dashboards are
-populated. Use `--route direct` only when intentionally bypassing FortiAIGate
-for a control run.
+Scenario traffic requires `--mode traffic`. By default it mixes the `direct`
+and `detect` roles for each installed baseline scenario. Use `--path-role` to
+select one or more exact scenario roles. The generator resolves each role's
+route, model, MCP setting, tool profile, frontend profile, and tool-round limit
+from the installed matrix.
 
 Raw prompts and raw responses are not saved by default. The generator writes
 compact metadata under ignored `docs/raw-output/traffic/<run-label>/`, including
@@ -49,36 +51,35 @@ URLs used for the model and MCP calls.
 
 ## Scenario Selection
 
-Default scenario selection is `--scenario-source active-slot`. The generator
-reads the local instruction metadata for the selected route/model and sends the
-matching scenario:
+Default scenario selection is `--scenario-source installed`. The generator
+reads ignored packages under `chatbot/scenarios/local/`; local prompt tuning is
+therefore reflected without changing tracked examples.
 
-| Traffic route | Scenario source |
+| Path role | Generated behavior |
 |---|---|
-| `faig-scan` | `chatbot/instructions/local/demo-a/metadata.json` |
-| `faig-protect` | `chatbot/instructions/local/demo-a/metadata.json` |
-| `direct` | the `--model` slot when it is `demo-a` or `demo-b` |
-| `fortigate-litellm` | the `--model` slot when it is `demo-a` or `demo-b` |
-| `fortigate-ollama` | `chatbot/instructions/local/demo-a/metadata.json`; backend model is the configured Ollama model, normally `gpt-oss:20b` |
-| `fortiweb-mcp` | the `--model` slot when it is `demo-a` or `demo-b` |
+| `direct` | Direct LiteLLM with the scenario alias and scenario MCP defaults |
+| `detect` | The scenario-owned FAIG detect route |
+| `protect-input` | FortiStore input-protection route |
+| `input-dlp` | HR input-DLP comparison route |
+| `output-dlp-deny` | HR output-DLP deny route |
+| `output-dlp-redact` | HR output-DLP redact route |
+| `passthrough` | Canonical FAIG bypass using `pass-model`, without scenario instructions or MCP |
 
-This avoids sending a FortiStore prompt to an HR instruction slot, or a DLP
-prompt to a product-advisor slot. Inactive catalog entries are ignored by
-normal selection. If the local metadata is missing or you intentionally want a
-manual mix, use one of these forms:
+This avoids sending a FortiStore prompt to an HR model or an HR tool profile to
+a non-MCP scenario. Use one of these forms to narrow the generated mix:
 
 ```bash
 python3 scripts/traffic_generator.py \
   --mode traffic \
-  --scenario-source family \
+  --scenario-source installed \
   --scenario-family baseline \
-  --route direct \
+  --path-role direct \
   --dry-run
 
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --scenario fortistore-injection \
-  --route direct \
+  --path-role direct \
   --dry-run
 ```
 
@@ -110,7 +111,7 @@ python3 scripts/traffic_generator.py \
   --use-case steady \
   --duration 3600 \
   --rate 6 \
-  --route faig-scan \
+  --path-role detect \
   --label local-dashboard-hour \
   --yes
 ```
@@ -128,7 +129,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case burst \
   --scenario fortistore-injection \
-  --route direct \
+  --path-role direct \
   --dry-run
 ```
 
@@ -140,7 +141,7 @@ python3 scripts/traffic_generator.py \
   --target local \
   --use-case burst \
   --scenario fortistore-injection \
-  --route direct \
+  --path-role direct \
   --label local-burst-test \
   --yes
 ```
@@ -153,33 +154,37 @@ python3 scripts/traffic_generator.py \
   --target aws \
   --use-case burst \
   --scenario fortistore-injection \
-  --route direct \
+  --path-role direct \
   --allow-cloud-long-run \
   --yes
 ```
 
-## Routes
+## Path Roles
 
-| Route | Behavior |
+| Role | Behavior |
 |---|---|
-| `direct` | Chatbot to Direct LiteLLM with the selected MCP path. |
-| `fortigate-litellm` | Chatbot to a FortiGate HTTP listener forwarding to LiteLLM with the selected MCP path. Requires `chatbot_fortigate_litellm_base_url`. |
-| `fortigate-ollama` | Chatbot to a FortiGate HTTP listener forwarding to Ollama's OpenAI-compatible `/v1` API. Requires `chatbot_fortigate_ollama_base_url`. |
-| `faig-scan` | Chatbot to FortiAIGate static `demo-a` route with the selected MCP path. |
-| `faig-protect` | Chatbot to FortiAIGate static `demo-b` route with the selected MCP path. The manual FAIG mapping should point this Demo-B entry point at LiteLLM `demo-a` so only the FAIG guard changes. |
-| `fortiweb-mcp` | Chatbot to Direct LiteLLM with FortiWeb-fronted MCP. |
+| `direct` | Chatbot to Direct LiteLLM using the scenario alias and MCP defaults. |
+| `detect` | Chatbot to the scenario-owned FAIG detect route. |
+| `protect-input` | Chatbot to the FortiStore input-protection route. |
+| `input-dlp` | Chatbot to the HR input-DLP comparison route. |
+| `output-dlp-deny` | Chatbot to the HR output-DLP deny route. |
+| `output-dlp-redact` | Chatbot to the HR output-DLP redact route. |
+| `passthrough` | Chatbot to canonical `/v1/passthrough` using `pass-model`. |
 
-Repeat `--route` or pass comma-separated routes for a mixed route plan:
+Repeat `--path-role` or pass comma-separated roles for a mixed plan:
 
 ```bash
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case steady \
-  --route direct,faig-scan,faig-protect \
-  --scenario-source family \
-  --scenario-family baseline \
+  --scenario hr-tool-dlp \
+  --path-role direct,detect,output-dlp-redact \
   --dry-run
 ```
+
+For the advanced MCP alternate, keep the same scenario/path role and pass
+`--mcp-path fortiweb`. The Phase 10 `--route` and `--scenario-source
+active-slot` options remain available only for old demo-slot invocations.
 
 The direct and MCP internal paths use Kubernetes DNS by default, for example
 `litellm.litellm.svc.cluster.local` and
