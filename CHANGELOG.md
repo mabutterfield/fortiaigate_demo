@@ -6,9 +6,9 @@ a "what's new" guide rather than a raw commit log.
 ## Unreleased
 
 - Started the Phase 11 scenario-matrix v1.0 foundation:
-  - classified only FortiStore Injection and HR Tool DLP as baseline scenarios,
-    while preserving the six surviving future candidates without migrating
-    their profile packages
+  - classified FortiStore Injection, HR Tool DLP, and Resume Tool Injection as
+    baseline scenarios, while retaining FortiGate Operator as a future
+    candidate
   - added a strict scenario profile v2 schema with scenario-owned Alert, Deny,
     and Redact actions, frontend profiles, MCP defaults, and disabled FAIG chain
   - added ignored editable local scenario packages with safe add, status,
@@ -51,6 +51,15 @@ a "what's new" guide rather than a raw commit log.
     harness/traffic options, and work orders to the same contract
   - removed stale-FAIG-object bookkeeping and `ack-stale`; disposable lab
     rebuilds or direct GUI changes now own appliance cleanup
+  - consolidated the five experimental resume packages into the simulated
+    `resume-tool-injection` baseline, with scenario-owned Alert and Deny paths,
+    a poisoned `RESUME-9001` fixture, and no real uploads or cloud access
+  - added per-chatbot-profile MCP tool-set selection so simplified resume
+    profiles can demonstrate the synthetic cloud-tool pivot while Advanced
+    mode retains a least-privilege comparison without the cloud tool
+  - archived the superseded resume packages, taught the scenario harness to
+    classify an executed cloud-tool pivot from the actual tool trace, and
+    published the chatbot profile cleanup as image `v0.5.4`
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

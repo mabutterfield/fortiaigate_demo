@@ -15,19 +15,14 @@ if str(SCRIPTS_ROOT) not in sys.path:
 import scenario_profiles  # noqa: E402
 
 
-BASELINE_IDS = ["fortistore-injection", "hr-tool-dlp"]
+BASELINE_IDS = ["fortistore-injection", "hr-tool-dlp", "resume-tool-injection"]
 CANDIDATE_IDS = [
     "fortigate-operator",
-    "resume-cloud-tool-pivot",
-    "resume-cloud-tool-pivot-safe",
-    "resume-cloud-tool-pivot-vulnerable",
-    "resume-prompt-injection",
-    "resume-screening-clean",
 ]
 
 
 class ScenarioCatalogLifecycleTests(unittest.TestCase):
-    def test_default_selection_contains_only_the_two_baseline_scenarios(self) -> None:
+    def test_default_selection_contains_only_baseline_scenarios(self) -> None:
         self.assertEqual(scenario_profiles.scenario_ids(), BASELINE_IDS)
 
     def test_candidate_selection_keeps_future_scenarios_discoverable(self) -> None:
@@ -67,7 +62,7 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["schema_version"]["const"], 2)
         self.assertIn("matrix", schema["required"])
 
-    def test_both_baseline_profiles_satisfy_semantic_validation(self) -> None:
+    def test_baseline_profiles_satisfy_semantic_validation(self) -> None:
         for scenario_id in BASELINE_IDS:
             with self.subTest(scenario_id=scenario_id):
                 profile_path, profile = self.load_baseline(scenario_id)
@@ -103,6 +98,13 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         profile["matrix"]["chatbot_profiles"][0]["frontend_instruction_profile"] = "missing"
         errors = self.validate("fortistore-injection", profile_path, profile)
         self.assertTrue(any("unknown frontend instruction profile" in error for error in errors), errors)
+
+    def test_chatbot_profile_tool_set_must_resolve(self) -> None:
+        profile_path, profile = self.load_baseline("hr-tool-dlp")
+        profile = copy.deepcopy(profile)
+        profile["matrix"]["chatbot_profiles"][0]["mcp_tool_set"] = "missing"
+        errors = self.validate("hr-tool-dlp", profile_path, profile)
+        self.assertTrue(any("unknown mcp_tool_set" in error for error in errors), errors)
 
     def test_guard_template_must_match_action(self) -> None:
         profile_path, profile = self.load_baseline("hr-tool-dlp")

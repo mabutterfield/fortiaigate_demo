@@ -1073,7 +1073,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "document_type": {"type": "string", "description": "Optional type filter such as resume, policy, or menu."},
-                    "scenario_id": {"type": "string", "description": "Optional scenario ID filter such as resume-screening-clean."},
+                    "scenario_id": {"type": "string", "description": "Optional scenario ID filter such as resume-tool-injection."},
                     "include_attack": {"type": "boolean", "description": "Set true only for explicit attack-fixture demos."},
                 },
                 "additionalProperties": False,

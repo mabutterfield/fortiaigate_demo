@@ -51,39 +51,46 @@
       "active": true
     },
     "resume-screening-clean": {
-      "path": "resume-screening-clean/profile.json",
+      "path": "../../../archived_scenarios/resume-screening-clean/profile.json",
       "display_name": "Resume Screening Clean Retrieval",
-      "status": "phase11-candidate",
-      "lifecycle": "candidate",
+      "status": "superseded-archived",
+      "lifecycle": "archived",
       "active": false
     },
     "resume-prompt-injection": {
-      "path": "resume-prompt-injection/profile.json",
+      "path": "../../../archived_scenarios/resume-prompt-injection/profile.json",
       "display_name": "Resume Prompt Injection",
-      "status": "phase11-candidate",
-      "lifecycle": "candidate",
+      "status": "superseded-archived",
+      "lifecycle": "archived",
       "active": false
     },
     "resume-cloud-tool-pivot": {
-      "path": "resume-cloud-tool-pivot/profile.json",
+      "path": "../../../archived_scenarios/resume-cloud-tool-pivot/profile.json",
       "display_name": "Resume Cloud Tool Pivot",
-      "status": "phase11-candidate",
-      "lifecycle": "candidate",
+      "status": "superseded-archived",
+      "lifecycle": "archived",
       "active": false
     },
     "resume-cloud-tool-pivot-safe": {
-      "path": "resume-cloud-tool-pivot-safe/profile.json",
+      "path": "../../../archived_scenarios/resume-cloud-tool-pivot-safe/profile.json",
       "display_name": "Resume Cloud Tool Pivot Safe",
-      "status": "phase11-candidate",
-      "lifecycle": "candidate",
+      "status": "superseded-archived",
+      "lifecycle": "archived",
       "active": false
     },
     "resume-cloud-tool-pivot-vulnerable": {
-      "path": "resume-cloud-tool-pivot-vulnerable/profile.json",
+      "path": "../../../archived_scenarios/resume-cloud-tool-pivot-vulnerable/profile.json",
       "display_name": "Resume Cloud Tool Pivot Vulnerable",
-      "status": "phase11-candidate",
-      "lifecycle": "candidate",
+      "status": "superseded-archived",
+      "lifecycle": "archived",
       "active": false
+    },
+    "resume-tool-injection": {
+      "path": "resume-tool-injection/profile.json",
+      "display_name": "Resume Tool Injection",
+      "status": "phase11-baseline",
+      "lifecycle": "baseline",
+      "active": true
     },
     "hr-policy-rag-risk": {
       "path": "../../../archived_scenarios/hr-policy-rag-risk/profile.json",

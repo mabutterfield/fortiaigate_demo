@@ -20,6 +20,7 @@ def scenario_preview(
     *,
     mcp_enabled: bool,
     frontend_profile: str = "none",
+    default_tool_set: str = "scenario",
 ) -> dict:
     display_name = scenario_id.replace("-", " ").title()
     frontend_profiles = [
@@ -56,7 +57,7 @@ def scenario_preview(
         "mcp": {
             "enabled": mcp_enabled,
             "default_transport": "direct",
-            "default_tool_set": "scenario",
+            "default_tool_set": default_tool_set,
             "required_tools": [f"{scenario_id}_tool"] if mcp_enabled else [],
             "extended_tool_sets": (
                 [
@@ -184,8 +185,38 @@ class ScenarioMatrixTests(unittest.TestCase):
             profiles["hr-tool-dlp-cross-domain"]["tools"],
             ["hr-tool-dlp_tool", "shared_tool"],
         )
-        self.assertEqual(profiles["all-installed"]["tools"], ["hr-tool-dlp_tool"])
+        self.assertEqual(
+            profiles["all-installed"]["tools"],
+            ["hr-tool-dlp_tool", "shared_tool"],
+        )
         self.assertTrue(profiles["all-server"]["allow_all"])
+
+    def test_default_and_per_profile_extended_tool_sets_are_resolved(self) -> None:
+        scenario = scenario_preview(
+            "resume-tool-injection",
+            mcp_enabled=True,
+            default_tool_set="cross-domain",
+        )
+        scenario["chatbot_profiles"][1]["mcp_tool_set"] = "scenario"
+        matrix = scenario_matrix.build_scenario_matrix(
+            {"installed_scenarios": [scenario]}
+        )
+        simplified = {
+            profile["id"]: profile
+            for profile in matrix["chatbot_simplified_profiles"]
+        }
+        self.assertEqual(
+            simplified["resume-tool-injection-direct"]["mcp_tool_profile"],
+            "resume-tool-injection-cross-domain",
+        )
+        self.assertEqual(
+            simplified["resume-tool-injection-alert"]["mcp_tool_profile"],
+            "resume-tool-injection",
+        )
+        self.assertEqual(
+            matrix["chatbot_advanced_controls"]["default_mcp_tool_profile"],
+            "resume-tool-injection-cross-domain",
+        )
 
     def test_fortiweb_mcp_requires_intent_installation_and_endpoint(self) -> None:
         preview = {

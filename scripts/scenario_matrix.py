@@ -61,7 +61,6 @@ def mcp_profiles(
             continue
         required_tools = ordered_unique([str(tool) for tool in mcp.get("required_tools", [])])
         installed_tools.extend(required_tools)
-        default_candidates.append(scenario_id)
         profiles.append(
             {
                 "name": scenario_id,
@@ -83,6 +82,13 @@ def mcp_profiles(
                     "tools": ordered_unique(required_tools + list(extended.get("tools", []))),
                 }
             )
+            installed_tools.extend(str(tool) for tool in extended.get("tools", []))
+        default_tool_set = str(mcp.get("default_tool_set") or "scenario")
+        default_candidates.append(
+            scenario_id
+            if default_tool_set == "scenario"
+            else f"{scenario_id}-{default_tool_set}"
+        )
 
     installed_tools = ordered_unique(installed_tools)
     if installed_tools:
@@ -258,6 +264,16 @@ def build_scenario_matrix(
         for profile in scenario.get("chatbot_profiles", []):
             profile_id = str(profile["id"])
             provider_path = str(profile["provider_path"])
+            selected_tool_set = str(
+                profile.get("mcp_tool_set")
+                or mcp.get("default_tool_set")
+                or "scenario"
+            )
+            selected_tool_profile = (
+                scenario_id
+                if selected_tool_set == "scenario"
+                else f"{scenario_id}-{selected_tool_set}"
+            )
             rendered_profile = {
                 "id": profile_id,
                 "label": str(profile["display_name"]),
@@ -268,7 +284,7 @@ def build_scenario_matrix(
                 "frontend_instruction_profile": profile["frontend_instruction_profile"],
                 "mcp_enabled": mcp_enabled,
                 "mcp_path": default_mcp_path,
-                "mcp_tool_profile": scenario_id if mcp_enabled else "",
+                "mcp_tool_profile": selected_tool_profile if mcp_enabled else "",
                 "mcp_max_tool_rounds": int(mcp.get("max_tool_rounds", 3)),
             }
             frontend_profile = rendered_profile["frontend_instruction_profile"]

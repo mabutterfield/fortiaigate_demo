@@ -379,6 +379,9 @@
             "redact-dummy"
           ]
         },
+        "mcp_tool_set": {
+          "$ref": "#/$defs/kebabId"
+        },
         "context_mode": {
           "enum": [
             "current",

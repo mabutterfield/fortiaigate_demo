@@ -5,9 +5,9 @@ Phase 11 scenario templates live under
 the installer. Operator-owned, editable copies live under the ignored
 `chatbot/scenarios/local/<scenario-id>/` tree.
 
-Only `fortistore-injection` and `hr-tool-dlp` are validated baseline scenarios.
-Do not migrate or modify the six candidate packages until a future phase
-selects them.
+The validated baseline scenarios are `fortistore-injection`, `hr-tool-dlp`, and
+`resume-tool-injection`. The older resume candidates are archived after being
+consolidated into the latter package.
 
 ## Package Contents
 
@@ -78,6 +78,12 @@ next-hop LiteLLM model.
 Canonical actions are `alert`, `deny`, and `redact`. `redact-dummy` is reserved
 for a future input-DLP scenario. Each scenario defines the protection story;
 the action defines the observable FAIG disposition.
+
+For MCP scenarios, `mcp.default_tool_set` selects either `scenario` or a
+declared extended tool set. A chatbot profile may override that choice with
+`mcp_tool_set`. The matrix resolves extended IDs to
+`<scenario-id>-<tool-set-id>` profiles while retaining the base scenario tool
+profile as the least-privilege option.
 
 Inspect generated output before deployment:
 

@@ -157,6 +157,7 @@ secrets.
 
 - [FortiStore Injection](../chatbot/scenarios/examples/fortistore-injection/README.md)
 - [HR Tool DLP](../chatbot/scenarios/examples/hr-tool-dlp/README.md)
+- [Resume Tool Injection](../chatbot/scenarios/examples/resume-tool-injection/README.md)
 
-These are the only active, validated baseline examples. The catalog lists the
-six preserved future candidates without treating them as validated scenarios.
+These are the active, validated baseline examples. The catalog keeps the
+FortiGate Operator candidate and archived superseded scenario material separate.

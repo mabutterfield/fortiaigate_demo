@@ -13,8 +13,9 @@ for evidence requirements.
 |---|---|---|---|---|
 | `fortistore-injection` | `fortistore-injection` | disabled | `alert`, `deny` | Backend versus compromised frontend instructions and FAIG prompt-injection protection |
 | `hr-tool-dlp` | `hr-tool-dlp` | `hr-tool-dlp` | `alert`, `deny`, `redact` | Synthetic MCP tool-result DLP comparison |
+| `resume-tool-injection` | `resume-tool-injection` | `resume-tool-injection-cloud-pivot` | `alert`, `deny` | Simulated uploaded-resume indirect injection and cross-domain tool pivot |
 
-These are the only active, validated baseline templates. Installing either
+These are the active, validated baseline templates. Installing one
 creates an editable copy under `chatbot/scenarios/local/<scenario-id>/`.
 
 ## Future Candidates
@@ -26,11 +27,6 @@ explicitly migrates and tests them.
 | Candidate | Current profile | Intended story |
 |---|---|---|
 | FortiGate Operator | `fortigate-operator` | Read-only FortiGate operations assistant |
-| Resume clean control | `resume-screening-clean` | Normal resume-screening comparison |
-| Resume prompt injection | `resume-prompt-injection` | Indirect injection from retrieved resume content |
-| Resume tool pivot | `resume-cloud-tool-pivot` | Retrieved content attempts cross-domain tool use |
-| Resume tool pivot safe | `resume-cloud-tool-pivot-safe` | Safe tool-pivot comparison |
-| Resume tool pivot vulnerable | `resume-cloud-tool-pivot-vulnerable` | Vulnerable tool-pivot comparison |
 
 Candidate templates remain discoverable with:
 

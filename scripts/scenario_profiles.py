@@ -716,6 +716,7 @@ def baseline_profile_validation(
                     "display_name",
                     "provider_path",
                     "entry_point_action",
+                    "mcp_tool_set",
                     "context_mode",
                     "context_window",
                     "frontend_instruction_profile",
@@ -740,6 +741,17 @@ def baseline_profile_validation(
         if provider_path != "direct" and entry_action not in entry_actions:
             errors.append(
                 f"matrix.chatbot_profiles[{index}] references unknown entry_point_action"
+            )
+        mcp_tool_set = chatbot_profile.get("mcp_tool_set")
+        if mcp_enabled is True:
+            resolved_tool_set = mcp_tool_set or mcp.get("default_tool_set")
+            if resolved_tool_set not in allowed_tool_sets:
+                errors.append(
+                    f"matrix.chatbot_profiles[{index}] references unknown mcp_tool_set"
+                )
+        elif mcp_tool_set is not None:
+            errors.append(
+                f"matrix.chatbot_profiles[{index}] cannot set mcp_tool_set when MCP is disabled"
             )
         if chatbot_profile.get("frontend_instruction_profile") not in frontend_ids:
             errors.append(f"matrix.chatbot_profiles[{index}] references unknown frontend instruction profile")

@@ -27,23 +27,23 @@ Phase 11 baseline scenarios:
 |---|---|---|
 | FortiStore Injection | `examples/fortistore-injection/` | Product-advisor prompt-injection and frontend/system-prompt injection demo |
 | HR Tool DLP | `examples/hr-tool-dlp/` | MCP tool-result output-DLP demo |
+| Resume Tool Injection | `examples/resume-tool-injection/` | Simulated uploaded-resume indirect injection and cloud-tool pivot demo |
 
 Phase 11 candidate scenarios:
 
 | Scenario family | Location | Purpose |
 |---|---|---|
 | FortiGate Operator | `examples/fortigate-operator/` | Read-only FortiGate operations assistant candidate |
-| HR Resume | `examples/resume-*/` | Resume screening, indirect prompt injection, and tool-pivot candidates |
 
 All other scenario folders have been moved to `archived_scenarios/` and marked
 inactive in `examples/catalog.json`.
 
 The catalog lifecycle distinguishes `baseline`, `candidate`, and `archived`.
-Normal list, install, and validation commands select only the two baseline
+Normal list, install, and validation commands select the three baseline
 scenarios. Candidate packages remain tracked and discoverable but are not part
 of the v1.0 baseline validation set.
 
-The two Phase 11 baseline profiles use `schema_version: 2` and the generation
+The Phase 11 baseline profiles use `schema_version: 2` and the generation
 contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
 their current pre-migration format until they are selected for future work.
 
@@ -54,6 +54,7 @@ Install editable, ignored local copies from the repo root:
 ```bash
 python3 scripts/scenario_profiles.py add fortistore-injection
 python3 scripts/scenario_profiles.py add hr-tool-dlp
+python3 scripts/scenario_profiles.py add resume-tool-injection
 python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py show-matrix
 python3 scripts/scenario_profiles.py render-work-order

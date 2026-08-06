@@ -163,22 +163,17 @@ Result log:
 |---|---|---|
 | 2026-07-29 | Pending | Do not interrupt a live local run; record results after the current operator-owned pass completes. |
 
-## Scenario Candidate Validation
+## Scenario Validation
 
-Phase 10 scenario validation covers the two current active scenarios plus the
-candidate set for Phase 11. Phase 11 is planned to define the final v1.0
-scenario-owned path matrix.
+The Phase 11 scenario matrix has three active baselines plus the FortiGate
+Operator candidate.
 
 | Scenario | Required tool profile | Required first path |
 |---|---|---|
 | `fortistore-injection` | none; MCP off | Direct LiteLLM |
 | `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP |
 | `fortigate-operator` | `fortigate-operator` | Direct MCP |
-| `resume-screening-clean` | `resume-screening-clean` | Direct MCP |
-| `resume-prompt-injection` | `resume-prompt-injection` | Direct MCP |
-| `resume-cloud-tool-pivot` | `resume-cloud-tool-pivot` | Direct MCP |
-| `resume-cloud-tool-pivot-safe` | `resume-cloud-tool-pivot-safe` | Direct MCP |
-| `resume-cloud-tool-pivot-vulnerable` | `resume-cloud-tool-pivot-vulnerable` | Direct MCP |
+| `resume-tool-injection` | `resume-tool-injection-cloud-pivot` | Direct MCP |
 
 Archived legacy scenario profiles live in `archived_scenarios/` and are hidden
 from default validation until moved back into `chatbot/scenarios/examples/` and
@@ -188,15 +183,17 @@ Headless example:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
-  --scenario hr-tool-dlp \
-  --paths direct \
+  --scenario resume-tool-injection \
+  --action direct \
+  --action alert \
+  --action deny \
   --mcp-path direct \
-  --run-label phase10-active
+  --run-label resume-tool-injection
 ```
 
-Run each scenario through direct first. Repeat through `faig-scan`,
-`faig-protect`, and FortiWeb MCP only after the matching FortiAIGate GUI routes,
-guards, and FortiWeb proxy path are configured.
+Run each scenario through Direct first. Repeat the scenario-owned actions and
+FortiWeb MCP only after the matching FortiAIGate GUI routes, guards, and
+FortiWeb proxy path are configured.
 
 Result log:
 

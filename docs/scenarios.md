@@ -3,9 +3,8 @@
 Status: Phase 11 v1.0 baseline.
 
 Runtime configuration is generated from ignored installed scenario packages.
-Tracked examples are read-only templates. The baseline contains only
-`fortistore-injection` and `hr-tool-dlp`; the six surviving candidates remain
-untouched for future work.
+Tracked examples are read-only templates. The baseline contains
+`fortistore-injection`, `hr-tool-dlp`, and `resume-tool-injection`.
 
 ## Install The Baseline
 
@@ -13,6 +12,7 @@ untouched for future work.
 python3 scripts/scenario_profiles.py list
 python3 scripts/scenario_profiles.py add fortistore-injection
 python3 scripts/scenario_profiles.py add hr-tool-dlp
+python3 scripts/scenario_profiles.py add resume-tool-injection
 python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py render-work-order
 ```
@@ -34,6 +34,7 @@ pull conflicts.
 |---|---|---|---|---|
 | `fortistore-injection` | `fortistore-injection` | off | `alert`, `deny` | none |
 | `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP, tool profile `hr-tool-dlp` | `alert`, `deny`, `redact` | none |
+| `resume-tool-injection` | `resume-tool-injection` | Direct MCP, default extended profile `resume-tool-injection-cloud-pivot` | `alert`, `deny` | least-privilege base tool profile |
 
 Global controls are `pass-model` and `/v1/passthrough`. See the
 [Scenario Catalog](scenario-catalog.md) for candidate/archive status and the
@@ -60,6 +61,7 @@ baseline.
 
 - [FortiStore Injection](../chatbot/scenarios/examples/fortistore-injection/README.md)
 - [HR Tool DLP](../chatbot/scenarios/examples/hr-tool-dlp/README.md)
+- [Resume Tool Injection](../chatbot/scenarios/examples/resume-tool-injection/README.md)
 
 ## Headless Tests
 
@@ -79,6 +81,13 @@ python3 scripts/scenario_test_harness.py \
   --action alert \
   --action deny \
   --action redact
+
+python3 scripts/scenario_test_harness.py \
+  --scenario resume-tool-injection \
+  --prompt-kind attack \
+  --action direct \
+  --action alert \
+  --action deny
 ```
 
 Test the advanced MCP alternate without changing simplified profiles:

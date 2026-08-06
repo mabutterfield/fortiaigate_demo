@@ -35,7 +35,7 @@ curl -sS "$FAIG_URL/v1/demo-a/chat/completions" \
   -H "Authorization: Bearer $FAIG_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
-  < chatbot/scenarios/examples/resume-prompt-injection/curl-payloads/attack-tool-result.json
+  < chatbot/scenarios/examples/resume-tool-injection/curl-payloads/attack-tool-result.json
 ```
 
 Replay through direct LiteLLM:
@@ -48,7 +48,7 @@ curl -sS "$LITELLM_URL/v1/chat/completions" \
   -H "Authorization: Bearer $LITELLM_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
-  < chatbot/scenarios/examples/resume-prompt-injection/curl-payloads/attack-tool-result.json
+  < chatbot/scenarios/examples/resume-tool-injection/curl-payloads/attack-tool-result.json
 ```
 
 The same payload body can be used against Direct, FAIG Scan, and FAIG Protect.
@@ -70,11 +70,7 @@ Current active/candidate payload folders:
 | `hr-tool-dlp` | `chatbot/scenarios/examples/hr-tool-dlp/curl-payloads/` |
 | `fortistore-injection` | active; no curl payloads currently tracked |
 | `fortigate-operator` | `chatbot/scenarios/examples/fortigate-operator/curl-payloads/` |
-| `resume-screening-clean` | `chatbot/scenarios/examples/resume-screening-clean/curl-payloads/` |
-| `resume-prompt-injection` | `chatbot/scenarios/examples/resume-prompt-injection/curl-payloads/` |
-| `resume-cloud-tool-pivot` | `chatbot/scenarios/examples/resume-cloud-tool-pivot/curl-payloads/` |
-| `resume-cloud-tool-pivot-safe` | `chatbot/scenarios/examples/resume-cloud-tool-pivot-safe/curl-payloads/` |
-| `resume-cloud-tool-pivot-vulnerable` | `chatbot/scenarios/examples/resume-cloud-tool-pivot-vulnerable/curl-payloads/` |
+| `resume-tool-injection` | `chatbot/scenarios/examples/resume-tool-injection/curl-payloads/` |
 
 Archived payload folders:
 
@@ -86,6 +82,11 @@ Archived payload folders:
 | `hr-policy-rag-risk` | `archived_scenarios/hr-policy-rag-risk/curl-payloads/` |
 | `menu-poisoning` | `archived_scenarios/menu-poisoning/curl-payloads/` |
 | `support-ticket-triage` | `archived_scenarios/support-ticket-triage/curl-payloads/` |
+| `resume-screening-clean` | `archived_scenarios/resume-screening-clean/curl-payloads/` |
+| `resume-prompt-injection` | `archived_scenarios/resume-prompt-injection/curl-payloads/` |
+| `resume-cloud-tool-pivot` | `archived_scenarios/resume-cloud-tool-pivot/curl-payloads/` |
+| `resume-cloud-tool-pivot-safe` | `archived_scenarios/resume-cloud-tool-pivot-safe/curl-payloads/` |
+| `resume-cloud-tool-pivot-vulnerable` | `archived_scenarios/resume-cloud-tool-pivot-vulnerable/curl-payloads/` |
 
 ## Important Limits
 
