@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fortinet.example/faig/scenario-profile-v2.schema.json",
+  "title": "FortiAIGate Demo Scenario Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "description",
+    "instruction_file",
+    "status",
+    "mcp",
+    "matrix",
+    "clean_prompts",
+    "expected_trace"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "id": {
+      "$ref": "#/$defs/kebabId"
+    },
+    "display_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "description": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "instruction_file": {
+      "$ref": "#/$defs/relativeFile"
+    },
+    "frontend_instruction_file": {
+      "$ref": "#/$defs/relativeFile"
+    },
+    "status": {
+      "const": "phase11-baseline"
+    },
+    "mcp": {
+      "$ref": "#/$defs/mcp"
+    },
+    "matrix": {
+      "$ref": "#/$defs/matrix"
+    },
+    "chatbot_demo_profiles": {
+      "type": "array",
+      "description": "Temporary Phase 10 compatibility data; removed after matrix integration.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "clean_prompts": {
+      "$ref": "#/$defs/nonEmptyStringArray"
+    },
+    "attack_prompts": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "expected_trace": {
+      "$ref": "#/$defs/nonEmptyStringArray"
+    },
+    "route_matrix": {
+      "type": "array",
+      "description": "Temporary Phase 10 documentation data.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "walkthrough": {
+      "type": "object",
+      "description": "Temporary Phase 10 documentation data."
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kebabId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "relativeFile": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "uniqueItems": true
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "default_transport",
+        "default_tool_set",
+        "tool_profile",
+        "required_tools",
+        "extended_tool_sets",
+        "max_tool_rounds",
+        "data_sources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "default_transport": {
+          "enum": [
+            "direct",
+            "fortiweb"
+          ]
+        },
+        "default_tool_set": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "tool_profile": {
+          "type": "string"
+        },
+        "required_tools": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "extended_tool_sets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toolSet"
+          }
+        },
+        "max_tool_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "data_sources": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "toolSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "tools"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "tools": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        }
+      }
+    },
+    "matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "llm_target",
+        "instruction_profile",
+        "entry_points",
+        "frontend_instruction_profiles",
+        "chatbot_profiles",
+        "faig_chain"
+      ],
+      "properties": {
+        "llm_target": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "instruction_profile": {
+          "$ref": "#/$defs/instructionProfile"
+        },
+        "entry_points": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/entryPoint"
+          }
+        },
+        "frontend_instruction_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/frontendInstructionProfile"
+          }
+        },
+        "chatbot_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/chatbotProfile"
+          }
+        },
+        "faig_chain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "instructionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "position",
+        "enabled"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "scenario_instruction",
+            "inline",
+            "path",
+            "disabled"
+          ]
+        },
+        "position": {
+          "enum": [
+            "prepend",
+            "append"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "entryPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "display_name",
+        "guard_template",
+        "expected_behavior",
+        "required_for_release"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "guard_template": {
+          "enum": [
+            "detect_only",
+            "protect_input",
+            "output_dlp_redact",
+            "output_dlp_deny",
+            "input_dlp"
+          ]
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "required_for_release": {
+          "type": "boolean"
+        }
+      }
+    },
+    "frontendInstructionProfile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "display_name",
+            "source_type"
+          ],
+          "properties": {
+            "id": {
+              "const": "none"
+            },
+            "display_name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "source_type": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "display_name",
+            "source_type",
+            "source"
+          ],
+          "properties": {
+            "id": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/kebabId"
+                },
+                {
+                  "not": {
+                    "const": "none"
+                  }
+                }
+              ]
+            },
+            "display_name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "source_type": {
+              "const": "file"
+            },
+            "source": {
+              "$ref": "#/$defs/relativeFile"
+            }
+          }
+        }
+      ]
+    },
+    "chatbotProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "provider_path",
+        "context_mode",
+        "context_window",
+        "frontend_instruction_profile"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "provider_path": {
+          "enum": [
+            "direct",
+            "faig-static",
+            "fortigate-litellm"
+          ]
+        },
+        "entry_point_role": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "context_mode": {
+          "enum": [
+            "current",
+            "recent",
+            "consolidated"
+          ]
+        },
+        "context_window": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
+        "frontend_instruction_profile": {
+          "$ref": "#/$defs/kebabId"
+        }
+      }
+    }
+  }
+}

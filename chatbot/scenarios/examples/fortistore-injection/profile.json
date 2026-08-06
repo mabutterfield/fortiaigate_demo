@@ -1,17 +1,98 @@
 {
+  "schema_version": 2,
   "id": "fortistore-injection",
   "display_name": "FortiStore Injection Product Advisor",
   "description": "No-MCP Fortinet-aligned product advisor for comparing normal product guidance, user prompt injection, token wasting, and compromised frontend/system prompt injection.",
   "instruction_file": "instructions.txt",
   "frontend_instruction_file": "frontend-injection.instructions.txt",
-  "status": "phase10-active",
+  "status": "phase11-baseline",
   "mcp": {
     "enabled": false,
+    "default_transport": "direct",
+    "default_tool_set": "scenario",
     "tool_profile": "",
     "required_tools": [],
+    "extended_tool_sets": [],
+    "max_tool_rounds": 3,
     "data_sources": [
       "Synthetic FortiStore product knowledge embedded in instructions.txt"
     ]
+  },
+  "matrix": {
+    "llm_target": "llm-default",
+    "instruction_profile": {
+      "source": "scenario_instruction",
+      "position": "prepend",
+      "enabled": true
+    },
+    "entry_points": [
+      {
+        "role": "detect",
+        "display_name": "Detect Only",
+        "guard_template": "detect_only",
+        "expected_behavior": "Allow scenario traffic and log prompt-injection detections without modifying the request or response.",
+        "required_for_release": true
+      },
+      {
+        "role": "protect-input",
+        "display_name": "Protect Input",
+        "guard_template": "protect_input",
+        "expected_behavior": "Deny or stop explicit instruction-control prompts before the compromised frontend instruction layer causes disclosure or unrelated token spend.",
+        "required_for_release": true
+      }
+    ],
+    "frontend_instruction_profiles": [
+      {
+        "id": "none",
+        "display_name": "No Frontend Instructions",
+        "source_type": "none"
+      },
+      {
+        "id": "fortistore-injection-compromised",
+        "display_name": "Compromised FortiStore Frontend",
+        "source_type": "file",
+        "source": "frontend-injection.instructions.txt"
+      }
+    ],
+    "chatbot_profiles": [
+      {
+        "id": "fortistore-direct-backend",
+        "display_name": "FortiStore - Backend Only",
+        "provider_path": "direct",
+        "context_mode": "current",
+        "context_window": 1,
+        "frontend_instruction_profile": "none"
+      },
+      {
+        "id": "fortistore-direct-frontend-injection",
+        "display_name": "FortiStore - Frontend Injection",
+        "provider_path": "direct",
+        "context_mode": "current",
+        "context_window": 1,
+        "frontend_instruction_profile": "fortistore-injection-compromised"
+      },
+      {
+        "id": "fortistore-detect",
+        "display_name": "FortiStore - Detect Only",
+        "provider_path": "faig-static",
+        "entry_point_role": "detect",
+        "context_mode": "current",
+        "context_window": 1,
+        "frontend_instruction_profile": "fortistore-injection-compromised"
+      },
+      {
+        "id": "fortistore-protect-input",
+        "display_name": "FortiStore - Protect Input",
+        "provider_path": "faig-static",
+        "entry_point_role": "protect-input",
+        "context_mode": "current",
+        "context_window": 1,
+        "frontend_instruction_profile": "fortistore-injection-compromised"
+      }
+    ],
+    "faig_chain": {
+      "enabled": false
+    }
   },
   "chatbot_demo_profiles": [
     {

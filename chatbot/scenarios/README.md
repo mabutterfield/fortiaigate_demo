@@ -37,12 +37,22 @@ Phase 11 candidate scenarios:
 All other scenario folders have been moved to `archived_scenarios/` and marked
 inactive in `examples/catalog.json`.
 
+The catalog lifecycle distinguishes `baseline`, `candidate`, and `archived`.
+Normal list, install, and validation commands select only the two baseline
+scenarios. Candidate packages remain tracked and discoverable but are not part
+of the v1.0 baseline validation set.
+
+The two Phase 11 baseline profiles use `schema_version: 2` and the generation
+contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
+their current pre-migration format until they are selected for future work.
+
 ## Commands
 
 Use the helper from the repo root:
 
 ```bash
 python3 scripts/scenario_profiles.py list
+python3 scripts/scenario_profiles.py list --include-candidates
 python3 scripts/scenario_profiles.py list --include-inactive
 python3 scripts/scenario_profiles.py show hr-tool-dlp
 python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force

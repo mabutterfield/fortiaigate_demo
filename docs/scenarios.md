@@ -37,10 +37,16 @@ All other scenario profiles have been moved to
 
 ## Prepare A Scenario
 
-List the current candidate scenarios:
+List the current Phase 11 baseline scenarios:
 
 ```bash
 python3 scripts/scenario_profiles.py list
+```
+
+Show the future Phase 11 candidates as well:
+
+```bash
+python3 scripts/scenario_profiles.py list --include-candidates
 ```
 
 Show archived/inactive profiles too:
@@ -53,7 +59,7 @@ Show a scenario's metadata, required MCP tools, prompts, and expected trace:
 
 ```bash
 python3 scripts/scenario_profiles.py show hr-tool-dlp
-python3 scripts/scenario_profiles.py show resume-prompt-injection
+python3 scripts/scenario_profiles.py show resume-prompt-injection --include-candidates
 ```
 
 Install one scenario into a local compatibility instruction slot:
@@ -169,7 +175,7 @@ Candidate profiles:
 Initial install:
 
 ```bash
-python3 scripts/scenario_profiles.py install resume-prompt-injection --slot demo-a --force
+python3 scripts/scenario_profiles.py install resume-prompt-injection --slot demo-a --force --include-candidates
 ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
