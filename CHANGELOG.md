@@ -14,7 +14,9 @@ a "what's new" guide rather than a raw commit log.
   - added ignored editable local scenario packages with safe add, status,
     explicit backed-up update, recoverable remove, and stale FAIG object
     tracking
-  - added deterministic Phase 2 matrix preview and FAIG work-order commands;
+  - added a deterministic Phase 3 builder for LiteLLM aliases and instruction
+    profiles, chatbot simplified and advanced controls, MCP paths and scoped
+    tool profiles, scenario-owned FAIG routes, and the FAIG GUI work order;
     Ansible runtime consumption follows in later Phase 11 work
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,

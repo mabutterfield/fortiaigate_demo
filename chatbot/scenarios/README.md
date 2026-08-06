@@ -56,6 +56,7 @@ python3 scripts/scenario_profiles.py add hr-tool-dlp
 python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py show-matrix
 python3 scripts/scenario_profiles.py render-work-order
+python3 scripts/build_scenario_matrix.py --output /tmp/scenario-matrix.json
 ```
 
 Installed packages live under `chatbot/scenarios/local/<scenario-id>/`. Edit
@@ -94,8 +95,12 @@ automatically. After manually removing stale objects, acknowledge them with:
 python3 scripts/scenario_profiles.py ack-stale fortistore-injection
 ```
 
-The Phase 2 matrix preview and work order are not consumed by Ansible yet.
-LiteLLM and chatbot deployment integration follows in the next phases.
+The Phase 3 builder deterministically expands installed scenarios into the
+LiteLLM aliases, backend instruction profiles, chatbot simplified and advanced
+controls, MCP paths and tool profiles, scenario-owned FAIG routes, and the FAIG
+GUI work order. The output remains a dry run: Ansible does not consume or apply
+it yet. Use `--debug-all-server-tools` only when intentionally exposing every
+tool reported by the MCP server for troubleshooting.
 
 ## Catalog And Compatibility Commands
 

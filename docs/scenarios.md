@@ -8,13 +8,15 @@ will replace this with scenario-owned FAIG paths, generated LiteLLM aliases,
 generated chatbot profiles, and generated MCP profile selection.
 
 This page documents the current active Phase 10 set, the Phase 11 candidate
-set, and where archived material lives. It intentionally avoids a full rewrite
-into the Phase 11 scenario matrix model until that implementation exists.
+set, and where archived material lives. The Phase 11 schema, local lifecycle,
+and deterministic matrix builder now exist; the live deployment sections below
+remain transitional until Ansible consumes the generated runtime objects.
 
-Phase 11 schema and safe local scenario lifecycle foundations now exist. The
-new `add`, `update`, `remove`, `list-installed`, `show-matrix`, and
-`render-work-order` commands prepare ignored editable scenario packages, but
-Ansible does not consume the generated matrix yet. Continue using the
+Phase 11 schema, safe local scenario lifecycle, and deterministic matrix
+generation now exist. The `add`, `update`, `remove`, `list-installed`,
+`show-matrix`, and `render-work-order` commands prepare ignored editable
+scenario packages and expand them into the intended LiteLLM, chatbot, MCP, and
+FAIG contracts. They do not apply live configuration yet. Continue using the
 compatibility slot workflow below for the current live Phase 10 runtime.
 
 ## Current Scenario Sets

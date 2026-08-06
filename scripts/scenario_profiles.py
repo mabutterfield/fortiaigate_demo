@@ -15,8 +15,9 @@ from pathlib import Path
 try:
     import instruction_profiles
     import scenario_local
+    import scenario_matrix
 except ModuleNotFoundError:
-    from scripts import instruction_profiles, scenario_local
+    from scripts import instruction_profiles, scenario_local, scenario_matrix
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1134,14 +1135,23 @@ def main() -> None:
             print_installed_status(store)
         elif args.command == "show-matrix":
             validate_local_matrix(store)
-            print(json.dumps(store.matrix_summary(), indent=2, sort_keys=True))
+            matrix = scenario_matrix.build_scenario_matrix(store.matrix_summary())
+            print(scenario_matrix.canonical_json(matrix), end="")
         elif args.command == "render-work-order":
             validate_local_matrix(store)
+            matrix = scenario_matrix.build_scenario_matrix(store.matrix_summary())
+            rendered_work_order = scenario_matrix.render_work_order(matrix)
             if args.output:
-                output_path = store.write_work_order(args.output, force=args.force)
+                output_path = args.output.resolve()
+                if output_path.exists() and not args.force:
+                    raise scenario_local.LocalScenarioError(
+                        f"Work order already exists: {output_path}. Use --force to replace it."
+                    )
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(rendered_work_order, encoding="utf-8")
                 print(f"wrote: {scenario_local.relative_to_repo(output_path)}")
             else:
-                print(store.render_work_order())
+                print(rendered_work_order)
         elif args.command == "ack-stale":
             if not args.scenario and not args.all:
                 raise scenario_local.LocalScenarioError(

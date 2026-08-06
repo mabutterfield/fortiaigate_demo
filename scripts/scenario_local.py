@@ -589,12 +589,25 @@ class LocalScenarioStore:
                 raise LocalScenarioError(
                     f"Installed scenario {scenario_id} is not a schema v2 matrix profile"
                 )
+            status = self.status_for_entry(entry)
             installed_scenarios.append(
                 {
                     "scenario_id": scenario_id,
+                    "display_name": str(profile.get("display_name") or scenario_id),
                     "local_profile": relative_to_repo(profile_path),
+                    "content_hash": status["local_hash"],
+                    "source_hash": entry["source_hash"],
+                    "source_update_available": status["source_update_available"],
                     "model_alias": scenario_id,
                     "llm_target": matrix.get("llm_target", "llm-default"),
+                    "instruction_profile": matrix.get(
+                        "instruction_profile",
+                        {
+                            "source": "scenario_instruction",
+                            "position": "prepend",
+                            "enabled": True,
+                        },
+                    ),
                     "instruction_file": relative_to_repo(
                         local_package / str(profile.get("instruction_file") or "instructions.txt")
                     ),
