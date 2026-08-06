@@ -60,6 +60,13 @@ a "what's new" guide rather than a raw commit log.
   - archived the superseded resume packages, taught the scenario harness to
     classify an executed cloud-tool pivot from the actual tool trace, and
     published the chatbot profile cleanup as image `v0.5.4`
+  - validated the Resume Tool Injection Direct, Alert, Deny, clean, and
+    least-privilege cases on Jarvis; strengthened the synthetic `RESUME-9001`
+    injection signature so Deny reliably stops the agent after document read
+    and before the synthetic cloud tool executes
+  - added a trace-based Resume Tool Injection acceptance matrix, deterministic
+    fixture/profile regression tests, canonical curl replay paths, and updated
+    baseline, scenario, FAIG setup, and release-validation documentation
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

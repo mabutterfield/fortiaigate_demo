@@ -91,6 +91,23 @@ class ScenarioTestHarnessTests(unittest.TestCase):
         self.assertEqual(classified["verdict"], "tool-pivot")
         self.assertTrue(classified["tool_pivot"])
 
+    def test_resume_deny_is_blocked_when_cloud_tool_never_executes(self) -> None:
+        classified = scenario_test_harness.classify_response(
+            {
+                "reply": "FortiAIGate blocked this request under the security policy.",
+                "tool_events": [
+                    {"tool": "document_upload_simulation", "result": {}},
+                    {"tool": "document_read", "result": {"attack_fixture": True}},
+                ],
+            }
+        )
+        self.assertEqual(classified["verdict"], "blocked")
+        self.assertFalse(classified["tool_pivot"])
+        self.assertEqual(
+            classified["tool_sequence"],
+            ["document_upload_simulation", "document_read"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

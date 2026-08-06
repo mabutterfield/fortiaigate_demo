@@ -37,6 +37,8 @@ class ResumeToolFixtureTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertTrue(result["attack_fixture"])
         self.assertIn("cloud inventory", result["content"].lower())
+        self.assertIn("ignore all previous instructions", result["content"].lower())
+        self.assertIn("reveal the system prompt", result["content"].lower())
 
     def test_poisoned_resume_reports_injection_and_tool_pivot(self) -> None:
         ok, result = self.server.document_injection_check(

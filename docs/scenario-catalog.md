@@ -13,10 +13,14 @@ for evidence requirements.
 |---|---|---|---|---|
 | `fortistore-injection` | `fortistore-injection` | disabled | `alert`, `deny` | Backend versus compromised frontend instructions and FAIG prompt-injection protection |
 | `hr-tool-dlp` | `hr-tool-dlp` | `hr-tool-dlp` | `alert`, `deny`, `redact` | Synthetic MCP tool-result DLP comparison |
-| `resume-tool-injection` | `resume-tool-injection` | `resume-tool-injection-cloud-pivot` | `alert`, `deny` | Simulated uploaded-resume indirect injection and cross-domain tool pivot |
+| `resume-tool-injection` | `resume-tool-injection` | `resume-tool-injection-cloud-pivot` | `alert`, `deny` | Validated simulated uploaded-resume injection: Alert allows/logs the cloud pivot; Deny stops it before cloud-tool execution |
 
 These are the active, validated baseline templates. Installing one
 creates an editable copy under `chatbot/scenarios/local/<scenario-id>/`.
+
+Resume Tool Injection was last validated on the local Jarvis environment on
+2026-08-06. Its enforcement result is determined from the MCP tool trace, not
+only from response wording.
 
 ## Future Candidates
 

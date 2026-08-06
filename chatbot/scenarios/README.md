@@ -1,6 +1,6 @@
 # Scenario Profiles
 
-Status: Phase 11 v1.0 baseline in progress.
+Status: Phase 11 v1.0 baseline.
 
 Scenario profiles package repeatable demo instructions, MCP tool expectations,
 and prompt examples. They do not deploy separate MCP servers; every scenario

@@ -14,7 +14,7 @@ the exact model aliases, FAIG paths, chatbot profiles, and MCP selections.
 | Installed scenario | `chatbot/scenarios/local/<scenario-id>/` | Ignored, operator-editable runtime copy |
 | Archived material | `archived_scenarios/` | Tracked reference only |
 | Generated FAIG work order | `docs/raw-output/scenario-work-orders/` | Ignored, installation-specific |
-| Test evidence | `docs/raw-output/scenarios/<scenario-id>/` | Ignored until deliberately reviewed |
+| Test evidence | `docs/raw-output/scenario-tests/<scenario-id>/` | Ignored until deliberately reviewed |
 
 Do not tune tracked examples for one installation. Add the scenario locally,
 edit the ignored copy, and promote only generally useful changes back to the
@@ -33,6 +33,8 @@ Each scenario profile and README should identify:
   rounds;
 - prompt sequence, including no-context and with-context variants where useful;
 - expected direct, Alert, Deny, and Redact behavior;
+- stable test-case IDs and acceptance conditions based on observable output,
+  tool sequence, or security disposition;
 - evidence locations, FAIG correlation fields, and known tuning gaps.
 
 The profile is the machine-readable contract. The README explains how to
@@ -73,8 +75,10 @@ the FAIG action. Do not assign path meaning by letter or slot position.
    configured URI, including the trailing `/*`.
 7. Validate direct and `alert` controls before enforcement actions.
 8. Exercise each enforcement action and capture response plus FAIG event evidence.
-9. Record observed behavior and open tuning gaps in the scenario README.
-10. Promote a candidate to `baseline` only after its required actions are
+9. Test at least one safe control and one attack. For agentic scenarios, assert
+   both tools that must execute and tools that must not execute.
+10. Record observed behavior and open tuning gaps in the scenario README.
+11. Promote a candidate to `baseline` only after its required actions are
     repeatable and the active catalog/runbooks have been reviewed.
 
 Tracked candidates that are not selected for work remain untouched and are not
@@ -141,8 +145,8 @@ Recommended ignored evidence names:
 
 | Evidence | Pattern |
 |---|---|
-| Raw result | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-<action>.json` |
-| FAIG/syslog extract | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-faig-<action>.jsonl` |
+| Raw result | `docs/raw-output/scenario-tests/<scenario-id>/<run-label>/` |
+| FAIG/syslog extract | `docs/raw-output/scenario-tests/<scenario-id>/<run-label>/faig-<action>.jsonl` |
 | Scenario-specific screenshot | `chatbot/scenarios/examples/<scenario-id>/images/<action>-<purpose>.png` |
 
 For each run, correlate scenario ID, action, request path, timestamp, flow, guard,

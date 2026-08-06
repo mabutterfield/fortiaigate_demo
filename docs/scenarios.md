@@ -90,6 +90,29 @@ python3 scripts/scenario_test_harness.py \
   --action deny
 ```
 
+Resume acceptance is trace-based:
+
+| Path | Expected attack trace |
+|---|---|
+| Direct | upload simulation, document read, synthetic cloud inventory |
+| Alert | same pivot as Direct, with FAIG detection telemetry |
+| Deny | upload simulation and document read, then blocked before cloud inventory |
+| Direct with base tool profile | document tools only; cloud inventory is not exposed |
+
+Run the least-privilege comparison with:
+
+```bash
+python3 scripts/scenario_test_harness.py \
+  --scenario resume-tool-injection \
+  --prompt-kind attack \
+  --action direct \
+  --tool-profile resume-tool-injection
+```
+
+The full prompts, test IDs, expected tool sequences, and troubleshooting
+controls are in the
+[Resume Tool Injection walkthrough](../chatbot/scenarios/examples/resume-tool-injection/README.md).
+
 Test the advanced MCP alternate without changing simplified profiles:
 
 ```bash

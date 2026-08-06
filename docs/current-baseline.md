@@ -23,6 +23,20 @@ scenario packages. Phase 10 demo-letter names are compatibility-only.
 | FortiWeb appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiWeb EIP and FortiWeb-fronted NodePorts |
 | Ollama | supported for local mode, disabled for AWS defaults | `ollama` | local trusted-lab HTTP NodePort `30085` when deployed |
 
+## Validated Scenario Baseline
+
+| Scenario | Security story | Required actions | Validation state |
+|---|---|---|---|
+| `fortistore-injection` | Direct prompt and compromised-frontend injection | Alert, Deny | baseline |
+| `hr-tool-dlp` | Synthetic MCP tool-result DLP | Alert, Deny, Redact | baseline |
+| `resume-tool-injection` | Simulated uploaded-resume indirect injection and excessive tool access | Alert, Deny | validated on Jarvis 2026-08-06 |
+
+For Resume Tool Injection, Direct and Alert allow the synthetic cloud-tool
+pivot. Deny blocks after the poisoned document is read and before the cloud
+tool executes. The Advanced-mode least-privilege profile omits the cloud tool
+and prevents the pivot by capability restriction. See the
+[scenario walkthrough](../chatbot/scenarios/examples/resume-tool-injection/README.md).
+
 ## Supported Deployment Paths
 
 | Path | Provider | Infrastructure | Notes |

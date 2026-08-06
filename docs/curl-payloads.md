@@ -1,6 +1,6 @@
 # Curl Payload Replay
 
-Status: Phase 10 transitional reference.
+Status: Phase 11 scenario-owned reference.
 
 Scenario curl payloads simulate MCP tool transcripts inside a single
 OpenAI-compatible chat-completions request. They do not call the chatbot agent
@@ -28,10 +28,20 @@ export FAIG_URL="http://<faig-host-or-ip>"
 export FAIG_API_KEY="<faig-api-key>"
 ```
 
-Replay through the detect-only compatibility FAIG route:
+Replay through the Resume Tool Injection Alert route:
 
 ```bash
-curl -sS "$FAIG_URL/v1/demo-a/chat/completions" \
+curl -sS "$FAIG_URL/v1/resume-tool-injection/alert/chat/completions" \
+  -H "Authorization: Bearer $FAIG_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @- \
+  < chatbot/scenarios/examples/resume-tool-injection/curl-payloads/attack-tool-result.json
+```
+
+Replay the same transcript through Deny:
+
+```bash
+curl -sS "$FAIG_URL/v1/resume-tool-injection/deny/chat/completions" \
   -H "Authorization: Bearer $FAIG_API_KEY" \
   -H "Content-Type: application/json" \
   --data-binary @- \
@@ -51,8 +61,8 @@ curl -sS "$LITELLM_URL/v1/chat/completions" \
   < chatbot/scenarios/examples/resume-tool-injection/curl-payloads/attack-tool-result.json
 ```
 
-The same payload body can be used against Direct, FAIG Scan, and FAIG Protect.
-Only the URL and key change.
+The same payload body can be used against Direct, Alert, and Deny. Only the URL
+and key change.
 
 ## Payload Index
 
@@ -96,6 +106,7 @@ Archived payload folders:
 - They do not exercise FortiWeb MCP proxy behavior.
 - They are useful for isolated FortiAIGate input/output guard testing because
   the tool result is already present in the request body sent to the LLM path.
-
-Phase 11 should regenerate this page around scenario-owned paths after the
-scenario matrix architecture lands.
+- The attack replay already contains an assistant cloud-tool request and its
+  synthetic result. It can prove transcript inspection, but it cannot prove
+  that Deny stopped a live MCP call. Use `scenario_test_harness.py` and inspect
+  the actual tool sequence for the end-to-end enforcement test.

@@ -133,7 +133,7 @@ comparison changes FAIG policy, not backend instructions.
 | Template | Required behavior |
 |---|---|
 | `detect_only` | Enable the scenario-relevant detectors, log findings, allow the request and response, and do not redact content. |
-| `protect_input` | Enable prompt-injection inspection on input and deny/stop explicit instruction-control attacks before generation. |
+| `protect_input` | Enable prompt-injection inspection on the complete input transcript and deny/stop instruction-control attacks before generation. For MCP agent loops, include retrieved `tool`-role messages in the inspected input. |
 | `input_dlp` | Reserved for future `redact-dummy` input-DLP behavior. |
 | `output_dlp_deny` | Enable output DLP and deny the response when protected data is detected. |
 | `output_dlp_redact` | Enable output DLP and redact detected protected values while allowing the remaining response. |
