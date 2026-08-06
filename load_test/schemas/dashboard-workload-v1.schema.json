@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FAIG Local Dashboard Workload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "duration_hours",
+    "seed",
+    "volume",
+    "mix",
+    "normal_traffic",
+    "execution",
+    "statistics",
+    "gpu"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "duration_hours": {"type": "integer", "minimum": 1, "maximum": 168},
+    "seed": {"type": "integer"},
+    "volume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_requests_per_hour", "maximum_requests_per_hour", "hourly_step_limit"],
+      "properties": {
+        "minimum_requests_per_hour": {"type": "integer", "minimum": 1},
+        "maximum_requests_per_hour": {"type": "integer", "minimum": 1},
+        "hourly_step_limit": {"type": "integer", "minimum": 0}
+      }
+    },
+    "mix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normal_ratio_baseline", "hourly_ratio_variance", "normal_ratio_minimum", "normal_ratio_maximum", "hourly_action_floor"],
+      "properties": {
+        "normal_ratio_baseline": {"type": "number", "minimum": 0, "maximum": 1},
+        "hourly_ratio_variance": {"type": "number", "minimum": 0, "maximum": 0.5},
+        "normal_ratio_minimum": {"type": "number", "minimum": 0, "maximum": 1},
+        "normal_ratio_maximum": {"type": "number", "minimum": 0, "maximum": 1},
+        "hourly_action_floor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["alert", "deny", "redact"],
+          "properties": {
+            "alert": {"type": "integer", "minimum": 0},
+            "deny": {"type": "integer", "minimum": 1},
+            "redact": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "normal_traffic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_set", "minimum_output_words", "maximum_output_words", "max_tokens"],
+      "properties": {
+        "prompt_set": {"type": "string", "minLength": 1},
+        "minimum_output_words": {"type": "integer", "minimum": 100},
+        "maximum_output_words": {"type": "integer", "minimum": 100},
+        "max_tokens": {"type": "integer", "minimum": 256}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concurrency", "request_timeout_seconds", "shutdown_grace_seconds", "initial_request_within_seconds"],
+      "properties": {
+        "concurrency": {"type": "integer", "minimum": 1, "maximum": 4},
+        "request_timeout_seconds": {"type": "integer", "minimum": 30},
+        "shutdown_grace_seconds": {"type": "integer", "minimum": 1},
+        "initial_request_within_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["update_interval_seconds", "checkpoint_interval_seconds"],
+      "properties": {
+        "update_interval_seconds": {"type": "integer", "minimum": 1},
+        "checkpoint_interval_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "sample_interval_seconds"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "sample_interval_seconds": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

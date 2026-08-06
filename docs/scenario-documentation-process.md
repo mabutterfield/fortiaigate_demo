@@ -14,7 +14,7 @@ the exact model aliases, FAIG paths, chatbot profiles, and MCP selections.
 | Installed scenario | `chatbot/scenarios/local/<scenario-id>/` | Ignored, operator-editable runtime copy |
 | Archived material | `archived_scenarios/` | Tracked reference only |
 | Generated FAIG work order | `docs/raw-output/scenario-work-orders/` | Ignored, installation-specific |
-| Test evidence | `docs/raw-output/scenario-tests/<scenario-id>/` | Ignored until deliberately reviewed |
+| Test evidence | `load_test/output/validation/<scenario-id>/` | Ignored until deliberately reviewed |
 
 Do not tune tracked examples for one installation. Add the scenario locally,
 edit the ignored copy, and promote only generally useful changes back to the
@@ -121,7 +121,7 @@ customer data in screenshots.
 Run a semantic action through the chatbot-owned agent loop:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario <scenario-id> \
   --action <action>
 ```
@@ -129,8 +129,8 @@ python3 scripts/scenario_test_harness.py \
 Test raw FAIG route connectivity from the generated matrix:
 
 ```bash
-python3 scripts/traffic_generator.py --mode path_test
-python3 scripts/traffic_generator.py \
+python3 -m load_test paths
+python3 -m load_test paths \
   --mode path_test \
   --path-test-path <generated-flow-name>
 ```
@@ -145,8 +145,8 @@ Recommended ignored evidence names:
 
 | Evidence | Pattern |
 |---|---|
-| Raw result | `docs/raw-output/scenario-tests/<scenario-id>/<run-label>/` |
-| FAIG/syslog extract | `docs/raw-output/scenario-tests/<scenario-id>/<run-label>/faig-<action>.jsonl` |
+| Raw result | `load_test/output/validation/<scenario-id>/<run-label>/` |
+| FAIG/syslog extract | `load_test/output/validation/<scenario-id>/<run-label>/faig-<action>.jsonl` |
 | Scenario-specific screenshot | `chatbot/scenarios/examples/<scenario-id>/images/<action>-<purpose>.png` |
 
 For each run, correlate scenario ID, action, request path, timestamp, flow, guard,

@@ -60,6 +60,9 @@
     "expected_trace": {
       "$ref": "#/$defs/nonEmptyStringArray"
     },
+    "validation": {
+      "$ref": "#/$defs/validation"
+    },
     "route_matrix": {
       "type": "array",
       "description": "Temporary Phase 10 documentation data.",
@@ -100,6 +103,75 @@
         "$ref": "#/$defs/nonEmptyString"
       },
       "uniqueItems": true
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cases"
+      ],
+      "properties": {
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/validationCase"
+          }
+        }
+      }
+    },
+    "validationCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "action",
+        "prompt_kind",
+        "prompt_index",
+        "expected_result",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/kebabId"
+        },
+        "action": {
+          "enum": [
+            "direct",
+            "alert",
+            "deny",
+            "redact",
+            "redact-dummy"
+          ]
+        },
+        "prompt_kind": {
+          "enum": [
+            "clean",
+            "attack"
+          ]
+        },
+        "prompt_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_result": {
+          "enum": [
+            "completed",
+            "blocked",
+            "redacted",
+            "sensitive-output",
+            "sensitive-tool-result",
+            "tool-pivot"
+          ]
+        },
+        "required_tools": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "forbidden_tools": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
     },
     "mcp": {
       "type": "object",

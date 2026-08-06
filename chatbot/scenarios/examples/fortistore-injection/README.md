@@ -69,7 +69,7 @@ Deny using the same explicit injection prompt.
 Backend and Alert comparison:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario fortistore-injection \
   --action direct \
   --action alert \
@@ -79,7 +79,7 @@ python3 scripts/scenario_test_harness.py \
 Compromised frontend direct control:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario fortistore-injection \
   --action direct \
   --frontend-profile fortistore-injection-compromised \
@@ -89,7 +89,7 @@ python3 scripts/scenario_test_harness.py \
 Protect comparison:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario fortistore-injection \
   --action deny \
   --run-label fortistore-deny

@@ -107,6 +107,7 @@ mcp/documents/local/
 
 # Local test captures
 docs/raw-output/
+load_test/output/
 
 # Kubernetes and deployment generated files
 *.kubeconfig

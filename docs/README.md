@@ -89,10 +89,9 @@ reference, not a competing first-run path.
 - `test_fortiaigate_lite.yml`: performs the lightweight generated FAIG route
   test without scenario behavior assertions.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
-- `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
-- `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
-  steady or burst chatbot/MCP traffic profiles with compact ignored metadata
-  under `docs/raw-output/traffic/`, including an optional FortiGate-to-LiteLLM
+- `load_test`: runs live metadata-driven scenario validation, a default FAIG
+  path test, and steady or burst chatbot/MCP dashboard workloads with compact
+  ignored metadata under `load_test/output/`, including an optional FortiGate-to-LiteLLM
   path when `chatbot_fortigate_litellm_base_url` is configured and optional
   FAIG static routes through FortiGate when `chatbot_faig_base_url` points to
   the FortiGate HTTPS listener.

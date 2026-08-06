@@ -25,26 +25,9 @@ Current scripts:
   catalog with `--include-inactive`. Scenario profiles package repeatable demo
   instructions, MCP tool expectations, clean prompts, and attack prompts while
   still leaving local instruction slots editable.
-- `scenario_test_harness.py`: runs Phase 8 scenario prompts through the
-  deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
-  and FAIG protect paths. It can optionally install a scenario profile,
-  redeploy MCP, redeploy LiteLLM per Bedrock model, and saves raw request and
-  response JSON under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
-  Use `--run-label` to name a repeatable sweep; existing non-empty output
-  directories are not overwritten unless `--overwrite-output` is supplied.
-- `traffic_generator.py`: validates FAIG paths and generates repeatable
-  chatbot/MCP traffic. With no arguments it runs a direct workstation curl
-  `path_test` against `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough`.
-  Scenario traffic uses `--mode traffic` and runs through the deployed chatbot
-  pod. Use `--use-case steady` for persistent low-rate dashboard/log population
-  and `--use-case burst` for short load or DoS-style testing. Traffic runs
-  default to FAIG `demo-a` scan traffic and read local slot metadata so sent
-  scenarios match the installed `demo-a`/`demo-b` instructions. Optional
-  FortiGate routes can send chatbot traffic through plain HTTP LiteLLM or
-  Ollama listeners when configured. It saves compact
-  metadata under ignored
-  `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
-  responses as security dispositions rather than transport failures.
+- Live scenario validation, FAIG path checks, and long-running dashboard
+  workloads live in the separate `load_test/` package. Use `python3 -m
+  load_test validate|paths|run`; see `load_test/README.md`.
 - `fortigate_ai_app_proxy_touch.py`: touches known AI application, MCP, and
   Bedrock endpoints directly by default, or through a run-scoped FortiGate
   explicit proxy URL when `--proxy-url` is supplied. It defaults to dry-run

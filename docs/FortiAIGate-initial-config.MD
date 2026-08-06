@@ -104,7 +104,7 @@ The onboarding screenshots show the page sequence:
 Validate it:
 
 ```bash
-python3 scripts/traffic_generator.py \
+python3 -m load_test paths \
   --mode path_test \
   --path-test-path passthrough
 ```
@@ -166,7 +166,7 @@ header routes or FAIG re-entry chains by default.
 Test one action through the chatbot-owned agent loop:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario {{scenario-id}} \
   --action {{action}}
 ```
@@ -174,7 +174,7 @@ python3 scripts/scenario_test_harness.py \
 Test raw FAIG path connectivity:
 
 ```bash
-python3 scripts/traffic_generator.py \
+python3 -m load_test paths \
   --mode path_test \
   --path-test-path {{flow-name}}
 ```

@@ -198,7 +198,7 @@ transcripts. Put the detailed trace in test notes or screenshots when needed.
 The repeatable test harness is:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --install-profile \
   --deploy-profile \

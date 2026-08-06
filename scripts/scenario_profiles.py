@@ -431,6 +431,7 @@ def baseline_profile_validation(
                 "clean_prompts",
                 "attack_prompts",
                 "expected_trace",
+                "validation",
                 "route_matrix",
                 "walkthrough",
             },

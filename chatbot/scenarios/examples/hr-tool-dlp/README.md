@@ -93,7 +93,7 @@ redaction as a pass.
 Direct scoped-tools control:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action direct \
   --run-label hr-direct
@@ -102,7 +102,7 @@ python3 scripts/scenario_test_harness.py \
 Required FAIG comparisons:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action alert \
   --action deny \
@@ -113,7 +113,7 @@ python3 scripts/scenario_test_harness.py \
 Advanced FortiWeb MCP alternate:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action direct \
   --mcp-path fortiweb \

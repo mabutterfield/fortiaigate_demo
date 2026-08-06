@@ -21,23 +21,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-try:
-    import scenario_local
-    import scenario_matrix
-    import scenario_profiles
-    import scenario_test_harness
-except ModuleNotFoundError:
-    from scripts import (
-        scenario_local,
-        scenario_matrix,
-        scenario_profiles,
-        scenario_test_harness,
-    )
+from scripts import scenario_local, scenario_matrix, scenario_profiles
+
+from load_test import scenario_validation, statistics as run_statistics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG = REPO_ROOT / "chatbot" / "scenarios" / "examples" / "catalog.json"
-DEFAULT_OUTPUT_ROOT = REPO_ROOT / "docs" / "raw-output" / "traffic"
+HIGH_TOKEN_PROMPTS = REPO_ROOT / "load_test" / "prompts" / "high-token-benign.json"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "load_test" / "output" / "traffic"
 LOCAL_GENERATED_VARS = REPO_ROOT / "ansible" / "group_vars" / "local.generated.yml"
 AWS_EC2_TERRAFORM_PATH = REPO_ROOT / "terraform" / "aws-ec2-k3s"
 POD_PATH_TEST_BASE_URL = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
@@ -130,12 +122,13 @@ ROUTE_SLOT_DEFAULTS = {
 BASELINE_SCENARIOS = [
     "fortistore-injection",
     "hr-tool-dlp",
+    "resume-tool-injection",
 ]
 
 SCENARIO_FAMILIES = {
     "baseline": BASELINE_SCENARIOS,
     "demo-recording": BASELINE_SCENARIOS,
-    "documents": [],
+    "documents": ["resume-tool-injection"],
     "hr": ["hr-tool-dlp"],
     "fastfood": ["fastfood-ordering", "menu-poisoning"],
     "support": [],
@@ -187,6 +180,19 @@ def load_json(path: Path) -> dict[str, Any]:
     return data
 
 
+def high_token_prompt_templates() -> list[str]:
+    data = load_json(HIGH_TOKEN_PROMPTS)
+    templates = data.get("templates", [])
+    if not isinstance(templates, list) or not templates:
+        raise SystemExit(f"High-token prompt metadata has no templates: {HIGH_TOKEN_PROMPTS}")
+    result = [str(template).strip() for template in templates if str(template).strip()]
+    if not result or any("{word_count}" not in template for template in result):
+        raise SystemExit(
+            f"Every high-token prompt template must include {{word_count}}: {HIGH_TOKEN_PROMPTS}"
+        )
+    return result
+
+
 def installed_runtime() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     store = scenario_local.LocalScenarioStore()
     try:
@@ -223,7 +229,7 @@ def selected_installed_scenarios(
                 "Scenario(s) are not installed: " + ", ".join(unknown)
             )
         return explicit
-    if args.scenario_family in {"baseline", "demo-recording", "all"}:
+    if args.scenario_family == "all":
         return sorted(profiles)
     family = SCENARIO_FAMILIES[args.scenario_family]
     selected = [scenario for scenario in family if scenario in profiles]
@@ -241,7 +247,7 @@ def matrix_action_configs(
 ) -> dict[str, list[dict[str, Any]]]:
     actions = parse_csv_values(args.action) or ["direct", "alert"]
     return {
-        scenario_id: scenario_test_harness.scenario_action_configs(
+        scenario_id: scenario_validation.scenario_action_configs(
             matrix,
             scenario_id,
             actions,
@@ -430,6 +436,7 @@ def build_plan(
     profiles: dict[str, dict[str, Any]],
     route_scenarios: dict[str, str] | None = None,
     path_configs_by_scenario: dict[str, list[dict[str, Any]]] | None = None,
+    passthrough_config: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     rng = random.Random(args.seed)
     scenarios = list(profiles)
@@ -444,10 +451,57 @@ def build_plan(
         for scenario_id, path_configs in (path_configs_by_scenario or {}).items()
         for path_config in path_configs
     ]
+    passthrough_percent = float(getattr(args, "passthrough_percent", 0.0))
+    passthrough_count = round(total * passthrough_percent / 100.0)
+    passthrough_templates = high_token_prompt_templates() if passthrough_count else []
+    if passthrough_count and passthrough_config is None:
+        raise SystemExit(
+            "--passthrough-percent is supported only by the Phase 11 installed scenario matrix"
+        )
+    scenario_count = total - passthrough_count
+    if lanes and scenario_count < len(lanes):
+        raise SystemExit(
+            f"The requested mix leaves {scenario_count} scenario requests for {len(lanes)} "
+            "scenario/action lanes. Increase --duration or --rate, reduce "
+            "--passthrough-percent, or select fewer --action values."
+        )
+
+    selected_lanes: list[tuple[str, dict[str, Any]]] = []
+    if lanes:
+        selected_lanes.extend(lanes)
+        selected_lanes.extend(rng.choice(lanes) for _ in range(scenario_count - len(lanes)))
+    request_lanes: list[tuple[str, tuple[str, dict[str, Any]] | None]] = [
+        ("scenario", lane) for lane in selected_lanes
+    ]
+    request_lanes.extend(("passthrough", None) for _ in range(passthrough_count))
+    if request_lanes:
+        rng.shuffle(request_lanes)
+
     plan: list[dict[str, Any]] = []
     for index in range(total):
-        if lanes:
-            scenario_id, path_config = rng.choice(lanes)
+        request_kind, selected_lane = (
+            request_lanes[index] if request_lanes else ("scenario", None)
+        )
+        if request_kind == "passthrough":
+            prompt_index = rng.randrange(len(passthrough_templates))
+            plan.append(
+                {
+                    "request_id": f"req-{index + 1:05d}",
+                    "scenario": "passthrough",
+                    "route": "passthrough",
+                    "path_config": passthrough_config,
+                    "prompt_kind": "passthrough",
+                    "prompt_index": prompt_index,
+                    "prompt_id": f"passthrough-{prompt_index + 1:02d}",
+                    "prompt": passthrough_templates[prompt_index].format(
+                        word_count=args.passthrough_output_words
+                    ),
+                    "tool_profile": "",
+                }
+            )
+            continue
+        if selected_lane is not None:
+            scenario_id, path_config = selected_lane
             route = path_config["action"]
         else:
             route = rng.choice(routes)
@@ -631,14 +685,27 @@ def run_agent_probe(args: argparse.Namespace, inventory_host: dict[str, str], it
     started = time.monotonic()
     remote = " ".join(shlex.quote(part) for part in remote_agent_command(args, item))
     command = [*ssh_base(inventory_host), remote]
-    result = subprocess.run(
-        command,
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=int(getattr(args, "request_timeout", 180)),
+        )
+    except subprocess.TimeoutExpired:
+        latency_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "status": "error",
+            "error_class": "agent_probe_timeout",
+            "returncode": 124,
+            "latency_ms": latency_ms,
+            "response_length": 0,
+            "tool_names": [],
+            "tool_count": 0,
+        }
     latency_ms = int((time.monotonic() - started) * 1000)
     if result.returncode != 0:
         return {
@@ -664,6 +731,7 @@ def run_agent_probe(args: argparse.Namespace, inventory_host: dict[str, str], it
         }
     reply = str(body.get("reply", ""))
     security_disposition = classify_security_disposition(reply)
+    scenario_classification = scenario_validation.classify_response(body)
     tool_events = body.get("tool_events", [])
     tool_names = [
         str(event.get("tool") or event.get("name"))
@@ -677,6 +745,9 @@ def run_agent_probe(args: argparse.Namespace, inventory_host: dict[str, str], it
         "latency_ms": latency_ms,
         "response_length": len(reply),
         "security_disposition": security_disposition,
+        "scenario_verdict": str(scenario_classification["verdict"]),
+        "reply_sensitive": bool(scenario_classification["reply_sensitive"]),
+        "tool_result_sensitive": bool(scenario_classification["tool_result_sensitive"]),
         "agent_base_url": str(body.get("base_url", "")),
         "agent_mcp_base_url": str(body.get("mcp_base_url", "")),
         "agent_model": str(body.get("model", "")),
@@ -767,15 +838,22 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
     print(f"duration_seconds: {args.duration}")
     print(f"rate_per_minute: {args.rate}")
     print(f"concurrency: {args.concurrency}")
+    print(f"passthrough_percent: {args.passthrough_percent:g}")
+    if args.passthrough_percent:
+        print(f"passthrough_output_words: {args.passthrough_output_words}")
     print(f"estimated_requests: {len(plan)}")
     print(f"output: {display_path(args.output_dir)}")
     print(f"scenario_source: {args.scenario_source}")
     by_scenario = Counter(item["scenario"] for item in plan)
     by_route = Counter(item["route"] for item in plan)
+    by_provider_route = Counter(
+        item["path_config"]["route"] or f"direct:{item['scenario']}"
+        for item in plan
+    )
     by_prompt_kind = Counter(item["prompt_kind"] for item in plan)
     print("scenario_mix:")
     for scenario, count in sorted(by_scenario.items()):
-        display = profiles[scenario].get("display_name", scenario)
+        display = profiles.get(scenario, {}).get("display_name", scenario)
         print(f"  {scenario}: {count} ({display})")
     print("route_mix:")
     for route, count in sorted(by_route.items()):
@@ -784,6 +862,9 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
         if route_scenarios:
             scenario_note = f" scenarios={','.join(route_scenarios)}"
         print(f"  {route}: {count}{scenario_note}")
+    print("provider_route_mix:")
+    for route, count in sorted(by_provider_route.items()):
+        print(f"  {route}: {count}")
     print("prompt_kind_mix:")
     for kind, count in sorted(by_prompt_kind.items()):
         print(f"  {kind}: {count}")
@@ -802,6 +883,20 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
 def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     path_config = item["path_config"]
     mcp_path = args.mcp_path or path_config["mcp_path"]
+    expectation = scenario_validation.expected_result(item)
+    matches_expected = scenario_validation.result_matches_expected(
+        expectation, item, result
+    )
+    if result["status"] != "ok":
+        actual_result = "error"
+    elif expectation == "completed":
+        actual_result = "completed"
+    elif expectation == "blocked":
+        actual_result = str(result.get("security_disposition") or "unknown")
+    elif expectation == "redacted":
+        actual_result = str(result.get("scenario_verdict") or "unknown")
+    else:
+        actual_result = str(result.get("scenario_verdict") or "unknown")
     return {
         "timestamp": now_iso(),
         "request_id": item["request_id"],
@@ -818,6 +913,11 @@ def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: di
         "scenario_id": item["scenario"],
         "prompt_id": item["prompt_id"],
         "prompt_kind": item["prompt_kind"],
+        "outcome": (
+            str(path_config["action"])
+            if path_config["action"] in {"alert", "deny", "redact"}
+            else "success"
+        ),
         "model_alias": args.model or path_config["model"],
         "agent_model": result.get("agent_model", ""),
         "agent_base_url": result.get("agent_base_url", ""),
@@ -831,8 +931,13 @@ def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: di
         "completion_status": result["status"],
         "latency_ms": result["latency_ms"],
         "approx_response_length": result["response_length"],
+        "approx_input_tokens": math.ceil(len(str(item["prompt"])) / 4),
         "error_class": result["error_class"],
         "security_disposition": result.get("security_disposition", "unknown"),
+        "scenario_verdict": result.get("scenario_verdict", "error"),
+        "expected_result": expectation,
+        "actual_result": actual_result,
+        "result_matches_expected": matches_expected,
     }
 
 
@@ -842,6 +947,7 @@ def write_run_summary(
     events: list[dict[str, Any]],
     started_at: str,
     status: str,
+    wall_elapsed_seconds: float,
 ) -> None:
     completed = [event for event in events if event["completion_status"] == "ok"]
     errors = [event for event in events if event["completion_status"] != "ok"]
@@ -855,6 +961,8 @@ def write_run_summary(
         "duration_seconds": args.duration,
         "rate_per_minute": args.rate,
         "concurrency": args.concurrency,
+        "passthrough_percent": args.passthrough_percent,
+        "passthrough_output_words": args.passthrough_output_words,
         "seed": args.seed,
         "traffic_profile": args.traffic_profile,
         "use_case": args.use_case,
@@ -864,12 +972,36 @@ def write_run_summary(
         "planned_requests": len(plan),
         "completed_requests": len(completed),
         "error_requests": len(errors),
+        "wall_elapsed_seconds": round(wall_elapsed_seconds, 3),
+        "throughput_requests_per_second": (
+            round(len(events) / wall_elapsed_seconds, 3)
+            if wall_elapsed_seconds > 0
+            else None
+        ),
         "latency_ms_min": min(latencies) if latencies else None,
         "latency_ms_max": max(latencies) if latencies else None,
         "latency_ms_avg": int(sum(latencies) / len(latencies)) if latencies else None,
-        "scenario_counts": dict(Counter(item["scenario"] for item in plan)),
-        "route_counts": dict(Counter(item["route"] for item in plan)),
-        "prompt_kind_counts": dict(Counter(item["prompt_kind"] for item in plan)),
+        "approx_response_tokens": sum(
+            math.ceil(event["approx_response_length"] / 4) for event in completed
+        ),
+        "planned_scenario_counts": dict(Counter(item["scenario"] for item in plan)),
+        "planned_route_counts": dict(Counter(item["route"] for item in plan)),
+        "scenario_counts": dict(Counter(event["scenario_id"] for event in events)),
+        "route_counts": dict(Counter(event["route"] for event in events)),
+        "planned_provider_route_counts": dict(
+            Counter(
+                item["path_config"]["route"] or f"direct:{item['scenario']}"
+                for item in plan
+            )
+        ),
+        "provider_route_counts": dict(
+            Counter(run_statistics.event_path(event) for event in events)
+        ),
+        "planned_prompt_kind_counts": dict(Counter(item["prompt_kind"] for item in plan)),
+        "prompt_kind_counts": dict(Counter(event["prompt_kind"] for event in events)),
+        "expected_results": sum(int(event["result_matches_expected"]) for event in events),
+        "unexpected_results": sum(int(not event["result_matches_expected"]) for event in events),
+        "path_results": run_statistics.path_result_rows(events),
         "observed_tool_counts": dict(Counter(tool for event in events for tool in event["observed_tool_names"])),
         "security_disposition_counts": dict(Counter(event["security_disposition"] for event in events)),
         "error_counts": dict(Counter(event["error_class"] for event in errors)),
@@ -881,6 +1013,7 @@ def write_run_summary(
 
 def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: dict[str, dict[str, Any]]) -> None:
     started_at = now_iso()
+    started_monotonic = time.monotonic()
     if args.output_dir.exists() and any(args.output_dir.iterdir()) and not args.overwrite_output:
         raise SystemExit(f"Output directory already exists and is not empty: {args.output_dir}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -893,6 +1026,8 @@ def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: 
             "duration_seconds": args.duration,
             "rate_per_minute": args.rate,
             "concurrency": args.concurrency,
+            "passthrough_percent": args.passthrough_percent,
+            "passthrough_output_words": args.passthrough_output_words,
             "seed": args.seed,
             "traffic_profile": args.traffic_profile,
             "use_case": args.use_case,
@@ -951,7 +1086,9 @@ def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: 
                 print(
                     f"{event['request_id'] if 'request_id' in event else item['request_id']} "
                     f"{event['scenario_id']} {event['route']} {event['completion_status']} "
-                    f"tools={event['observed_tool_names']} latency_ms={event['latency_ms']}",
+                    f"expected={event['expected_result']} actual={event['actual_result']} "
+                    f"match={event['result_matches_expected']} tools={event['observed_tool_names']} "
+                    f"latency_ms={event['latency_ms']}",
                     flush=True,
                 )
         except KeyboardInterrupt:
@@ -959,7 +1096,16 @@ def run_traffic(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: 
             for future in futures:
                 future.cancel()
             print("Interrupted; writing partial summary.", file=sys.stderr)
-    write_run_summary(args, plan, events, started_at, "interrupted" if interrupted else "completed")
+    wall_elapsed_seconds = time.monotonic() - started_monotonic
+    write_run_summary(
+        args,
+        plan,
+        events,
+        started_at,
+        "interrupted" if interrupted else "completed",
+        wall_elapsed_seconds,
+    )
+    run_statistics.print_path_results(events)
     print(f"summary: {display_path(args.output_dir / 'summary.json')}")
 
 
@@ -1265,6 +1411,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tool-rounds", type=int, default=0, help="Override profile tool rounds; zero uses the matrix value.")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument(
+        "--passthrough-percent",
+        type=float,
+        default=0.0,
+        help="Percentage of Phase 11 traffic sent through canonical passthrough with high-output prompts.",
+    )
+    parser.add_argument(
+        "--passthrough-output-words",
+        type=int,
+        default=1200,
+        help="Approximate word count requested by each generated passthrough prompt.",
+    )
     parser.add_argument("--inventory", type=Path, default=None, help="Ansible inventory. Defaults by --target.")
     parser.add_argument("--host-alias", default="", help="Ansible host alias. Empty uses the first inventory host.")
     parser.add_argument("--chatbot-namespace", default="chatbot")
@@ -1295,6 +1453,10 @@ def parse_args() -> argparse.Namespace:
         raise SystemExit("--concurrency must be at least 1")
     if args.concurrency > 4:
         raise SystemExit("--concurrency is intentionally capped at 4 for demo safety")
+    if not 0 <= args.passthrough_percent <= 100:
+        raise SystemExit("--passthrough-percent must be between 0 and 100")
+    if not 250 <= args.passthrough_output_words <= 3000:
+        raise SystemExit("--passthrough-output-words must be between 250 and 3000")
     args.output_root = args.output_root if args.output_root.is_absolute() else REPO_ROOT / args.output_root
     args.run_label = slugify(args.label) if args.label else timestamp_label()
     args.output_dir = args.output_root / args.run_label
@@ -1336,10 +1498,18 @@ def main() -> int:
             matrix,
             scenario_ids,
         )
+        passthrough_config = None
+        if args.passthrough_percent:
+            passthrough_config = scenario_validation.scenario_action_configs(
+                matrix,
+                scenario_ids[0],
+                ["passthrough"],
+            )[0]
         plan = build_plan(
             args,
             profiles,
             path_configs_by_scenario=path_configs_by_scenario,
+            passthrough_config=passthrough_config,
         )
     if not profiles:
         raise SystemExit("No scenarios selected")

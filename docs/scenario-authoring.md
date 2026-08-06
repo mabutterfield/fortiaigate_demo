@@ -110,7 +110,7 @@ simplified profiles for every MCP transport.
 Use `--mcp-path fortiweb` in the headless harness when testing that alternate:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action direct \
   --mcp-path fortiweb
@@ -156,7 +156,7 @@ python3 scripts/smoke_test.py
 Run a scenario action through the deployed chatbot agent:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario <scenario-id> \
   --action <action>
 ```

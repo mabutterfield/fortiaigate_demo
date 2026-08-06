@@ -29,11 +29,11 @@ Run these from the repo root:
 python3 scripts/smoke_test.py
 python3 scripts/scenario_profiles.py validate
 python3 scripts/instruction_profiles.py validate
-python3 scripts/scenario_test_harness.py --help
-python3 scripts/traffic_generator.py --help
-python3 scripts/traffic_generator.py --dry-run
-python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario-source family --use-case steady --duration 60 --rate 6
-python3 scripts/traffic_generator.py --mode traffic --dry-run --scenario fortistore-injection --use-case burst
+python3 -m load_test validate --help
+python3 -m load_test paths --help
+python3 -m load_test paths --dry-run
+python3 -m load_test validate --dry-run
+python3 -m load_test run --hours 1 --dry-run
 ```
 
 Expected coverage:
@@ -52,7 +52,7 @@ Result log:
 
 | Date | Result | Notes |
 |---|---|---|
-| 2026-07-29 | Passed | `python3 scripts/smoke_test.py`, `python3 scripts/scenario_profiles.py validate`, `python3 scripts/instruction_profiles.py validate`, `python3 scripts/scenario_test_harness.py --help`, `python3 scripts/traffic_generator.py --help`, default path-test dry-run, and traffic-generator steady/burst dry-runs passed. |
+| 2026-07-29 | Passed | `python3 scripts/smoke_test.py`, `python3 scripts/scenario_profiles.py validate`, `python3 scripts/instruction_profiles.py validate`, `python3 -m load_test validate --help`, `python3 -m load_test paths --help`, default path-test dry-run, and traffic-generator steady/burst dry-runs passed. |
 
 ## AWS Fresh Deployment
 
@@ -193,7 +193,7 @@ reactivated in `chatbot/scenarios/examples/catalog.json`.
 Headless example:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario resume-tool-injection \
   --action direct \
   --action alert \
@@ -217,44 +217,30 @@ Result log:
 
 Use [Traffic Generator](traffic-generator.md) for command details.
 
-Steady use case:
+One-hour workload:
 
 ```bash
-python3 scripts/traffic_generator.py \
-  --mode traffic \
-  --target local \
-  --use-case steady \
-  --duration 3600 \
-  --rate 6 \
-  --route faig-scan \
-  --label local-dashboard-hour \
-  --yes
+python3 -m load_test run \
+  --hours 1 \
+  --label local-dashboard-hour
 ```
 
-Burst use case:
+Twenty-four-hour dry plan:
 
 ```bash
-python3 scripts/traffic_generator.py \
-  --mode traffic \
-  --target local \
-  --use-case burst \
-  --scenario fortistore-injection \
-  --route direct \
-  --label local-burst-test \
-  --yes
+python3 -m load_test run --dry-run
 ```
 
 Expected validation points:
 
 | Area | Expected result |
 |---|---|
-| Path test | No-argument default prints the inferred FAIG HTTPS endpoint and verifies `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough` once. |
-| Steady mode | Persistent but not excessive requests populate FortiAIGate charts and logs over time. |
-| Burst mode | Short high-rate traffic exercises load behavior and any DoS-style protections selected for the lab. |
-| Active-slot sync | Default live runs read `demo-a`/`demo-b` metadata and send scenarios matching the loaded instruction slot. |
-| Security dispositions | Blocked and redacted responses are counted as `security_disposition`, not as transport failures. |
-| Safeguards | AWS/public long or high-rate runs refuse without `--allow-cloud-long-run`. |
-| Output | `plan.json`, `events.jsonl`, and `summary.json` are written under ignored `docs/raw-output/traffic/<run-label>/`. |
+| Path test | `load_test paths` derives all canonical scenario routes and passthrough from the installed Phase 11 matrix. |
+| Live validation | `load_test validate` reads scenario validation metadata and checks expected behavior and tool traces. |
+| Dashboard workload | Hourly volume and normal/suspicious ratios vary while every hour includes Alert, Deny, and Redact. |
+| Statistics | Atomic statistics and checkpoints update during execution; normal signals stop scheduling and flush state. |
+| GPU telemetry | Local NVIDIA utilization, memory, temperature, power, and estimated energy are sampled without controlling traffic. |
+| Output | Run plans, events, GPU samples, statistics, checkpoints, and summaries are written under ignored `load_test/output/`. |
 
 Result log:
 

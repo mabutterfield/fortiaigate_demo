@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from scripts import scenario_test_harness
+from load_test import scenario_validation
 
 
 class ScenarioTestHarnessTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class ScenarioTestHarnessTests(unittest.TestCase):
         }
 
     def test_action_resolves_scenario_route_and_profile(self) -> None:
-        config = scenario_test_harness.scenario_action_configs(
+        config = scenario_validation.scenario_action_configs(
             self.matrix,
             "hr-tool-dlp",
             ["redact"],
@@ -57,7 +57,7 @@ class ScenarioTestHarnessTests(unittest.TestCase):
         self.assertEqual(config["max_tool_rounds"], 5)
 
     def test_direct_and_passthrough_are_canonical_controls(self) -> None:
-        direct, passthrough = scenario_test_harness.scenario_action_configs(
+        direct, passthrough = scenario_validation.scenario_action_configs(
             self.matrix,
             "hr-tool-dlp",
             ["direct", "passthrough"],
@@ -70,14 +70,14 @@ class ScenarioTestHarnessTests(unittest.TestCase):
 
     def test_unknown_action_lists_available_actions(self) -> None:
         with self.assertRaisesRegex(SystemExit, "Available: direct"):
-            scenario_test_harness.scenario_action_configs(
+            scenario_validation.scenario_action_configs(
                 self.matrix,
                 "hr-tool-dlp",
                 ["missing-action"],
             )
 
     def test_cloud_tool_execution_takes_precedence_over_final_block_language(self) -> None:
-        classified = scenario_test_harness.classify_response(
+        classified = scenario_validation.classify_response(
             {
                 "reply": "The requested action was blocked by policy.",
                 "tool_events": [
@@ -92,7 +92,7 @@ class ScenarioTestHarnessTests(unittest.TestCase):
         self.assertTrue(classified["tool_pivot"])
 
     def test_resume_deny_is_blocked_when_cloud_tool_never_executes(self) -> None:
-        classified = scenario_test_harness.classify_response(
+        classified = scenario_validation.classify_response(
             {
                 "reply": "FortiAIGate blocked this request under the security policy.",
                 "tool_events": [

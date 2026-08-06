@@ -30,8 +30,9 @@ REQUIRED_PATHS = [
     "scripts/build_scenario_matrix.py",
     "scripts/scenario_matrix.py",
     "scripts/scenario_profiles.py",
-    "scripts/scenario_test_harness.py",
-    "scripts/traffic_generator.py",
+    "load_test/__main__.py",
+    "load_test/scenario_validation.py",
+    "load_test/traffic_generator.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -88,6 +89,8 @@ def check_required_paths() -> None:
 def check_python_compile() -> None:
     for path in sorted((REPO_ROOT / "scripts").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
+    for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
+        py_compile.compile(str(path), doraise=True)
     print("ok python compile")
 
 
@@ -98,13 +101,16 @@ def check_script_help() -> None:
         "scripts/fortigate_ai_app_proxy_touch.py",
         "scripts/build_scenario_matrix.py",
         "scripts/scenario_profiles.py",
-        "scripts/scenario_test_harness.py",
-        "scripts/traffic_generator.py",
         "scripts/automated_quickstart.py",
         "scripts/automated_teardown.py",
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
+    for command in ["validate", "paths", "run"]:
+        run(
+            [sys.executable, "-m", "load_test", command, "--help"],
+            show_stdout=False,
+        )
 
 
 def check_tracked_secrets() -> None:

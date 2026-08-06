@@ -390,8 +390,7 @@ Expected FortiGate evidence:
 Pod-local validation through the deployed chatbot agent:
 
 ```bash
-python3 scripts/traffic_generator.py \
-  --mode traffic \
+python3 -m load_test.traffic_generator --mode traffic \
   --route fortigate-litellm \
   --use-case steady \
   --duration 30 \

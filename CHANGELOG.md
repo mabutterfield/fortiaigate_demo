@@ -5,6 +5,29 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Updated the local traffic generator for the complete Phase 11 baseline:
+  - moved live validation, path checks, traffic generation, result aggregation,
+    and tracked high-token prompt metadata into the dedicated `load_test/`
+    package with `validate`, `paths`, and `run` commands
+  - baseline selection now includes `resume-tool-injection`
+  - configurable high-token canonical passthrough traffic supports tunable
+    bypass-to-scenario mixes
+  - scenario/action lanes receive deterministic minimum coverage
+  - summaries now record wall time, throughput, approximate response tokens,
+    and canonical provider-route counts for sequential/parallel comparison
+  - every traffic result is validated against its action expectation, with
+    Deny, Redact, sensitive-output, and resume tool-pivot checks summarized as
+    expected results over total results for each provider route
+  - added machine-readable validation cases to every baseline scenario so live
+    setup checks and background traffic share prompts, verdicts, and required or
+    forbidden tool traces
+  - added a tracked variable 24-hour dashboard workload with a 75/25 long-run
+    normal-to-suspicious baseline, bounded hourly volume, and mandatory hourly
+    Alert, Deny, and Redact requests
+  - added atomic live statistics and checkpoints, graceful signal handling,
+    approximate token totals, and isolated NVIDIA utilization, memory, power,
+    temperature, and estimated-energy sampling
+
 - Started the Phase 11 scenario-matrix v1.0 foundation:
   - classified FortiStore Injection, HR Tool DLP, and Resume Tool Injection as
     baseline scenarios, while retaining FortiGate Operator as a future

@@ -108,5 +108,5 @@ Archived payload folders:
   the tool result is already present in the request body sent to the LLM path.
 - The attack replay already contains an assistant cloud-tool request and its
   synthetic result. It can prove transcript inspection, but it cannot prove
-  that Deny stopped a live MCP call. Use `scenario_test_harness.py` and inspect
+  that Deny stopped a live MCP call. Use `python3 -m load_test validate` and inspect
   the actual tool sequence for the end-to-end enforcement test.

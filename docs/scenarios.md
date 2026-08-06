@@ -69,20 +69,20 @@ The harness uses semantic actions and resolves all other settings from the
 installed matrix:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario fortistore-injection \
   --action direct \
   --action alert \
   --action deny
 
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action direct \
   --action alert \
   --action deny \
   --action redact
 
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario resume-tool-injection \
   --prompt-kind attack \
   --action direct \
@@ -102,7 +102,7 @@ Resume acceptance is trace-based:
 Run the least-privilege comparison with:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario resume-tool-injection \
   --prompt-kind attack \
   --action direct \
@@ -116,7 +116,7 @@ controls are in the
 Test the advanced MCP alternate without changing simplified profiles:
 
 ```bash
-python3 scripts/scenario_test_harness.py \
+python3 -m load_test validate \
   --scenario hr-tool-dlp \
   --action direct \
   --mcp-path fortiweb
@@ -125,8 +125,8 @@ python3 scripts/scenario_test_harness.py \
 Raw FAIG connectivity tests also come from the matrix:
 
 ```bash
-python3 scripts/traffic_generator.py --mode path_test
-python3 scripts/traffic_generator.py \
+python3 -m load_test paths
+python3 -m load_test paths \
   --mode path_test \
   --path-test-path hr-tool-dlp-redact
 ```
