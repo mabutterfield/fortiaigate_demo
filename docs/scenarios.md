@@ -1,11 +1,11 @@
 # Scenario Demo Runbook
 
-Status: Phase 10 transitional runbook.
+Status: Phase 11 v1.0 baseline integration in progress.
 
-Phase 10 still uses compatibility instruction slots and route names such as
-`demo-a`, `demo-b`, and `frontend`. Phase 11 is planned as the v1.0 baseline and
-will replace this with scenario-owned FAIG paths, generated LiteLLM aliases,
-generated chatbot profiles, and generated MCP profile selection.
+The Phase 11 runtime uses scenario-owned FAIG paths, generated LiteLLM aliases,
+generated chatbot profiles, and generated MCP profile selection. Compatibility
+slots such as `demo-a`, `demo-b`, and `frontend` remain available only for old
+Phase 10 installs and are not part of the canonical UI.
 
 This page documents the current active Phase 10 set, the Phase 11 candidate
 set, and where archived material lives. The Phase 11 schema, local lifecycle,
@@ -16,10 +16,11 @@ Phase 11 schema, safe local scenario lifecycle, and deterministic matrix
 generation now exist. The `add`, `update`, `remove`, `list-installed`,
 `show-matrix`, and `render-work-order` commands prepare ignored editable
 scenario packages and expand them into the intended LiteLLM, chatbot, MCP, and
-FAIG contracts. LiteLLM deployment consumes the generated aliases and local
-backend instructions; chatbot, MCP, and FAIG GUI integration remains pending.
-Continue using the compatibility slot workflow below only for a live Phase 10
-chatbot that has not yet been upgraded.
+FAIG contracts. LiteLLM and chatbot deployments consume the generated aliases,
+local instructions, profiles, routes, and tool selections. FAIG GUI objects
+remain manual and are listed by `render-work-order`. Continue using the
+compatibility slot workflow below only for a Phase 10 chatbot that has not yet
+been upgraded.
 
 ## Current Scenario Sets
 
@@ -102,23 +103,23 @@ Use the custom chatbot UI for scenario demos:
 - HTTP: `http://<k3s-public-ip>:30081`
 - HTTPS gateway, when deployed: `https://<k3s-public-ip>:30444`
 
-The chatbot defaults to `Detailed` mode, which exposes LLM path, profile,
-context, frontend-instruction, and MCP controls for tuning and debugging. When
-installed scenarios provide simplified presets, switch the sidebar `Interface`
-control to `Simplified` and choose a single `Demo Profile`; switching profiles
-clears the current conversation and MCP trace.
+The chatbot defaults to `Simplified` mode and shows one `Demo Profile` selector
+generated from installed scenarios. Switching profiles clears the current
+conversation and MCP trace. Switch the sidebar `Interface` control to
+`Advanced` to select the LLM path, model alias, FAIG route, context behavior,
+named frontend instruction profile, MCP path, and MCP tool profile separately.
 
 Recommended baseline settings for candidate work:
 
 | Setting | Value |
 |---|---|
 | LLM path | Direct LiteLLM for first validation |
-| Model/profile | Match the slot you installed into, usually `demo-a` or `demo-b` |
+| Model/profile | Select the scenario-owned alias, such as `fortistore-injection` or `hr-tool-dlp` |
 | Context mode | Recent conversation unless the test explicitly requires current-turn only |
 | Context messages | Default `8` when using Recent conversation |
 | Use MCP tools | On for FortiGate Operator and HR Resume candidates |
 | MCP path | Direct MCP for first validation |
-| Tool profile | Match the scenario ID unless the runbook says otherwise |
+| Tool profile | Match the scenario ID; use `all-installed` only for an intentional cross-domain demonstration |
 | Max tool rounds | Start with `3`; increase only when the scenario needs more retrieval/tool turns |
 
 After direct validation works, repeat the same scenario through FAIG Static,

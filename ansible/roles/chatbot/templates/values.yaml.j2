@@ -18,6 +18,7 @@ containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 
 {% set chatbot_prompt_source_path = item.frontend_system_prompt_source_path | default(chatbot_frontend_system_prompt_source_path, true) | default('', true) %}
 {% set chatbot_prompt_inline = item.frontend_system_prompt | default(chatbot_frontend_system_prompt, true) | default('', true) %}
+{% set chatbot_frontend_profiles_value = item.frontend_instruction_profiles | default(chatbot_frontend_instruction_profiles, true) | default([], true) %}
 {% set chatbot_model_options_value = item.model_options | default(chatbot_model_options, true) | default([], true) %}
 {% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes, true) | default([], true) %}
 {% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes, true) | default([], true) %}
@@ -55,6 +56,8 @@ chatbot:
   headerTitle: "{{ item.header_title | default('FortiAIGate Demo Chatbot', true) }}"
   frontendSystemPrompt: {{ chatbot_effective_frontend_prompt | to_json }}
   frontendSystemPromptEnabled: "{{ (item.frontend_system_prompt_enabled | default(chatbot_frontend_system_prompt_enabled) | bool) | ternary('true', 'false') }}"
+  frontendInstructionProfile: "{{ item.frontend_instruction_profile | default(chatbot_frontend_instruction_profile, true) }}"
+  frontendInstructionProfilesJson: {{ (chatbot_frontend_profiles_value if chatbot_frontend_profiles_value is string else chatbot_frontend_profiles_value | to_json) | to_json }}
   temperature: "{{ item.temperature | default('0.0', true) }}"
   maxTokens: "{{ item.max_tokens | default('4096', true) }}"
   streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"

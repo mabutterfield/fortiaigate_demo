@@ -87,6 +87,10 @@ spec:
               value: {{ .Values.chatbot.frontendSystemPrompt | quote }}
             - name: CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED
               value: {{ .Values.chatbot.frontendSystemPromptEnabled | quote }}
+            - name: CHATBOT_FRONTEND_INSTRUCTION_PROFILE
+              value: {{ .Values.chatbot.frontendInstructionProfile | quote }}
+            - name: CHATBOT_FRONTEND_INSTRUCTION_PROFILES_JSON
+              value: {{ .Values.chatbot.frontendInstructionProfilesJson | quote }}
             - name: CHATBOT_TEMPERATURE
               value: {{ .Values.chatbot.temperature | quote }}
             - name: CHATBOT_MAX_TOKENS

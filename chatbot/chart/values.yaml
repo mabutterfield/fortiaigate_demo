@@ -25,9 +25,9 @@ chatbot:
   fortigateOllamaModelOptions: ""
   faigBaseUrl: ""
   faigApiKey: not-used
-  faigStaticRoute: demo-a
+  faigStaticRoute: passthrough
   faigStaticRoutesJson: ""
-  faigHeaderRoute: demo-a
+  faigHeaderRoute: ""
   faigHeaderRoutesJson: ""
   faigModelRouteHeaderName: X-FAIG-Model-Route
   model: auto
@@ -36,6 +36,8 @@ chatbot:
   headerTitle: AI Chatbot
   frontendSystemPrompt: ""
   frontendSystemPromptEnabled: "false"
+  frontendInstructionProfile: none
+  frontendInstructionProfilesJson: ""
   temperature: "0.0"
   maxTokens: "4096"
   streaming: "false"
@@ -47,15 +49,15 @@ chatbot:
   mcpTimeoutSeconds: "10"
   mcpVerifyTls: "false"
   mcpMaxToolRounds: "3"
-  mcpToolProfile: all-tools
-  mcpToolProfileMode: merge
+  mcpToolProfile: ""
+  mcpToolProfileMode: replace
   mcpToolProfilesJson: ""
   uiMode: detailed
   simplifiedProfilesJson: ""
   contextMode: recent
   contextWindow: "8"
   contextSummaryMaxChars: "1500"
-  contextSummaryModel: pass-bedrock
+  contextSummaryModel: pass-model
   showContext: "false"
 
 instructions:

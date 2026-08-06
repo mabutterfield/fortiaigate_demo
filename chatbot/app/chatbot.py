@@ -306,13 +306,102 @@ def env_json_demo_profiles(name: str) -> list[dict[str, Any]]:
     return profiles
 
 
+def env_json_frontend_profiles(name: str) -> list[dict[str, Any]]:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{name} is not valid JSON: {exc}") from exc
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"{name} must be a JSON list")
+
+    profiles: list[dict[str, Any]] = []
+    profile_ids: set[str] = set()
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise RuntimeError(f"{name} entries must be JSON objects")
+        profile_id = str(item.get("id") or "").strip()
+        if not profile_id:
+            raise RuntimeError(f"{name} entries require a non-empty id")
+        if profile_id in profile_ids:
+            raise RuntimeError(f"{name} contains duplicate id {profile_id}")
+        instruction = item.get("instruction", "")
+        if not isinstance(instruction, str):
+            raise RuntimeError(f"{name} entry {profile_id} requires a string instruction")
+        profile_ids.add(profile_id)
+        profiles.append(
+            {
+                "id": profile_id,
+                "label": str(
+                    item.get("label")
+                    or item.get("display_name")
+                    or profile_id
+                ).strip(),
+                "instruction": instruction.strip(),
+                "source_type": str(item.get("source_type") or "inline").strip(),
+                "scenario_id": str(item.get("scenario_id") or "").strip(),
+            }
+        )
+    return profiles
+
+
+def build_frontend_instruction_profiles(
+    configured_profiles: list[dict[str, Any]],
+    legacy_instruction: str = "",
+) -> list[dict[str, Any]]:
+    profiles = [dict(profile) for profile in configured_profiles]
+    if not any(profile.get("id") == "none" for profile in profiles):
+        profiles.insert(
+            0,
+            {
+                "id": "none",
+                "label": "No Frontend Instructions",
+                "instruction": "",
+                "source_type": "none",
+                "scenario_id": "",
+            },
+        )
+    if legacy_instruction.strip() and not any(
+        profile.get("id") == "legacy" for profile in profiles
+    ):
+        profiles.append(
+            {
+                "id": "legacy",
+                "label": "Legacy Frontend Instructions",
+                "instruction": legacy_instruction.strip(),
+                "source_type": "inline",
+                "scenario_id": "",
+            }
+        )
+    return profiles
+
+
+def frontend_profile_by_id(
+    profiles: list[dict[str, Any]],
+    profile_id: str,
+) -> dict[str, Any]:
+    for profile in profiles:
+        if profile.get("id") == profile_id:
+            return profile
+    available = ", ".join(str(profile.get("id") or "") for profile in profiles)
+    raise RuntimeError(
+        f"Unknown frontend instruction profile '{profile_id}'. Available: {available}"
+    )
+
+
 def build_mcp_tool_profiles(
     extra_profiles: list[dict[str, Any]] | None = None,
     *,
     mode: str = "merge",
 ) -> list[dict[str, Any]]:
     normalized_mode = str(mode or "merge").strip().lower()
-    profiles = [] if normalized_mode == "replace" and extra_profiles else [dict(profile) for profile in DEFAULT_MCP_TOOL_PROFILES]
+    profiles = (
+        []
+        if normalized_mode == "replace"
+        else [dict(profile) for profile in DEFAULT_MCP_TOOL_PROFILES]
+    )
     profile_index = {profile["name"]: index for index, profile in enumerate(profiles)}
     for profile in extra_profiles or []:
         profile_name = profile["name"]
@@ -321,6 +410,15 @@ def build_mcp_tool_profiles(
         else:
             profile_index[profile_name] = len(profiles)
             profiles.append(profile)
+    if not profiles:
+        profiles.append(
+            {
+                "name": "none",
+                "label": "No MCP Tools",
+                "tools": [],
+                "allow_all": False,
+            }
+        )
     return profiles
 
 
@@ -706,6 +804,8 @@ def build_faig_routes(
     routes_json: list[dict[str, Any]],
     default_base_path: str,
 ) -> list[dict[str, Any]]:
+    if not routes_json and not default_route:
+        return []
     routes = routes_json or [{"name": default_route, "base_path": default_base_path, "model": default_route}]
     normalized_routes = []
     for route in routes:
@@ -1113,11 +1213,23 @@ def main() -> None:
         model_options.insert(0, model)
     page_title = os.getenv("CHATBOT_PAGE_TITLE", "AI Chatbot")
     header_title = os.getenv("CHATBOT_HEADER_TITLE", page_title)
-    frontend_system_prompt = os.getenv("CHATBOT_FRONTEND_SYSTEM_PROMPT", "").strip()
-    frontend_system_prompt_enabled_default = (
-        bool(frontend_system_prompt)
-        and env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
+    legacy_frontend_system_prompt = os.getenv(
+        "CHATBOT_FRONTEND_SYSTEM_PROMPT", ""
+    ).strip()
+    frontend_instruction_profiles = build_frontend_instruction_profiles(
+        env_json_frontend_profiles("CHATBOT_FRONTEND_INSTRUCTION_PROFILES_JSON"),
+        legacy_frontend_system_prompt,
     )
+    frontend_profile_ids = [profile["id"] for profile in frontend_instruction_profiles]
+    frontend_default_profile = os.getenv(
+        "CHATBOT_FRONTEND_INSTRUCTION_PROFILE", "none"
+    ).strip() or "none"
+    if frontend_default_profile not in frontend_profile_ids:
+        logger.warning(
+            "Invalid CHATBOT_FRONTEND_INSTRUCTION_PROFILE=%s; using none",
+            frontend_default_profile,
+        )
+        frontend_default_profile = "none"
     temperature = env_float("CHATBOT_TEMPERATURE", 0.0)
     max_tokens = env_int("CHATBOT_MAX_TOKENS", 4096)
     streaming = env_bool("CHATBOT_STREAMING", False)
@@ -1141,22 +1253,27 @@ def main() -> None:
         mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
     )
     mcp_tool_profile_names = [profile["name"] for profile in mcp_tool_profiles]
-    mcp_default_tool_profile = os.getenv("CHATBOT_MCP_TOOL_PROFILE", "all-tools").strip() or "all-tools"
+    mcp_default_tool_profile = os.getenv("CHATBOT_MCP_TOOL_PROFILE", "").strip()
     if mcp_default_tool_profile not in mcp_tool_profile_names:
-        logger.warning("Invalid CHATBOT_MCP_TOOL_PROFILE=%s; using all-tools", mcp_default_tool_profile)
-        mcp_default_tool_profile = "all-tools"
+        fallback_tool_profile = mcp_tool_profile_names[0]
+        logger.warning(
+            "Invalid CHATBOT_MCP_TOOL_PROFILE=%s; using %s",
+            mcp_default_tool_profile,
+            fallback_tool_profile,
+        )
+        mcp_default_tool_profile = fallback_tool_profile
     context_default_mode = normalize_context_mode(os.getenv("CHATBOT_CONTEXT_MODE", "recent"))
     context_window_default = max(1, env_int("CHATBOT_CONTEXT_WINDOW", 8))
     context_summary_max_chars = max(250, env_int("CHATBOT_CONTEXT_SUMMARY_MAX_CHARS", 1500))
-    context_summary_model = os.getenv("CHATBOT_CONTEXT_SUMMARY_MODEL", "pass-bedrock").strip() or "pass-bedrock"
+    context_summary_model = os.getenv("CHATBOT_CONTEXT_SUMMARY_MODEL", "pass-model").strip() or "pass-model"
     show_context_default = env_bool("CHATBOT_SHOW_CONTEXT", False)
-    faig_static_default_route = os.getenv("CHATBOT_FAIG_STATIC_ROUTE", "demo-a").strip() or "demo-a"
+    faig_static_default_route = os.getenv("CHATBOT_FAIG_STATIC_ROUTE", "passthrough").strip() or "passthrough"
     faig_static_routes = build_faig_routes(
         faig_static_default_route,
         env_json_list("CHATBOT_FAIG_STATIC_ROUTES_JSON"),
         f"/v1/{faig_static_default_route}",
     )
-    faig_header_default_route = os.getenv("CHATBOT_FAIG_HEADER_ROUTE", "demo-a").strip() or "demo-a"
+    faig_header_default_route = os.getenv("CHATBOT_FAIG_HEADER_ROUTE", "").strip()
     faig_header_routes = build_faig_routes(
         faig_header_default_route,
         env_json_list("CHATBOT_FAIG_HEADER_ROUTES_JSON"),
@@ -1200,7 +1317,10 @@ def main() -> None:
             provider_options.append("FortiGate -> LiteLLM")
         if fortigate_ollama_base_url:
             provider_options.append("FortiGate -> Ollama")
-        provider_options.extend(["FAIG Static Route", "FAIG Intelligent Route"])
+        if faig_static_routes:
+            provider_options.append("FAIG Static Route")
+        if faig_header_routes:
+            provider_options.append("FAIG Intelligent Route")
         available_simplified_demo_profiles = [
             profile
             for profile in simplified_demo_profiles
@@ -1274,10 +1394,17 @@ def main() -> None:
             context_mode = normalize_context_mode(str(selected_demo_profile.get("context_mode") or context_default_mode))
             context_window = int(selected_demo_profile.get("context_window") or context_window_default)
             show_context = coerce_bool(selected_demo_profile.get("show_context"), show_context_default)
-            frontend_system_prompt_enabled = (
-                coerce_bool(selected_demo_profile.get("frontend_system_prompt_enabled"), False)
-                and bool(frontend_system_prompt)
+            selected_frontend_profile_id = str(
+                selected_demo_profile.get("frontend_instruction_profile") or "none"
+            ).strip()
+            selected_frontend_profile = frontend_profile_by_id(
+                frontend_instruction_profiles,
+                selected_frontend_profile_id,
             )
+            frontend_system_prompt = str(
+                selected_frontend_profile.get("instruction") or ""
+            )
+            frontend_system_prompt_enabled = bool(frontend_system_prompt)
             mcp_enabled = coerce_bool(selected_demo_profile.get("mcp_enabled"), mcp_enabled_default)
             mcp_path_key = normalize_mcp_path(str(selected_demo_profile.get("mcp_path") or mcp_default_path))
             if mcp_path_key == "fortiweb" and mcp_fortiweb_base_url:
@@ -1297,7 +1424,11 @@ def main() -> None:
             if provider_path.startswith("FAIG"):
                 st.write(f"Route: `{selected_route_name}`")
             st.write(f"Model/profile: `{selected_model}`")
-            st.write(f"Frontend instructions: {'on' if frontend_system_prompt_enabled else 'off'}")
+            st.write(
+                "Frontend instructions: `"
+                + str(selected_frontend_profile.get("label") or selected_frontend_profile_id)
+                + "`"
+            )
             st.write(f"Context: `{CONTEXT_MODE_OPTIONS.get(context_mode, context_mode)}`")
             st.write(f"MCP: {'on' if mcp_enabled else 'off'}")
             if mcp_enabled:
@@ -1413,19 +1544,32 @@ def main() -> None:
             )
             show_context = st.checkbox("Show context sent to model", value=show_context_default)
             st.subheader("Frontend Instructions")
-            frontend_system_prompt_enabled = st.checkbox(
-                "Use frontend instructions",
-                value=frontend_system_prompt_enabled_default,
-                disabled=not bool(frontend_system_prompt),
+            frontend_profile_index = frontend_profile_ids.index(frontend_default_profile)
+            selected_frontend_profile_id = st.selectbox(
+                "Instruction profile",
+                frontend_profile_ids,
+                index=frontend_profile_index,
+                format_func=lambda profile_id: frontend_profile_by_id(
+                    frontend_instruction_profiles,
+                    profile_id,
+                )["label"],
                 help=(
-                    "Adds the chatbot-local frontend system prompt to the request. "
-                    "Turn this off to compare the backend profile without the UI-layer prompt."
+                    "Select a chatbot-local instruction profile. Choose No Frontend "
+                    "Instructions to compare the backend profile without UI-layer instructions."
                 ),
             )
-            if frontend_system_prompt:
-                st.write("Frontend prompt: configured")
-            else:
-                st.write("Frontend prompt: not configured")
+            selected_frontend_profile = frontend_profile_by_id(
+                frontend_instruction_profiles,
+                selected_frontend_profile_id,
+            )
+            frontend_system_prompt = str(
+                selected_frontend_profile.get("instruction") or ""
+            )
+            frontend_system_prompt_enabled = bool(frontend_system_prompt)
+            st.write(
+                "Frontend prompt: "
+                + ("configured" if frontend_system_prompt_enabled else "disabled")
+            )
             if st.button("Reset context"):
                 clear_chat_state()
                 st.rerun()

@@ -22,6 +22,16 @@ a "what's new" guide rather than a raw commit log.
     deployment and loading backend instructions from ignored local scenarios
   - added direct validation for canonical `pass-model`, `fortistore-injection`,
     and `hr-tool-dlp` aliases, including required scenario activation markers
+  - made the consolidated chatbot consume the same scenario matrix for its
+    models, FAIG static routes, simplified profiles, scenario/alternate MCP
+    tool profiles, and named frontend instruction profiles
+  - removed generated `demo-a`/`demo-b` options from the Phase 11 chatbot,
+    defaulted the UI to simplified mode, and retained the canonical FAIG
+    passthrough plus advanced controls
+  - enabled the optional advanced FortiWeb MCP path only when its proxy is
+    desired and an installed appliance endpoint is available; FortiGate LLM
+    routes remain disabled while that path is still under development
+  - published chatbot image `v0.5.2` for the new matrix-driven runtime
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

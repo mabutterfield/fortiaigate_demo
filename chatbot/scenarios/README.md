@@ -1,6 +1,6 @@
 # Scenario Profiles
 
-Status: Phase 10 transitional scenario set.
+Status: Phase 11 v1.0 baseline in progress.
 
 Scenario profiles package repeatable demo instructions, MCP tool expectations,
 and prompt examples. They do not deploy separate MCP servers; every scenario
@@ -12,9 +12,10 @@ Tracked Phase 10 active scenarios and Phase 11 candidate scenarios live under
 `archived_scenarios/` directory. The catalog remains at `examples/catalog.json`
 and can point at either location.
 
-Phase 10 still installs scenarios into compatibility instruction slots such as
-`demo-a`, `demo-b`, and `frontend`. Phase 11 is expected to replace that model
-with scenario-owned paths and generated scenario metadata.
+Phase 11 installs editable local scenario packages and generates scenario-owned
+paths, aliases, chatbot profiles, frontend instructions, and MCP selections.
+The old `demo-a`, `demo-b`, and `frontend` slots remain compatibility-only and
+are not expanded by the Phase 11 runtime.
 
 ## Current Scenario Sets
 
@@ -98,11 +99,18 @@ python3 scripts/scenario_profiles.py ack-stale fortistore-injection
 The matrix builder deterministically expands installed scenarios into the
 LiteLLM aliases, backend instruction profiles, chatbot simplified and advanced
 controls, MCP paths and tool profiles, scenario-owned FAIG routes, and the FAIG
-GUI work order. The LiteLLM role now consumes the model and backend-instruction
-slice when `demo_configuration_source: scenario_matrix` (the default). Chatbot,
-MCP, and FAIG GUI objects remain generated dry-run contracts until their later
-integration phases. Use `--debug-all-server-tools` only when intentionally
-exposing every tool reported by the MCP server for troubleshooting.
+GUI work order. LiteLLM and the chatbot consume their matrix slices when
+`demo_configuration_source: scenario_matrix` (the default). FAIG GUI objects
+remain a generated manual work order. Use `--debug-all-server-tools` only when
+intentionally exposing every tool reported by the MCP server for
+troubleshooting.
+
+In advanced chatbot mode, `All Installed Scenario Tools` is the expanded
+cross-domain MCP set; the scenario-named profile is the scoped default. Direct
+MCP is always available for an MCP-enabled installed scenario. FortiWeb MCP is
+added only when the proxy is desired and an installed appliance endpoint is
+available. The simplified profiles keep the scenario's normal MCP choice so
+the advanced alternate does not multiply every preset.
 
 ## Catalog And Compatibility Commands
 

@@ -5,6 +5,11 @@ chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/chatbot-chart"
 chatbot_values_remote_dir: "/home/{{ ansible_user }}/tmp/chatbot-values"
 chatbot_helm_wait: false
 chatbot_helm_timeout: 5m
+demo_configuration_source: scenario_matrix
+chatbot_routes_source: scenario_matrix
+scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
+scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname }}"
+chatbot_fortigate_routes_desired: false
 
 chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else 'fortiaigate/chatbot-basic') }}"
 chatbot_image_tag: local
@@ -49,71 +54,24 @@ faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.clust
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
 faig_model_route_header_name: X-FAIG-Model-Route
-chatbot_faig_static_route: demo-a
+chatbot_faig_static_route: passthrough
 chatbot_faig_static_routes:
   - name: passthrough
-    label: Passthrough
+    label: FAIG Passthrough
     base_path: /v1/passthrough
-    model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
-  - name: demo-a
-    label: Demo A
-    base_path: /v1/demo-a
-    model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
-  - name: demo-b
-    label: Demo B
-    base_path: /v1/demo-b
-    model: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
-  - name: demo-a-faig-be
-    label: Demo A -> FAIG Re-entry
-    base_path: /v1/demo-a-faig-be
-    model: "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
-  - name: demo-b-faig-be
-    label: Demo B -> FAIG Re-entry
-    base_path: /v1/demo-b-faig-be
-    model: "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
-chatbot_phase10_scenario_routes_enabled: false
-chatbot_phase10_scenario_static_routes:
-  - name: demo-c
-    label: Demo C - Output DLP
-    base_path: /v1/demo-c
-    model: demo-c
-  - name: demo-d
-    label: Demo D - Input DLP
-    base_path: /v1/demo-d
-    model: demo-d
-chatbot_faig_static_routes_effective: "{{ chatbot_faig_static_routes + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
-chatbot_faig_header_route: passthrough
-chatbot_faig_header_routes:
-  - name: passthrough
-    label: Passthrough
-    base_path: /v1/intelligent
-    model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
-    header_value: ""
-  - name: demo-a
-    label: Demo A
-    base_path: /v1/intelligent
-    model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
-    header_value: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
-  - name: demo-b
-    label: Demo B
-    base_path: /v1/intelligent
-    model: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
-    header_value: "{{ litellm_demo_b_model_alias | default('demo-b') }}"
-chatbot_model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+    model: pass-model
+chatbot_faig_static_routes_effective: "{{ chatbot_faig_static_routes }}"
+chatbot_faig_header_route: ""
+chatbot_faig_header_routes: []
+chatbot_model: pass-model
 chatbot_model_options:
-  - "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
-  - "{{ litellm_demo_a_model_alias | default('demo-a') }}"
-  - "{{ litellm_demo_b_model_alias | default('demo-b') }}"
-  - "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
-  - "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
-  - "{{ litellm_ollama_model_alias | default('llama3.2:1b') }}"
-chatbot_phase10_scenario_model_options:
-  - demo-c
-  - demo-d
-chatbot_model_options_effective: "{{ chatbot_model_options + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
+  - pass-model
+chatbot_model_options_effective: "{{ chatbot_model_options }}"
 chatbot_frontend_system_prompt: ""
 chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
 chatbot_frontend_system_prompt_enabled: false
+chatbot_frontend_instruction_profile: none
+chatbot_frontend_instruction_profiles: []
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8000') }}"
 chatbot_mcp_fortiweb_base_url: >-
@@ -132,9 +90,9 @@ chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
-chatbot_mcp_tool_profile: all-tools
+chatbot_mcp_tool_profile: ""
 chatbot_mcp_tool_profiles: []
-chatbot_mcp_tool_profiles_source: installed
+chatbot_mcp_tool_profiles_source: scenario_matrix
 chatbot_mcp_tool_profile_mode: replace
 chatbot_mcp_installed_tool_profile_slots:
   - demo-a
@@ -142,7 +100,7 @@ chatbot_mcp_installed_tool_profile_slots:
 chatbot_mcp_show_debug_all_server_tools: false
 chatbot_ui_mode: detailed
 chatbot_simplified_profiles: []
-chatbot_simplified_profiles_source: installed
+chatbot_simplified_profiles_source: scenario_matrix
 chatbot_simplified_profile_slots:
   - demo-a
   - demo-b
@@ -150,7 +108,7 @@ chatbot_simplified_profile_slots:
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
-chatbot_context_summary_model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+chatbot_context_summary_model: pass-model
 chatbot_show_context: false
 
 chatbot_instances:
@@ -177,6 +135,8 @@ chatbot_instances:
     model_options: "{{ chatbot_model_options_effective }}"
     frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
     frontend_system_prompt_enabled: "{{ chatbot_frontend_system_prompt_enabled }}"
+    frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
+    frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"
     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
