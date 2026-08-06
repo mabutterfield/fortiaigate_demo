@@ -131,8 +131,8 @@ Smoke-test playbooks:
 
 - FortiAIGate GUI provider/guard/route setup is still manual.
 - Scenario install/update/remove generates an exact FAIG work order but does
-  not mutate FortiAIGate GUI objects. Removed routes remain recorded as stale
-  until an operator removes and acknowledges them.
+  not mutate FortiAIGate GUI objects. Rebuild or adjust the disposable FAIG
+  environment separately after route changes.
 - FortiWeb MCP Security policy is not automated because the FortiWeb collection
   does not expose the FortiWeb 8.0.3+ MCP Security object yet.
 - Long-running traffic generation exists for local-safe demo capture but should

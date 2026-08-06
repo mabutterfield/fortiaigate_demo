@@ -3,7 +3,7 @@
 Status: Phase 11 v1.0 baseline.
 
 Use this process when creating, tuning, validating, or promoting a scenario.
-Scenario documentation describes semantic roles; the install tooling generates
+Scenario documentation describes semantic actions; the install tooling generates
 the exact model aliases, FAIG paths, chatbot profiles, and MCP selections.
 
 ## Source And Runtime Boundaries
@@ -26,39 +26,38 @@ Each scenario profile and README should identify:
 
 - scenario ID, lifecycle (`baseline`, `candidate`, or `archived`), and demo goal;
 - security feature under test;
-- semantic path roles and whether each role is required for release;
-- guard template, expected action, and next-hop scenario model alias per role;
+- FAIG actions and whether each action is required for release;
+- guard template, expected disposition, and next-hop scenario model alias per action;
 - backend instructions and named frontend instruction profiles;
 - MCP enabled state, required tool names, scoped tool profile, and maximum tool
   rounds;
 - prompt sequence, including no-context and with-context variants where useful;
-- expected direct, detect, and protection behavior;
+- expected direct, Alert, Deny, and Redact behavior;
 - evidence locations, FAIG correlation fields, and known tuning gaps.
 
 The profile is the machine-readable contract. The README explains how to
 configure guards and demonstrate the story without duplicating generated
 installation state.
 
-## Canonical Roles
+## Canonical Actions
 
-Use only roles needed by the scenario. Common roles are:
+Use only actions needed by the scenario:
 
-| Role | Purpose |
+| Action | Purpose |
 |---|---|
 | `direct` | LiteLLM control path; not a FAIG flow |
-| `detect` | Allow traffic and record relevant detections |
-| `protect-input` | Deny or stop malicious input before generation |
-| `input-dlp` | Optional comparison for sensitive model input |
-| `output-dlp-deny` | Deny a response containing protected data |
-| `output-dlp-redact` | Redact protected data and allow the remainder |
+| `alert` | Allow traffic and record relevant detections |
+| `deny` | Prevent delivery when the scenario protection triggers |
+| `redact` | Redact protected data and allow the remainder |
+| `redact-dummy` | Reserved for future input-DLP replacement behavior |
 
-`detect` is the canonical FAIG control role. Do not assign path meaning by
-letter or slot position.
+The scenario identifies the protection story; the final path segment identifies
+the FAIG action. Do not assign path meaning by letter or slot position.
 
 ## Authoring And Validation Workflow
 
 1. Define the demo goal and security boundary.
-2. Choose the smallest useful role set and narrowest MCP tool set.
+2. Choose the smallest useful action set and narrowest MCP tool set.
 3. Create or update the tracked candidate template and validate its schema.
 4. Add an editable local copy:
 
@@ -72,10 +71,10 @@ letter or slot position.
 5. Deploy LiteLLM and the chatbot so both consume the same installed matrix.
 6. Create FAIG guards and flows from the generated work order. Copy the exact
    configured URI, including the trailing `/*`.
-7. Validate direct and `detect` controls before protection roles.
-8. Exercise each protection role and capture response plus FAIG event evidence.
+7. Validate direct and `alert` controls before enforcement actions.
+8. Exercise each enforcement action and capture response plus FAIG event evidence.
 9. Record observed behavior and open tuning gaps in the scenario README.
-10. Promote a candidate to `baseline` only after its required roles are
+10. Promote a candidate to `baseline` only after its required actions are
     repeatable and the active catalog/runbooks have been reviewed.
 
 Tracked candidates that are not selected for work remain untouched and are not
@@ -115,12 +114,12 @@ customer data in screenshots.
 
 ## Test Commands
 
-Run a semantic role through the chatbot-owned agent loop:
+Run a semantic action through the chatbot-owned agent loop:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario <scenario-id> \
-  --path-role <role>
+  --action <action>
 ```
 
 Test raw FAIG route connectivity from the generated matrix:
@@ -142,11 +141,11 @@ Recommended ignored evidence names:
 
 | Evidence | Pattern |
 |---|---|
-| Raw result | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-<role>.json` |
-| FAIG/syslog extract | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-faig-<role>.jsonl` |
-| Scenario-specific screenshot | `chatbot/scenarios/examples/<scenario-id>/images/<role>-<purpose>.png` |
+| Raw result | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-<action>.json` |
+| FAIG/syslog extract | `docs/raw-output/scenarios/<scenario-id>/<yyyymmdd>-faig-<action>.jsonl` |
+| Scenario-specific screenshot | `chatbot/scenarios/examples/<scenario-id>/images/<action>-<purpose>.png` |
 
-For each run, correlate scenario ID, role, request path, timestamp, flow, guard,
+For each run, correlate scenario ID, action, request path, timestamp, flow, guard,
 model alias, detector/action, and final disposition. Record whether the result
 was allowed, denied, redacted, or failed before reaching the guard.
 

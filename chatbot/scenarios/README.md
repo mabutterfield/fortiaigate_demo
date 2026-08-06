@@ -88,13 +88,9 @@ python3 scripts/scenario_profiles.py remove fortistore-injection
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
-Removal archives the editable package under the ignored `_removed/` tree and
-records its FAIG paths as stale. FAIG GUI objects are never deleted
-automatically. After manually removing stale objects, acknowledge them with:
-
-```bash
-python3 scripts/scenario_profiles.py ack-stale fortistore-injection
-```
+Removal archives the editable package under the ignored `_removed/` tree. The
+environment is disposable, so local scenario state does not track remote FAIG
+objects after removal; rebuild or adjust the GUI separately when needed.
 
 The matrix builder deterministically expands installed scenarios into the
 LiteLLM aliases, backend instruction profiles, chatbot simplified and advanced

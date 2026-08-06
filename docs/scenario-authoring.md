@@ -13,14 +13,17 @@ selects them.
 
 A schema-v2 scenario package contains:
 
-- `profile.json`: identity, prompts, MCP requirements, path roles, frontend
+- `profile.json`: identity, prompts, MCP requirements, FAIG actions, frontend
   instruction profiles, and simplified chatbot profiles;
 - `instructions.txt`: backend instructions loaded by LiteLLM;
 - optional frontend instruction files;
 - optional `curl-payloads/`, scenario screenshots, and a scenario README.
 
 The schema is `chatbot/scenarios/scenario-profile-v2.schema.json`. Scenario IDs
-are lowercase kebab-case and become the LiteLLM alias.
+are lowercase kebab-case and become the LiteLLM alias. Use
+`<concept>[-tool]-<type>`: include the literal `tool` segment only when tool use
+is central to the scenario, for example `fortistore-injection`, `hr-tool-dlp`,
+or `resume-tool-dlp`.
 
 ## Local Edit Workflow
 
@@ -62,17 +65,19 @@ tree. This is the expected update/overwrite warning boundary.
 |---|---|
 | `llm_target` | Environment-neutral backend target, normally `llm-default` |
 | `instruction_profile` | Backend instruction source, position, and enabled state |
-| `entry_points` | Semantic FAIG roles and guard templates |
+| `entry_points` | FAIG actions and guard templates |
 | `frontend_instruction_profiles` | Named chatbot-local instruction choices |
 | `chatbot_profiles` | Simplified presets combining LLM, FAIG, MCP, context, and frontend settings |
 | `faig_chain` | Optional advanced FAIG re-entry chain; disabled in the baseline |
 
-Generated route names are `<scenario-id>-<path-role>`. Generated flow URIs are
-`/v1/<scenario-id>/<path-role>`. Suggested guard names use underscores. Every
-scenario route points to the scenario ID as its next-hop LiteLLM model.
+Generated route names are `<scenario-id>-<action>`. Generated flow URIs are
+`/v1/<scenario-id>/<action>`. Suggested guard names are
+`<scenario-id>_<action>`. Every scenario route points to the scenario ID as its
+next-hop LiteLLM model.
 
-`detect` is the canonical detection role. Other baseline roles are
-`protect-input`, `input-dlp`, `output-dlp-deny`, and `output-dlp-redact`.
+Canonical actions are `alert`, `deny`, and `redact`. `redact-dummy` is reserved
+for a future input-DLP scenario. Each scenario defines the protection story;
+the action defines the observable FAIG disposition.
 
 Inspect generated output before deployment:
 
@@ -101,7 +106,7 @@ Use `--mcp-path fortiweb` in the headless harness when testing that alternate:
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role direct \
+  --action direct \
   --mcp-path fortiweb
 ```
 
@@ -127,8 +132,8 @@ combination. It selects:
 - frontend instruction profile;
 - MCP enabled state, normal MCP path, tool profile, and tool-round limit.
 
-Use presenter-facing labels such as `Detect Only`, `Protect Input`, or
-`Output DLP Redact`. The advanced UI remains available for alternate tool sets
+Use presenter-facing labels such as `Alert`, `Deny`, or `Redact`. The advanced
+UI remains available for alternate tool sets
 and MCP transports.
 
 ## Validation
@@ -142,12 +147,12 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/smoke_test.py
 ```
 
-Run a scenario role through the deployed chatbot agent:
+Run a scenario action through the deployed chatbot agent:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario <scenario-id> \
-  --path-role <path-role>
+  --action <action>
 ```
 
 Raw curl payloads under `curl-payloads/` simulate tool-result-like content for
@@ -172,12 +177,9 @@ python3 scripts/scenario_profiles.py remove <scenario-id>
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
-Removal archives the local package and records stale FAIG objects. It never
-deletes appliance configuration. After manual cleanup:
-
-```bash
-python3 scripts/scenario_profiles.py ack-stale <scenario-id>
-```
+Removal archives the local package. It does not mutate appliance configuration
+or track remote GUI objects; rebuild or adjust the disposable FAIG environment
+separately when needed.
 
 Phase 10 slot commands remain compatibility-only and should not appear in new
 scenario designs or runbooks.

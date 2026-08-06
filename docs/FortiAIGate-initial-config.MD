@@ -40,7 +40,7 @@ scenario:
 | Token | Work-order value |
 |---|---|
 | `{{scenario-id}}` | Installed scenario ID |
-| `{{path-role}}` | Semantic role such as `detect` or `output-dlp-redact` |
+| `{{action}}` | FAIG action such as `alert`, `deny`, or `redact` |
 | `{{flow-name}}` | Suggested flow name |
 | `{{flow-uri}}` | Generated request prefix, without wildcard or OpenAI suffix |
 | `{{configured-uri}}` | Exact FAIG value: `{{flow-uri}}/*` |
@@ -123,7 +123,7 @@ For each work-order row, create or clone one AI guard:
 | Input/output protection | Configure from `{{guard-template}}` below |
 
 The provider model must equal the scenario alias in the work order. Different
-roles for one scenario intentionally share the same next-hop model so the
+actions for one scenario intentionally share the same next-hop model so the
 comparison changes FAIG policy, not backend instructions.
 
 [Create guard page](images/create-demo-guard.jpg)
@@ -134,7 +134,7 @@ comparison changes FAIG policy, not backend instructions.
 |---|---|
 | `detect_only` | Enable the scenario-relevant detectors, log findings, allow the request and response, and do not redact content. |
 | `protect_input` | Enable prompt-injection inspection on input and deny/stop explicit instruction-control attacks before generation. |
-| `input_dlp` | Enable DLP on model input for comparison; do not describe it as output protection. |
+| `input_dlp` | Reserved for future `redact-dummy` input-DLP behavior. |
 | `output_dlp_deny` | Enable output DLP and deny the response when protected data is detected. |
 | `output_dlp_redact` | Enable output DLP and redact detected protected values while allowing the remaining response. |
 
@@ -163,12 +163,12 @@ header routes or FAIG re-entry chains by default.
 
 ## Validate Scenario Paths
 
-Test one role through the chatbot-owned agent loop:
+Test one action through the chatbot-owned agent loop:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario {{scenario-id}} \
-  --path-role {{path-role}}
+  --action {{action}}
 ```
 
 Test raw FAIG path connectivity:
@@ -197,14 +197,10 @@ python3 scripts/scenario_profiles.py update {{scenario-id}} --force
 the chatbot after an installed scenario changes. Re-render the work order and
 manually update FAIG objects.
 
-Removing a scenario archives its local files and records its FAIG objects as
-stale; it does not delete GUI state:
+Removing a scenario archives its local files. It does not mutate or track GUI
+state in the disposable FAIG environment:
 
 ```bash
 python3 scripts/scenario_profiles.py remove {{scenario-id}}
 python3 scripts/scenario_profiles.py render-work-order
-python3 scripts/scenario_profiles.py ack-stale {{scenario-id}}
 ```
-
-Run `ack-stale` only after the listed flows and guards have been removed from
-FortiAIGate.

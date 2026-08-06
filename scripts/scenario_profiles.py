@@ -587,7 +587,7 @@ def baseline_profile_validation(
     if not isinstance(entry_points, list) or not entry_points:
         errors.append("matrix.entry_points must be a non-empty list")
         entry_points = []
-    entry_roles: list[str] = []
+    entry_actions: list[str] = []
     entry_templates: dict[str, str] = {}
     valid_guard_templates = {
         "detect_only",
@@ -595,6 +595,12 @@ def baseline_profile_validation(
         "output_dlp_redact",
         "output_dlp_deny",
         "input_dlp",
+    }
+    valid_templates_by_action = {
+        "alert": {"detect_only"},
+        "deny": {"protect_input", "output_dlp_deny"},
+        "redact": {"output_dlp_redact"},
+        "redact-dummy": {"input_dlp"},
     }
     for index, entry_point in enumerate(entry_points):
         if not isinstance(entry_point, dict):
@@ -604,7 +610,7 @@ def baseline_profile_validation(
             unexpected_key_errors(
                 entry_point,
                 {
-                    "role",
+                    "action",
                     "display_name",
                     "guard_template",
                     "expected_behavior",
@@ -613,28 +619,34 @@ def baseline_profile_validation(
                 field_name=f"matrix.entry_points[{index}]",
             )
         )
-        role = str(entry_point.get("role") or "")
-        entry_roles.append(role)
-        entry_templates[role] = str(entry_point.get("guard_template") or "")
-        if not SCENARIO_ID_PATTERN.fullmatch(role):
-            errors.append(f"matrix.entry_points[{index}].role must be lowercase kebab-case")
+        action = str(entry_point.get("action") or "")
+        entry_actions.append(action)
+        entry_templates[action] = str(entry_point.get("guard_template") or "")
+        if action not in {"alert", "deny", "redact", "redact-dummy"}:
+            errors.append(f"matrix.entry_points[{index}].action is invalid")
         if not isinstance(entry_point.get("display_name"), str) or not entry_point["display_name"].strip():
             errors.append(f"matrix.entry_points[{index}].display_name must be non-empty")
         if entry_point.get("guard_template") not in valid_guard_templates:
             errors.append(f"matrix.entry_points[{index}].guard_template is invalid")
+        elif entry_point.get("guard_template") not in valid_templates_by_action.get(action, set()):
+            errors.append(
+                f"matrix.entry_points[{index}].guard_template is invalid for action {action}"
+            )
         if not isinstance(entry_point.get("expected_behavior"), str) or not entry_point["expected_behavior"].strip():
             errors.append(f"matrix.entry_points[{index}].expected_behavior must be non-empty")
         if not isinstance(entry_point.get("required_for_release"), bool):
             errors.append(f"matrix.entry_points[{index}].required_for_release must be a boolean")
-        symbols["route_uri"].append(f"/v1/{scenario_id}/{role}")
-        symbols["guard_name"].append(f"{scenario_id}_{role}".replace("-", "_"))
-    duplicate_roles = duplicate_values(entry_roles)
-    if duplicate_roles:
-        errors.append(f"matrix.entry_points contains duplicate roles: {', '.join(duplicate_roles)}")
-    if entry_roles.count("detect") != 1:
-        errors.append("matrix.entry_points must contain exactly one detect role")
-    elif entry_templates.get("detect") != "detect_only":
-        errors.append("the detect entry point must use guard_template detect_only")
+        symbols["route_uri"].append(f"/v1/{scenario_id}/{action}")
+        symbols["guard_name"].append(f"{scenario_id}_{action}")
+    duplicate_actions = duplicate_values(entry_actions)
+    if duplicate_actions:
+        errors.append(
+            f"matrix.entry_points contains duplicate actions: {', '.join(duplicate_actions)}"
+        )
+    if entry_actions.count("alert") != 1:
+        errors.append("matrix.entry_points must contain exactly one alert action")
+    elif entry_templates.get("alert") != "detect_only":
+        errors.append("the alert entry point must use guard_template detect_only")
 
     frontend_profiles = matrix.get("frontend_instruction_profiles")
     if not isinstance(frontend_profiles, list) or not frontend_profiles:
@@ -703,7 +715,7 @@ def baseline_profile_validation(
                     "id",
                     "display_name",
                     "provider_path",
-                    "entry_point_role",
+                    "entry_point_action",
                     "context_mode",
                     "context_window",
                     "frontend_instruction_profile",
@@ -720,11 +732,15 @@ def baseline_profile_validation(
         provider_path = chatbot_profile.get("provider_path")
         if provider_path not in {"direct", "faig-static", "fortigate-litellm"}:
             errors.append(f"matrix.chatbot_profiles[{index}].provider_path is invalid")
-        entry_role = chatbot_profile.get("entry_point_role")
-        if provider_path == "direct" and entry_role is not None:
-            errors.append(f"matrix.chatbot_profiles[{index}] direct profile cannot set entry_point_role")
-        if provider_path != "direct" and entry_role not in entry_roles:
-            errors.append(f"matrix.chatbot_profiles[{index}] references unknown entry_point_role")
+        entry_action = chatbot_profile.get("entry_point_action")
+        if provider_path == "direct" and entry_action is not None:
+            errors.append(
+                f"matrix.chatbot_profiles[{index}] direct profile cannot set entry_point_action"
+            )
+        if provider_path != "direct" and entry_action not in entry_actions:
+            errors.append(
+                f"matrix.chatbot_profiles[{index}] references unknown entry_point_action"
+            )
         if chatbot_profile.get("frontend_instruction_profile") not in frontend_ids:
             errors.append(f"matrix.chatbot_profiles[{index}] references unknown frontend instruction profile")
         if chatbot_profile.get("context_mode") not in {"current", "recent", "consolidated"}:
@@ -933,12 +949,6 @@ def print_installed_status(store: scenario_local.LocalScenarioStore) -> None:
             print("  source status: matches installed source")
     for orphan in status["orphan_packages"]:
         print(f"warning: unregistered local package: {orphan}")
-    if status["stale_faig_objects"]:
-        stale_count = sum(
-            len(entry.get("entry_points", []))
-            for entry in status["stale_faig_objects"]
-        )
-        print(f"stale FAIG objects awaiting acknowledgement: {stale_count}")
 
 
 def print_operation_status(result: dict) -> None:
@@ -957,12 +967,6 @@ def print_operation_status(result: dict) -> None:
         print(f"backup: {result['backup_path']}")
     if result.get("archive_path"):
         print(f"removed package archive: {result['archive_path']}")
-    stale_entry_points = result.get("stale_entry_points", [])
-    for entry_point in stale_entry_points:
-        print(
-            "stale FAIG object: "
-            f"{entry_point.get('uri')} guard={entry_point.get('suggested_guard_name')}"
-        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -1051,7 +1055,7 @@ then deploy the prepared instructions:
 
     work_order_parser = subparsers.add_parser(
         "render-work-order",
-        help="Render the FAIG GUI work order for installed and stale scenario objects.",
+        help="Render the FAIG GUI work order for installed scenario objects.",
     )
     work_order_parser.add_argument(
         "--output",
@@ -1064,20 +1068,6 @@ then deploy the prepared instructions:
         help="Replace an existing output file.",
     )
 
-    acknowledge_parser = subparsers.add_parser(
-        "ack-stale",
-        help="Acknowledge manually removed stale FAIG objects.",
-    )
-    acknowledge_parser.add_argument(
-        "scenario",
-        nargs="?",
-        help="Scenario whose stale FAIG records were handled.",
-    )
-    acknowledge_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Acknowledge every recorded stale FAIG object.",
-    )
     return parser.parse_args()
 
 
@@ -1130,7 +1120,7 @@ def main() -> None:
         elif args.command == "remove":
             result = store.remove(args.scenario)
             print_operation_status(result)
-            print("FAIG GUI objects are not deleted automatically.")
+            print("Scenario-local files were archived; rebuild or adjust FAIG separately if needed.")
         elif args.command == "list-installed":
             print_installed_status(store)
         elif args.command == "show-matrix":
@@ -1152,13 +1142,6 @@ def main() -> None:
                 print(f"wrote: {scenario_local.relative_to_repo(output_path)}")
             else:
                 print(rendered_work_order)
-        elif args.command == "ack-stale":
-            if not args.scenario and not args.all:
-                raise scenario_local.LocalScenarioError(
-                    "Choose a scenario ID or use --all to acknowledge stale objects"
-                )
-            result = store.acknowledge_stale(None if args.all else args.scenario)
-            print(f"acknowledged stale records: {result['acknowledged']}")
         else:
             raise SystemExit(f"Unknown command: {args.command}")
     except scenario_local.LocalScenarioError as exc:

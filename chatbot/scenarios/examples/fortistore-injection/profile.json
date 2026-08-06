@@ -27,15 +27,15 @@
     },
     "entry_points": [
       {
-        "role": "detect",
-        "display_name": "Detect Only",
+        "action": "alert",
+        "display_name": "Alert",
         "guard_template": "detect_only",
         "expected_behavior": "Allow scenario traffic and log prompt-injection detections without modifying the request or response.",
         "required_for_release": true
       },
       {
-        "role": "protect-input",
-        "display_name": "Protect Input",
+        "action": "deny",
+        "display_name": "Deny",
         "guard_template": "protect_input",
         "expected_behavior": "Deny or stop explicit instruction-control prompts before the compromised frontend instruction layer causes disclosure or unrelated token spend.",
         "required_for_release": true
@@ -72,19 +72,19 @@
         "frontend_instruction_profile": "fortistore-injection-compromised"
       },
       {
-        "id": "fortistore-detect",
-        "display_name": "FortiStore - Detect Only",
+        "id": "fortistore-injection-alert",
+        "display_name": "FortiStore Injection - Alert",
         "provider_path": "faig-static",
-        "entry_point_role": "detect",
+        "entry_point_action": "alert",
         "context_mode": "current",
         "context_window": 1,
         "frontend_instruction_profile": "fortistore-injection-compromised"
       },
       {
-        "id": "fortistore-protect-input",
-        "display_name": "FortiStore - Protect Input",
+        "id": "fortistore-injection-deny",
+        "display_name": "FortiStore Injection - Deny",
         "provider_path": "faig-static",
-        "entry_point_role": "protect-input",
+        "entry_point_action": "deny",
         "context_mode": "current",
         "context_window": 1,
         "frontend_instruction_profile": "fortistore-injection-compromised"

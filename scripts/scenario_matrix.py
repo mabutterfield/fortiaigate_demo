@@ -183,7 +183,7 @@ def build_scenario_matrix(
             "base_path": "/v1/passthrough",
             "model": "pass-model",
             "scenario_id": "",
-            "role": "passthrough",
+            "action": "passthrough",
         }
     ]
     work_order: list[dict[str, Any]] = []
@@ -226,7 +226,7 @@ def build_scenario_matrix(
         chatbot_model_options.append(scenario_id)
 
         entry_points = {
-            entry_point["role"]: entry_point
+            entry_point["action"]: entry_point
             for entry_point in scenario.get("entry_points", [])
         }
         for entry_point in scenario.get("entry_points", []):
@@ -236,7 +236,7 @@ def build_scenario_matrix(
                 "base_path": entry_point["uri"],
                 "model": scenario_id,
                 "scenario_id": scenario_id,
-                "role": entry_point["role"],
+                "action": entry_point["action"],
             }
             chatbot_faig_routes.append(route)
             work_order.append(
@@ -280,12 +280,12 @@ def build_scenario_matrix(
             if provider_path == "direct":
                 rendered_profile["model"] = scenario_id
             elif provider_path == "faig-static":
-                role = str(profile.get("entry_point_role") or "")
-                if role not in entry_points:
+                action = str(profile.get("entry_point_action") or "")
+                if action not in entry_points:
                     raise ScenarioMatrixError(
-                        f"Chatbot profile {profile_id} references missing entry point {role}"
+                        f"Chatbot profile {profile_id} references missing entry point {action}"
                     )
-                rendered_profile["route"] = entry_points[role]["route"]
+                rendered_profile["route"] = entry_points[action]["route"]
                 rendered_profile["model"] = scenario_id
             else:
                 warnings.append(
@@ -380,9 +380,8 @@ def build_scenario_matrix(
         "chatbot_mcp_tool_profiles": rendered_mcp_profiles,
         "faig_work_order": sorted(
             work_order,
-            key=lambda entry: (entry["scenario_id"], entry["role"]),
+            key=lambda entry: (entry["scenario_id"], entry["action"]),
         ),
-        "stale_faig_objects": preview.get("stale_faig_objects", []),
         "source_scenarios": [
             {
                 "scenario_id": scenario["scenario_id"],
@@ -417,7 +416,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Role | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
+                "| Scenario | Action | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
                 "|---|---|---|---|---|---|---|---|---|",
             ]
         )
@@ -447,37 +446,6 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                 "",
             ]
         )
-
-    lines.extend(["## Stale FAIG Objects", ""])
-    stale_objects = matrix.get("stale_faig_objects", [])
-    if not stale_objects:
-        lines.extend(["No stale FAIG objects are recorded.", ""])
-    else:
-        lines.extend(
-            [
-                "Remove these objects manually in the FAIG GUI, then acknowledge them",
-                "with `python3 scripts/scenario_profiles.py ack-stale <scenario-id>`.",
-                "",
-                "| Scenario | Configured URI | Suggested guard | Reason |",
-                "|---|---|---|---|",
-            ]
-        )
-        for stale in stale_objects:
-            for entry_point in stale.get("entry_points", []):
-                lines.append(
-                    "| "
-                    + " | ".join(
-                        [
-                            f"`{stale.get('scenario_id', '')}`",
-                            f"`{entry_point.get('uri', '')}/*`",
-                            f"`{entry_point.get('suggested_guard_name', '')}`",
-                            str(stale.get("reason", "")),
-                        ]
-                    )
-                    + " |"
-                )
-            lines.append("")
-
     if matrix.get("warnings"):
         lines.extend(["## Warnings", ""])
         lines.extend(f"- {warning}" for warning in matrix["warnings"])

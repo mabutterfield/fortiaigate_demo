@@ -234,17 +234,17 @@ def selected_installed_scenarios(
     return selected
 
 
-def matrix_path_configs(
+def matrix_action_configs(
     args: argparse.Namespace,
     matrix: dict[str, Any],
     scenario_ids: list[str],
 ) -> dict[str, list[dict[str, Any]]]:
-    roles = parse_csv_values(args.path_role) or ["direct", "detect"]
+    actions = parse_csv_values(args.action) or ["direct", "alert"]
     return {
-        scenario_id: scenario_test_harness.scenario_path_configs(
+        scenario_id: scenario_test_harness.scenario_action_configs(
             matrix,
             scenario_id,
-            roles,
+            actions,
         )
         for scenario_id in scenario_ids
     }
@@ -448,13 +448,13 @@ def build_plan(
     for index in range(total):
         if lanes:
             scenario_id, path_config = rng.choice(lanes)
-            route = path_config["path_role"]
+            route = path_config["action"]
         else:
             route = rng.choice(routes)
             scenario_id = route_scenarios[route] if route_scenarios else rng.choice(scenarios)
             legacy_route = ROUTE_CONFIGS[route]
             path_config = {
-                "path_role": route,
+                "action": route,
                 "provider": legacy_route["provider"],
                 "route": legacy_route["route"],
                 "model": str(legacy_route.get("model") or args.model or "demo-a"),
@@ -811,7 +811,7 @@ def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: di
         "endpoint_type": "provided" if args.endpoint else "chatbot-pod-agent-probe",
         "endpoint": args.endpoint,
         "route": item["route"],
-        "path_role": path_config["path_role"],
+        "action": path_config["action"],
         "provider": path_config["provider"],
         "provider_route": path_config["route"],
         "traffic_profile": args.traffic_profile,
@@ -858,7 +858,7 @@ def write_run_summary(
         "seed": args.seed,
         "traffic_profile": args.traffic_profile,
         "use_case": args.use_case,
-        "path_roles": sorted({item["path_config"]["path_role"] for item in plan}),
+        "actions": sorted({item["path_config"]["action"] for item in plan}),
         "model_alias": args.model,
         "mcp_path": args.mcp_path,
         "planned_requests": len(plan),
@@ -1010,7 +1010,7 @@ def path_test_cases(
             {
                 "name": str(route["name"]),
                 "path": str(route["base_path"]),
-                "role": str(route.get("role") or route["name"]),
+                "action": str(route.get("action") or route["name"]),
                 "model": str(route.get("model") or "pass-model"),
                 "prompt": (
                     f"Path test for {route['base_path']}. "
@@ -1028,13 +1028,14 @@ def path_test_cases(
             for case in base_cases
             if case["path"] in requested_names
             or case["name"] in requested_names
-            or case.get("role") in requested_names
+            or case.get("action") in requested_names
         ]
         matched = {
             requested_name
             for requested_name in requested_names
             if any(
-                requested_name in {case["path"], case["name"], case.get("role")}
+                requested_name
+                in {case["path"], case["name"], case.get("action")}
                 for case in cases
             )
         }
@@ -1255,8 +1256,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--scenario-family", choices=sorted(SCENARIO_FAMILIES), default="baseline")
     parser.add_argument("--traffic-profile", choices=["clean", "attack", "mixed"], default="mixed")
-    parser.add_argument("--path-role", action="append", help="Phase 11 path role. Can be repeated or comma-separated; defaults to direct and detect.")
-    parser.add_argument("--route", action="append", help="Phase 10 compatibility route label. Use --path-role for Phase 11.")
+    parser.add_argument("--action", action="append", help="Phase 11 action. Can be repeated or comma-separated; defaults to direct and alert.")
+    parser.add_argument("--route", action="append", help="Phase 10 compatibility route label. Use --action for Phase 11.")
     parser.add_argument("--model", default="", help="Override the matrix-derived chatbot model alias.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="", help="Override the matrix-derived MCP path.")
     parser.add_argument("--tool-profile", default="", help="Override the matrix-derived MCP tool profile for every request.")
@@ -1286,8 +1287,8 @@ def parse_args() -> argparse.Namespace:
     apply_use_case_defaults(args)
     if args.scenario:
         args.scenario_source = "explicit"
-    if args.path_role and args.route:
-        raise SystemExit("Use --path-role or Phase 10 --route, not both")
+    if args.action and args.route:
+        raise SystemExit("Use --action or Phase 10 --route, not both")
     if args.route and args.scenario_source != "active-slot":
         raise SystemExit("Phase 10 --route requires --scenario-source active-slot")
     if args.concurrency < 1:
@@ -1330,7 +1331,7 @@ def main() -> int:
             scenario_id: installed_profiles[scenario_id]
             for scenario_id in scenario_ids
         }
-        path_configs_by_scenario = matrix_path_configs(
+        path_configs_by_scenario = matrix_action_configs(
             args,
             matrix,
             scenario_ids,

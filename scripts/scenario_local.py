@@ -42,7 +42,6 @@ def empty_state() -> dict[str, Any]:
     return {
         "schema_version": STATE_SCHEMA_VERSION,
         "installed_scenarios": [],
-        "stale_faig_objects": [],
     }
 
 
@@ -154,17 +153,17 @@ def entry_points_from_profile(profile_path: Path, scenario_id: str) -> list[dict
     for raw_entry_point in raw_entry_points:
         if not isinstance(raw_entry_point, dict):
             continue
-        role = str(raw_entry_point.get("role") or "").strip()
-        if not role:
+        action = str(raw_entry_point.get("action") or "").strip()
+        if not action:
             continue
         entry_points.append(
             {
-                "role": role,
-                "display_name": str(raw_entry_point.get("display_name") or role),
-                "uri": f"/v1/{scenario_id}/{role}",
-                "route": f"{scenario_id}-{role}",
-                "suggested_flow_name": f"{scenario_id}-{role}",
-                "suggested_guard_name": f"{scenario_id}_{role}".replace("-", "_"),
+                "action": action,
+                "display_name": str(raw_entry_point.get("display_name") or action.title()),
+                "uri": f"/v1/{scenario_id}/{action}",
+                "route": f"{scenario_id}-{action}",
+                "suggested_flow_name": f"{scenario_id}-{action}",
+                "suggested_guard_name": f"{scenario_id}_{action}",
                 "guard_template": str(raw_entry_point.get("guard_template") or ""),
                 "guard_next_hop_model": scenario_id,
                 "expected_behavior": str(raw_entry_point.get("expected_behavior") or ""),
@@ -208,9 +207,6 @@ class LocalScenarioStore:
         installed = state.get("installed_scenarios")
         if not isinstance(installed, list):
             raise LocalScenarioError("installed_scenarios must be a list")
-        stale_objects = state.get("stale_faig_objects")
-        if not isinstance(stale_objects, list):
-            raise LocalScenarioError("stale_faig_objects must be a list")
         scenario_ids: list[str] = []
         required_entry_fields = {
             "scenario_id",
@@ -245,10 +241,7 @@ class LocalScenarioStore:
             state["installed_scenarios"],
             key=lambda entry: entry["scenario_id"],
         )
-        state["stale_faig_objects"] = sorted(
-            state["stale_faig_objects"],
-            key=lambda entry: (entry.get("scenario_id", ""), entry.get("recorded_at", 0)),
-        )
+        state.pop("stale_faig_objects", None)
         atomic_write_json(self.state_path, state)
 
     def find_entry(self, state: dict[str, Any], scenario_id: str) -> dict[str, Any] | None:
@@ -312,7 +305,6 @@ class LocalScenarioStore:
                 for entry in state["installed_scenarios"]
             ],
             "orphan_packages": self.orphan_packages(state),
-            "stale_faig_objects": state["stale_faig_objects"],
         }
 
     def stage_package(self, source_package: Path) -> tuple[Path, Path]:
@@ -332,27 +324,6 @@ class LocalScenarioStore:
                 raise
             raise LocalScenarioError(f"Unable to stage scenario package: {exc}") from exc
         return staging_root, staged_package
-
-    def clear_restored_stale_roles(
-        self,
-        state: dict[str, Any],
-        scenario_id: str,
-        active_roles: set[str],
-    ) -> None:
-        retained: list[dict[str, Any]] = []
-        for stale_entry in state["stale_faig_objects"]:
-            if stale_entry.get("scenario_id") != scenario_id:
-                retained.append(stale_entry)
-                continue
-            stale_entry = dict(stale_entry)
-            stale_entry["entry_points"] = [
-                entry_point
-                for entry_point in stale_entry.get("entry_points", [])
-                if entry_point.get("role") not in active_roles
-            ]
-            if stale_entry["entry_points"]:
-                retained.append(stale_entry)
-        state["stale_faig_objects"] = retained
 
     def add(
         self,
@@ -397,11 +368,6 @@ class LocalScenarioStore:
         try:
             os.replace(staged_package, destination)
             state["installed_scenarios"].append(entry)
-            active_roles = {
-                item["role"]
-                for item in entry_points_from_profile(destination / "profile.json", scenario_id)
-            }
-            self.clear_restored_stale_roles(state, scenario_id, active_roles)
             try:
                 self.write_state(state)
             except LocalScenarioError:
@@ -448,7 +414,6 @@ class LocalScenarioStore:
         source_hash = package_hash(source_package)
         staging_root, staged_package = self.stage_package(source_package)
         destination = self.scenario_path(scenario_id)
-        old_entry_points = entry_points_from_profile(destination / "profile.json", scenario_id)
         backup_path: Path | None = None
         replacement_installed = False
         try:
@@ -461,23 +426,6 @@ class LocalScenarioStore:
                 os.replace(destination, backup_path)
             os.replace(staged_package, destination)
             replacement_installed = True
-            new_entry_points = entry_points_from_profile(destination / "profile.json", scenario_id)
-            new_roles = {entry_point["role"] for entry_point in new_entry_points}
-            removed_entry_points = [
-                entry_point
-                for entry_point in old_entry_points
-                if entry_point["role"] not in new_roles
-            ]
-            if removed_entry_points:
-                state["stale_faig_objects"].append(
-                    {
-                        "scenario_id": scenario_id,
-                        "recorded_at": operation_time,
-                        "reason": "scenario-update",
-                        "entry_points": removed_entry_points,
-                    }
-                )
-            self.clear_restored_stale_roles(state, scenario_id, new_roles)
             entry.update(
                 {
                     "updated_at": operation_time,
@@ -515,7 +463,6 @@ class LocalScenarioStore:
         if not entry:
             raise LocalScenarioError(f"{scenario_id} is not installed")
         destination = self.scenario_path(scenario_id)
-        stale_entry_points = entry_points_from_profile(destination / "profile.json", scenario_id)
         archive_path: Path | None = None
         try:
             if destination.exists():
@@ -530,15 +477,6 @@ class LocalScenarioStore:
                 for installed_entry in state["installed_scenarios"]
                 if installed_entry.get("scenario_id") != scenario_id
             ]
-            if stale_entry_points:
-                state["stale_faig_objects"].append(
-                    {
-                        "scenario_id": scenario_id,
-                        "recorded_at": operation_time,
-                        "reason": "scenario-remove",
-                        "entry_points": stale_entry_points,
-                    }
-                )
             try:
                 self.write_state(state)
             except LocalScenarioError:
@@ -552,24 +490,7 @@ class LocalScenarioStore:
         return {
             "changed": True,
             "archive_path": relative_to_repo(archive_path) if archive_path else "",
-            "stale_entry_points": stale_entry_points,
         }
-
-    def acknowledge_stale(self, scenario_id: str | None = None) -> dict[str, Any]:
-        state = self.load_state()
-        before = len(state["stale_faig_objects"])
-        if scenario_id:
-            state["stale_faig_objects"] = [
-                entry
-                for entry in state["stale_faig_objects"]
-                if entry.get("scenario_id") != scenario_id
-            ]
-        else:
-            state["stale_faig_objects"] = []
-        removed = before - len(state["stale_faig_objects"])
-        if removed:
-            self.write_state(state)
-        return {"changed": bool(removed), "acknowledged": removed}
 
     def matrix_summary(self) -> dict[str, Any]:
         state = self.load_state()
@@ -627,7 +548,6 @@ class LocalScenarioStore:
                 "faig_passthrough_uri": "/v1/passthrough",
             },
             "installed_scenarios": installed_scenarios,
-            "stale_faig_objects": state["stale_faig_objects"],
         }
 
     def render_work_order(self) -> str:
@@ -656,7 +576,7 @@ class LocalScenarioStore:
                     f"- Underlying target: `{scenario['llm_target']}`",
                     f"- Local profile: `{scenario['local_profile']}`",
                     "",
-                    "| Role | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
+                    "| Action | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
                     "|---|---|---|---|---|---|---|---|",
                 ]
             )
@@ -685,35 +605,6 @@ class LocalScenarioStore:
                     "",
                 ]
             )
-
-        lines.extend(["## Stale FAIG Objects", ""])
-        if not matrix["stale_faig_objects"]:
-            lines.extend(["No stale FAIG objects are recorded.", ""])
-        else:
-            lines.extend(
-                [
-                    "These objects are not removed automatically. Remove them manually in the FAIG GUI,",
-                    "then acknowledge the stale record with `scenario_profiles.py ack-stale`.",
-                    "",
-                    "| Scenario | Configured URI | Suggested guard | Reason |",
-                    "|---|---|---|---|",
-                ]
-            )
-            for stale in matrix["stale_faig_objects"]:
-                for entry_point in stale.get("entry_points", []):
-                    lines.append(
-                        "| "
-                        + " | ".join(
-                            [
-                                f"`{stale.get('scenario_id', '')}`",
-                                f"`{entry_point.get('uri', '')}/*`",
-                                f"`{entry_point.get('suggested_guard_name', '')}`",
-                                str(stale.get("reason", "")),
-                            ]
-                        )
-                        + " |"
-                    )
-            lines.append("")
         return "\n".join(lines)
 
     def write_work_order(self, output_path: Path, *, force: bool = False) -> Path:

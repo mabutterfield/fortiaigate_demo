@@ -87,15 +87,15 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         errors = self.validate("fortistore-injection", profile_path, profile)
         self.assertIn("matrix contains unsupported fields: scenario_id", errors)
 
-    def test_detect_role_must_be_unique_and_detect_only(self) -> None:
+    def test_alert_action_must_be_unique_and_detect_only(self) -> None:
         profile_path, profile = self.load_baseline("hr-tool-dlp")
         profile = copy.deepcopy(profile)
         profile["matrix"]["entry_points"].append(
             copy.deepcopy(profile["matrix"]["entry_points"][0])
         )
         errors = self.validate("hr-tool-dlp", profile_path, profile)
-        self.assertTrue(any("duplicate roles: detect" in error for error in errors), errors)
-        self.assertIn("matrix.entry_points must contain exactly one detect role", errors)
+        self.assertTrue(any("duplicate actions: alert" in error for error in errors), errors)
+        self.assertIn("matrix.entry_points must contain exactly one alert action", errors)
 
     def test_chatbot_profile_references_must_resolve(self) -> None:
         profile_path, profile = self.load_baseline("fortistore-injection")
@@ -103,6 +103,18 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         profile["matrix"]["chatbot_profiles"][0]["frontend_instruction_profile"] = "missing"
         errors = self.validate("fortistore-injection", profile_path, profile)
         self.assertTrue(any("unknown frontend instruction profile" in error for error in errors), errors)
+
+    def test_guard_template_must_match_action(self) -> None:
+        profile_path, profile = self.load_baseline("hr-tool-dlp")
+        profile = copy.deepcopy(profile)
+        deny = next(
+            entry
+            for entry in profile["matrix"]["entry_points"]
+            if entry["action"] == "deny"
+        )
+        deny["guard_template"] = "output_dlp_redact"
+        errors = self.validate("hr-tool-dlp", profile_path, profile)
+        self.assertTrue(any("invalid for action deny" in error for error in errors), errors)
 
     def test_package_file_cannot_escape_scenario_directory(self) -> None:
         profile_path, profile = self.load_baseline("fortistore-injection")

@@ -30,10 +30,10 @@ pull conflicts.
 
 ## Generated Baseline Matrix
 
-| Scenario | Model alias | MCP | Required FAIG roles | Optional role |
+| Scenario | Model alias | MCP | Required FAIG actions | Optional action |
 |---|---|---|---|---|
-| `fortistore-injection` | `fortistore-injection` | off | `detect`, `protect-input` | none |
-| `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP, tool profile `hr-tool-dlp` | `detect`, `output-dlp-deny`, `output-dlp-redact` | none |
+| `fortistore-injection` | `fortistore-injection` | off | `alert`, `deny` | none |
+| `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP, tool profile `hr-tool-dlp` | `alert`, `deny`, `redact` | none |
 
 Global controls are `pass-model` and `/v1/passthrough`. See the
 [Scenario Catalog](scenario-catalog.md) for candidate/archive status and the
@@ -63,22 +63,22 @@ baseline.
 
 ## Headless Tests
 
-The harness uses semantic path roles and resolves all other settings from the
+The harness uses semantic actions and resolves all other settings from the
 installed matrix:
 
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario fortistore-injection \
-  --path-role direct \
-  --path-role detect \
-  --path-role protect-input
+  --action direct \
+  --action alert \
+  --action deny
 
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role direct \
-  --path-role detect \
-  --path-role output-dlp-deny \
-  --path-role output-dlp-redact
+  --action direct \
+  --action alert \
+  --action deny \
+  --action redact
 ```
 
 Test the advanced MCP alternate without changing simplified profiles:
@@ -86,7 +86,7 @@ Test the advanced MCP alternate without changing simplified profiles:
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role direct \
+  --action direct \
   --mcp-path fortiweb
 ```
 
@@ -96,7 +96,7 @@ Raw FAIG connectivity tests also come from the matrix:
 python3 scripts/traffic_generator.py --mode path_test
 python3 scripts/traffic_generator.py \
   --mode path_test \
-  --path-test-path hr-tool-dlp-output-dlp-redact
+  --path-test-path hr-tool-dlp-redact
 ```
 
 ## Update And Overwrite Behavior
@@ -124,12 +124,8 @@ python3 scripts/scenario_profiles.py remove <scenario-id>
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
-Removal archives local files and records stale FAIG flows/guards. It never
-deletes appliance configuration. Remove those objects manually, then run:
-
-```bash
-python3 scripts/scenario_profiles.py ack-stale <scenario-id>
-```
+Removal archives local files. It does not mutate or track FAIG GUI objects;
+rebuild or adjust the disposable environment separately when needed.
 
 ## Deploy Boundaries
 
@@ -152,4 +148,4 @@ python3 scripts/scenario_profiles.py list --include-candidates
 
 Archived material remains under `archived_scenarios/` and is reference-only.
 Explicit Phase 10 slot/path flags remain for old tests, but new runbooks and
-scenario designs must use scenario IDs and path roles.
+scenario designs must use scenario IDs and actions.

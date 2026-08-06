@@ -31,22 +31,22 @@
     },
     "entry_points": [
       {
-        "role": "detect",
-        "display_name": "Detect Only",
+        "action": "alert",
+        "display_name": "Alert",
         "guard_template": "detect_only",
         "expected_behavior": "Allow scenario traffic and log detections without modifying sensitive tool results or model output.",
         "required_for_release": true
       },
       {
-        "role": "output-dlp-redact",
-        "display_name": "Output DLP Redact",
+        "action": "redact",
+        "display_name": "Redact",
         "guard_template": "output_dlp_redact",
         "expected_behavior": "Redact detected DOB and credit card values before sensitive model output reaches the user.",
         "required_for_release": true
       },
       {
-        "role": "output-dlp-deny",
-        "display_name": "Output DLP Deny",
+        "action": "deny",
+        "display_name": "Deny",
         "guard_template": "output_dlp_deny",
         "expected_behavior": "Deny model output when the configured DLP guard detects protected HR data.",
         "required_for_release": true
@@ -62,35 +62,35 @@
     "chatbot_profiles": [
       {
         "id": "hr-tool-dlp-direct",
-        "display_name": "HR DLP - Direct Baseline",
+        "display_name": "HR Tool DLP - Direct Baseline",
         "provider_path": "direct",
         "context_mode": "recent",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "hr-tool-dlp-detect",
-        "display_name": "HR DLP - Detect Only",
+        "id": "hr-tool-dlp-alert",
+        "display_name": "HR Tool DLP - Alert",
         "provider_path": "faig-static",
-        "entry_point_role": "detect",
+        "entry_point_action": "alert",
         "context_mode": "recent",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "hr-tool-dlp-output-redact",
-        "display_name": "HR DLP - Output Redact",
+        "id": "hr-tool-dlp-redact",
+        "display_name": "HR Tool DLP - Redact",
         "provider_path": "faig-static",
-        "entry_point_role": "output-dlp-redact",
+        "entry_point_action": "redact",
         "context_mode": "recent",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "hr-tool-dlp-output-deny",
-        "display_name": "HR DLP - Output Deny",
+        "id": "hr-tool-dlp-deny",
+        "display_name": "HR Tool DLP - Deny",
         "provider_path": "faig-static",
-        "entry_point_role": "output-dlp-deny",
+        "entry_point_action": "deny",
         "context_mode": "recent",
         "context_window": 8,
         "frontend_instruction_profile": "none"

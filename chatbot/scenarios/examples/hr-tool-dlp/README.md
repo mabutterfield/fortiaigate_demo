@@ -2,7 +2,7 @@
 
 This MCP-enabled baseline demonstrates DLP behavior when tools return
 synthetic HR records and the model includes sensitive fields in its answer. It
-compares direct, detect-only, output-deny, and output-redact paths while keeping
+compares direct, Alert, Deny, and Redact paths while keeping
 one backend alias and one scoped tool set. Input DLP is intentionally deferred
 to a separate scenario or future revision.
 
@@ -26,14 +26,14 @@ operator-owned tuning surface.
 Use the reusable [FAIG GUI walkthrough](../../../../docs/FortiAIGate-initial-config.MD)
 with these values:
 
-| Role | Flow name | Configured URI | Guard name | Template | Next-hop model | Required |
+| Action | Flow name | Configured URI | Guard name | Template | Next-hop model | Required |
 |---|---|---|---|---|---|---|
-| Detect Only | `hr-tool-dlp-detect` | `/v1/hr-tool-dlp/detect` | `hr_tool_dlp_detect` | `detect_only` | `hr-tool-dlp` | yes |
-| Output DLP Deny | `hr-tool-dlp-output-dlp-deny` | `/v1/hr-tool-dlp/output-dlp-deny` | `hr_tool_dlp_output_dlp_deny` | `output_dlp_deny` | `hr-tool-dlp` | yes |
-| Output DLP Redact | `hr-tool-dlp-output-dlp-redact` | `/v1/hr-tool-dlp/output-dlp-redact` | `hr_tool_dlp_output_dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` | yes |
+| Alert | `hr-tool-dlp-alert` | `/v1/hr-tool-dlp/alert/*` | `hr-tool-dlp_alert` | `detect_only` | `hr-tool-dlp` | yes |
+| Deny | `hr-tool-dlp-deny` | `/v1/hr-tool-dlp/deny/*` | `hr-tool-dlp_deny` | `output_dlp_deny` | `hr-tool-dlp` | yes |
+| Redact | `hr-tool-dlp-redact` | `/v1/hr-tool-dlp/redact/*` | `hr-tool-dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` | yes |
 
-All three guards point to the same LiteLLM alias, `hr-tool-dlp`. Detect Only
-allows and logs. The two output-DLP guards protect data returned by an MCP tool
+All three guards point to the same LiteLLM alias, `hr-tool-dlp`. Alert allows
+and logs. The two output-DLP guards protect data returned by an MCP tool
 after the model includes it in the response.
 
 For output redaction, tune the PII scan list to focus on DOB and payment-card
@@ -67,8 +67,8 @@ for the baseline comparison.
 
 ## Prompt Walkthrough
 
-Run the prompts in order for Direct, Detect Only, Output Deny, and Output
-Redact. Preserve context only where noted.
+Run the prompts in order for Direct, Alert, Deny, and Redact. Preserve context
+only where noted.
 
 | Step | Prompt | Context | Expected tools | Expected result |
 |---|---|---|---|---|
@@ -95,7 +95,7 @@ Direct scoped-tools control:
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role direct \
+  --action direct \
   --run-label hr-direct
 ```
 
@@ -104,9 +104,9 @@ Required FAIG comparisons:
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role detect \
-  --path-role output-dlp-deny \
-  --path-role output-dlp-redact \
+  --action alert \
+  --action deny \
+  --action redact \
   --run-label hr-dlp
 ```
 
@@ -115,7 +115,7 @@ Advanced FortiWeb MCP alternate:
 ```bash
 python3 scripts/scenario_test_harness.py \
   --scenario hr-tool-dlp \
-  --path-role direct \
+  --action direct \
   --mcp-path fortiweb \
   --run-label hr-fortiweb-mcp
 ```

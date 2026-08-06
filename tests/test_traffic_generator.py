@@ -10,7 +10,7 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
     def test_path_test_cases_are_derived_from_matrix(self) -> None:
         args = types.SimpleNamespace(
             legacy_routes=False,
-            path_test_path=["detect", "passthrough"],
+            path_test_path=["alert", "passthrough"],
             path_test_passthrough_model="",
             path_test_base_url="https://faig.example",
             endpoint="",
@@ -20,15 +20,15 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
         matrix = {
             "chatbot_faig_static_routes": [
                 {
-                    "name": "fortistore-injection-detect",
-                    "base_path": "/v1/fortistore-injection/detect",
-                    "role": "detect",
+                    "name": "fortistore-injection-alert",
+                    "base_path": "/v1/fortistore-injection/alert",
+                    "action": "alert",
                     "model": "fortistore-injection",
                 },
                 {
                     "name": "passthrough",
                     "base_path": "/v1/passthrough",
-                    "role": "passthrough",
+                    "action": "passthrough",
                     "model": "pass-model",
                 },
             ]
@@ -36,7 +36,7 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
         cases = traffic_generator.path_test_cases(args, matrix)
         self.assertEqual(
             [case["path"] for case in cases],
-            ["/v1/fortistore-injection/detect", "/v1/passthrough"],
+            ["/v1/fortistore-injection/alert", "/v1/passthrough"],
         )
         self.assertEqual(cases[1]["model"], "pass-model")
 
@@ -61,9 +61,9 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
             }
         }
         path_config = {
-            "path_role": "output-dlp-redact",
+            "action": "redact",
             "provider": "faig-static",
-            "route": "hr-tool-dlp-output-dlp-redact",
+            "route": "hr-tool-dlp-redact",
             "model": "hr-tool-dlp",
             "mcp_enabled": True,
             "mcp_path": "direct",
@@ -76,10 +76,10 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
             profiles,
             path_configs_by_scenario={"hr-tool-dlp": [path_config]},
         )
-        self.assertEqual(plan[0]["route"], "output-dlp-redact")
+        self.assertEqual(plan[0]["route"], "redact")
         self.assertEqual(
             plan[0]["path_config"]["route"],
-            "hr-tool-dlp-output-dlp-redact",
+            "hr-tool-dlp-redact",
         )
         self.assertEqual(plan[0]["tool_profile"], "hr-tool-dlp")
 

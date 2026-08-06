@@ -11,10 +11,10 @@ class ScenarioTestHarnessTests(unittest.TestCase):
             "global": {"passthrough_model_alias": "pass-model"},
             "chatbot_faig_static_routes": [
                 {
-                    "name": "hr-tool-dlp-output-dlp-redact",
-                    "label": "HR Output Redact",
+                    "name": "hr-tool-dlp-redact",
+                    "label": "HR Tool DLP Redact",
                     "model": "hr-tool-dlp",
-                    "role": "output-dlp-redact",
+                    "action": "redact",
                     "scenario_id": "hr-tool-dlp",
                 }
             ],
@@ -31,9 +31,9 @@ class ScenarioTestHarnessTests(unittest.TestCase):
                     "frontend_instruction_profile": "none",
                 },
                 {
-                    "id": "hr-tool-dlp-output-redact",
+                    "id": "hr-tool-dlp-redact",
                     "provider_path": "faig-static",
-                    "route": "hr-tool-dlp-output-dlp-redact",
+                    "route": "hr-tool-dlp-redact",
                     "scenario_id": "hr-tool-dlp",
                     "model": "hr-tool-dlp",
                     "mcp_enabled": True,
@@ -45,19 +45,19 @@ class ScenarioTestHarnessTests(unittest.TestCase):
             ],
         }
 
-    def test_path_role_resolves_scenario_route_and_profile(self) -> None:
-        config = scenario_test_harness.scenario_path_configs(
+    def test_action_resolves_scenario_route_and_profile(self) -> None:
+        config = scenario_test_harness.scenario_action_configs(
             self.matrix,
             "hr-tool-dlp",
-            ["output-dlp-redact"],
+            ["redact"],
         )[0]
-        self.assertEqual(config["route"], "hr-tool-dlp-output-dlp-redact")
+        self.assertEqual(config["route"], "hr-tool-dlp-redact")
         self.assertEqual(config["model"], "hr-tool-dlp")
         self.assertEqual(config["tool_profile"], "hr-tool-dlp")
         self.assertEqual(config["max_tool_rounds"], 5)
 
     def test_direct_and_passthrough_are_canonical_controls(self) -> None:
-        direct, passthrough = scenario_test_harness.scenario_path_configs(
+        direct, passthrough = scenario_test_harness.scenario_action_configs(
             self.matrix,
             "hr-tool-dlp",
             ["direct", "passthrough"],
@@ -68,12 +68,12 @@ class ScenarioTestHarnessTests(unittest.TestCase):
         self.assertEqual(passthrough["model"], "pass-model")
         self.assertFalse(passthrough["mcp_enabled"])
 
-    def test_unknown_role_lists_available_roles(self) -> None:
+    def test_unknown_action_lists_available_actions(self) -> None:
         with self.assertRaisesRegex(SystemExit, "Available: direct"):
-            scenario_test_harness.scenario_path_configs(
+            scenario_test_harness.scenario_action_configs(
                 self.matrix,
                 "hr-tool-dlp",
-                ["missing-role"],
+                ["missing-action"],
             )
 
 

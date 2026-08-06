@@ -73,12 +73,12 @@ def scenario_preview(
         },
         "entry_points": [
             {
-                "role": "detect",
-                "display_name": "Detect Only",
-                "uri": f"/v1/{scenario_id}/detect",
-                "route": f"{scenario_id}-detect",
-                "suggested_flow_name": f"{scenario_id}-detect",
-                "suggested_guard_name": f"{scenario_id}_detect".replace("-", "_"),
+                "action": "alert",
+                "display_name": "Alert",
+                "uri": f"/v1/{scenario_id}/alert",
+                "route": f"{scenario_id}-alert",
+                "suggested_flow_name": f"{scenario_id}-alert",
+                "suggested_guard_name": f"{scenario_id}_alert",
                 "guard_template": "detect_only",
                 "guard_next_hop_model": scenario_id,
                 "expected_behavior": "Allow and log.",
@@ -96,10 +96,10 @@ def scenario_preview(
                 "frontend_instruction_profile": frontend_profile,
             },
             {
-                "id": f"{scenario_id}-detect",
-                "display_name": f"{display_name} Detect",
+                "id": f"{scenario_id}-alert",
+                "display_name": f"{display_name} Alert",
                 "provider_path": "faig-static",
-                "entry_point_role": "detect",
+                "entry_point_action": "alert",
                 "context_mode": "recent",
                 "context_window": 8,
                 "frontend_instruction_profile": frontend_profile,
@@ -112,7 +112,7 @@ def scenario_preview(
 class ScenarioMatrixTests(unittest.TestCase):
     def test_empty_matrix_exposes_only_global_simplified_controls(self) -> None:
         matrix = scenario_matrix.build_scenario_matrix(
-            {"installed_scenarios": [], "stale_faig_objects": []}
+            {"installed_scenarios": []}
         )
         self.assertEqual(
             [profile["id"] for profile in matrix["chatbot_simplified_profiles"]],
@@ -129,7 +129,6 @@ class ScenarioMatrixTests(unittest.TestCase):
                 scenario_preview("fortistore-injection", mcp_enabled=False),
                 scenario_preview("hr-tool-dlp", mcp_enabled=True),
             ],
-            "stale_faig_objects": [],
         }
         matrix = scenario_matrix.build_scenario_matrix(preview)
         self.assertEqual(
@@ -156,8 +155,8 @@ class ScenarioMatrixTests(unittest.TestCase):
             ["none"],
         )
         route_names = [route["name"] for route in matrix["chatbot_faig_static_routes"]]
-        self.assertIn("fortistore-injection-detect", route_names)
-        self.assertIn("hr-tool-dlp-detect", route_names)
+        self.assertIn("fortistore-injection-alert", route_names)
+        self.assertIn("hr-tool-dlp-alert", route_names)
         simplified_ids = [
             profile["id"] for profile in matrix["chatbot_simplified_profiles"]
         ]
@@ -171,7 +170,6 @@ class ScenarioMatrixTests(unittest.TestCase):
             "installed_scenarios": [
                 scenario_preview("hr-tool-dlp", mcp_enabled=True),
             ],
-            "stale_faig_objects": [],
         }
         matrix = scenario_matrix.build_scenario_matrix(
             preview,
@@ -192,7 +190,6 @@ class ScenarioMatrixTests(unittest.TestCase):
     def test_fortiweb_mcp_requires_intent_installation_and_endpoint(self) -> None:
         preview = {
             "installed_scenarios": [scenario_preview("hr-tool-dlp", mcp_enabled=True)],
-            "stale_faig_objects": [],
         }
         incomplete = scenario_matrix.build_scenario_matrix(
             preview,
@@ -222,10 +219,10 @@ class ScenarioMatrixTests(unittest.TestCase):
         first = scenario_preview("fortistore-injection", mcp_enabled=False)
         second = scenario_preview("hr-tool-dlp", mcp_enabled=True)
         matrix_a = scenario_matrix.build_scenario_matrix(
-            {"installed_scenarios": [first, second], "stale_faig_objects": []}
+            {"installed_scenarios": [first, second]}
         )
         matrix_b = scenario_matrix.build_scenario_matrix(
-            {"installed_scenarios": [second, first], "stale_faig_objects": []}
+            {"installed_scenarios": [second, first]}
         )
         self.assertEqual(
             scenario_matrix.canonical_json(matrix_a),
@@ -248,7 +245,7 @@ class ScenarioMatrixTests(unittest.TestCase):
             "Duplicate frontend instruction profile",
         ):
             scenario_matrix.build_scenario_matrix(
-                {"installed_scenarios": [first, second], "stale_faig_objects": []}
+                {"installed_scenarios": [first, second]}
             )
 
     def test_work_order_contains_exact_generated_contract(self) -> None:
@@ -256,12 +253,11 @@ class ScenarioMatrixTests(unittest.TestCase):
             "installed_scenarios": [
                 scenario_preview("fortistore-injection", mcp_enabled=False)
             ],
-            "stale_faig_objects": [],
         }
         matrix = scenario_matrix.build_scenario_matrix(preview)
         work_order = scenario_matrix.render_work_order(matrix)
-        self.assertIn("`/v1/fortistore-injection/detect/*`", work_order)
-        self.assertIn("`fortistore_injection_detect`", work_order)
+        self.assertIn("`/v1/fortistore-injection/alert/*`", work_order)
+        self.assertIn("`fortistore-injection_alert`", work_order)
         self.assertIn("`fortistore-injection`", work_order)
 
 

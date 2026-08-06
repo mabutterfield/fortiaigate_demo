@@ -9,11 +9,10 @@ a "what's new" guide rather than a raw commit log.
   - classified only FortiStore Injection and HR Tool DLP as baseline scenarios,
     while preserving the six surviving future candidates without migrating
     their profile packages
-  - added a strict scenario profile v2 schema with scenario-owned Detect and
-    protection roles, frontend profiles, MCP defaults, and disabled FAIG chain
+  - added a strict scenario profile v2 schema with scenario-owned Alert, Deny,
+    and Redact actions, frontend profiles, MCP defaults, and disabled FAIG chain
   - added ignored editable local scenario packages with safe add, status,
-    explicit backed-up update, recoverable remove, and stale FAIG object
-    tracking
+    explicit backed-up update, and recoverable remove
   - added a deterministic Phase 3 builder for LiteLLM aliases and instruction
     profiles, chatbot simplified and advanced controls, MCP paths and scoped
     tool profiles, scenario-owned FAIG routes, and the FAIG GUI work order;
@@ -33,7 +32,7 @@ a "what's new" guide rather than a raw commit log.
     routes remain disabled while that path is still under development
   - published chatbot image `v0.5.2` for the new matrix-driven runtime
   - updated the scenario harness and traffic generator to resolve installed
-    scenarios by canonical path role, model alias, frontend profile, MCP path,
+    scenarios by canonical action, model alias, frontend profile, MCP path,
     scoped tool profile, and tool-round settings from the same matrix
   - updated the in-container agent probe to support MCP-disabled requests and
     named frontend profiles without defaulting to `demo-a` or `all-tools`, and
@@ -47,6 +46,11 @@ a "what's new" guide rather than a raw commit log.
     required trailing `/*` instead of only the bare request prefix
   - removed the unvalidated HR Tool DLP `input-dlp` flow and chatbot profile;
     input DLP remains available to a future dedicated scenario or revision
+  - standardized scenario routes as `/v1/<scenario>/<action>/*` with Alert,
+    Deny, and Redact actions; aligned flow names, guard names, chatbot profiles,
+    harness/traffic options, and work orders to the same contract
+  - removed stale-FAIG-object bookkeeping and `ack-stale`; disposable lab
+    rebuilds or direct GUI changes now own appliance cleanup
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

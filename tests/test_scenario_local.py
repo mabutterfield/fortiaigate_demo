@@ -45,15 +45,15 @@ class LocalScenarioStoreTests(unittest.TestCase):
                         "llm_target": "llm-default",
                         "entry_points": [
                             {
-                                "role": "detect",
-                                "display_name": "Detect Only",
+                                "action": "alert",
+                                "display_name": "Alert",
                                 "guard_template": "detect_only",
                                 "expected_behavior": "Allow and log.",
                                 "required_for_release": True,
                             },
                             {
-                                "role": "protect-input",
-                                "display_name": "Protect Input",
+                                "action": "deny",
+                                "display_name": "Deny",
                                 "guard_template": "protect_input",
                                 "expected_behavior": "Protect input.",
                                 "required_for_release": True,
@@ -158,23 +158,19 @@ class LocalScenarioStoreTests(unittest.TestCase):
         self.assertFalse(status["local_modified"])
         self.assertFalse(status["source_update_available"])
 
-    def test_remove_is_recoverable_and_records_stale_faig_objects(self) -> None:
+    def test_remove_is_recoverable_without_tracking_remote_objects(self) -> None:
         self.store.add("test-scenario", self.source_profile, now=100)
         result = self.store.remove("test-scenario", now=200)
         self.assertTrue(result["changed"])
         self.assertFalse((self.local_root / "test-scenario").exists())
         archive_path = Path(result["archive_path"])
         self.assertTrue((archive_path / "profile.json").is_file())
-        self.assertEqual(
-            [entry["role"] for entry in result["stale_entry_points"]],
-            ["detect", "protect-input"],
-        )
         state = self.store.load_state()
         self.assertEqual(state["installed_scenarios"], [])
-        self.assertEqual(len(state["stale_faig_objects"]), 1)
-        self.assertIn("/v1/test-scenario/detect/*", self.store.render_work_order())
+        self.assertNotIn("stale_faig_objects", state)
+        self.assertNotIn("Stale FAIG Objects", self.store.render_work_order())
 
-    def test_update_records_removed_roles_and_clears_them_if_restored(self) -> None:
+    def test_update_replaces_entry_points_without_remote_object_state(self) -> None:
         self.store.add("test-scenario", self.source_profile, now=100)
         source_profile = json.loads(self.source_profile.read_text(encoding="utf-8"))
         original_entry_points = source_profile["matrix"]["entry_points"]
@@ -189,10 +185,11 @@ class LocalScenarioStoreTests(unittest.TestCase):
             force=True,
             now=200,
         )
-        stale = self.store.load_state()["stale_faig_objects"]
+        state = self.store.load_state()
+        self.assertNotIn("stale_faig_objects", state)
         self.assertEqual(
-            [entry["role"] for entry in stale[0]["entry_points"]],
-            ["protect-input"],
+            [entry["action"] for entry in self.store.matrix_summary()["installed_scenarios"][0]["entry_points"]],
+            ["alert"],
         )
 
         source_profile["matrix"]["entry_points"] = original_entry_points
@@ -206,15 +203,7 @@ class LocalScenarioStoreTests(unittest.TestCase):
             force=True,
             now=300,
         )
-        self.assertEqual(self.store.load_state()["stale_faig_objects"], [])
-
-    def test_acknowledge_stale_clears_only_the_requested_scenario(self) -> None:
-        self.store.add("test-scenario", self.source_profile, now=100)
-        self.store.remove("test-scenario", now=200)
-        result = self.store.acknowledge_stale("test-scenario")
-        self.assertTrue(result["changed"])
-        self.assertEqual(result["acknowledged"], 1)
-        self.assertEqual(self.store.load_state()["stale_faig_objects"], [])
+        self.assertNotIn("stale_faig_objects", self.store.load_state())
 
     def test_orphan_local_package_is_reported_and_not_overwritten(self) -> None:
         orphan = self.local_root / "test-scenario"
@@ -240,7 +229,7 @@ class LocalScenarioStoreTests(unittest.TestCase):
                 {
                     "schema_version": 1,
                     "installed_scenarios": [entry, entry],
-                    "stale_faig_objects": [],
+                    "stale_faig_objects": [{"scenario_id": "legacy-state"}],
                 }
             ),
             encoding="utf-8",
@@ -257,8 +246,8 @@ class LocalScenarioStoreTests(unittest.TestCase):
         self.assertEqual(
             [entry["uri"] for entry in scenario["entry_points"]],
             [
-                "/v1/test-scenario/detect",
-                "/v1/test-scenario/protect-input",
+                "/v1/test-scenario/alert",
+                "/v1/test-scenario/deny",
             ],
         )
         self.assertNotIn("demo-a", json.dumps(matrix))
@@ -267,7 +256,7 @@ class LocalScenarioStoreTests(unittest.TestCase):
         self.store.add("test-scenario", self.source_profile, now=100)
         output_path = self.raw_output_root / "work-order.md"
         self.store.write_work_order(output_path)
-        self.assertIn("/v1/test-scenario/detect", output_path.read_text(encoding="utf-8"))
+        self.assertIn("/v1/test-scenario/alert", output_path.read_text(encoding="utf-8"))
         with self.assertRaisesRegex(scenario_local.LocalScenarioError, "already exists"):
             self.store.write_work_order(output_path)
         self.store.write_work_order(output_path, force=True)

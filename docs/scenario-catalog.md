@@ -9,10 +9,10 @@ for evidence requirements.
 
 ## Validated Baseline Scenarios
 
-| Scenario | LiteLLM alias | MCP default | FAIG roles | Main story |
+| Scenario | LiteLLM alias | MCP default | FAIG actions | Main story |
 |---|---|---|---|---|
-| `fortistore-injection` | `fortistore-injection` | disabled | `detect`, `protect-input` | Backend versus compromised frontend instructions and FAIG prompt-injection protection |
-| `hr-tool-dlp` | `hr-tool-dlp` | `hr-tool-dlp` | `detect`, `output-dlp-deny`, `output-dlp-redact` | Synthetic MCP tool-result DLP comparison |
+| `fortistore-injection` | `fortistore-injection` | disabled | `alert`, `deny` | Backend versus compromised frontend instructions and FAIG prompt-injection protection |
+| `hr-tool-dlp` | `hr-tool-dlp` | `hr-tool-dlp` | `alert`, `deny`, `redact` | Synthetic MCP tool-result DLP comparison |
 
 These are the only active, validated baseline templates. Installing either
 creates an editable copy under `chatbot/scenarios/local/<scenario-id>/`.

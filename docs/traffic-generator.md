@@ -26,10 +26,10 @@ target: local
 target base URL: https://192.168.248.80/v1/
 mode: path_test
 execution: workstation curl
-paths: /v1/fortistore-injection/detect, ..., /v1/hr-tool-dlp/output-dlp-redact, /v1/passthrough
+paths: /v1/fortistore-injection/alert, ..., /v1/hr-tool-dlp/redact, /v1/passthrough
 Results:
-/v1/fortistore-injection/detect: working (HTTP 200, model=fortistore-injection)
-/v1/hr-tool-dlp/detect: working (HTTP 200, model=hr-tool-dlp)
+/v1/fortistore-injection/alert: working (HTTP 200, model=fortistore-injection)
+/v1/hr-tool-dlp/alert: working (HTTP 200, model=hr-tool-dlp)
 /v1/passthrough: working (HTTP 200, model=pass-model)
 ```
 
@@ -38,7 +38,7 @@ FortiWeb proxy endpoint. Use `--path-test-execution chatbot-pod` only when you
 intentionally want to test from inside the cluster against Kubernetes DNS.
 
 Scenario traffic requires `--mode traffic`. By default it mixes the `direct`
-and `detect` roles for each installed baseline scenario. Use `--path-role` to
+and `alert` actions for each installed baseline scenario. Use `--action` to
 select one or more exact scenario roles. The generator resolves each role's
 route, model, MCP setting, tool profile, frontend profile, and tool-round limit
 from the installed matrix.
@@ -55,13 +55,12 @@ Default scenario selection is `--scenario-source installed`. The generator
 reads ignored packages under `chatbot/scenarios/local/`; local prompt tuning is
 therefore reflected without changing tracked examples.
 
-| Path role | Generated behavior |
+| Action | Generated behavior |
 |---|---|
 | `direct` | Direct LiteLLM with the scenario alias and scenario MCP defaults |
-| `detect` | The scenario-owned FAIG detect route |
-| `protect-input` | FortiStore input-protection route |
-| `output-dlp-deny` | HR output-DLP deny route |
-| `output-dlp-redact` | HR output-DLP redact route |
+| `alert` | The scenario-owned FAIG detection-and-allow route |
+| `deny` | The scenario-owned FAIG denial route |
+| `redact` | The scenario-owned FAIG redaction route, when declared |
 | `passthrough` | Canonical FAIG bypass using `pass-model`, without scenario instructions or MCP |
 
 This avoids sending a FortiStore prompt to an HR model or an HR tool profile to
@@ -72,13 +71,13 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --scenario-source installed \
   --scenario-family baseline \
-  --path-role direct \
+  --action direct \
   --dry-run
 
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --scenario fortistore-injection \
-  --path-role direct \
+  --action direct \
   --dry-run
 ```
 
@@ -110,7 +109,7 @@ python3 scripts/traffic_generator.py \
   --use-case steady \
   --duration 3600 \
   --rate 6 \
-  --path-role detect \
+  --action alert \
   --label local-dashboard-hour \
   --yes
 ```
@@ -128,7 +127,7 @@ python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case burst \
   --scenario fortistore-injection \
-  --path-role direct \
+  --action direct \
   --dry-run
 ```
 
@@ -140,7 +139,7 @@ python3 scripts/traffic_generator.py \
   --target local \
   --use-case burst \
   --scenario fortistore-injection \
-  --path-role direct \
+  --action direct \
   --label local-burst-test \
   --yes
 ```
@@ -153,34 +152,33 @@ python3 scripts/traffic_generator.py \
   --target aws \
   --use-case burst \
   --scenario fortistore-injection \
-  --path-role direct \
+  --action direct \
   --allow-cloud-long-run \
   --yes
 ```
 
-## Path Roles
+## Actions
 
-| Role | Behavior |
+| Action | Behavior |
 |---|---|
 | `direct` | Chatbot to Direct LiteLLM using the scenario alias and MCP defaults. |
-| `detect` | Chatbot to the scenario-owned FAIG detect route. |
-| `protect-input` | Chatbot to the FortiStore input-protection route. |
-| `output-dlp-deny` | Chatbot to the HR output-DLP deny route. |
-| `output-dlp-redact` | Chatbot to the HR output-DLP redact route. |
+| `alert` | Chatbot to the scenario-owned FAIG detection-and-allow route. |
+| `deny` | Chatbot to the scenario-owned FAIG denial route. |
+| `redact` | Chatbot to the scenario-owned FAIG redaction route, when declared. |
 | `passthrough` | Chatbot to canonical `/v1/passthrough` using `pass-model`. |
 
-Repeat `--path-role` or pass comma-separated roles for a mixed plan:
+Repeat `--action` or pass comma-separated actions for a mixed plan:
 
 ```bash
 python3 scripts/traffic_generator.py \
   --mode traffic \
   --use-case steady \
   --scenario hr-tool-dlp \
-  --path-role direct,detect,output-dlp-redact \
+  --action direct,alert,redact \
   --dry-run
 ```
 
-For the advanced MCP alternate, keep the same scenario/path role and pass
+For the advanced MCP alternate, keep the same scenario/action and pass
 `--mcp-path fortiweb`. The Phase 10 `--route` and `--scenario-source
 active-slot` options remain available only for old demo-slot invocations.
 

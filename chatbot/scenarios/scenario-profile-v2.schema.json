@@ -254,15 +254,20 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "role",
+        "action",
         "display_name",
         "guard_template",
         "expected_behavior",
         "required_for_release"
       ],
       "properties": {
-        "role": {
-          "$ref": "#/$defs/kebabId"
+        "action": {
+          "enum": [
+            "alert",
+            "deny",
+            "redact",
+            "redact-dummy"
+          ]
         },
         "display_name": {
           "$ref": "#/$defs/nonEmptyString"
@@ -366,8 +371,13 @@
             "fortigate-litellm"
           ]
         },
-        "entry_point_role": {
-          "$ref": "#/$defs/kebabId"
+        "entry_point_action": {
+          "enum": [
+            "alert",
+            "deny",
+            "redact",
+            "redact-dummy"
+          ]
         },
         "context_mode": {
           "enum": [

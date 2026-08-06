@@ -1,15 +1,16 @@
 # FortiAIGate Demo Lab Request Flows
 
-Phase 11 separates the scenario from the path role. The scenario chooses the
-LiteLLM alias and instructions; the role chooses the FortiAIGate guard behavior.
+Phase 11 separates the scenario from the action. The scenario chooses the
+LiteLLM alias and protection story; the action chooses the FortiAIGate guard
+disposition.
 
 ```mermaid
 flowchart TD
     UI["Chatbot<br/>simplified scenario profile or advanced controls"]
     DIRECT["Direct LiteLLM<br/>model = &lt;scenario-id&gt; or pass-model"]
-    STATIC["FAIG static<br/>/v1/&lt;scenario-id&gt;/&lt;path-role&gt;/chat/completions"]
+    STATIC["FAIG static<br/>/v1/&lt;scenario-id&gt;/&lt;action&gt;/chat/completions"]
     PASS["FAIG passthrough<br/>/v1/passthrough/chat/completions"]
-    GUARD["Scenario guard<br/>detect, protect input, or DLP"]
+    GUARD["Scenario guard<br/>Alert, Deny, or Redact"]
     LL["LiteLLM<br/>pass-model or &lt;scenario-id&gt;"]
     MODEL["Bedrock or local Ollama target"]
     MCPD["Direct MCP"]
@@ -17,7 +18,7 @@ flowchart TD
     MCP["Shared MCP server<br/>scenario-scoped tools"]
 
     UI -->|"Direct LLM path"| DIRECT
-    UI -->|"Scenario FAIG role"| STATIC
+    UI -->|"Scenario FAIG action"| STATIC
     UI -->|"Advanced passthrough"| PASS
     DIRECT --> LL
     STATIC --> GUARD
@@ -34,7 +35,7 @@ Key rules:
 
 - `pass-model` and `/v1/passthrough` bypass scenario instruction injection.
 - Each installed scenario has one LiteLLM alias matching its scenario ID.
-- All FAIG roles for a scenario use that same alias as their guard next hop.
+- All FAIG actions for a scenario use that same alias as their guard next hop.
 - Direct MCP is the normal scenario choice. FortiWeb is an optional advanced
   alternate and does not multiply simplified profiles.
 - FortiGate LLM proxy routes, intelligent header routing, and FAIG re-entry

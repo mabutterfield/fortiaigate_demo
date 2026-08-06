@@ -117,13 +117,13 @@ def installed_matrix(
         raise SystemExit(str(exc)) from exc
 
 
-def scenario_path_configs(
+def scenario_action_configs(
     matrix: dict[str, Any],
     scenario_id: str,
-    path_roles: list[str],
+    actions: list[str],
 ) -> list[dict[str, Any]]:
     scenario_routes = {
-        str(route.get("role") or ""): route
+        str(route.get("action") or ""): route
         for route in matrix.get("chatbot_faig_static_routes", [])
         if route.get("scenario_id") == scenario_id
     }
@@ -145,11 +145,11 @@ def scenario_path_configs(
     direct_profile = direct_profiles[0] if direct_profiles else {}
 
     resolved: list[dict[str, Any]] = []
-    for role in path_roles:
-        if role == "direct":
+    for action in actions:
+        if action == "direct":
             resolved.append(
                 {
-                    "path_role": role,
+                    "action": action,
                     "destination": f"{scenario_id} - Direct",
                     "provider": "direct",
                     "route": "",
@@ -164,10 +164,10 @@ def scenario_path_configs(
                 }
             )
             continue
-        if role == "passthrough":
+        if action == "passthrough":
             resolved.append(
                 {
-                    "path_role": role,
+                    "action": action,
                     "destination": "FAIG Passthrough",
                     "provider": "faig-static",
                     "route": "passthrough",
@@ -180,11 +180,11 @@ def scenario_path_configs(
                 }
             )
             continue
-        route = scenario_routes.get(role)
+        route = scenario_routes.get(action)
         if not route:
             available = ", ".join(["direct", *sorted(scenario_routes), "passthrough"])
             raise SystemExit(
-                f"Scenario '{scenario_id}' has no path role '{role}'. Available: {available}"
+                f"Scenario '{scenario_id}' has no action '{action}'. Available: {available}"
             )
         matching_profiles = [
             profile
@@ -195,8 +195,8 @@ def scenario_path_configs(
         profile = matching_profiles[0] if matching_profiles else {}
         resolved.append(
             {
-                "path_role": role,
-                "destination": str(route.get("label") or route.get("name") or role),
+                "action": action,
+                "destination": str(route.get("label") or route.get("name") or action),
                 "provider": "faig-static",
                 "route": str(route["name"]),
                 "model": str(profile.get("model") or route.get("model") or scenario_id),
@@ -471,7 +471,7 @@ def run_tests(args: argparse.Namespace) -> None:
     if args.paths:
         path_configs = [
             {
-                "path_role": path_name,
+                "action": path_name,
                 **LEGACY_PATH_CONFIGS[path_name],
                 "model": args.model_profile or args.slot,
                 "mcp_enabled": bool(profile.get("mcp", {}).get("enabled", True)),
@@ -483,10 +483,10 @@ def run_tests(args: argparse.Namespace) -> None:
             for path_name in args.paths
         ]
     else:
-        path_configs = scenario_path_configs(
+        path_configs = scenario_action_configs(
             matrix,
             args.scenario,
-            args.path_role or ["direct", "detect"],
+            args.action or ["direct", "alert"],
         )
     models = parse_models(args.models)
     if models and not args.deploy_models:
@@ -524,7 +524,7 @@ def run_tests(args: argparse.Namespace) -> None:
         for prompt_index, prompt in enumerate(prompts, start=1):
             prompt_slug = f"prompt-{prompt_index:02d}-{slugify(prompt[:60])}"
             for path_config in path_configs:
-                path_role = path_config["path_role"]
+                action = path_config["action"]
                 tool_profile = (
                     args.tool_profile
                     or path_config["tool_profile"]
@@ -539,14 +539,14 @@ def run_tests(args: argparse.Namespace) -> None:
                         tool_profile,
                     )
                     captured_at = now_iso()
-                    output_dir = scenario_output_root / label / prompt_slug / path_role / f"run-{run_index:02d}"
+                    output_dir = scenario_output_root / label / prompt_slug / action / f"run-{run_index:02d}"
                     request = {
                         "captured_at": captured_at,
                         "scenario": args.scenario,
                         "run_label": args.run_label,
                         "scenario_profile": str(profile_path.relative_to(REPO_ROOT)),
                         "destination": path_config["destination"],
-                        "path_role": path_role,
+                        "action": action,
                         "provider": path_config["provider"],
                         "route": path_config["route"],
                         "model_label": label,
@@ -568,7 +568,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         "scenario": args.scenario,
                         "run_label": args.run_label,
                         "destination": path_config["destination"],
-                        "path_role": path_role,
+                        "action": action,
                         "model_label": label,
                         "body": result,
                     }
@@ -581,7 +581,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         "model_label": label,
                         "bedrock_model_id": model_id,
                         "prompt_index": prompt_index,
-                        "path_role": path_role,
+                        "action": action,
                         "run": run_index,
                         "request_file": str((output_dir / "request.json").relative_to(args.output_root)),
                         "response_file": str((output_dir / "response.json").relative_to(args.output_root)),
@@ -591,7 +591,7 @@ def run_tests(args: argparse.Namespace) -> None:
                         write_json(output_dir / "response.json", response)
                     all_summaries.append(summary)
                     print(
-                        f"{args.scenario} {label} {path_role} run {run_index}: "
+                        f"{args.scenario} {label} {action} run {run_index}: "
                         f"{classification['verdict']} tools={classification['tool_sequence']}",
                         flush=True,
                     )
@@ -605,7 +605,7 @@ def run_tests(args: argparse.Namespace) -> None:
                 "scenario": args.scenario,
                 "run_label": args.run_label,
                 "prompts": prompts,
-                "path_roles": [config["path_role"] for config in path_configs],
+                "actions": [config["action"] for config in path_configs],
                 "runs": args.runs,
                 "results": all_summaries,
             },
@@ -617,7 +617,7 @@ def run_tests(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run an installed scenario through canonical direct or FAIG path roles.",
+        description="Run an installed scenario through canonical direct or FAIG actions.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--scenario", required=True, help="Installed Phase 11 scenario ID.")
@@ -626,17 +626,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt-index", type=int, default=0, help="Zero-based prompt index when --prompt is omitted.")
     parser.add_argument("--all-prompts", action="store_true", help="Run every prompt for --prompt-kind.")
     parser.add_argument(
-        "--path-role",
+        "--action",
         action="append",
         default=[],
-        help="Scenario path role to test; repeat for multiple roles. Defaults to direct and detect.",
+        help="Scenario action to test; repeat for multiple actions. Defaults to direct and alert.",
     )
     parser.add_argument(
         "--paths",
         nargs="+",
         default=[],
         choices=sorted(LEGACY_PATH_CONFIGS),
-        help="Phase 10 compatibility paths. Prefer --path-role.",
+        help="Phase 10 compatibility paths. Prefer --action.",
     )
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--models", nargs="*", help="Bedrock model IDs. Requires --deploy-models.")
@@ -672,8 +672,8 @@ def parse_args() -> argparse.Namespace:
     args.run_label = slugify(args.run_label) if args.run_label else timestamp_label()
     if args.runs < 1:
         raise SystemExit("--runs must be at least 1")
-    if args.path_role and args.paths:
-        raise SystemExit("Use --path-role or Phase 10 --paths, not both")
+    if args.action and args.paths:
+        raise SystemExit("Use --action or Phase 10 --paths, not both")
     if args.legacy_slot_mode and not args.install_profile:
         raise SystemExit("--legacy-slot-mode requires --install-profile")
     return args
