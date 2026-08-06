@@ -33,7 +33,7 @@ pull conflicts.
 | Scenario | Model alias | MCP | Required FAIG roles | Optional role |
 |---|---|---|---|---|
 | `fortistore-injection` | `fortistore-injection` | off | `detect`, `protect-input` | none |
-| `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP, tool profile `hr-tool-dlp` | `detect`, `output-dlp-deny`, `output-dlp-redact` | `input-dlp` |
+| `hr-tool-dlp` | `hr-tool-dlp` | Direct MCP, tool profile `hr-tool-dlp` | `detect`, `output-dlp-deny`, `output-dlp-redact` | none |
 
 Global controls are `pass-model` and `/v1/passthrough`. See the
 [Scenario Catalog](scenario-catalog.md) for candidate/archive status and the

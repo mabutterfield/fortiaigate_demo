@@ -45,6 +45,8 @@ a "what's new" guide rather than a raw commit log.
     profiles, editable local installs, and reusable `{{variable}}` flow setup
   - made rendered FAIG work orders show copy-safe configured URIs with the
     required trailing `/*` instead of only the bare request prefix
+  - removed the unvalidated HR Tool DLP `input-dlp` flow and chatbot profile;
+    input DLP remains available to a future dedicated scenario or revision
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

@@ -60,7 +60,6 @@ therefore reflected without changing tracked examples.
 | `direct` | Direct LiteLLM with the scenario alias and scenario MCP defaults |
 | `detect` | The scenario-owned FAIG detect route |
 | `protect-input` | FortiStore input-protection route |
-| `input-dlp` | HR input-DLP comparison route |
 | `output-dlp-deny` | HR output-DLP deny route |
 | `output-dlp-redact` | HR output-DLP redact route |
 | `passthrough` | Canonical FAIG bypass using `pass-model`, without scenario instructions or MCP |
@@ -166,7 +165,6 @@ python3 scripts/traffic_generator.py \
 | `direct` | Chatbot to Direct LiteLLM using the scenario alias and MCP defaults. |
 | `detect` | Chatbot to the scenario-owned FAIG detect route. |
 | `protect-input` | Chatbot to the FortiStore input-protection route. |
-| `input-dlp` | Chatbot to the HR input-DLP comparison route. |
 | `output-dlp-deny` | Chatbot to the HR output-DLP deny route. |
 | `output-dlp-redact` | Chatbot to the HR output-DLP redact route. |
 | `passthrough` | Chatbot to canonical `/v1/passthrough` using `pass-model`. |

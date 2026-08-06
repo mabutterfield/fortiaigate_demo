@@ -50,13 +50,6 @@
         "guard_template": "output_dlp_deny",
         "expected_behavior": "Deny model output when the configured DLP guard detects protected HR data.",
         "required_for_release": true
-      },
-      {
-        "role": "input-dlp",
-        "display_name": "Input DLP Comparison",
-        "guard_template": "input_dlp",
-        "expected_behavior": "Provide an optional comparison for sensitive data detected before the model call; output redaction is not the expected result.",
-        "required_for_release": false
       }
     ],
     "frontend_instruction_profiles": [
@@ -101,15 +94,6 @@
         "context_mode": "recent",
         "context_window": 8,
         "frontend_instruction_profile": "none"
-      },
-      {
-        "id": "hr-tool-dlp-input-dlp",
-        "display_name": "HR DLP - Input DLP Comparison",
-        "provider_path": "faig-static",
-        "entry_point_role": "input-dlp",
-        "context_mode": "recent",
-        "context_window": 8,
-        "frontend_instruction_profile": "none"
       }
     ],
     "faig_chain": {
@@ -148,19 +132,6 @@
       "label": "HR DLP - Output Protect",
       "provider_path": "faig-static",
       "route": "demo-c",
-      "mcp_enabled": true,
-      "mcp_path": "direct",
-      "mcp_tool_profile": "hr-tool-dlp",
-      "mcp_max_tool_rounds": 5,
-      "frontend_system_prompt_enabled": false,
-      "context_mode": "recent",
-      "context_window": 8
-    },
-    {
-      "id": "hr-dlp-input-protect",
-      "label": "HR DLP - Input Protect",
-      "provider_path": "faig-static",
-      "route": "demo-d",
       "mcp_enabled": true,
       "mcp_path": "direct",
       "mcp_tool_profile": "hr-tool-dlp",
@@ -254,13 +225,6 @@
         "guard": "protect_output_dlp",
         "request_model": "demo-c",
         "expected_behavior": "Primary DLP output route. Run with DLP Deny and DLP Redact. Single DOB/card values should redact cleanly in Redact mode; multi-record responses are the tuning target and may show partial card-number misses."
-      },
-      {
-        "route": "demo-d",
-        "flow": "/v1/demo-d/*",
-        "guard": "protect_input_dlp",
-        "request_model": "demo-d",
-        "expected_behavior": "Input-DLP comparison route. Use it to see whether user prompts, assistant context, tool definitions, or tool responses are detected before the model call; do not treat visible final-output redaction as the expected result."
       }
     ],
     "validation_notes": [

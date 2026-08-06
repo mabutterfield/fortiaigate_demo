@@ -2,8 +2,9 @@
 
 This MCP-enabled baseline demonstrates DLP behavior when tools return
 synthetic HR records and the model includes sensitive fields in its answer. It
-compares direct, detect-only, input-DLP, output-deny, and output-redact paths
-while keeping one backend alias and one scoped tool set.
+compares direct, detect-only, output-deny, and output-redact paths while keeping
+one backend alias and one scoped tool set. Input DLP is intentionally deferred
+to a separate scenario or future revision.
 
 The backend emits `HR_TOOL_DLP_VULNERABLE_ACTIVE` for activation checks. All
 employee records are synthetic test fixtures.
@@ -28,14 +29,12 @@ with these values:
 | Role | Flow name | Configured URI | Guard name | Template | Next-hop model | Required |
 |---|---|---|---|---|---|---|
 | Detect Only | `hr-tool-dlp-detect` | `/v1/hr-tool-dlp/detect` | `hr_tool_dlp_detect` | `detect_only` | `hr-tool-dlp` | yes |
-| Input DLP Comparison | `hr-tool-dlp-input-dlp` | `/v1/hr-tool-dlp/input-dlp` | `hr_tool_dlp_input_dlp` | `input_dlp` | `hr-tool-dlp` | no |
 | Output DLP Deny | `hr-tool-dlp-output-dlp-deny` | `/v1/hr-tool-dlp/output-dlp-deny` | `hr_tool_dlp_output_dlp_deny` | `output_dlp_deny` | `hr-tool-dlp` | yes |
 | Output DLP Redact | `hr-tool-dlp-output-dlp-redact` | `/v1/hr-tool-dlp/output-dlp-redact` | `hr_tool_dlp_output_dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` | yes |
 
-All four guards point to the same LiteLLM alias, `hr-tool-dlp`. Detect Only
-allows and logs. Input DLP is a comparison for sensitive content already in
-the model input; it is not the final-output protection path for data returned
-by an MCP tool.
+All three guards point to the same LiteLLM alias, `hr-tool-dlp`. Detect Only
+allows and logs. The two output-DLP guards protect data returned by an MCP tool
+after the model includes it in the response.
 
 For output redaction, tune the PII scan list to focus on DOB and payment-card
 values. The validated reference configuration excludes these fields so normal
@@ -51,7 +50,7 @@ Scenario-specific output guard reference:
 
 ## Chatbot And MCP Settings
 
-The five simplified profiles use model alias `hr-tool-dlp`, recent context with
+The four simplified profiles use model alias `hr-tool-dlp`, recent context with
 an eight-message window, Direct MCP, tool profile `hr-tool-dlp`, and up to five
 tool rounds.
 
@@ -109,15 +108,6 @@ python3 scripts/scenario_test_harness.py \
   --path-role output-dlp-deny \
   --path-role output-dlp-redact \
   --run-label hr-dlp
-```
-
-Optional input comparison:
-
-```bash
-python3 scripts/scenario_test_harness.py \
-  --scenario hr-tool-dlp \
-  --path-role input-dlp \
-  --run-label hr-input-dlp
 ```
 
 Advanced FortiWeb MCP alternate:
