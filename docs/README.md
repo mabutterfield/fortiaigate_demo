@@ -3,10 +3,9 @@
 This is the main documentation landing page for the FortiAIGate demo deployment.
 Start with one quick start, then use the topic docs for details and recovery.
 
-Status: Phase 10 documentation is transitional. The current runtime still uses
-compatibility names such as `demo-a` and `demo-b`. Phase 11 is planned as the
-v1.0 baseline and will replace that with scenario-owned paths and generated
-scenario metadata.
+Status: Phase 11 is the intended v1.0 baseline. Installed scenarios generate
+scenario-owned paths and runtime metadata. Phase 10 `demo-a`/`demo-b` names are
+compatibility-only and are not part of the default runtime model.
 
 ## TLDR Paths
 
@@ -40,7 +39,9 @@ reference, not a competing first-run path.
 | ECR repositories and image publishing | [ECR](ecr.md) |
 | Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
 | MCP demo tools | [MCP](mcp.md) |
-| Scenario demo prompts and candidate set | [Scenarios](scenarios.md) |
+| Scenario installation, generated routes, and demo prompts | [Scenarios](scenarios.md) |
+| Scenario catalog and lifecycle status | [Scenario Catalog](scenario-catalog.md) |
+| Scenario package authoring and deploy boundaries | [Scenario Authoring](scenario-authoring.md) |
 | Scenario creation, tuning, and evidence process | [Scenario Documentation Process](scenario-documentation-process.md) |
 | Traffic generator | [Traffic Generator](traffic-generator.md) |
 | Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
@@ -57,7 +58,8 @@ reference, not a competing first-run path.
 
 | Document | Purpose |
 |---|---|
-| [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) | First GUI login, AI flow, guard, deploy, and lab API-key setup |
+| [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) | Reusable GUI walkthrough for scenario-generated flows, guards, deploy, and lab API-key setup |
+| [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical scenario-to-FAIG-to-LiteLLM route diagram |
 | [AWS k3s Foundation](aws-k3s-foundation.md) | Detailed AWS k3s architecture, host bootstrap behavior, and FortiAIGate deployment mechanics |
 | [AWS Instance Sizing](aws_instance.MD) | GPU instance sizing guidance |
 | [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary S3 cache workaround for slow NVIDIA package downloads |
@@ -81,9 +83,11 @@ reference, not a competing first-run path.
 - `deploy_demo_https_gateway.yml`: adds self-signed HTTPS listeners for HTTP-only demo services when run and enabled.
 - `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
 - `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
-- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
-- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes:
-  passthrough, demo-a, and demo-b.
+- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set
+  `fortiaigate_test_poll_all_endpoints=true` to test the generated, installed
+  scenario route matrix plus passthrough.
+- `test_fortiaigate_lite.yml`: performs the lightweight generated FAIG route
+  test without scenario behavior assertions.
 - `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
 - `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
 - `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
@@ -104,6 +108,4 @@ reference, not a competing first-run path.
   not need it for a normal quickstart.
 
 Internal build notes, experiments, and progress notes should live outside this
-Git repo in the parent FAIG workspace. Phase 11 scenario-matrix planning also
-lives in the parent workspace until the implementation shape is ready for repo
-documentation.
+Git repo in the parent FAIG workspace.

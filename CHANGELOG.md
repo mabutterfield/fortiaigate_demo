@@ -40,6 +40,11 @@ a "what's new" guide rather than a raw commit log.
     published the result as chatbot image `v0.5.3`
   - retained explicit Phase 10 `--paths`, `--route`, and active-slot modes for
     old test invocations without using them as Phase 11 defaults
+  - rewrote the scenario operator, authoring, catalog, active-scenario, and
+    FortiAIGate GUI guides around generated scenario-owned paths, named
+    profiles, editable local installs, and reusable `{{variable}}` flow setup
+  - made rendered FAIG work orders show copy-safe configured URIs with the
+    required trailing `/*` instead of only the bare request prefix
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

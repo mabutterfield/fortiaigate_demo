@@ -1,360 +1,210 @@
-# FortiAIGate Initial Config
+# FortiAIGate Scenario Flow Configuration
 
-This guide starts after Helm deployment is complete and
-`status_fortiaigate.yml` reports `FortiAIGate status: READY`.
+Use this guide after Helm deployment reports `FortiAIGate status: READY` and
+the baseline scenarios have been installed. Phase 11 uses scenario-owned flow
+URIs and LiteLLM aliases; it does not require `demo-a`/`demo-b` routes.
 
-## 1. What You Are Building
+## Generate The Work Order
 
-The custom Chatbot UI has three user-selectable LLM paths built into its path
-selector:
+From the repo root:
 
-- `Direct LiteLLM`: the chatbot calls LiteLLM directly. FortiAIGate does not
-  inspect the request.
-- `FAIG Static Route`: the chatbot calls an explicit FortiAIGate URI such as
-  `/v1/demo-a/chat/completions`.
-- `FAIG Intelligent Route`: the chatbot calls `/v1/intelligent/chat/completions`.
-  `passthrough` is the default and sends no route header; `demo-a` and `demo-b`
-  send the configured model-route header.
+```bash
+python3 scripts/scenario_profiles.py list-installed
+python3 scripts/scenario_profiles.py render-work-order
+python3 scripts/build_scenario_matrix.py --output /tmp/scenario-matrix.json
+```
 
-The visual reference is maintained in
-[fortiaigate-lab-flows.md](fortiaigate-lab-flows.md).
+The ignored work order is written under
+`docs/raw-output/scenario-work-orders/`. It is the installation-specific source
+for flow URIs, suggested names, guard templates, and next-hop LiteLLM aliases.
+Tracked scenario runbooks explain the test story; they do not override locally
+tuned installed profiles.
+
+Validate LiteLLM before configuring FortiAIGate:
+
+```bash
+ansible-playbook ansible/playbooks/test_litellm_direct.yml
+```
+
+The canonical aliases are:
+
+- `pass-model`: full custom-instruction bypass.
+- `<scenario-id>`: the scenario backend instructions, for example
+  `fortistore-injection` or `hr-tool-dlp`.
+
+## Screenshot Variables
+
+The walkthrough uses these tokens so one set of screenshots can apply to every
+scenario:
+
+| Token | Work-order value |
+|---|---|
+| `{{scenario-id}}` | Installed scenario ID |
+| `{{path-role}}` | Semantic role such as `detect` or `output-dlp-redact` |
+| `{{flow-name}}` | Suggested flow name |
+| `{{flow-uri}}` | Generated request prefix, without wildcard or OpenAI suffix |
+| `{{configured-uri}}` | Exact FAIG value: `{{flow-uri}}/*` |
+| `{{guard-name}}` | Suggested AI guard name |
+| `{{guard-template}}` | Required behavior template |
+| `{{next-hop-model}}` | LiteLLM alias selected by the guard |
+| `{{litellm-endpoint}}` | Private LiteLLM OpenAI-compatible endpoint |
+| `{{litellm-api-key}}` | LiteLLM API key from ignored deployment output |
+
+Existing screenshots below identify the relevant GUI pages. Some contain old
+example values; ignore those values and use the token mapping and generated
+work order. Tokenized Phase 11 screenshots can replace them without changing
+the scenario runbooks.
+
+## Request Paths
 
 ```mermaid
-flowchart TD
-    UI["Chat UI (chatbot)<br/><b>LLM path:</b> Direct LiteLLM | FAIG Static | FAIG Intelligent<br/><b>LLM profile:</b> pass-bedrock | demo-a | demo-b | demo-a-faig-be | demo-b-faig-be<br/><b>MCP:</b> off | Direct | FortiWeb"]
-
-    RD["Direct request<br/>POST LiteLLM /v1/chat/completions<br/>body model = selected profile"]
-    RS["Static request<br/>POST FAIG /v1/{profile}/chat/completions"]
-    RI["Intelligent request<br/>POST FAIG /v1/intelligent/chat/completions<br/>no header = passthrough<br/>header selects demo-a or demo-b"]
-    MT["MCP tool loop<br/>LLM requests tool call<br/>chatbot executes tool and returns result"]
-    MD["MCP=Direct<br/>chatbot -> mcp-demo service"]
-    MFW["MCP=FortiWeb<br/>chatbot -> FortiWeb port1 listener"]
-    FWB["FortiWeb reverse proxy<br/>no-inspection policy"]
-    MCP["MCP demo tools<br/>customer / ticket / policy / menu<br/>read-only FortiGate when credentials exist"]
-
-    FAIG["FortiAIGate front flow<br/>AI guard sees pre-injection request"]
-    LL["LiteLLM selected alias<br/>optional backend instruction injection"]
-    FB["FortiAIGate passthrough flow<br/>/v1/passthrough/*<br/>AI guard sees post-injection request"]
-    LP["LiteLLM pass-bedrock<br/>proxies to Bedrock"]
-    BR["Amazon Bedrock model<br/>requests tool calls<br/>generates final answer"]
-
-    UI -->|"Direct LiteLLM"| RD
-    UI -->|"FAIG Static Route"| RS
-    UI -->|"FAIG Intelligent Route"| RI
-    UI ==>|"Use MCP tools<br/>tool call / tool result"| MT
-
-    RD --> LL
-    RS --> FAIG
-    RI --> FAIG
-    FAIG -->|"static or intelligent profile route"| LL
-    FAIG -.->|"intelligent default, no header"| LP
-
-    LL -->|"pass-bedrock / demo-a / demo-b"| BR
-    LL -.->|"demo-a-faig-be / demo-b-faig-be"| FB
-    FB -.->|"guard litellm-pass-bedrock<br/>model pass-bedrock"| LP
-    LP -.-> BR
-    MT ==>|"MCP=Direct"| MD
-    MT ==>|"MCP=FortiWeb"| MFW
-    MD ==> MCP
-    MFW ==> FWB
-    FWB ==> MCP
-    MCP ==>|"tool result"| MT
+flowchart LR
+    UI["Chatbot profile"] -->|"Direct"| LL["LiteLLM /v1/chat/completions"]
+    UI -->|"FAIG Static Route"| FLOW["FAIG {{flow-uri}}/chat/completions"]
+    FLOW --> GUARD["AI guard {{guard-name}}"]
+    GUARD -->|"model {{next-hop-model}}"| LL
+    UI -.->|"MCP Direct"| MCP["MCP server"]
+    UI -.->|"MCP alternate"| FW["FortiWeb"]
+    FW -.-> MCP
 ```
 
-## 2. Collect Inputs And Test LiteLLM First
+The LLM path and MCP path are independent. FortiWeb is an advanced MCP
+alternate only when its proxy is desired and an installed endpoint exists.
+FortiGate LLM routes remain disabled while that path is under development.
 
-Before starting the FortiAIGate GUI work, confirm the LiteLLM profiles work.
-This catches Bedrock/IAM/LiteLLM issues before you start building GUI flows.
+## Create Canonical Passthrough
 
-```bash
-cd ansible
-ansible-playbook playbooks/test_litellm_direct.yml
-```
-
-By default this tests:
-
-- `pass-bedrock`
-- `demo-a`
-- `demo-b`
-
-Override the default list with `litellm_direct_test_models` in
-`ansible/group_vars/user.yml` or by passing an extra var.
-
-Collect GUI values with:
-
-```bash
-ansible-playbook playbooks/show_demo_outputs.yml
-```
-
-The output includes a `LiteLLM proxy provider` block. Use
-`API endpoint/private` for the FortiAIGate provider endpoint and `API key` from
-that same block when creating FortiAIGate LiteLLM-backed guards/providers.
-
-## 3. Provider Reference
-
-### LiteLLM Provider
-
-Use this for the normal lab flows.
-
-| FortiAIGate input | Value/source |
-|---|---|
-| Provider type | OpenAI-compatible |
-| API endpoint | `API endpoint/private` from the `LiteLLM proxy provider` block in `show_demo_outputs.yml` |
-| API key | `API key` from the `LiteLLM proxy provider` block in `show_demo_outputs.yml` |
-| Models | `pass-bedrock`, `demo-a`, `demo-b`, `demo-a-faig-be`, `demo-b-faig-be` |
-
-## 4. Creation Order Overview
-
-Create guards/providers before flows. Create explicit flow paths before the
-generic `/v1/*` fallback. FortiAIGate appears to evaluate URI rules top-down in
-creation order, so an early `/v1/*` fallback can shadow more specific routes.
-
-The full guard table is in [Create All Remaining Guards](#8-create-all-remaining-guards).
-The full route table is in [Create All Remaining Flows](#9-create-all-remaining-flows).
-
-## 5. Guard / Provider Values To Create
-
-This section is a quick preview. The creation table is repeated where you need
-it in [Create All Remaining Guards](#8-create-all-remaining-guards).
-
-Required guard/provider names:
-
-- `litellm-pass-bedrock`
-- `demo-a`
-- `demo-b`
-- `demo-a-faig-be`
-- `demo-b-faig-be`
-
-## 6. Log In
-
-Open the login URL printed by `status_fortiaigate.yml`.
-
-Default lab credentials:
-
-| Version | Username | Password |
-|---|---|---|
-| 8.0.0 | `admin` | `fortinet` |
-| 8.0.1 | `admin` | blank |
-
-FortiAIGate 8.0.1 serves the UI under `/ui/`.
-
-## 7. Create The First Flow With Onboarding
-
-On first login, FortiAIGate offers an onboarding flow. Use onboarding to create
-the initial explicit passthrough flow. Do not create `/v1/*` yet; the generic
-fallback must be created last.
+Create this global control first:
 
 | Field | Value |
 |---|---|
 | Flow name | `passthrough` |
-| GUI configured path | `/v1/passthrough/*` |
-| Guard/provider name | `litellm-pass-bedrock` |
-| LiteLLM model | `pass-bedrock` |
-| API key validation | onboarding leaves this enabled; disable it manually after onboarding |
+| Configured URI | `/v1/passthrough/*` |
+| Guard/provider name | `pass_model` (suggested) |
+| Provider type | OpenAI-compatible |
+| Provider endpoint | `{{litellm-endpoint}}` |
+| Provider model | `pass-model` |
+| Provider API key | `{{litellm-api-key}}` |
+| API-key validation | Disable for the isolated demo lab if required by the current test workflow |
 
-This gives a quick success path without risking the fallback rule shadowing
-later explicit paths. Onboarding does not expose every setting we need for the
-lab, so after onboarding completes, return to the created flow and disable API
-key validation manually for easier testing.
+Do not inject instructions in this guard and do not point it to a scenario
+alias. `/v1/passthrough` is the full bypass control.
 
-Screenshots:
+The onboarding screenshots show the page sequence:
 
-Define the initial passthrough flow and use the explicit `/v1/passthrough/*`
-path. Do not create the generic `/v1/*` fallback during onboarding.
+1. Define the explicit URI. Do not create a generic `/v1/*` fallback first.
+   [Flow page](images/onboard-step1.jpg)
+2. Create the OpenAI-compatible provider with the LiteLLM endpoint and key.
+   [Guard/provider page](images/onboard-step2.jpg)
+3. Attach the guard to the flow. [Guard selection](images/onboard-step3.jpg)
+4. Review and deploy. [Deployment review](images/onboard-step4.jpg)
+5. If appropriate for the isolated lab, disable flow API-key validation.
+   [Flow API-key setting](images/edit-flow-apienabled.jpg)
 
-![Onboarding step 1 - define flow](images/onboard-step1.jpg)
-
-Create the first AI guard with the `API endpoint/private` and `API key` values
-from the `LiteLLM proxy provider` block printed by `show_demo_outputs.yml`.
-
-![Onboarding step 2 - define guard](images/onboard-step2.jpg)
-
-Select which guards apply to the flow. For this first passthrough flow, use the
-`litellm-pass-bedrock` guard.
-
-![Onboarding step 3 - configure guards](images/onboard-step3.jpg)
-
-Review the onboarding summary and deploy the first flow.
-
-![Onboarding step 4 - deploy summary](images/onboard-step4.jpg)
-
-After onboarding deploys the first flow, edit that flow and disable API key
-validation for lab testing:
-
-![Disable API key validation](images/edit-flow-apienabled.jpg)
-
-Run:
+Validate it:
 
 ```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml \
-  -e fortiaigate_test_endpoint_path=/v1/passthrough/chat/completions
+python3 scripts/traffic_generator.py \
+  --mode path_test \
+  --path-test-path passthrough
 ```
 
-If this first passthrough test times out, run the same command one more time
-before troubleshooting. The initial FortiAIGate path can still be warming up
-immediately after onboarding and flow deployment.
+## Create A Scenario Guard
 
-## 8. Create All Remaining Guards
+For each work-order row, create or clone one AI guard:
 
-Create the remaining LiteLLM-backed guards/providers from this table. The
-`litellm-pass-bedrock` guard may already exist from onboarding; verify its
-endpoint, API key, and model before moving on.
-
-| Guard/provider name | Provider endpoint | Model/profile | Notes |
-|---|---|---|---|
-| `litellm-pass-bedrock` | `API endpoint/private` from `LiteLLM proxy provider` output | `pass-bedrock` | No instruction injection; use for fallback, passthrough, and the post-injection FAIG re-entry path. This may be created during first-login onboarding. |
-| `demo-a` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a` | Demo A backend instruction profile, defaulting to the HR bot example |
-| `demo-b` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a` for the v1.0 detect/prevent comparison loop | Configure the Demo-B FAIG guard with prevent/redact settings, but point its LiteLLM model/profile to `demo-a` so `/v1/demo-a/*` and `/v1/demo-b/*` compare the same backend model under different FAIG policy actions. Use a separate `demo-b` backend profile only for older demos that intentionally compare different instructions. |
-| `demo-a-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-a-faig-be` | Injects demo-a instructions, then sends back through FAIG `/v1/passthrough/*` |
-| `demo-b-faig-be` | `API endpoint/private` from `LiteLLM proxy provider` output | `demo-b-faig-be` | Injects demo-b instructions, then sends back through FAIG `/v1/passthrough/*` |
-
-Use `API key` from the same `LiteLLM proxy provider` output block for each
-guard/provider.
-
-Do not configure the `/v1/passthrough/*` route to call a `*-faig-be` model.
-That creates a request loop. The route should use the `litellm-pass-bedrock`
-guard/provider and LiteLLM model alias `pass-bedrock`.
-
-If the guards are created correctly and in this order, all five guards should
-pass the FortiAIGate GUI provider/model test before you start creating the
-remaining flows.
-
-Guard/provider screenshots:
-
-![Create demo guard](images/create-demo-guard.jpg)
-
-![Input guard configuration](<images/input guard.jpg>)
-
-![Output guard configuration](<images/output guard.jpg>)
-
-## 9. Create All Remaining Flows
-
-Create the remaining flow URI rules in the order shown below. If you recreate
-the fallback `/v1/*` flow, make sure it is last.
-
-| Order | Name | GUI configured path | AI guard | Purpose | Resulting request path, not a GUI field |
-|---:|---|---|---|---|---|
-| 1 | Passthrough | `/v1/passthrough/*` | `litellm-pass-bedrock` | Explicit passthrough static route. This may be created during first-login onboarding. | `/v1/passthrough/chat/completions` |
-| 2 | Demo A | `/v1/demo-a/*` | `demo-a` | Static route with default demo backend instructions | `/v1/demo-a/chat/completions` |
-| 3 | Demo B | `/v1/demo-b/*` | `demo-b` | Static route for the Demo-B prevent/redact guard. Its provider model/profile should target LiteLLM `demo-a`, not `demo-b`, so the backend stays constant and only FAIG policy changes. | `/v1/demo-b/chat/completions` |
-| 4 | `demo-a_faig-backend` | `/v1/demo-a-faig-be/*` | `demo-a-faig-be` | Static route that chains back through FAIG after LiteLLM injection | `/v1/demo-a-faig-be/chat/completions` |
-| 5 | `demo-b_faig-backend` | `/v1/demo-b-faig-be/*` | `demo-b-faig-be` | Alternate post-injection inspection route | `/v1/demo-b-faig-be/chat/completions` |
-| 6 | Intelligent routing | `/v1/intelligent/*` | default `litellm-pass-bedrock`; header-selected `demo-a` or `demo-b` | One URI with optional header routing | `/v1/intelligent/chat/completions` |
-| 7 | Default fallback, create last | `/v1/*` | `litellm-pass-bedrock` | Generic OpenAI-compatible fallback | `/v1/chat/completions` |
-
-Optional routes:
-
-| Name | GUI configured path | AI guard / model | Resulting request path, not a GUI field |
-|---|---|---|---|
-| Open WebUI support / experimentation | `/v1/openwebui/*` | Request body model or selected provider/model | `/v1/openwebui/chat/completions` |
-| API test | `/v1/test/*` | Test provider/model | `/v1/test/chat/completions` |
-| Ollama validation | `/v1/ollama/*` | Ollama provider/model | `/v1/ollama/chat/completions` |
-
-![Create demo flow](images/create-demo-flow.jpg)
-
-For intelligent routing, create a default route and two header-based routing
-rules:
-
-| Routing name | Type | Header name | Operator | Value | AI guard |
-|---|---|---|---|---|---|
-| `demo-a` | header | `X-FAIG-Model-Route` | `is` | `demo-a` | `demo-a` |
-| `demo-b` | header | `X-FAIG-Model-Route` | `is` | `demo-b` | `demo-b` |
-| `Default*` | default / no header | none | none | none | `litellm-pass-bedrock` |
-
-The chatbot sends no intelligent-route header for `passthrough`; FortiAIGate
-should therefore use the default pass-through guard/provider for that flow.
-
-Intelligent routing screenshots:
-
-![Intelligent flow](images/intelligent-flow.jpg)
-
-![Intelligent route rule](images/intel-route-rule.jpg)
-
-After the final fallback `/v1/*` flow exists, the default test command can use
-`/v1/chat/completions`:
-
-```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml
-```
-
-## 10. Validate All Routes
-
-Run the default fallback test:
-
-```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml
-```
-
-Run the default configured route matrix:
-
-```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml -e poll_all_endpoints=true
-```
-
-Expected behavior:
-
-- The default route matrix tests seven endpoints: `passthrough`, `demo-a`,
-  `demo-b`, `demo-a-faig-be`, `demo-b-faig-be`, `intelligent`, and `default`.
-- The `intelligent` test uses the configured default intelligent route. It does
-  not test every possible intelligent-route profile unless
-  `fortiaigate_test_include_all_header_route_profiles=true` is set.
-- Each endpoint prints the URL, model/profile, question, HTTP status, and answer.
-- The final task prints `FortiAIGate endpoint test summary: PASS`.
-- The question asks the model to repeat the URI under test, which makes route
-  mistakes easier to spot in the output and in FortiAIGate logs.
-
-Optional diagnostic test cases for `/v1/openwebui` can be enabled with
-`fortiaigate_test_include_openwebui_endpoint=true`. This is primarily for
-support and experimentation; the core lab does not require a dedicated Open
-WebUI flow.
-
-## 11. Review FortiAIGate Logs
-
-After the route matrix passes, open the FortiAIGate UI and browse to
-**Logs | Log Reports**. Review the requests that just ran. Confirm the tested
-URI, selected flow, guard/model, request content, and response content match the
-route you expected.
-
-The Ansible `test_fortiaigate_chat.yml` playbook asks each endpoint to repeat
-the URI under test. A good log entry should show a prompt similar to:
-
-```text
-Hello, I'm testing the /v1/demo-a URI. Please respond back with the same URI
-and include the name of the model answering.
-```
-
-Use the repeated URI and selected guard/model in the log entry to confirm the
-request reached the intended flow.
-
-![Traffic log validation](images/traffic-log-validation.jpg)
-
-## 12. Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `/v1/demo-a/*` still hits fallback | `/v1/*` was created/listed before explicit routes | Recreate or reorder routes so `/v1/*` is last |
-| LiteLLM says invalid model | FAIG guard/provider model does not match LiteLLM alias | Use `pass-bedrock`, `demo-a`, `demo-b`, `demo-a-faig-be`, or `demo-b-faig-be` |
-| Route matrix fails on intelligent `passthrough` | Intelligent flow requires a header for all routing | Configure no-header/default behavior to pass-through |
-| Re-entry route loops | `/v1/passthrough/*` points to a `*-faig-be` model | Point the pass-through route to `litellm-pass-bedrock` / `pass-bedrock` |
-| 401/403 from FAIG test | API key validation is still enabled or wrong key/header is used; logs should show an invalid API key/authentication failure | Disable lab API key validation or set `fortiaigate_test_api_key` |
-
-## 13. Reference: Bedrock Direct Provider
-
-The default lab path sends FortiAIGate to LiteLLM, and LiteLLM uses the EC2
-instance role to reach Bedrock. Use Bedrock direct configuration only when
-testing FortiAIGate calling Bedrock without LiteLLM in the middle.
-
-| FortiAIGate input | Source |
+| Field | Value |
 |---|---|
-| Region | `terraform -chdir=terraform/aws-prep output bedrock_allowed_regions` |
-| LLM model | `terraform -chdir=terraform/aws-prep output bedrock_model_ids` |
-| Access key ID | `terraform -chdir=terraform/aws-prep output bedrock_access_key_id` |
-| Secret access key | `terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key` |
+| Guard name | `{{guard-name}}` |
+| Provider type | OpenAI-compatible |
+| Provider endpoint | `{{litellm-endpoint}}` |
+| Provider model | `{{next-hop-model}}` |
+| Provider API key | `{{litellm-api-key}}` |
+| Input/output protection | Configure from `{{guard-template}}` below |
 
-To print the Bedrock secret access key through the Ansible output helper:
+The provider model must equal the scenario alias in the work order. Different
+roles for one scenario intentionally share the same next-hop model so the
+comparison changes FAIG policy, not backend instructions.
+
+[Create guard page](images/create-demo-guard.jpg)
+
+### Guard Templates
+
+| Template | Required behavior |
+|---|---|
+| `detect_only` | Enable the scenario-relevant detectors, log findings, allow the request and response, and do not redact content. |
+| `protect_input` | Enable prompt-injection inspection on input and deny/stop explicit instruction-control attacks before generation. |
+| `input_dlp` | Enable DLP on model input for comparison; do not describe it as output protection. |
+| `output_dlp_deny` | Enable output DLP and deny the response when protected data is detected. |
+| `output_dlp_redact` | Enable output DLP and redact detected protected values while allowing the remaining response. |
+
+Scenario runbooks list detector and PII tuning that is specific to the demo.
+The input and output pages are shown here:
+
+- [Input protection page](<images/input guard.jpg>)
+- [Output protection page](<images/output guard.jpg>)
+
+## Create A Scenario Flow
+
+Create the flow after its guard:
+
+| Field | Value |
+|---|---|
+| Flow name | `{{flow-name}}` |
+| Configured URI | `{{configured-uri}}` |
+| Attached guard | `{{guard-name}}` |
+| Resulting request URL | `{{flow-uri}}/chat/completions` |
+
+[Create flow page](images/create-demo-flow.jpg)
+
+Specific routes should be created before any generic `/v1/*` fallback because
+URI evaluation may be order-sensitive. Phase 11 does not generate intelligent
+header routes or FAIG re-entry chains by default.
+
+## Validate Scenario Paths
+
+Test one role through the chatbot-owned agent loop:
 
 ```bash
-ansible-playbook playbooks/show_demo_outputs.yml -e demo_outputs_show_secrets=true
+python3 scripts/scenario_test_harness.py \
+  --scenario {{scenario-id}} \
+  --path-role {{path-role}}
 ```
 
-Treat terminal scrollback as sensitive when printing secrets.
+Test raw FAIG path connectivity:
+
+```bash
+python3 scripts/traffic_generator.py \
+  --mode path_test \
+  --path-test-path {{flow-name}}
+```
+
+Capture the chatbot selection, response, MCP trace when applicable, and FAIG
+traffic log fields including flow, guard, action, verdict, model, and timestamp.
+[Traffic log page](images/traffic-log-validation.jpg)
+
+## Updates And Removal
+
+Tracked examples are read-only templates. Local scenario files are ignored and
+operator-owned. Pulling repo changes never overwrites them.
+
+```bash
+python3 scripts/scenario_profiles.py update {{scenario-id}}
+python3 scripts/scenario_profiles.py update {{scenario-id}} --force
+```
+
+`--force` creates an ignored backup before replacement. Redeploy LiteLLM and
+the chatbot after an installed scenario changes. Re-render the work order and
+manually update FAIG objects.
+
+Removing a scenario archives its local files and records its FAIG objects as
+stale; it does not delete GUI state:
+
+```bash
+python3 scripts/scenario_profiles.py remove {{scenario-id}}
+python3 scripts/scenario_profiles.py render-work-order
+python3 scripts/scenario_profiles.py ack-stale {{scenario-id}}
+```
+
+Run `ack-stale` only after the listed flows and guards have been removed from
+FortiAIGate.

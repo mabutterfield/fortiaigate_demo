@@ -1,192 +1,183 @@
 # Scenario Authoring Guide
 
-Phase 10 is transitional. Current candidate scenario profiles live under
-`chatbot/scenarios/examples/<scenario-id>/`. Archived scenario profiles live
-under `archived_scenarios/<scenario-id>/` and are inactive in the catalog.
-Each scenario has:
+Phase 11 scenario templates live under
+`chatbot/scenarios/examples/<scenario-id>/`. Templates are read-only inputs to
+the installer. Operator-owned, editable copies live under the ignored
+`chatbot/scenarios/local/<scenario-id>/` tree.
 
-- `profile.json`: tracked metadata, prompt examples, expected traces, data
-  sources, and the intended MCP tool profile.
-- `instructions.txt`: tracked backend instructions installed into `demo-a` or
-  `demo-b` for repeatable demos.
+Only `fortistore-injection` and `hr-tool-dlp` are validated baseline scenarios.
+Do not migrate or modify the six candidate packages until a future phase
+selects them.
 
-The active installed instructions live under `chatbot/instructions/local/`.
-Those files are ignored by Git so they can be tuned during recording without
-changing the tracked examples.
+## Package Contents
 
-For Phase 10 candidate scenarios, keep operator-facing settings explicit in the
-runbook whenever a profile changes. Phase 11 is planned as the v1.0 baseline
-and should replace compatibility slots with generated scenario metadata.
+A schema-v2 scenario package contains:
 
-- instruction slot
-- model/profile or route
-- context mode
-- MCP enabled/disabled
-- MCP path
-- MCP tool profile
-- max tool rounds
-- simplified chatbot demo profiles
-- expected tools and expected response marker
+- `profile.json`: identity, prompts, MCP requirements, path roles, frontend
+  instruction profiles, and simplified chatbot profiles;
+- `instructions.txt`: backend instructions loaded by LiteLLM;
+- optional frontend instruction files;
+- optional `curl-payloads/`, scenario screenshots, and a scenario README.
 
-## Edit And Test Workflow
+The schema is `chatbot/scenarios/scenario-profile-v2.schema.json`. Scenario IDs
+are lowercase kebab-case and become the LiteLLM alias.
 
-1. Install the tracked scenario into a local slot:
+## Local Edit Workflow
 
-   ```bash
-   python3 scripts/scenario_profiles.py install fortigate-operator --slot demo-a --force
-   ansible-playbook ansible/playbooks/deploy_litellm.yml
-   ```
+Install the tracked template once:
 
-2. In the chatbot UI, select the matching LLM profile and MCP tool profile:
+```bash
+python3 scripts/scenario_profiles.py add <scenario-id>
+python3 scripts/scenario_profiles.py list-installed
+```
 
-   | Control | Example |
-   |---|---|
-   | LLM profile | `demo-a` |
-   | Use MCP tools | On |
-   | MCP path | Direct MCP first, then FortiWeb MCP only when the proxy path is configured |
-| Tool profile | `fortigate-operator` |
+Edit files under `chatbot/scenarios/local/<scenario-id>/`. Git pulls do not
+overwrite those files. Deploy after local scenario changes:
 
-3. Tune the local prompt if needed:
+```bash
+ansible-playbook ansible/playbooks/deploy_litellm.yml
+ansible-playbook ansible/playbooks/deploy_chatbots.yml
+```
 
-   ```bash
-   python3 scripts/instruction_profiles.py edit demo-a
-   ansible-playbook ansible/playbooks/deploy_litellm.yml
-   ```
+Check whether the tracked source or local package changed:
 
-4. When the local slot behaves correctly, copy the wording back into the
-   scenario's tracked `instructions.txt` and update `profile.json` prompts or
-   expected trace notes.
+```bash
+python3 scripts/scenario_profiles.py update <scenario-id>
+```
 
-5. Validate before committing:
+Replace the local package only when explicitly requested:
 
-   ```bash
-   python3 scripts/scenario_profiles.py validate
-   python3 scripts/instruction_profiles.py validate
-   python3 scripts/smoke_test.py
-   ```
+```bash
+python3 scripts/scenario_profiles.py update <scenario-id> --force
+```
+
+Forced update first moves the previous package to the ignored `_backups/`
+tree. This is the expected update/overwrite warning boundary.
+
+## Matrix Contract
+
+`profile.json` `matrix` owns these runtime objects:
+
+| Field | Purpose |
+|---|---|
+| `llm_target` | Environment-neutral backend target, normally `llm-default` |
+| `instruction_profile` | Backend instruction source, position, and enabled state |
+| `entry_points` | Semantic FAIG roles and guard templates |
+| `frontend_instruction_profiles` | Named chatbot-local instruction choices |
+| `chatbot_profiles` | Simplified presets combining LLM, FAIG, MCP, context, and frontend settings |
+| `faig_chain` | Optional advanced FAIG re-entry chain; disabled in the baseline |
+
+Generated route names are `<scenario-id>-<path-role>`. Generated flow URIs are
+`/v1/<scenario-id>/<path-role>`. Suggested guard names use underscores. Every
+scenario route points to the scenario ID as its next-hop LiteLLM model.
+
+`detect` is the canonical detection role. Other baseline roles are
+`protect-input`, `input-dlp`, `output-dlp-deny`, and `output-dlp-redact`.
+
+Inspect generated output before deployment:
+
+```bash
+python3 scripts/scenario_profiles.py show-matrix
+python3 scripts/scenario_profiles.py render-work-order
+python3 scripts/build_scenario_matrix.py --output /tmp/scenario-matrix.json
+```
 
 ## MCP Tool Profiles
 
-The MCP server exposes one shared `/tools` catalog. Scenario isolation happens
-in the chatbot agent loop: the selected tool profile filters the fetched tool
-schemas before they are sent to the model.
+The MCP server exposes one shared tool catalog. The chatbot filters schemas
+before sending them to the model:
 
-Use one scenario ID per tool profile where practical. Keep profiles narrow so
-the model sees only tools that support the current story.
+- a scenario-named profile exposes only the scenario's `required_tools`;
+- `all-installed` is the optional expanded cross-domain demonstration set;
+- `all-server` appears only when the explicit debug flag is enabled;
+- an MCP-disabled scenario does not run the agent tool loop.
 
-Current active/candidate scenario tool profiles:
+Direct MCP is the scenario default. FortiWeb may be selected as an advanced
+alternate when its proxy is both desired and installed. Do not create duplicate
+simplified profiles for every MCP transport.
 
-| Tool profile | Tools |
-|---|---|
-| none | `fortistore-injection` disables MCP tools for product-advisor prompt-injection testing |
-| `hr-tool-dlp` | `employee_search`, `employee_lookup`, `employee_sensitive_lookup_demo`, `employee_table_with_cc` |
-| `fortigate-operator` | read-only FortiGate status/configuration tools |
-| `resume-screening-clean` | resume/document retrieval tools |
-| `resume-prompt-injection` | resume/document retrieval tools with attack fixture |
-| `resume-cloud-tool-pivot` | resume/document retrieval plus synthetic cloud inventory tools |
-| `resume-cloud-tool-pivot-safe` | safe comparison profile for resume tool-pivot testing |
-| `resume-cloud-tool-pivot-vulnerable` | vulnerable comparison profile for resume tool-pivot testing |
-
-During `deploy_chatbots.yml`, the chatbot role reads installed scenario
-metadata from the configured local slots, defaulting to `demo-a` and `demo-b`.
-It generates the MCP profile dropdown from those installed scenarios:
-
-- `all-tools` means all tools required by installed MCP-enabled scenarios.
-- Scenario-specific profiles expose only that scenario's required tools.
-- Archived or inactive profiles are not shown just because their files exist.
-- `debug-all-server-tools` exposes every MCP server tool only when
-  `chatbot_mcp_show_debug_all_server_tools: true` is set.
-
-Changing which scenario is installed normally needs only the relevant scenario
-install command and `deploy_chatbots.yml` to update the dropdown. Changing MCP
-tool code or data still requires `deploy_mcp.yml`. Changing chatbot filtering
-logic requires rebuilding/publishing the chatbot image.
-
-## Simplified Chatbot Profiles
-
-The chatbot has two UI modes:
-
-- `Detailed`: the default operator/debug view with explicit controls for path,
-  route, model/profile, context, frontend instructions, and MCP tools.
-- `Simplified`: a presenter view where one `Demo Profile` dropdown applies the
-  path, route, model/profile, context, frontend instruction, and MCP settings.
-
-Scenario `profile.json` files can define `chatbot_demo_profiles`. During
-`deploy_chatbots.yml`, the chatbot role reads installed scenario metadata from
-`chatbot_simplified_profile_slots`, defaulting to `demo-a`, `demo-b`, and
-`frontend`, and passes those presets to the app. Existing installed scenarios
-can also pick up tracked preset changes from their scenario ID on the next
-chatbot deploy.
-
-Example profile:
-
-```json
-{
-  "id": "fortigate-operator-direct",
-  "label": "FortiGate Operator - Direct",
-  "provider_path": "faig-static",
-  "route": "demo-a",
-  "mcp_enabled": true,
-  "mcp_path": "direct",
-  "mcp_tool_profile": "fortigate-operator",
-  "mcp_max_tool_rounds": 3,
-  "frontend_system_prompt_enabled": false,
-  "context_mode": "recent",
-  "context_window": 8
-}
-```
-
-Use intent-based labels such as `Detect Only`, `Input Protect`, or `Output DLP`
-instead of exposing internal route names. Route IDs such as `demo-a` and
-`demo-c` are implementation details and can be renamed later without changing
-the presenter-facing dropdown labels.
-
-Inactive legacy profiles still declare their historical tool profiles in
-`chatbot/scenarios/examples/catalog.json`, but most files now live under
-`archived_scenarios/`. They can be reactivated by moving or copying the folder
-back under `chatbot/scenarios/examples/`, updating the catalog path, and setting
-`"active": true`. They can be inspected with `--include-inactive` options where
-supported.
-
-`echo` is intentionally left out of scenario profiles because it is a
-connectivity test utility.
-
-Headless tests use the same profile filter:
+Use `--mcp-path fortiweb` in the headless harness when testing that alternate:
 
 ```bash
-kubectl -n chatbot exec deploy/chatbot -- python /app/agent_probe.py \
-  --provider direct \
-  --mcp-path direct \
-  --tool-profile fortigate-operator \
-  --prompt "Show me the FortiGate system status."
+python3 scripts/scenario_test_harness.py \
+  --scenario hr-tool-dlp \
+  --path-role direct \
+  --mcp-path fortiweb
 ```
 
-`scripts/scenario_test_harness.py` defaults `--tool-profile` from
-`profile.json` `mcp.tool_profile`.
+## Frontend Instruction Profiles
 
-## Curl Payloads
+Frontend instructions are named files in the scenario package. Simplified
+profiles select the intended name; advanced mode can select `none`, the
+scenario profile, or another installed profile.
 
-Each scenario can also carry raw curl replay payloads under
-`curl-payloads/`. These files simulate tool-call transcripts without calling
-the chatbot or MCP server.
+Frontend instructions are not LiteLLM backend instructions. Keep deliberately
+unsafe fixtures clearly labeled, and never place secrets in them. A local
+frontend edit requires chatbot redeployment but does not require an image
+rebuild.
 
-Use them when the test target is FortiAIGate/LiteLLM/model handling of
-tool-result-like content. Use the chatbot UI or `agent_probe.py` when the test
-target is real MCP tool selection and execution.
+## Simplified Profiles
 
-Replay instructions are in [curl-payloads.md](curl-payloads.md).
+Each simplified profile should describe one demo intent, not one transport
+combination. It selects:
 
-## Deploy Boundary
+- provider path (`direct` or `faig-static`);
+- scenario model alias and optional route;
+- context mode/window;
+- frontend instruction profile;
+- MCP enabled state, normal MCP path, tool profile, and tool-round limit.
 
-Scenario-specific runbooks assume the MCP server and chatbot tool-profile
-inventory are already deployed. You do not need to redeploy MCP or the chatbot
-when switching scenario prompts, installing a scenario into a LiteLLM slot, or
-selecting another tool profile in the UI. Redeploy MCP or the chatbot only when
-developing the scenario implementation itself.
+Use presenter-facing labels such as `Detect Only`, `Protect Input`, or
+`Output DLP Redact`. The advanced UI remains available for alternate tool sets
+and MCP transports.
 
-| Change | Deploy |
+## Validation
+
+Validate structure and deterministic generation:
+
+```bash
+python3 scripts/scenario_profiles.py validate
+python3 scripts/build_scenario_matrix.py >/tmp/scenario-matrix.json
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 scripts/smoke_test.py
+```
+
+Run a scenario role through the deployed chatbot agent:
+
+```bash
+python3 scripts/scenario_test_harness.py \
+  --scenario <scenario-id> \
+  --path-role <path-role>
+```
+
+Raw curl payloads under `curl-payloads/` simulate tool-result-like content for
+FAIG/LiteLLM testing. Use the chatbot UI or harness when real MCP tool
+selection and execution are part of the test.
+
+## Deploy Boundaries
+
+| Change | Required action |
 |---|---|
-| Install/edit active prompt slot | `ansible-playbook ansible/playbooks/deploy_litellm.yml` |
-| Change chatbot code or default tool-profile settings | publish chatbot image if needed, then `ansible-playbook ansible/playbooks/deploy_chatbots.yml` |
-| Change MCP tool code, schemas, fixture data, documents, or FortiGate secret wiring | `ansible-playbook ansible/playbooks/deploy_mcp.yml` |
-| Select another tool profile in the chatbot UI | No redeploy |
+| Add/remove/edit installed scenario backend instructions | Deploy LiteLLM; deploy chatbot for generated profile/route changes |
+| Edit installed frontend instructions or matrix chatbot profiles | Deploy chatbot |
+| Change chatbot or `agent_probe.py` code | Bump image tag, publish image, deploy chatbot |
+| Change MCP tool code, schemas, fixture data, or credential wiring | Deploy MCP |
+| Select another advanced model, route, frontend profile, MCP path, or tool profile | No redeploy |
+| Change FAIG entry points | Re-render work order and manually update FAIG GUI objects |
+
+## Removal
+
+```bash
+python3 scripts/scenario_profiles.py remove <scenario-id>
+python3 scripts/scenario_profiles.py render-work-order
+```
+
+Removal archives the local package and records stale FAIG objects. It never
+deletes appliance configuration. After manual cleanup:
+
+```bash
+python3 scripts/scenario_profiles.py ack-stale <scenario-id>
+```
+
+Phase 10 slot commands remain compatibility-only and should not appear in new
+scenario designs or runbooks.

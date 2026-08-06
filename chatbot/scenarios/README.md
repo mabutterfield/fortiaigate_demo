@@ -7,8 +7,8 @@ and prompt examples. They do not deploy separate MCP servers; every scenario
 uses the same shared MCP service and declares its expected tools in
 `required_tools`.
 
-Tracked Phase 10 active scenarios and Phase 11 candidate scenarios live under
-`examples/`. Archived or legacy scenarios live under the repo-level
+Tracked Phase 11 baseline and candidate templates live under `examples/`.
+Archived or legacy scenarios live under the repo-level
 `archived_scenarios/` directory. The catalog remains at `examples/catalog.json`
 and can point at either location.
 
@@ -21,7 +21,7 @@ are not expanded by the Phase 11 runtime.
 
 The current working set is intentionally small.
 
-Phase 10 active scenarios:
+Phase 11 baseline scenarios:
 
 | Scenario | Location | Purpose |
 |---|---|---|

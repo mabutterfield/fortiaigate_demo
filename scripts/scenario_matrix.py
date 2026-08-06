@@ -405,7 +405,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
         "## Global Controls",
         "",
         "- LiteLLM passthrough alias: `pass-model`",
-        "- FAIG passthrough URI: `/v1/passthrough`",
+        "- FAIG passthrough configured URI: `/v1/passthrough/*`",
         "- Behavior: no scenario instructions",
         "",
         "## Installed Scenario Objects",
@@ -417,7 +417,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Role | Suggested flow | Flow URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
+                "| Scenario | Role | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
                 "|---|---|---|---|---|---|---|---|---|",
             ]
         )
@@ -429,7 +429,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                         f"`{entry['scenario_id']}`",
                         entry["display_name"],
                         f"`{entry['suggested_flow_name']}`",
-                        f"`{entry['uri']}`",
+                        f"`{entry['uri']}/*`",
                         f"`{entry['suggested_guard_name']}`",
                         f"`{entry['guard_next_hop_model']}`",
                         f"`{entry['guard_template']}`",
@@ -442,7 +442,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
         lines.extend(
             [
                 "",
-                "Guard and flow names may differ, but each flow URI and guard next-hop",
+                "Guard and flow names may differ, but each configured URI and guard next-hop",
                 "LiteLLM model alias must match this work order.",
                 "",
             ]
@@ -458,7 +458,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                 "Remove these objects manually in the FAIG GUI, then acknowledge them",
                 "with `python3 scripts/scenario_profiles.py ack-stale <scenario-id>`.",
                 "",
-                "| Scenario | Flow URI | Suggested guard | Reason |",
+                "| Scenario | Configured URI | Suggested guard | Reason |",
                 "|---|---|---|---|",
             ]
         )
@@ -469,7 +469,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                     + " | ".join(
                         [
                             f"`{stale.get('scenario_id', '')}`",
-                            f"`{entry_point.get('uri', '')}`",
+                            f"`{entry_point.get('uri', '')}/*`",
                             f"`{entry_point.get('suggested_guard_name', '')}`",
                             str(stale.get("reason", "")),
                         ]

@@ -260,7 +260,7 @@ class ScenarioMatrixTests(unittest.TestCase):
         }
         matrix = scenario_matrix.build_scenario_matrix(preview)
         work_order = scenario_matrix.render_work_order(matrix)
-        self.assertIn("`/v1/fortistore-injection/detect`", work_order)
+        self.assertIn("`/v1/fortistore-injection/detect/*`", work_order)
         self.assertIn("`fortistore_injection_detect`", work_order)
         self.assertIn("`fortistore-injection`", work_order)
 

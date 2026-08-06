@@ -172,7 +172,7 @@ class LocalScenarioStoreTests(unittest.TestCase):
         state = self.store.load_state()
         self.assertEqual(state["installed_scenarios"], [])
         self.assertEqual(len(state["stale_faig_objects"]), 1)
-        self.assertIn("/v1/test-scenario/detect", self.store.render_work_order())
+        self.assertIn("/v1/test-scenario/detect/*", self.store.render_work_order())
 
     def test_update_records_removed_roles_and_clears_them_if_restored(self) -> None:
         self.store.add("test-scenario", self.source_profile, now=100)

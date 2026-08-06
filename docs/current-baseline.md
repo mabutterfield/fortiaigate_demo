@@ -3,10 +3,9 @@
 This page is the compact status reference for current defaults. For the design
 and request paths, see [Architecture](architecture.md).
 
-Status: Phase 10 pre-Phase-11 baseline candidate. Current profile and route
-names such as `demo-a`, `demo-b`, `demo-c`, and `demo-d` are compatibility
-names, not the planned v1.0 naming model. Phase 11 is expected to become the
-v1.0 baseline with scenario-owned paths and generated scenario metadata.
+Status: Phase 11 v1.0 baseline integration. Runtime scenario aliases, chatbot
+profiles, MCP selections, and FAIG paths are generated from ignored installed
+scenario packages. Phase 10 demo-letter names are compatibility-only.
 
 ## Component Inventory
 
@@ -15,7 +14,7 @@ v1.0 baseline with scenario-owned paths and generated scenario metadata.
 | FortiAIGate | working | `fortiaigate` | `https://<k3s-ip>/ui/` for 8.0.1 |
 | LiteLLM | working | `litellm` | `http://<k3s-ip>:30083/ui/` |
 | custom chatbot UI | working | `chatbot` | `http://<k3s-ip>:30081` and `https://<k3s-ip>:30444` after HTTPS gateway deploy |
-| MCP demo tools | enabled by default, includes customer/ticket/menu/HR/document and read-only FortiGate tool schemas | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
+| MCP demo tools | enabled by default; chatbot exposes scenario-scoped or explicit all-installed tool profiles | `mcp` | `http://<k3s-ip>:30084/tools` and `https://<k3s-ip>:30447/tools` after HTTPS gateway deploy |
 | FortiAIGate syslog collector | optional log preservation path when the AWS prep syslog bucket exists | `fortiaigate-logging` | internal UDP/514 ClusterIP service |
 | demo home | working | `demo-home` | `http://<k3s-ip>:30082` and `https://<k3s-ip>:30445` after HTTPS gateway deploy |
 | HTTPS gateway | enabled in system defaults | `demo-https-gateway` | generated HTTPS ports after the playbook runs |
@@ -24,7 +23,7 @@ v1.0 baseline with scenario-owned paths and generated scenario metadata.
 | FortiWeb appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiWeb EIP and FortiWeb-fronted NodePorts |
 | Ollama | supported for local mode, disabled for AWS defaults | `ollama` | local trusted-lab HTTP NodePort `30085` when deployed |
 
-## Phase 10 Supported Paths
+## Supported Deployment Paths
 
 | Path | Provider | Infrastructure | Notes |
 |---|---|---|---|
@@ -131,16 +130,16 @@ Smoke-test playbooks:
 ## Remaining Caveats
 
 - FortiAIGate GUI provider/guard/route setup is still manual.
-- Current scenario routing uses transitional `demo-a`/`demo-b` compatibility
-  names. Phase 11 will replace those with generated scenario-owned paths and
-  profile metadata.
+- Scenario install/update/remove generates an exact FAIG work order but does
+  not mutate FortiAIGate GUI objects. Removed routes remain recorded as stale
+  until an operator removes and acknowledges them.
 - FortiWeb MCP Security policy is not automated because the FortiWeb collection
   does not expose the FortiWeb 8.0.3+ MCP Security object yet.
 - Long-running traffic generation exists for local-safe demo capture but should
   be treated as optional, operator-controlled traffic.
 - The local path is supported for trusted labs. Local Ollama's NodePort is
   plain HTTP and must not be exposed to untrusted networks.
-- Some local Phase 9/10 flows were validated in the lab and still need final
-  Phase 10 fresh-run validation before the Phase 11 baseline work starts.
+- Canonical `/v1/passthrough` is validated locally. Scenario-owned FAIG routes
+  require the generated manual flows before their release tests can pass.
 - private k3s subnet mode and full appliance-fronted-only access remain future
   validation items.

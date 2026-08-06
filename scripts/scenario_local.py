@@ -638,7 +638,7 @@ class LocalScenarioStore:
             "## Global Controls",
             "",
             "- LiteLLM passthrough alias: `pass-model`",
-            "- FAIG passthrough URI: `/v1/passthrough`",
+            "- FAIG passthrough configured URI: `/v1/passthrough/*`",
             "- Behavior: no scenario instructions",
             "",
             "## Installed Scenarios",
@@ -656,7 +656,7 @@ class LocalScenarioStore:
                     f"- Underlying target: `{scenario['llm_target']}`",
                     f"- Local profile: `{scenario['local_profile']}`",
                     "",
-                    "| Role | Suggested flow | Flow URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
+                    "| Role | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
                     "|---|---|---|---|---|---|---|---|",
                 ]
             )
@@ -667,7 +667,7 @@ class LocalScenarioStore:
                         [
                             entry_point["display_name"],
                             f"`{entry_point['suggested_flow_name']}`",
-                            f"`{entry_point['uri']}`",
+                            f"`{entry_point['uri']}/*`",
                             f"`{entry_point['suggested_guard_name']}`",
                             f"`{entry_point['guard_next_hop_model']}`",
                             f"`{entry_point['guard_template']}`",
@@ -680,7 +680,7 @@ class LocalScenarioStore:
             lines.append("")
             lines.extend(
                 [
-                    "Guard and flow names may differ, but the flow URI and guard next-hop",
+                    "Guard and flow names may differ, but the configured URI and guard next-hop",
                     "LiteLLM model alias must match this work order.",
                     "",
                 ]
@@ -695,7 +695,7 @@ class LocalScenarioStore:
                     "These objects are not removed automatically. Remove them manually in the FAIG GUI,",
                     "then acknowledge the stale record with `scenario_profiles.py ack-stale`.",
                     "",
-                    "| Scenario | Flow URI | Suggested guard | Reason |",
+                    "| Scenario | Configured URI | Suggested guard | Reason |",
                     "|---|---|---|---|",
                 ]
             )
@@ -706,7 +706,7 @@ class LocalScenarioStore:
                         + " | ".join(
                             [
                                 f"`{stale.get('scenario_id', '')}`",
-                                f"`{entry_point.get('uri', '')}`",
+                                f"`{entry_point.get('uri', '')}/*`",
                                 f"`{entry_point.get('suggested_guard_name', '')}`",
                                 str(stale.get("reason", "")),
                             ]
