@@ -1,14 +1,17 @@
 ---
+demo_configuration_source: scenario_matrix
+scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
 litellm_direct_test_base_url: "http://127.0.0.1:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/v1"
-litellm_direct_test_model: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+litellm_direct_test_model: fortistore-injection
 poll_all_endpoints: false
 litellm_direct_test_poll_all_endpoints: false
 litellm_direct_test_models:
-  - "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
-  - "{{ litellm_demo_a_model_alias | default('demo-a') }}"
-  - "{{ litellm_demo_b_model_alias | default('demo-b') }}"
+  - pass-model
+  - fortistore-injection
+  - hr-tool-dlp
 litellm_direct_test_message: "What is your name?"
 litellm_direct_test_expected_text: ""
+litellm_direct_test_expected_text_by_model: {}
 litellm_direct_test_fail_on_missing_expected_text: false
 litellm_direct_test_timeout_seconds: 120
 litellm_direct_test_max_tokens: 512

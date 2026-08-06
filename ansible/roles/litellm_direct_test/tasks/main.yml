@@ -1,4 +1,39 @@
 ---
+- name: Build installed scenario matrix for direct tests
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ scenario_matrix_builder_path }}"
+  changed_when: false
+  register: litellm_direct_test_matrix_result
+  delegate_to: localhost
+  become: false
+  when: demo_configuration_source == 'scenario_matrix'
+  # - ansible.builtin.debug:
+  #     var: litellm_direct_test_matrix_result.stdout_lines
+
+- name: Set matrix-driven LiteLLM direct test models
+  ansible.builtin.set_fact:
+    litellm_direct_test_matrix: "{{ litellm_direct_test_matrix_result.stdout | from_json }}"
+    litellm_direct_test_models: >-
+      {{
+        (litellm_direct_test_matrix_result.stdout | from_json)['litellm_models']
+        | map(attribute='name')
+        | list
+      }}
+    litellm_direct_test_model: >-
+      {{
+        (
+          (litellm_direct_test_matrix_result.stdout | from_json)['litellm_models']
+          | map(attribute='name')
+          | list
+        )
+        | first
+      }}
+  when: demo_configuration_source == 'scenario_matrix'
+  # - ansible.builtin.debug:
+  #     var: litellm_direct_test_models
+
 - name: Validate LiteLLM direct test settings
   ansible.builtin.assert:
     that:
@@ -90,9 +125,20 @@
             'status': item.status | default(0),
             'failed': item.failed | default(false),
             'response_text': item.json.choices[0].message.content | default(''),
+            'expected_text': (
+              litellm_direct_test_expected_text_by_model[item.item]
+              | default(litellm_direct_test_expected_text)
+            ),
             'expected_present': (
-              litellm_direct_test_expected_text | length == 0
-              or litellm_direct_test_expected_text in (item.json.choices[0].message.content | default(''))
+              (
+                litellm_direct_test_expected_text_by_model[item.item]
+                | default(litellm_direct_test_expected_text)
+                | length
+              ) == 0
+              or (
+                litellm_direct_test_expected_text_by_model[item.item]
+                | default(litellm_direct_test_expected_text)
+              ) in (item.json.choices[0].message.content | default(''))
             ),
             'error': item.msg | default('')
           }
@@ -112,7 +158,7 @@
       - "Available models: {{ litellm_direct_test_model_ids | join(', ') }}"
       - "Requested model: {{ item.model }}"
       - "HTTP status: {{ item.status }}"
-      - "Expected text: {{ litellm_direct_test_expected_text if litellm_direct_test_expected_text | length > 0 else 'not set' }}"
+      - "Expected text: {{ item.expected_text if item.expected_text | length > 0 else 'not set' }}"
       - "Expected text present: {{ item.expected_present }}"
       - "Error: {{ item.error if item.error | length > 0 else 'none' }}"
       - "Response: {{ item.response_text }}"
@@ -135,7 +181,7 @@
   ansible.builtin.fail:
     msg: >-
       LiteLLM direct response for model {{ item.model }} did not include
-      expected text {{ litellm_direct_test_expected_text }}. Response was:
+      expected text {{ item.expected_text }}. Response was:
       {{ item.response_text }}
   loop: "{{ litellm_direct_test_summaries }}"
   loop_control:

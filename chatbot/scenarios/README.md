@@ -95,12 +95,14 @@ automatically. After manually removing stale objects, acknowledge them with:
 python3 scripts/scenario_profiles.py ack-stale fortistore-injection
 ```
 
-The Phase 3 builder deterministically expands installed scenarios into the
+The matrix builder deterministically expands installed scenarios into the
 LiteLLM aliases, backend instruction profiles, chatbot simplified and advanced
 controls, MCP paths and tool profiles, scenario-owned FAIG routes, and the FAIG
-GUI work order. The output remains a dry run: Ansible does not consume or apply
-it yet. Use `--debug-all-server-tools` only when intentionally exposing every
-tool reported by the MCP server for troubleshooting.
+GUI work order. The LiteLLM role now consumes the model and backend-instruction
+slice when `demo_configuration_source: scenario_matrix` (the default). Chatbot,
+MCP, and FAIG GUI objects remain generated dry-run contracts until their later
+integration phases. Use `--debug-all-server-tools` only when intentionally
+exposing every tool reported by the MCP server for troubleshooting.
 
 ## Catalog And Compatibility Commands
 

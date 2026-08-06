@@ -15,6 +15,19 @@
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
 
+# Phase 11 uses installed local scenarios as the single LiteLLM/chatbot
+# configuration source. Keep this at the repo-owned default unless debugging a
+# pre-Phase-11 deployment.
+# demo_configuration_source: scenario_matrix
+#
+# Advanced provider mapping: add or replace an abstract matrix LLM target. Do
+# not put provider secrets in this tracked example; keep them only in ignored
+# user.yml when an alternate target requires credentials.
+# scenario_matrix_llm_target_overrides:
+#   alternate-local:
+#     provider_model: ollama_chat/llama3.1:8b
+#     api_base: http://ollama.ollama.svc.cluster.local:11434
+
 # Optional smaller chatbot/FAIG demo surface. When enabled and chatbots are
 # redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
 # chatbot_faig_lite_mode: true

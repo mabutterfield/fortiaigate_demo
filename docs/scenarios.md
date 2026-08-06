@@ -16,8 +16,10 @@ Phase 11 schema, safe local scenario lifecycle, and deterministic matrix
 generation now exist. The `add`, `update`, `remove`, `list-installed`,
 `show-matrix`, and `render-work-order` commands prepare ignored editable
 scenario packages and expand them into the intended LiteLLM, chatbot, MCP, and
-FAIG contracts. They do not apply live configuration yet. Continue using the
-compatibility slot workflow below for the current live Phase 10 runtime.
+FAIG contracts. LiteLLM deployment consumes the generated aliases and local
+backend instructions; chatbot, MCP, and FAIG GUI integration remains pending.
+Continue using the compatibility slot workflow below only for a live Phase 10
+chatbot that has not yet been upgraded.
 
 ## Current Scenario Sets
 

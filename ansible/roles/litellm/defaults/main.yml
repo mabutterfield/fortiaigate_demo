@@ -37,7 +37,13 @@ litellm_bedrock_use_terraform_output: true
 litellm_bedrock_model_id: "{{ direct_model_bedrock_model | default('') }}"
 litellm_bedrock_fallback_model_id: "{{ direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0') }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region | default('') }}"
-litellm_passthrough_model_alias: pass-bedrock
+demo_configuration_source: scenario_matrix
+scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
+scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname }}"
+scenario_matrix_llm_target_overrides: {}
+litellm_passthrough_model_alias: pass-model
+# Phase 10 compatibility aliases remain temporarily for old local overrides.
+# The scenario_matrix source does not consume or generate these aliases.
 litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b
 litellm_demo_a_faig_be_model_alias: demo-a-faig-be
@@ -52,29 +58,7 @@ litellm_faig_backend_base_path: /v1/passthrough
 litellm_faig_backend_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_backend_base_path }}"
 litellm_faig_backend_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
 litellm_instruction_debug: false
-litellm_models:
-  - name: "{{ litellm_passthrough_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: passthrough
-  - name: "{{ litellm_demo_a_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: demo-a
-  - name: "{{ litellm_demo_b_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(litellm_bedrock_fallback_model_id) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: demo-b
-  - name: "{{ litellm_demo_a_faig_be_model_alias }}"
-    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-    api_base: "{{ litellm_faig_backend_base_url }}"
-    api_key: "{{ litellm_faig_backend_api_key }}"
-    instruction_profile: demo-a
-  - name: "{{ litellm_demo_b_faig_be_model_alias }}"
-    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-    api_base: "{{ litellm_faig_backend_base_url }}"
-    api_key: "{{ litellm_faig_backend_api_key }}"
-    instruction_profile: demo-b
+litellm_models: []
 
 chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
 chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
@@ -94,19 +78,7 @@ litellm_instruction_profile_source_path: "{{ chatbot_instruction_profile_files.d
 litellm_default_instruction_profile: passthrough
 litellm_instruction_profile_injection_position: prepend
 litellm_model_instruction_profiles: {}
-litellm_instruction_profiles:
-  - name: passthrough
-    enabled: false
-    position: prepend
-    instruction: "No backend instruction injection for passthrough model aliases."
-  - name: demo-a
-    enabled: true
-    position: "{{ litellm_instruction_profile_injection_position }}"
-    source_path: "{{ litellm_instruction_profile_source_path }}"
-  - name: demo-b
-    enabled: true
-    position: "{{ litellm_instruction_profile_injection_position }}"
-    source_path: "{{ chatbot_instruction_profile_files.demo_b.local_path }}"
+litellm_instruction_profiles: []
 
 litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:{{ litellm_service_port }}/v1"
 litellm_faig_base_path: /v1/passthrough

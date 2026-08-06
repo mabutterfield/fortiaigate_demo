@@ -17,7 +17,11 @@ a "what's new" guide rather than a raw commit log.
   - added a deterministic Phase 3 builder for LiteLLM aliases and instruction
     profiles, chatbot simplified and advanced controls, MCP paths and scoped
     tool profiles, scenario-owned FAIG routes, and the FAIG GUI work order;
-    Ansible runtime consumption follows in later Phase 11 work
+  - made matrix generation the default LiteLLM configuration source, resolving
+    the environment-neutral `llm-default` target to Bedrock or Ollama during
+    deployment and loading backend instructions from ignored local scenarios
+  - added direct validation for canonical `pass-model`, `fortistore-injection`,
+    and `hr-tool-dlp` aliases, including required scenario activation markers
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

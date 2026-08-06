@@ -933,7 +933,7 @@ litellm_bedrock_enabled: false
 litellm_bedrock_use_terraform_output: false
 litellm_use_ollama_model_list: true
 litellm_ollama_base_url: "{{{{ ollama_internal_base_url | regex_replace('/v1/?$', '') }}}}"
-litellm_passthrough_model_alias: pass-ollama
+litellm_passthrough_model_alias: pass-model
 litellm_faig_backend_downstream_model: "{{{{ litellm_passthrough_model_alias }}}}"
 
 # Local syslog keeps FortiAIGate log collection in-cluster and writes to a file
