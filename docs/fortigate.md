@@ -23,14 +23,9 @@ FortiGate shape:
 Apply order:
 
 ```bash
-cd terraform/aws-prep
-terraform apply
-
-cd ../aws-ec2-k3s
-terraform apply
-
-cd ../aws-fortigate
-terraform apply
+terraform -chdir=terraform/aws-prep apply
+terraform -chdir=terraform/aws-ec2-k3s apply
+terraform -chdir=terraform/aws-fortigate apply
 ```
 
 Make sure `terraform/aws-prep/99-local.auto.tfvars` enables the FortiGate EIP:
@@ -50,9 +45,9 @@ prepared but skip creating FortiGate resources.
 After apply, use:
 
 ```bash
-terraform output fortigate_admin_url
-terraform output fortigate_instance_id
-terraform output -raw fortigate_api_key
+terraform -chdir=terraform/aws-fortigate output fortigate_admin_url
+terraform -chdir=terraform/aws-fortigate output fortigate_instance_id
+terraform -chdir=terraform/aws-fortigate output -raw fortigate_api_key
 ```
 
 The FortiGate module also writes generated Ansible inventory to:
@@ -71,19 +66,19 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 Then poll FortiGate status from the repo root:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/status_fortigate.yml
+ansible-playbook -i cloud-fortigate ansible/playbooks/status_fortigate.yml
 ```
 
 Configure the FortiGate baseline from the repo root:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/configure_fortigate.yml
+ansible-playbook -i cloud-fortigate ansible/playbooks/configure_fortigate.yml
 ```
 
 Create/update FortiGate API profiles and application API accounts:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/configure_fortigate_api_accounts.yml
+ansible-playbook -i cloud-fortigate ansible/playbooks/configure_fortigate_api_accounts.yml
 ```
 
 The status and config playbooks read `fortigate_api_key` from
@@ -115,9 +110,9 @@ so a static object can add a new object or override a generated one. Inbound
 NAT policies should define the VIP in `fortigate_vip_objects_static`, then
 reference that VIP name in the firewall policy `dstaddr`.
 
-## Phase 10 Traffic And Application-Control Testing
+## Traffic And Application-Control Testing
 
-Phase 10E adds an opt-in FortiGate traffic demo path. It has two manual-first
+The opt-in FortiGate traffic demo path has two manual-first
 tracks:
 
 - outbound AI application detection from a VM behind FortiGate using
@@ -179,7 +174,7 @@ The default admin idle timeout is 60 minutes through
 `fortigate_admin_timeout_minutes`.
 
 The FortiGate AWS security group also exposes TCP `4000` from trusted public
-CIDRs by default for the optional Phase 10 LiteLLM proxy listener. Override
+CIDRs by default for the optional LiteLLM proxy listener. Override
 `fortigate_public_listener_tcp_ports` in ignored FortiGate tfvars only when the
 lab needs a different public listener set.
 

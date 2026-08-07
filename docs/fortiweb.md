@@ -65,7 +65,8 @@ prepared but skip creating FortiWeb resources.
 
 The AWS account must be subscribed to the selected FortiWeb Marketplace AMI
 before EC2 launch. If Terraform returns `OptInRequired`, accept the Marketplace
-terms for the SKU in the error message and rerun `terraform apply`.
+terms for the SKU in the error message and rerun
+`terraform -chdir=terraform/aws-fortiweb apply` from the repository root.
 
 The default AMI filter is FortiWeb `8.0`, which selects the latest matching
 8.0.x BYOL Marketplace image.
@@ -77,10 +78,9 @@ the current FortiWeb 8.0 BYOL image.
 Useful validation outputs:
 
 ```bash
-cd terraform/aws-fortiweb
-terraform output fortiweb_admin_url
-terraform output fortiweb_ssh_command
-terraform output fortiweb_instance_id
+terraform -chdir=terraform/aws-fortiweb output fortiweb_admin_url
+terraform -chdir=terraform/aws-fortiweb output fortiweb_ssh_command
+terraform -chdir=terraform/aws-fortiweb output fortiweb_instance_id
 ```
 
 The FortiWeb module also writes generated Ansible inventory to:
@@ -99,13 +99,13 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 Then poll FortiWeb status from the repo root:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/status_fortiweb.yml
+ansible-playbook -i cloud-fortiweb ansible/playbooks/status_fortiweb.yml
 ```
 
 Configure the FortiWeb baseline from the repo root:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
+ansible-playbook -i cloud-fortiweb ansible/playbooks/configure_fortiweb.yml
 ```
 
 The status playbook reads Terraform outputs at runtime. It uses
@@ -156,7 +156,7 @@ when the playbook does not explicitly set a password.
 The generated FortiWeb MCP proxy chain is enabled in repo system defaults
 with `fortiweb_mcp_proxy_enabled: true`. The default generated proxy set is
 intentionally narrow: MCP HTTP and MCP HTTPS only. This keeps FortiWeb
-configuration time reasonable for normal Phase 10 demos while preserving the
+configuration time reasonable for normal demos while preserving the
 role's wider OpenWebUI, chatbot, demo home, and LiteLLM proxy definitions for
 opt-in overrides. Override it in ignored
 `ansible/group_vars/user.yml` only when you want to skip FortiWeb listener and

@@ -53,8 +53,7 @@ If these fail, fix the AWS CLI/SSO session before troubleshooting Terraform.
 ## 3. Configure Shared Terraform Values
 
 ```bash
-cd terraform
-cp user.tfvars.example user.tfvars
+cp terraform/user.tfvars.example terraform/user.tfvars
 ```
 
 Set `aws_profile`, `aws_region`, `name_prefix`, `allowed_ingress_cidr`, and
@@ -64,12 +63,11 @@ string or a list of CIDR strings; use `/32` entries for individual public IPs.
 ## 4. Create ECR Repositories
 
 ```bash
-cd aws-ecr
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ecr/99-local.auto.tfvars.example terraform/aws-ecr/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ecr init
+terraform -chdir=terraform/aws-ecr fmt
+terraform -chdir=terraform/aws-ecr validate
+terraform -chdir=terraform/aws-ecr apply
 ```
 
 Terraform writes non-secret registry values to:
@@ -87,12 +85,11 @@ images.
 ## 5. Prepare AWS IAM, EIPs, and Bedrock Credentials
 
 ```bash
-cd ../aws-prep
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
+terraform -chdir=terraform/aws-prep init
+terraform -chdir=terraform/aws-prep fmt
+terraform -chdir=terraform/aws-prep validate
+terraform -chdir=terraform/aws-prep apply
 ```
 
 This creates the k3s EC2 role/profile, scoped ECR pull permissions, trusted
@@ -103,12 +100,11 @@ Terraform state configured by `aws_ecr_state_path`.
 ## 6. Deploy AWS Infrastructure
 
 ```bash
-cd ../aws-ec2-k3s
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ec2-k3s init
+terraform -chdir=terraform/aws-ec2-k3s fmt
+terraform -chdir=terraform/aws-ec2-k3s validate
+terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
 Terraform writes the generated Ansible inventory to:
@@ -135,9 +131,9 @@ for the default AWS key-pair-only behavior.
 Validate AWS instance status and SSH before running Ansible:
 
 ```bash
-AWS_PROFILE="$(terraform output -raw aws_profile)"
-AWS_REGION="$(terraform output -raw aws_region)"
-INSTANCE_ID="$(terraform output -raw instance_id)"
+AWS_PROFILE="$(terraform -chdir=terraform/aws-ec2-k3s output -raw aws_profile)"
+AWS_REGION="$(terraform -chdir=terraform/aws-ec2-k3s output -raw aws_region)"
+INSTANCE_ID="$(terraform -chdir=terraform/aws-ec2-k3s output -raw instance_id)"
 
 aws ec2 describe-instance-status \
   --profile "$AWS_PROFILE" \
@@ -151,7 +147,7 @@ aws ec2 describe-instance-status \
 Get the SSH command:
 
 ```bash
-terraform output ssh_command
+terraform -chdir=terraform/aws-ec2-k3s output ssh_command
 ```
 
 Run the `ssh_command` output. If SSH does not work, fix AWS networking, the key pair, or `ssh_private_key_file` before starting Ansible.
@@ -176,9 +172,8 @@ The default `k3s_subnet_mode` is `public`, which preserves direct SSH and browse
 ## 7. Configure Ansible Variables and Publish Images
 
 ```bash
-cd ../../ansible
-cp group_vars/user.yml.example group_vars/user.yml
-ansible-playbook playbooks/publish_images.yml
+cp ansible/group_vars/user.yml.example ansible/group_vars/user.yml
+ansible-playbook ansible/playbooks/publish_images.yml
 ```
 
 The image publisher reads release archive metadata, loads only missing or changed source images into local Docker, preserves the tags embedded in the archives, and pushes to the configured registry. Docker must be usable by the current workstation user without `sudo`.
@@ -190,20 +185,20 @@ on the local Docker disk before publishing.
 To publish one version:
 
 ```bash
-ansible-playbook playbooks/publish_images.yml -e publish_image_version=8.0.0
+ansible-playbook ansible/playbooks/publish_images.yml -e publish_image_version=8.0.0
 ```
 
 To publish only selected FortiAIGate target repositories:
 
 ```bash
-ansible-playbook playbooks/publish_images.yml \
+ansible-playbook ansible/playbooks/publish_images.yml \
   -e publish_target_repos=api,webui
 ```
 
 To publish only the chatbot image without loading FortiAIGate release archives:
 
 ```bash
-ansible-playbook playbooks/publish_chatbot_images.yml
+ansible-playbook ansible/playbooks/publish_chatbot_images.yml
 ```
 
 To publish from a custom local image directory, set the override in
@@ -282,7 +277,7 @@ Minimum `group_vars/user.yml` values to review:
 ## 8. Bootstrap k3s
 
 ```bash
-ansible-playbook playbooks/bootstrap_gpu_k3s.yml
+ansible-playbook ansible/playbooks/bootstrap_gpu_k3s.yml
 ```
 
 Bootstrap prepares Ubuntu 24.04, NVIDIA drivers, NVIDIA container runtime, k3s, local-path storage, nginx ingress, RuntimeClass, and the NVIDIA device plugin.
@@ -308,13 +303,13 @@ left to `status_fortiaigate.yml` and `validate_faig.yml`.
 Rerun the same checks independently with:
 
 ```bash
-ansible-playbook playbooks/validate_k3s.yml
+ansible-playbook ansible/playbooks/validate_k3s.yml
 ```
 
 ## 9. Deploy FortiAIGate
 
 ```bash
-ansible-playbook playbooks/deploy_fortiaigate.yml
+ansible-playbook ansible/playbooks/deploy_fortiaigate.yml
 ```
 
 The deploy playbook:
@@ -337,7 +332,7 @@ By default Helm does not wait for every Kubernetes workload to become Ready. Thi
 ## 10. Deploy LiteLLM Proxy
 
 ```bash
-ansible-playbook playbooks/deploy_litellm.yml
+ansible-playbook ansible/playbooks/deploy_litellm.yml
 ```
 
 LiteLLM is the shared OpenAI-compatible model proxy for the demo UIs. Direct
@@ -349,13 +344,13 @@ configured to use LiteLLM as an upstream OpenAI-compatible provider.
 Check LiteLLM status separately:
 
 ```bash
-ansible-playbook playbooks/status_litellm.yml
+ansible-playbook ansible/playbooks/status_litellm.yml
 ```
 
 Use this when a failing validation gate is preferred:
 
 ```bash
-ansible-playbook playbooks/validate_litellm.yml
+ansible-playbook ansible/playbooks/validate_litellm.yml
 ```
 
 The default LiteLLM Admin/API NodePort is `30083`; the Admin UI path is `/ui/`.
@@ -419,7 +414,7 @@ openwebui_enabled: true
 ```
 
 ```bash
-ansible-playbook playbooks/deploy_openwebui.yml
+ansible-playbook ansible/playbooks/deploy_openwebui.yml
 ```
 
 The deploy playbook starts or upgrades the Helm releases and then returns. It
@@ -428,13 +423,13 @@ does not wait for every Open WebUI pod to become Ready by default.
 Check Open WebUI status separately:
 
 ```bash
-ansible-playbook playbooks/status_openwebui.yml
+ansible-playbook ansible/playbooks/status_openwebui.yml
 ```
 
 Use this when a failing validation gate is preferred:
 
 ```bash
-ansible-playbook playbooks/validate_openwebui.yml
+ansible-playbook ansible/playbooks/validate_openwebui.yml
 ```
 
 When enabled, this deploys one Open WebUI release in namespace `openwebui`,
@@ -459,7 +454,7 @@ credentials, and the Terraform-generated SSH command for the k3s host.
 ## 12. MCP Demo Tools
 
 ```bash
-ansible-playbook playbooks/deploy_mcp.yml
+ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 The MCP baseline deploys a small tool server in namespace `mcp` and is enabled
@@ -473,13 +468,13 @@ workloads, and does not require ECR image publishing.
 Check MCP status separately:
 
 ```bash
-ansible-playbook playbooks/status_mcp.yml
+ansible-playbook ansible/playbooks/status_mcp.yml
 ```
 
 Use this when a failing validation gate is preferred:
 
 ```bash
-ansible-playbook playbooks/validate_mcp.yml
+ansible-playbook ansible/playbooks/validate_mcp.yml
 ```
 
 See [MCP Demo Tools](mcp.md) for data-file overrides and HTTP/HTTPS test URLs.
@@ -487,7 +482,7 @@ See [MCP Demo Tools](mcp.md) for data-file overrides and HTTP/HTTPS test URLs.
 ## 13. Monitor Status
 
 ```bash
-ansible-playbook playbooks/status_fortiaigate.yml
+ansible-playbook ansible/playbooks/status_fortiaigate.yml
 ```
 
 This is the lightweight readiness check. It reports one of:
@@ -515,7 +510,7 @@ kubectl get events -n fortiaigate --sort-by=.lastTimestamp
 ## 14. Validate
 
 ```bash
-ansible-playbook playbooks/validate_faig.yml
+ansible-playbook ansible/playbooks/validate_faig.yml
 ```
 
 Validation checks the host, Kubernetes, GPU visibility, ingress, and FortiAIGate service reachability.
@@ -577,8 +572,7 @@ Paste the Access Key ID, Secret Access Key, one permitted region, and one permit
 To test Bedrock directly before configuring the FortiAIGate guard/provider, run the direct model playbook:
 
 ```bash
-cd ansible
-ansible-playbook playbooks/test_model_direct.yml
+ansible-playbook ansible/playbooks/test_model_direct.yml
 ```
 
 By default, `test_model_direct.yml` reads these values directly from `terraform/aws-prep` outputs:
@@ -594,13 +588,11 @@ No shell exports are required for the Ansible default path. The playbook calls t
 To run with exported credentials instead of reading Terraform outputs, export the standard AWS credential variables from the Bedrock outputs:
 
 ```bash
-cd terraform/aws-prep
-export AWS_ACCESS_KEY_ID="$(terraform output -raw bedrock_access_key_id)"
-export AWS_SECRET_ACCESS_KEY="$(terraform output -raw bedrock_secret_access_key)"
+export AWS_ACCESS_KEY_ID="$(terraform -chdir=terraform/aws-prep output -raw bedrock_access_key_id)"
+export AWS_SECRET_ACCESS_KEY="$(terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key)"
 # Only needed for temporary session credentials; aws-prep creates a normal IAM access key.
 # export AWS_SESSION_TOKEN="<session-token>"
-cd ../../ansible
-ansible-playbook playbooks/test_model_direct.yml \
+ansible-playbook ansible/playbooks/test_model_direct.yml \
   -e direct_model_bedrock_read_credentials_from_terraform=false
 ```
 
@@ -634,8 +626,7 @@ The direct model playbook sends `Hello, is this thing on? Reply in one short sen
 After the guard is configured, run:
 
 ```bash
-cd ansible
-ansible-playbook playbooks/test_fortiaigate_chat.yml
+ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml
 ```
 
 The playbook calls the repo-owned `scripts/fortiaigate_chat_test.py` script, sends a short test prompt to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, asks the routed model to identify itself and repeat the URI under test, ignores the self-signed certificate with `curl -k`, and prints the received response in a readable format. The default model is the LiteLLM pass-through alias `pass-bedrock`.
@@ -645,7 +636,7 @@ matrix, including static route paths, one intelligent route path, and the
 default `/v1` fallback, run:
 
 ```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml \
+ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml \
   -e fortiaigate_test_poll_all_endpoints=true
 ```
 
@@ -719,16 +710,11 @@ and destroys only remaining ECR lifecycle/local output resources.
 Manual equivalent:
 
 ```bash
-cd terraform/aws-ecr
-terraform state rm 'aws_ecr_repository.this["api"]'
+terraform -chdir=terraform/aws-ecr state rm 'aws_ecr_repository.this["api"]'
 # repeat for each repository that should be retained
-terraform destroy
-
-cd ../aws-ec2-k3s
-terraform destroy
-
-cd ../aws-prep
-terraform destroy
+terraform -chdir=terraform/aws-ecr destroy
+terraform -chdir=terraform/aws-ec2-k3s destroy
+terraform -chdir=terraform/aws-prep destroy
 ```
 
 Private ECR repositories are managed separately in `terraform/aws-ecr` and

@@ -22,8 +22,7 @@ aws sso login --profile <profile-name>
 Set shared values once:
 
 ```bash
-cd terraform
-cp user.tfvars.example user.tfvars
+cp terraform/user.tfvars.example terraform/user.tfvars
 ```
 
 Edit `user.tfvars`:
@@ -46,9 +45,11 @@ access.
 Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
 `../user.tfvars`, so the shared values are loaded automatically:
 
+Run module commands from the repository root with `-chdir`, for example:
+
 ```bash
-terraform plan
-terraform apply
+terraform -chdir=terraform/aws-prep plan
+terraform -chdir=terraform/aws-prep apply
 ```
 
 Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
@@ -66,13 +67,17 @@ or certificates.
 
 ## ECR Module
 
+Container build, tag, publish, verification, cleanup, and rollback procedures
+are owned by [Container Repository Management](container-repository-management.md).
+The Terraform module is limited to repository infrastructure and generated
+registry configuration.
+
 ```bash
-cd terraform/aws-ecr
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ecr/99-local.auto.tfvars.example terraform/aws-ecr/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ecr init
+terraform -chdir=terraform/aws-ecr fmt
+terraform -chdir=terraform/aws-ecr validate
+terraform -chdir=terraform/aws-ecr apply
 ```
 
 This module creates or imports private ECR repositories and writes non-secret registry values to:
@@ -88,26 +93,25 @@ ECR pull permissions are owned by `terraform/aws-prep`, not this module.
 If repositories were created manually, import them before `terraform apply`:
 
 ```bash
-terraform import 'aws_ecr_repository.this["api"]' fortiaigate/api
-terraform import 'aws_ecr_repository.this["core"]' fortiaigate/core
-terraform import 'aws_ecr_repository.this["webui"]' fortiaigate/webui
-terraform import 'aws_ecr_repository.this["scanner"]' fortiaigate/scanner
-terraform import 'aws_ecr_repository.this["logd"]' fortiaigate/logd
-terraform import 'aws_ecr_repository.this["license_manager"]' fortiaigate/license_manager
-terraform import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-models
-terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
-terraform import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-basic
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["api"]' fortiaigate/api
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["core"]' fortiaigate/core
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["webui"]' fortiaigate/webui
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["scanner"]' fortiaigate/scanner
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["logd"]' fortiaigate/logd
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["license_manager"]' fortiaigate/license_manager
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-models
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-basic
 ```
 
 ## AWS Prep Module
 
 ```bash
-cd terraform/aws-prep
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
+terraform -chdir=terraform/aws-prep init
+terraform -chdir=terraform/aws-prep fmt
+terraform -chdir=terraform/aws-prep validate
+terraform -chdir=terraform/aws-prep apply
 ```
 
 This module creates:
@@ -135,11 +139,11 @@ aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
 Retrieve Bedrock GUI values from this module when `enable_bedrock_iam = true`:
 
 ```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_allowed_regions
-terraform output bedrock_model_ids
+terraform -chdir=terraform/aws-prep output bedrock_access_key_id
+terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
+terraform -chdir=terraform/aws-prep output bedrock_key_expires_at
+terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
+terraform -chdir=terraform/aws-prep output bedrock_model_ids
 ```
 
 The secret access key is stored in Terraform state. Do not commit state or real `99-local.auto.tfvars`.
@@ -167,12 +171,11 @@ Those objects and Terraform state are sensitive.
 ## AWS EC2 k3s Module
 
 ```bash
-cd terraform/aws-ec2-k3s
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ec2-k3s init
+terraform -chdir=terraform/aws-ec2-k3s fmt
+terraform -chdir=terraform/aws-ec2-k3s validate
+terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
 See [VPC Layout](vpc-layout.md) for a diagram of the public k3s subnet, private
@@ -249,9 +252,9 @@ The EC2 module also queries AWS Price List data for the configured
 shared-tenancy compute cost:
 
 ```bash
-terraform output ec2_instance_hourly_cost_usd
-terraform output ec2_instance_monthly_cost_usd
-terraform output ec2_instance_pricing_location
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_hourly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_monthly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_pricing_location
 ```
 
 The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,

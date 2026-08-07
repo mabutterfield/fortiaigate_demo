@@ -12,6 +12,8 @@ changes directories.
 
 | Task | Document |
 |---|---|
+| Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](first-run-preparation.md) |
+| Review defaults and optional components | [Deployment Options](deployment-options.md) |
 | Prepare and deploy the default AWS lab | [Automated Quick Start](quickstart-automated.md) |
 | Prepare and deploy a local Ubuntu GPU lab | [Local Hardware Mode](quickstart-automated.md#local-hardware-mode) |
 | Diagnose or recover a deployment | [Troubleshooting](troubleshooting.md) and [Deployment Runbook](deployment-runbook.md) |
@@ -33,13 +35,16 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [Automated Quick Start](quickstart-automated.md) | Prerequisites, guided AWS deployment, and local-hardware entry point |
+| [First-Run Preparation](first-run-preparation.md) | Control workstation, AWS/local prerequisites, user files, licenses, generated-state warnings, and preflight |
+| [Automated Quick Start](quickstart-automated.md) | Guided AWS and local deployment execution |
 | [AWS Instance Sizing](aws_instance.MD) | GPU instance selection |
+| [Command And Inventory Reference](reference/command-inventory.md) | Repo-root commands, inventory aliases, Terraform user links, generated files, and recovery hints |
 
 ### Choose Options
 
 | Document | Owns |
 |---|---|
+| [Deployment Options](deployment-options.md) | Default and optional features, controls, prerequisites, validation, and impact |
 | [Architecture](architecture.md) | Deployment topologies and request paths |
 | [Current Baseline](reference/current-baseline.md) | Default, optional, configurable, and deferred runtime behavior |
 | [AWS](aws.md) | AWS service and infrastructure choices |
@@ -55,7 +60,7 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Deployment Runbook](deployment-runbook.md) | End-to-end operational deployment sequence |
 | [Terraform Reference](terraform.md) | Terraform modules, generated Ansible data, and imports |
-| [ECR And Image Publishing](ecr.md) | Current container-repository and image-publishing workflow |
+| [Container Repository Management](container-repository-management.md) | Docker inputs/builds, tags, ECR/local registries, publishing, verification, rollback, and future separation |
 | [AWS k3s Foundation](aws-k3s-foundation.md) | AWS host bootstrap and k3s mechanics |
 | [Kubernetes](kubernetes.md) | k3s, Helm, namespaces, and post-render behavior |
 

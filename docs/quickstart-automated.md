@@ -8,6 +8,12 @@ recovery, start with [Troubleshooting](troubleshooting.md), then use the
 [Manual Deployment Reference](quickstart-manual.md) only when you need an exact
 Terraform or Ansible command sequence.
 
+Before the first run, complete [First-Run Preparation](first-run-preparation.md)
+and review [Deployment Options](deployment-options.md). Container repository
+creation and image publishing are still integrated with quickstart today; the
+authoritative workflow and future separation boundary are in
+[Container Repository Management](container-repository-management.md).
+
 ## TLDR
 
 Default AWS quickstart:

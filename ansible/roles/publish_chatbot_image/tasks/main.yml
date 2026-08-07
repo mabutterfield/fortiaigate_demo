@@ -243,7 +243,7 @@
     msg:
       - "Chatbot image published: {{ chatbot_image_repository }}:{{ chatbot_image_tag }}"
       - "Built platform: {{ chatbot_publish_image_platform.stdout | default('unknown') }}"
-      - "Deploy with: ansible-playbook playbooks/deploy_chatbots.yml"
+      - "Deploy from <repo_root> with: ansible-playbook ansible/playbooks/deploy_chatbots.yml"
   when:
     - chatbot_publish_enabled | bool
     - chatbot_publish_should_push | bool

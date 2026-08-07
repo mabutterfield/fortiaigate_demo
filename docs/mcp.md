@@ -84,26 +84,25 @@ ConfigMap.
 ## Deploy
 
 ```bash
-cd ansible
-ansible-playbook playbooks/deploy_mcp.yml
+ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 Check status:
 
 ```bash
-ansible-playbook playbooks/status_mcp.yml
+ansible-playbook ansible/playbooks/status_mcp.yml
 ```
 
 Use validation when the playbook should fail on a bad state:
 
 ```bash
-ansible-playbook playbooks/validate_mcp.yml
+ansible-playbook ansible/playbooks/validate_mcp.yml
 ```
 
 Run a single sample tool call:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml
+ansible-playbook ansible/playbooks/test_mcp.yml
 ```
 
 `test_mcp.yml` defaults to `mcp_test_target_mode=auto`. In AWS mode, auto uses
@@ -115,7 +114,7 @@ directly.
 Run deterministic Phase 8 document retrieval checks:
 
 ```bash
-ansible-playbook playbooks/validate_phase8_documents.yml
+ansible-playbook ansible/playbooks/validate_phase8_documents.yml
 ```
 
 This calls clean document listing, poisoned resume upload simulation, poisoned
@@ -129,14 +128,14 @@ NodePort by default. It reads the k3s public IP from
 To run the same sample through SSH on the k3s host and curl the local NodePort:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_target_mode=remote_localhost
 ```
 
 To test the HTTPS gateway instead of HTTP:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_use_https=true
 ```
 
@@ -147,7 +146,7 @@ certificate.
 Override the tool call when needed:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=ticket_lookup \
   -e '{"mcp_test_arguments":{"ticket_id":"TCK-2001"}}'
 ```
@@ -155,7 +154,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test the FortiGate system-status MCP tool:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=fortigate_system_status \
   -e '{"mcp_test_arguments":{}}'
 ```
@@ -163,7 +162,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test clean document search:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_search \
   -e '{"mcp_test_arguments":{"query":"Python","document_type":"resume"}}'
 ```
@@ -171,7 +170,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test that attack fixtures are blocked by default:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_read \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001"}}'
 ```
@@ -180,7 +179,7 @@ That call should return `ok=false` because `RESUME-9001` is an attack fixture.
 Run the explicit attack-fixture read only for a planned demo:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_read \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
 ```
@@ -188,7 +187,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Check the same poisoned resume for prompt-injection indicators:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_injection_check \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
 ```
@@ -200,7 +199,7 @@ bearer token.
 Override the target URL when testing a different endpoint:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_base_url_override=http://203.0.113.10:30084
 ```
 

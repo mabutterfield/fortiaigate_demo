@@ -13,8 +13,8 @@ AWS publishes vCPU counts, not physical core counts. For typical Intel-based EC2
 Pricing below is an approximate us-east-1 estimate from lab notes. AWS pricing and instance availability change; verify the current price and availability before long-running tests. The `terraform/aws-ec2-k3s` module now also outputs a current AWS Price List estimate for the configured `instance_type` and `aws_region`:
 
 ```bash
-terraform output ec2_instance_hourly_cost_usd
-terraform output ec2_instance_monthly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_hourly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_monthly_cost_usd
 ```
 
 Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do not include EBS, EIP idle charges, data transfer, Bedrock, marketplace, or licensing costs.

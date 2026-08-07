@@ -30,7 +30,8 @@ to S3 by path; Terraform state should not contain the license file content.
 
 The AWS account must be subscribed to the selected FortiWeb Marketplace AMI
 before EC2 launch. If apply fails with `OptInRequired`, accept the Marketplace
-terms for the listed SKU and rerun `terraform apply`.
+terms for the listed SKU and rerun
+`terraform -chdir=terraform/aws-fortiweb apply` from the repository root.
 
 The default AMI filter is FortiWeb `8.0`, which selects the latest matching
 8.0.x BYOL Marketplace image.
@@ -58,11 +59,10 @@ admin password is the FortiWeb EC2 instance ID.
 Run order:
 
 ```bash
-cd terraform/aws-fortiweb
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+terraform -chdir=terraform/aws-fortiweb init
+terraform -chdir=terraform/aws-fortiweb fmt
+terraform -chdir=terraform/aws-fortiweb validate
+terraform -chdir=terraform/aws-fortiweb apply
 ```
 
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
@@ -85,9 +85,9 @@ local tfvars so the rebuild consumes a fresh token.
 Useful outputs:
 
 ```bash
-terraform output fortiweb_admin_url
-terraform output fortiweb_ssh_command
-terraform output fortiweb_instance_id
+terraform -chdir=terraform/aws-fortiweb output fortiweb_admin_url
+terraform -chdir=terraform/aws-fortiweb output fortiweb_ssh_command
+terraform -chdir=terraform/aws-fortiweb output fortiweb_instance_id
 ```
 
 This module also writes:
@@ -99,13 +99,13 @@ This module also writes:
 From the repo root, poll FortiWeb with:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/status_fortiweb.yml
+ansible-playbook -i cloud-fortiweb ansible/playbooks/status_fortiweb.yml
 ```
 
 Configure the FortiWeb baseline with:
 
 ```bash
-ansible-playbook -i ansible/inventory/fortiweb.generated.ini ansible/playbooks/configure_fortiweb.yml
+ansible-playbook -i cloud-fortiweb ansible/playbooks/configure_fortiweb.yml
 ```
 
 The FortiWeb Ansible config role creates the no-inspection reverse-proxy chain

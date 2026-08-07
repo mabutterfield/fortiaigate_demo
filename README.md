@@ -15,6 +15,8 @@ otherwise.
 
 | Goal | Start here |
 |---|---|
+| Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](docs/first-run-preparation.md) |
+| Review defaults and optional components | [Deployment Options](docs/deployment-options.md) |
 | Deploy the default AWS lab | [Automated Quick Start](docs/quickstart-automated.md) |
 | Deploy to an existing local Ubuntu GPU host | [Local Hardware Mode](docs/quickstart-automated.md#local-hardware-mode) |
 | Diagnose or recover a deployment | [Troubleshooting](docs/troubleshooting.md) and [Deployment Runbook](docs/deployment-runbook.md) |

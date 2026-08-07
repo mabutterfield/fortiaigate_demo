@@ -1,0 +1,264 @@
+# First-Run Preparation
+
+Complete this preparation before running the automated quickstart. This page
+owns files and prerequisites; [Deployment Options](deployment-options.md) owns
+feature choices, and [Automated Quick Start](quickstart-automated.md) owns the
+deployment journey.
+
+All commands run from `<repo_root>`, the `fortiaigate_demo/` directory that
+contains `README.md`, `terraform/`, `ansible/`, and `scripts/`.
+
+## 1. Place The Repository And Private Inputs
+
+The default path variables expect this parent workspace:
+
+```text
+FAIG/
+├── fortiaigate_demo/              <repo_root>
+├── FAIG_helm/
+│   └── 8.x/
+│       └── fortiaigate/           extracted vendor Helm chart
+├── images/
+│   └── 8.x/                       vendor Docker image archives
+└── licenses/
+    ├── License1.lic               FortiAIGate license
+    ├── <fortigate-license>.lic    optional FortiGate BYOL license
+    └── <fortiweb-license>.lic     optional FortiWeb BYOL license
+```
+
+The exact vendor release directory can be `8.0.0`, `8.0.1`, or another
+configured FortiAIGate 8.x build. Override `faig_workspace_root`, chart, image,
+or license paths in ignored user files if the workspace differs.
+
+Never put licenses, tokens, private keys, certificates, credentials, image
+archives, or extracted vendor charts in Git.
+
+## 2. Prepare The Control Workstation
+
+macOS and Linux are tested control platforms. Use WSL2 Ubuntu for Windows.
+
+AWS deployment requires:
+
+- Python 3;
+- Terraform;
+- AWS CLI v2;
+- Ansible, `ansible-playbook`, and `ansible-galaxy`;
+- Docker available to the current user without `sudo` when publishing images;
+- SSH and an existing private key corresponding to the selected EC2 key pair;
+- enough Docker disk capacity for the vendor archives, loaded layers, target
+  tags, and comparison pulls (allow roughly two to three times the archive
+  size).
+
+Local deployment requires Python 3, Ansible, `ansible-galaxy`, and SSH. Docker
+is also required on the workstation when it publishes images to the local
+registry.
+
+Check the tools needed by the selected lane:
+
+```bash
+python3 --version
+ansible-playbook --version
+ansible-galaxy --version
+ssh -V
+
+# AWS lane
+terraform version
+aws --version
+docker version
+```
+
+The quickstart performs its own required-command check before changing the
+environment.
+
+## 3. Prepare AWS
+
+Before the AWS first run:
+
+1. Configure an AWS CLI profile, preferably IAM Identity Center/SSO, and set a
+   default region.
+2. Log in and confirm the caller identity.
+3. Create or identify an EC2 key pair in that region and keep its matching
+   private key outside the repository.
+4. Confirm the account has EC2 GPU On-Demand quota and capacity for the chosen
+   instance type.
+5. Confirm the selected Bedrock models are available to the account in the
+   chosen region and that the relevant inference quota is sufficient.
+6. If deploying FortiGate or FortiWeb, accept the selected AWS Marketplace
+   terms before Terraform creates the instances.
+7. Identify the trusted public source CIDRs that may reach SSH, management,
+   and demo ports. Prefer `/32` entries for individual operator addresses.
+
+```bash
+aws configure list-profiles
+aws sso login --profile <profile-name>
+aws sts get-caller-identity --profile <profile-name>
+aws ec2 describe-key-pairs \
+  --profile <profile-name> \
+  --region <aws-region>
+aws bedrock list-foundation-models \
+  --profile <profile-name> \
+  --region <aws-region>
+```
+
+Model listing does not by itself guarantee invocation permission or capacity.
+Use the AWS console or account-specific quota process to resolve access and
+quota issues before the deployment window.
+
+## 4. Prepare A Local Ubuntu GPU Host
+
+The supported local lane starts with an existing Ubuntu 24.04 GPU host.
+Prepare:
+
+- key- or agent-based SSH from the control workstation;
+- a user that can run the required bootstrap operations with `sudo`;
+- one or more supported NVIDIA GPUs; separate GPU UUIDs for FortiAIGate and
+  Ollama are preferred when capacity allows;
+- sufficient storage for k3s, images, models, logs, and temporary chart data;
+- a local or LAN container registry reachable by both the workstation and the
+  Ubuntu host;
+- outbound access needed to install packages and obtain the configured Ollama
+  image/model, or equivalent local mirrors;
+- trusted-LAN reachability for the generated NodePorts; and
+- optional FortiGate/FortiWeb management and backend addresses plus bootstrap
+  credentials when those existing appliances will be configured.
+
+Do not preinstall k3s merely for this workflow; Ansible owns the k3s
+foundation. NVIDIA discovery may be incomplete before bootstrap. If so, local
+quickstart intentionally stops after GPU setup so `local_setup.py` can be run
+again to record GPU UUID assignments.
+
+## 5. Initialize User-Owned Files
+
+For AWS, initialize the ignored user profile:
+
+```bash
+python3 scripts/user_profile.py init
+python3 scripts/user_profile.py check
+```
+
+Initialization creates and configures:
+
+```text
+terraform/user.tfvars
+ansible/group_vars/user.yml
+```
+
+`terraform/user.tfvars` supplies the AWS profile, region, name prefix, SSH key,
+trusted CIDRs, and tags to every Terraform module through tracked
+`50-user.auto.tfvars` symlinks. `ansible/group_vars/user.yml` contains only
+operator overrides layered after repo and generated defaults.
+
+Create a module-local override only when that module needs a value different
+from the shared profile:
+
+```bash
+cp terraform/aws-fortigate/99-local.auto.tfvars.example \
+  terraform/aws-fortigate/99-local.auto.tfvars
+cp terraform/aws-fortiweb/99-local.auto.tfvars.example \
+  terraform/aws-fortiweb/99-local.auto.tfvars
+```
+
+For local deployment, generate environment-owned inventory and variables:
+
+```bash
+python3 scripts/local_setup.py
+```
+
+This produces, as applicable:
+
+```text
+ansible/inventory/local.generated.ini
+ansible/inventory/fortigate.local.generated.ini
+ansible/inventory/fortiweb.local.generated.ini
+ansible/group_vars/local.generated.yml
+ansible/group_vars/local.secrets.yml
+ansible/group_vars/registry.generated.yml
+```
+
+`local.secrets.yml` is written with mode `0600`. Treat profile archives and
+generated local exports as sensitive because they can contain managed appliance
+credentials.
+
+## 6. Place Licenses And Optional Tokens
+
+The normal baseline uses BYOL license files from the parent `licenses/`
+directory:
+
+| Product | Expected configuration | Default lookup |
+|---|---|---|
+| FortiAIGate | `fortiaigate_license_files` in ignored `ansible/group_vars/user.yml` | `FAIG/licenses/License1.lic` |
+| FortiGate | `fortigate_license_file_name` in ignored `terraform/aws-fortigate/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
+| FortiWeb | `fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
+
+The tracked all-zero FortiGate and FortiWeb names are placeholders, not usable
+licenses. Interactive quickstart asks for a real file when a desired appliance
+still has a placeholder or missing path.
+
+FortiFlex token variables exist as an advanced Terraform path, but guided
+FortiFlex lifecycle integration is not part of the current first-run baseline.
+If used, tokens belong only in the appropriate ignored
+`99-local.auto.tfvars`; they may also be recorded in Terraform state.
+
+Restrict private inputs on a shared workstation:
+
+```bash
+chmod 600 terraform/user.tfvars ansible/group_vars/user.yml
+chmod 600 ../licenses/*.lic
+chmod 600 terraform/aws-fortigate/99-local.auto.tfvars 2>/dev/null || true
+chmod 600 terraform/aws-fortiweb/99-local.auto.tfvars 2>/dev/null || true
+```
+
+## 7. Understand Generated And Sensitive State
+
+Do not commit:
+
+- `terraform/user.tfvars`, module `99-local.auto.tfvars`, Terraform state, or
+  state backups;
+- `ansible/group_vars/user.yml`, `*.generated.yml`, generated inventories, or
+  files under `ansible/secrets/`;
+- installed local scenarios or locally tuned instructions;
+- kubeconfigs, private keys, certificates, registry credentials, or profile
+  archives;
+- appliance licenses, FortiFlex tokens, generated API keys/passwords, or
+  rendered cloud-init data.
+
+Terraform state can contain licenses, Bedrock credentials, appliance API keys,
+generated passwords, and rendered user data even when outputs are marked
+sensitive. Store it as secret material.
+
+On the managed k3s host, `/etc/rancher/k3s/k3s.yaml` and the SSH user's
+`~/.kube/config` grant cluster access. The default HTTPS gateway generates
+`tls.crt` and `tls.key` under the managed host's
+`~/tmp/demo-https-gateway-cert/` before rendering them into a Kubernetes
+Secret. Operator-provided certificate and key paths remain local private
+inputs. Do not copy any of these files into the repository or expose them in
+diagnostic output.
+
+## 8. Preflight Checklist
+
+Before quickstart, confirm:
+
+- [ ] the shell is in `<repo_root>`;
+- [ ] required control-workstation commands are installed;
+- [ ] the selected AWS or local host is reachable;
+- [ ] AWS login, region, quota, model availability, key pair, and Marketplace
+      terms are ready for the AWS lane;
+- [ ] vendor chart, image archives, and FortiAIGate license are outside Git;
+- [ ] desired appliance licenses or explicit opt-outs are ready;
+- [ ] `terraform/user.tfvars` and `ansible/group_vars/user.yml` exist for AWS;
+- [ ] `local_setup.py` generated the local files for local deployment;
+- [ ] Docker can reach the selected registry if publishing is required; and
+- [ ] [Deployment Options](deployment-options.md) has been reviewed.
+
+Useful no-apply checks:
+
+```bash
+python3 scripts/user_profile.py check
+python3 scripts/scenario_profiles.py validate
+python3 scripts/smoke_test.py
+```
+
+Successful profile output includes `Required user profile files exist.` The
+smoke test ends without a failed command and checks the tracked inventory and
+Terraform symlink contracts without requiring ignored generated targets to
+exist.

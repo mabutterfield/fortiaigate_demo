@@ -4,18 +4,18 @@ This module creates private FortiAIGate ECR repositories and writes generated An
 
 Canonical documentation:
 
-- [../../docs/terraform.md](../../docs/terraform.md)
-- [../../docs/ECR.md](../../docs/ECR.md)
-- [../../docs/deployment-runbook.md](../../docs/deployment-runbook.md)
+- [Container Repository Management](../../docs/container-repository-management.md)
+- [Terraform Reference](../../docs/terraform.md)
+- [Automated Quick Start](../../docs/quickstart-automated.md)
 
 Quick usage:
 
 ```bash
 aws sso login --profile <profile-name>
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+terraform -chdir=terraform/aws-ecr init
+terraform -chdir=terraform/aws-ecr fmt
+terraform -chdir=terraform/aws-ecr validate
+terraform -chdir=terraform/aws-ecr apply
 ```
 
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when

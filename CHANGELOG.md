@@ -5,6 +5,17 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added the v1.0 preparation and option documentation layer:
+  - centralized first-run workstation, AWS/local, profile, license, generated
+    state, and preflight requirements
+  - documented default and optional features in one cloud/local decision
+    matrix with controls, validation commands, and operational impact
+  - made container repository management the sole Docker/ECR/local-registry
+    owner, including tag increments, verification, cleanup, rollback, current
+    quickstart integration, and the future separation boundary
+  - documented all root inventory aliases, Terraform shared-user symlinks,
+    generated targets, repo-root command shapes, and recovery-hint conventions
+
 - Established the v1.0 documentation entry points and support vocabulary:
   - rebuilt the repository and documentation landing pages around AWS/local
     deployment choices and operator tasks rather than numbered phases or demo
