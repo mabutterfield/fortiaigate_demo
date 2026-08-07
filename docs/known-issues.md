@@ -1,75 +1,63 @@
 # Known Issues And Workarounds
 
-This page centralizes release notes for issues that are known operational
-constraints, not missing quickstart steps.
+This page records current operational constraints. Use
+[Troubleshooting](troubleshooting.md) for symptom-driven diagnosis and
+[Operations](operations.md) for normal reruns and recovery.
 
-## Slow NVIDIA Driver Downloads On AWS
+## NVIDIA Driver Downloads Can Be Slow On AWS
 
-AWS EC2 Ubuntu images normally download `nvidia-driver-*-server` packages from
-Ubuntu regional EC2 mirrors. Some rebuilds have seen NVIDIA driver package
-downloads take 30-60 minutes. The default quickstart still rebuilds from the
-standard Ubuntu AMI path so the demo remains reproducible without custom images.
+The standard Ubuntu AMI obtains NVIDIA driver packages from Ubuntu package
+mirrors. Some rebuilds have taken 30–60 minutes while downloading those
+packages. This is slow progress rather than a failed deployment when package
+activity continues.
 
-Current workaround:
+The optional [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md)
+documents the current recovery path. Reusable AMI creation is intended to
+replace this workaround in a future release, but custom AMIs are not required
+by the current quickstart.
 
-1. Run Terraform normally, but stop before Ansible:
+Do not commit downloaded packages, cache manifests, Terraform state, or
+rendered user data.
 
-   ```bash
-   python3 scripts/automated_quickstart.py --skip-ansible
-   ```
+## FortiAIGate GUI Object Creation Is Manual
 
-2. SSH to the k3s instance with the command printed by Terraform or quickstart.
+Automation deploys the services and generates scenario-specific work orders,
+but the corresponding provider, flow, route, and guard objects must still be
+created in the FortiAIGate 8.x GUI.
 
-3. Update apt metadata and install or pre-download the NVIDIA driver packages
-   manually on the instance.
+Create the minimal passthrough configuration first, then use the installed
+scenario work order for protected paths. See
+[FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) and
+[Scenario Management](scenarios.md). Functional validation cannot repair a
+missing or stale GUI flow.
 
-4. Optionally copy the downloaded `.deb` package set to S3 or another
-   customer-owned cache for the next rebuild.
+## FortiWeb MCP Security Policy Automation Is Deferred
 
-5. Rerun quickstart from the Ansible phase:
+FortiWeb reverse-proxy objects for demo HTTP paths are automated. FortiWeb MCP
+Security policy object automation remains deferred because the required object
+is not cleanly exposed by the currently used collection/API path.
 
-   ```bash
-   python3 scripts/automated_quickstart.py --skip-terraform
-   ```
+FortiWeb-fronted MCP transport remains supported when its proxy path is
+configured. MCP Security policy tuning is a separate manual or future
+integration task.
 
-The S3 package-cache approach is documented in
-[AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md).
-That workaround is optional and temporary. Phase 10 is evaluating custom AMI
-support as a cleaner way to shorten AWS rebuilds, but a custom AMI must not be
-required for the default v1.0 quickstart.
+## Open WebUI Is Deployed Without Demo Configuration
 
-Do not commit downloaded packages, local cache manifests, Terraform state, or
-rendered user-data from these experiments.
-
-## FortiAIGate GUI Setup Is Manual
-
-Quickstart deploys FortiAIGate, LiteLLM, chatbot, MCP, demo home, and appliance
-baselines, then prints the values needed for FortiAIGate GUI setup. Provider,
-flow, route, and guard configuration in the FortiAIGate GUI remains a manual
-Phase 10 boundary.
-
-Use [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) for the current
-manual steps and [Scenario Catalog Matrix](scenario-catalog.md) for the
-recorded-demo route and guard expectations.
-
-Phase 11 is planned as the v1.0 baseline and should replace compatibility
-`demo-a`/`demo-b` naming with generated scenario-owned paths and scenario
-metadata.
-
-## FortiWeb MCP Security Automation Is Deferred
-
-FortiWeb reverse-proxy objects are automated for the demo HTTP paths. FortiWeb
-MCP Security policy object automation is deferred because the current
-collection/API coverage does not expose the required FortiWeb 8.0.3+ MCP
-Security object cleanly.
-
-The local and AWS demos can still use FortiWeb-fronted MCP routing when the
-proxy path is configured, but MCP Security policy tuning remains a manual or
-future integration item.
+Open WebUI can be deployed as an optional secondary interface, but the
+repository does not configure its model provider, FortiAIGate paths, MCP tools,
+or scenario profiles. The custom chatbot is the configured scenario UI.
 
 ## Local Ollama NodePort Is Trusted-Lab Only
 
-Local hardware mode exposes Ollama on a plain HTTP NodePort for validation and
-operator convenience. Stock Ollama does not provide built-in API authentication.
-Keep that NodePort restricted to a trusted lab network and do not expose it to
-the internet.
+Local mode exposes Ollama through plain HTTP for validation and operator
+convenience. Stock Ollama does not provide built-in API authentication. Keep
+the NodePort restricted to a trusted lab network and do not expose it to the
+internet.
+
+## Local Lab Uninstall Is Not Automated
+
+The repository supports local reconciliation and updates through repeated
+quickstart or component playbooks. It does not currently provide an automated
+uninstall for the local k3s host. Exporting generated local state moves local
+inventory and variable files; it does not remove k3s, images, applications, or
+appliances.

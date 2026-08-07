@@ -2,7 +2,7 @@
 
 Complete this preparation before running the automated quickstart. This page
 owns files and prerequisites; [Deployment Options](deployment-options.md) owns
-feature choices, and [Automated Quick Start](quickstart-automated.md) owns the
+feature choices, and [Deployment Quickstart](quickstart.md) owns the
 deployment journey.
 
 All commands run from `<repo_root>`, the `fortiaigate_demo/` directory that

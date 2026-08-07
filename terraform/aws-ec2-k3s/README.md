@@ -6,7 +6,8 @@ Canonical documentation:
 
 - [../../docs/terraform.md](../../docs/terraform.md)
 - [../../docs/aws-k3s-foundation.md](../../docs/aws-k3s-foundation.md)
-- [../../docs/deployment-runbook.md](../../docs/deployment-runbook.md)
+- [Deployment Quickstart](../../docs/quickstart.md)
+- [Operations](../../docs/operations.md)
 
 Quick usage:
 

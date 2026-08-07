@@ -6,7 +6,7 @@ Canonical documentation:
 
 - [Container Repository Management](../../docs/container-repository-management.md)
 - [Terraform Reference](../../docs/terraform.md)
-- [Automated Quick Start](../../docs/quickstart-automated.md)
+- [Deployment Quickstart](../../docs/quickstart.md)
 
 Quick usage:
 

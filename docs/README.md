@@ -14,9 +14,10 @@ changes directories.
 |---|---|
 | Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](first-run-preparation.md) |
 | Review defaults and optional components | [Deployment Options](deployment-options.md) |
-| Prepare and deploy the default AWS lab | [Automated Quick Start](quickstart-automated.md) |
-| Prepare and deploy a local Ubuntu GPU lab | [Local Hardware Mode](quickstart-automated.md#local-hardware-mode) |
-| Diagnose or recover a deployment | [Troubleshooting](troubleshooting.md) and [Deployment Runbook](deployment-runbook.md) |
+| Prepare and deploy the default AWS lab | [Deployment Quickstart](quickstart.md#aws-lane) |
+| Prepare and deploy a local Ubuntu GPU lab | [Deployment Quickstart](quickstart.md#local-ubuntu-lane) |
+| Check, update, recover, or remove a deployment | [Operations](operations.md) |
+| Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
 | Configure FortiAIGate flows and guards | [FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) |
 | Install, update, remove, or validate scenarios | [Scenario Management](scenarios.md) |
@@ -36,7 +37,7 @@ references remain available but are not part of the current runtime contract.
 | Document | Owns |
 |---|---|
 | [First-Run Preparation](first-run-preparation.md) | Control workstation, AWS/local prerequisites, user files, licenses, generated-state warnings, and preflight |
-| [Automated Quick Start](quickstart-automated.md) | Guided AWS and local deployment execution |
+| [Deployment Quickstart](quickstart.md) | The single guided AWS and local first-run journey |
 | [AWS Instance Sizing](aws_instance.MD) | GPU instance selection |
 | [Command And Inventory Reference](reference/command-inventory.md) | Repo-root commands, inventory aliases, Terraform user links, generated files, and recovery hints |
 
@@ -58,7 +59,7 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [Deployment Runbook](deployment-runbook.md) | End-to-end operational deployment sequence |
+| [Operations](operations.md) | Status, repeat deployment, component reruns, updates, validation, recovery, and teardown |
 | [Terraform Reference](terraform.md) | Terraform modules, generated Ansible data, and imports |
 | [Container Repository Management](container-repository-management.md) | Docker inputs/builds, tags, ECR/local registries, publishing, verification, rollback, and future separation |
 | [AWS k3s Foundation](aws-k3s-foundation.md) | AWS host bootstrap and k3s mechanics |
@@ -94,7 +95,6 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common diagnosis and recovery procedures |
 | [Known Issues](known-issues.md) | Current limitations and workarounds |
-| [Manual Deployment Reference](quickstart-manual.md) | Detailed Terraform and Ansible command sequences for inspection and recovery |
 | [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
 
 ### Author
@@ -116,3 +116,7 @@ references remain available but are not part of the current runtime contract.
 
 Internal plans, progress notes, and experiments belong in the parent FAIG
 workspace rather than this deployment repository.
+
+The former Automated Quick Start, Deployment Runbook, and Manual Deployment
+Reference paths remain as concise compatibility pointers to the current
+quickstart, operations, and troubleshooting owners.

@@ -5,6 +5,23 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Consolidated deployment and operations documentation into one supported
+  journey:
+  - added a single guided AWS/local quickstart with readiness checks,
+    appliance opt-outs and safe skips, checkpoints, expected URLs, and clear
+    handoffs to GUI and scenario validation
+  - separated repeat deployments, component reruns, status, image updates,
+    state portability, functional validation, recovery, AWS teardown, and the
+    local lifecycle into an operations guide
+  - rebuilt troubleshooting around the first failed symptom and copy-safe
+    `cloud`/`local` inventory commands
+  - reduced the former automated, manual, and runbook guides to compatibility
+    pointers so existing bookmarks remain useful without duplicating the
+    supported path
+  - centralized operational constraints in Known Issues, including manual
+    FortiAIGate GUI objects, deferred FortiWeb MCP Security policy automation,
+    unconfigured optional Open WebUI, and the current local-uninstall boundary
+
 - Added the v1.0 preparation and option documentation layer:
   - centralized first-run workstation, AWS/local, profile, license, generated
     state, and preflight requirements

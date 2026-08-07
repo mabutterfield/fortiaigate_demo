@@ -17,9 +17,10 @@ otherwise.
 |---|---|
 | Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](docs/first-run-preparation.md) |
 | Review defaults and optional components | [Deployment Options](docs/deployment-options.md) |
-| Deploy the default AWS lab | [Automated Quick Start](docs/quickstart-automated.md) |
-| Deploy to an existing local Ubuntu GPU host | [Local Hardware Mode](docs/quickstart-automated.md#local-hardware-mode) |
-| Diagnose or recover a deployment | [Troubleshooting](docs/troubleshooting.md) and [Deployment Runbook](docs/deployment-runbook.md) |
+| Deploy the default AWS lab | [Deployment Quickstart](docs/quickstart.md#aws-lane) |
+| Deploy to an existing local Ubuntu GPU host | [Deployment Quickstart](docs/quickstart.md#local-ubuntu-lane) |
+| Check, update, recover, or remove a deployment | [Operations](docs/operations.md) |
+| Diagnose a failed checkpoint | [Troubleshooting](docs/troubleshooting.md) |
 | Understand the components and traffic paths | [Architecture](docs/architecture.md) |
 | See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
 | Review validated and candidate scenarios | [Scenario Catalog](docs/scenario-catalog.md) |
@@ -43,7 +44,7 @@ otherwise.
   built-in scenario unless an operator explicitly enables it in local scenario
   metadata.
 
-See [Deployment Options](docs/reference/current-baseline.md#feature-and-support-matrix)
+See [Deployment Options](docs/deployment-options.md#option-matrix)
 for the distinction between defaults, optional components, validated behavior,
 and deferred paths.
 
