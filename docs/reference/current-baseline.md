@@ -28,48 +28,29 @@ relationships, see [Architecture](../architecture.md).
 | FortiWeb MCP transport | Default when FortiWeb is installed and desired | Preferred MCP route; falls back to Direct MCP with a warning |
 | Direct MCP transport | Default fallback | Used when the FortiWeb route is unavailable or explicitly disabled |
 | HTTPS gateway | Default, configurable | Self-signed HTTPS NodePorts; the operator can skip the playbook or provide certificate overrides |
-| FortiAIGate syslog preservation | Configurable | Deployed when its AWS prep bucket exists; local and export behavior are documented separately |
-| Open WebUI | Optional, disabled | Secondary UI; the custom chatbot owns the scenario experience |
+| FortiAIGate syslog preservation | Optional, configurable | Stop-gap log preservation when FortiAnalyzer is unavailable; it is not a FortiAnalyzer replacement |
+| Open WebUI | Optional, disabled, unconfigured | Deployment capability for future or custom use; no supported scenario/provider configuration or validation is supplied |
 | FAIG re-entry chain | Available, configurable, scenario-disabled | Global topology is enabled; every built-in scenario opts out by default |
 | Functional scenario validation | Validated | `python3 -m functional_test` reads installed scenario metadata and verifies expected Alert, Deny, and Redact behavior |
 | Dashboard load generation | Developer-only | Optional `load_test` workload; not part of setup or functional acceptance |
 | FortiGate LLM and appliance-fronted FAIG traffic | Deferred | Configuration experiments remain available, but these are disabled and not baseline paths |
 
-## Validated Scenario Baseline
+## Scenario Authority
 
-| Scenario | Security story | Actions | MCP |
-|---|---|---|---|
-| `fortistore-injection` | Direct and compromised-frontend prompt injection | Alert, Deny | No |
-| `hr-tool-dlp` | Sensitive data returned by a deterministic HR tool | Alert, Deny, Redact | Yes |
-| `resume-tool-injection` | Indirect injection from a simulated uploaded resume and excessive tool access | Alert, Deny | Yes |
+The [Scenario Catalog](../scenario-catalog.md) owns the validated scenario
+matrix, security stories, supported actions, aliases, MCP defaults, candidates,
+and archived state. This baseline intentionally does not duplicate that list.
 
-Canonical FAIG routes use `/v1/<scenario>/<action>/*`; guard names use
-`<scenario>_<action>`. The testing-only bypass is `/v1/passthrough/*` with the
-LiteLLM `pass-model` alias.
-
-For Resume Tool Injection, Direct and Alert permit the synthetic cloud-tool
-pivot. Deny stops the request after the poisoned document is read and before
-the cloud tool executes. The Advanced least-privilege tool profile omits the
-cloud tool and prevents the pivot by capability restriction. No real upload or
-cloud access occurs. See the
-[scenario walkthrough](../../chatbot/scenarios/examples/resume-tool-injection/README.md).
-
-## Candidate And Archived Scenarios
-
-`fortigate-operator` is the current candidate. It is retained for future work,
-inactive, and not installed by the baseline scenario set.
-
-Archived and superseded packages remain inspectable under
-`archived_scenarios/` and in the catalog. They are historical material, not
-supported scenarios. The machine-readable
-[scenario catalog](../../chatbot/scenarios/examples/catalog.json) is the
-authority for lifecycle and active state.
+All installed scenarios follow the same runtime contract: canonical FAIG
+routes use `/v1/<scenario>/<action>/*`, guard names use
+`<scenario>_<action>`, and the testing-only bypass is
+`/v1/passthrough/*` with the LiteLLM `pass-model` alias.
 
 ## Runtime Components And Ports
 
 | Component | Namespace | Default external access |
 |---|---|---|
-| FortiAIGate | `fortiaigate` | `https://<k3s-ip>/ui/` for 8.0.1 |
+| FortiAIGate 8.x | `fortiaigate` | `https://<k3s-ip>/ui/` |
 | LiteLLM | `litellm` | `http://<k3s-ip>:30083/ui/` |
 | custom chatbot | `chatbot` | HTTP `30081`; HTTPS `30444` after gateway deploy |
 | MCP demo tools | `mcp` | HTTP `30084`; HTTPS `30447` after gateway deploy |
@@ -89,7 +70,9 @@ the internal HTTP services.
 |---|---|---|---|
 | AWS quickstart | Bedrock through LiteLLM | Terraform-created EC2 GPU/k3s, ECR, AWS prep, and desired appliances | Primary supported path |
 | Local quickstart | Ollama through LiteLLM | Existing Ubuntu GPU host, local/LAN registry, ignored generated inventory, and optional existing appliances | Supported trusted-lab path |
-| Manual quickstart | Same as selected lane | Operator runs Terraform and Ansible steps individually | Troubleshooting and recovery path |
+
+Both lanes use the automated quickstart. Individual Terraform and Ansible
+commands are documented only for operations, inspection, and recovery.
 
 Generated inventories, local variables, license files, credentials, Terraform
 state, and installed scenario packages are local state and must not be

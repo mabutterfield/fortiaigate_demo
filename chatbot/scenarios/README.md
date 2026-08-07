@@ -1,53 +1,35 @@
 # Scenario Profiles
 
-Status: Phase 11 v1.0 baseline.
+Status: v1.0 scenario package model.
 
 Scenario profiles package repeatable demo instructions, MCP tool expectations,
 and prompt examples. They do not deploy separate MCP servers; every scenario
 uses the same shared MCP service and declares its expected tools in
 `required_tools`.
 
-Tracked Phase 11 baseline and candidate templates live under `examples/`.
+Tracked baseline and candidate templates live under `examples/`.
 Archived or legacy scenarios live under the repo-level
 `archived_scenarios/` directory. The catalog remains at `examples/catalog.json`
 and can point at either location.
 
-Phase 11 installs editable local scenario packages and generates scenario-owned
-paths, aliases, chatbot profiles, frontend instructions, and MCP selections.
+The current runtime installs editable local scenario packages and generates
+scenario-owned paths, aliases, chatbot profiles, frontend instructions, and
+MCP selections.
 The old `demo-a`, `demo-b`, and `frontend` slots remain compatibility-only and
-are not expanded by the Phase 11 runtime.
+are not expanded by the current runtime.
 
-## Current Scenario Sets
+## Current Scenario Set
 
-The current working set is intentionally small.
+The [Scenario Catalog](../../docs/scenario-catalog.md) is the human-readable
+authority for validated, candidate, and archived scenario status. The
+machine-readable `examples/catalog.json` owns the same lifecycle state for
+tools. Do not duplicate the scenario matrix in package documentation.
 
-Phase 11 baseline scenarios:
-
-| Scenario | Location | Purpose |
-|---|---|---|
-| FortiStore Injection | `examples/fortistore-injection/` | Product-advisor prompt-injection and frontend/system-prompt injection demo |
-| HR Tool DLP | `examples/hr-tool-dlp/` | MCP tool-result output-DLP demo |
-| Resume Tool Injection | `examples/resume-tool-injection/` | Simulated uploaded-resume indirect injection and cloud-tool pivot demo |
-
-Phase 11 candidate scenarios:
-
-| Scenario family | Location | Purpose |
-|---|---|---|
-| FortiGate Operator | `examples/fortigate-operator/` | Read-only FortiGate operations assistant candidate |
-
-All other scenario folders have been moved to `archived_scenarios/` and marked
-inactive in `examples/catalog.json`.
-
-The catalog lifecycle distinguishes `baseline`, `candidate`, and `archived`.
-Normal list, install, and validation commands select the three baseline
-scenarios. Candidate packages remain tracked and discoverable but are not part
-of the v1.0 baseline validation set.
-
-The Phase 11 baseline profiles use `schema_version: 2` and the generation
+Baseline profiles use `schema_version: 2` and the generation
 contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
 their current pre-migration format until they are selected for future work.
 
-## Phase 11 Local Scenario Lifecycle
+## Local Scenario Lifecycle
 
 Install editable, ignored local copies from the repo root:
 
@@ -122,8 +104,8 @@ python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 python3 scripts/scenario_profiles.py validate
 ```
 
-`install --slot` is the temporary Phase 10 compatibility workflow. New Phase
-11 work should use `add` and the ignored local scenario packages above.
+`install --slot` is the legacy compatibility workflow. New scenario work
+should use `add` and the ignored local scenario packages above.
 
 Inactive archived scenarios can still be inspected for reference:
 

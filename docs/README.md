@@ -2,8 +2,8 @@
 
 Use this page to find the shortest path from a task to its owning document.
 The [Current Baseline](reference/current-baseline.md) is the authority for what
-is supported today; [Upcoming Features](upcoming-features.md) describes
-directional work only.
+is supported today. The [Scenario Catalog](scenario-catalog.md) is the
+authority for validated, candidate, and archived scenario status.
 
 All commands are run from the repository root unless a document explicitly
 changes directories.
@@ -14,15 +14,15 @@ changes directories.
 |---|---|
 | Prepare and deploy the default AWS lab | [Automated Quick Start](quickstart-automated.md) |
 | Prepare and deploy a local Ubuntu GPU lab | [Local Hardware Mode](quickstart-automated.md#local-hardware-mode) |
-| Inspect or recover one deployment step | [Manual Quick Start](quickstart-manual.md) |
+| Diagnose or recover a deployment | [Troubleshooting](troubleshooting.md) and [Deployment Runbook](deployment-runbook.md) |
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
 | Configure FortiAIGate flows and guards | [FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) |
 | Install, update, remove, or validate scenarios | [Scenario Management](scenarios.md) |
-| Diagnose a problem | [Troubleshooting](troubleshooting.md) and [Known Issues](known-issues.md) |
+| Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 
-The automated quickstart is the normal first-run path. The manual quickstart
-is the recovery and inspection path, not a second required installation
-workflow.
+The automated quickstart is the only normal installation journey. Detailed
+Terraform and Ansible command sequences are reference and recovery material,
+not a second installation lane.
 
 ## Documentation Ownership Map
 
@@ -35,14 +35,13 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Automated Quick Start](quickstart-automated.md) | Prerequisites, guided AWS deployment, and local-hardware entry point |
 | [AWS Instance Sizing](aws_instance.MD) | GPU instance selection |
-| [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Optional package-cache preparation for slow downloads |
 
 ### Choose Options
 
 | Document | Owns |
 |---|---|
 | [Architecture](architecture.md) | Deployment topologies and request paths |
-| [Current Baseline](reference/current-baseline.md) | Default, optional, configurable, validated, candidate, and deferred behavior |
+| [Current Baseline](reference/current-baseline.md) | Default, optional, configurable, and deferred runtime behavior |
 | [AWS](aws.md) | AWS service and infrastructure choices |
 | [Bedrock](bedrock.md) | Bedrock model-provider setup and IAM credentials |
 | [Ollama](ollama.md) | Local model-provider behavior |
@@ -54,7 +53,6 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [Manual Quick Start](quickstart-manual.md) | Step-by-step deployment and recovery commands |
 | [Deployment Runbook](deployment-runbook.md) | End-to-end operational deployment sequence |
 | [Terraform Reference](terraform.md) | Terraform modules, generated Ansible data, and imports |
 | [ECR And Image Publishing](ecr.md) | Current container-repository and image-publishing workflow |
@@ -91,6 +89,8 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common diagnosis and recovery procedures |
 | [Known Issues](known-issues.md) | Current limitations and workarounds |
+| [Manual Deployment Reference](quickstart-manual.md) | Detailed Terraform and Ansible command sequences for inspection and recovery |
+| [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
 
 ### Author
 
@@ -105,8 +105,7 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Release Validation Matrix](release-validation-matrix.md) | No-apply and live release checks |
 | [Traffic Generator](traffic-generator.md) | Developer-only dashboard load generation; not required for demo setup |
-| [Upcoming Features](upcoming-features.md) | Directional roadmap, not supported features or commitments |
-| [Current Baseline Compatibility Pointer](current-baseline.md) | Preserves old inbound links to the authoritative reference page |
+| [Future Direction](../README.md#future-direction) | Directional ideas, not supported features or commitments |
 | [Historical Scenario/Model Matrix](phase8-reference-matrix.md) | Historical test evidence only; not the current naming model |
 | [Changelog](../CHANGELOG.md) | User-facing change history |
 

@@ -3,9 +3,10 @@
 The automated quick start is the intended guided setup path for operators who do
 not want to run every Terraform and Ansible step manually.
 
-Use this document for normal first-run deployments. Use
-[Manual Quick Start](quickstart-manual.md) when you need a step-by-step
-recovery path after a partial run.
+Use this document for all normal first-run deployments. For a partial-run
+recovery, start with [Troubleshooting](troubleshooting.md), then use the
+[Manual Deployment Reference](quickstart-manual.md) only when you need an exact
+Terraform or Ansible command sequence.
 
 ## TLDR
 
@@ -515,8 +516,9 @@ downloads and the trusted-lab-only local Ollama NodePort, see
 
 ## Troubleshooting
 
-If the automated Terraform phase fails or you need to continue manually, use:
+If the automated Terraform phase fails, use:
 
-- [Manual Quick Start](quickstart-manual.md) for the exact command sequence
 - [Troubleshooting](troubleshooting.md) for common failure points
 - [Deployment Runbook](deployment-runbook.md) for the full operator workflow
+- [Manual Deployment Reference](quickstart-manual.md) for an exact Terraform
+  or Ansible command sequence after identifying the failed operation

@@ -1,10 +1,11 @@
 # Scenario Demo Runbook
 
-Status: Phase 11 v1.0 baseline.
+Status: v1.0 scenario runbook.
 
 Runtime configuration is generated from ignored installed scenario packages.
-Tracked examples are read-only templates. The baseline contains
-`fortistore-injection`, `hr-tool-dlp`, and `resume-tool-injection`.
+Tracked examples are read-only templates. The
+[Scenario Catalog](scenario-catalog.md) is the authority for the current
+baseline, candidates, and archived scenario state.
 
 ## Install The Baseline
 
@@ -179,5 +180,5 @@ python3 scripts/scenario_profiles.py list --include-candidates
 ```
 
 Archived material remains under `archived_scenarios/` and is reference-only.
-Explicit Phase 10 slot/path flags remain for old tests, but new runbooks and
+Explicit legacy slot/path flags remain for old tests, but new runbooks and
 scenario designs must use scenario IDs and actions.

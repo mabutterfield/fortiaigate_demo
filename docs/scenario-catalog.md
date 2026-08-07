@@ -1,6 +1,6 @@
 # Scenario Catalog Matrix
 
-Status: Phase 11 v1.0 baseline.
+Status: v1.0 scenario baseline.
 
 The tracked catalog classifies templates. The ignored installed-scenario state
 controls the runtime matrix. See [Scenario Runbook](scenarios.md) for lifecycle
@@ -9,11 +9,11 @@ for evidence requirements.
 
 ## Validated Baseline Scenarios
 
-| Scenario | LiteLLM alias | MCP default | FAIG actions | Main story |
+| Scenario | Security story | Actions | LiteLLM alias | MCP default |
 |---|---|---|---|---|
-| `fortistore-injection` | `fortistore-injection` | disabled | `alert`, `deny` | Backend versus compromised frontend instructions and FAIG prompt-injection protection |
-| `hr-tool-dlp` | `hr-tool-dlp` | `hr-tool-dlp` | `alert`, `deny`, `redact` | Synthetic MCP tool-result DLP comparison |
-| `resume-tool-injection` | `resume-tool-injection` | `resume-tool-injection-cloud-pivot` | `alert`, `deny` | Validated simulated uploaded-resume injection: Alert allows/logs the cloud pivot; Deny stops it before cloud-tool execution |
+| `fortistore-injection` | Direct and compromised-frontend prompt injection | Alert, Deny | `fortistore-injection` | Disabled |
+| `hr-tool-dlp` | Sensitive data returned by a simulated HR tool | Alert, Deny, Redact | `hr-tool-dlp` | `hr-tool-dlp` |
+| `resume-tool-injection` | Indirect injection from a simulated uploaded resume and excessive tool access | Alert, Deny | `resume-tool-injection` | `resume-tool-injection-cloud-pivot` |
 
 These are the active, validated baseline templates. Installing one
 creates an editable copy under `chatbot/scenarios/local/<scenario-id>/`.
@@ -24,9 +24,9 @@ only from response wording.
 
 ## Future Candidates
 
-The following templates survived the Phase 10 legacy purge but are not active
-or validated Phase 11 scenarios. Leave them untouched until a future phase
-explicitly migrates and tests them.
+The following templates survived legacy cleanup but are not active or
+validated scenarios. Leave them untouched until future work explicitly
+migrates and tests them.
 
 | Candidate | Current profile | Intended story |
 |---|---|---|
@@ -57,8 +57,8 @@ shows passthrough only when no scenarios are installed; advanced mode always
 retains it.
 
 FortiWeb MCP appears only when its proxy is desired and an installed endpoint
-is present. FortiGate LLM routes and the optional FAIG re-entry chain remain
-disabled.
+is present. FortiGate LLM routes remain disabled. The FAIG re-entry capability
+is globally available, while every built-in scenario opts out by default.
 
 ## Archived Material
 
@@ -71,5 +71,5 @@ python3 scripts/scenario_profiles.py list --include-inactive
 python3 scripts/scenario_profiles.py show fastfood-ordering --include-inactive
 ```
 
-Phase 10 slot names remain in explicit compatibility commands only. Do not use
-them when authoring new scenarios or documenting the Phase 11 runtime.
+Legacy slot names remain in explicit compatibility commands only. Do not use
+them when authoring new scenarios or documenting the current runtime.

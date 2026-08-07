@@ -1,13 +1,12 @@
 # Scenario Authoring Guide
 
-Phase 11 scenario templates live under
+Scenario templates live under
 `chatbot/scenarios/examples/<scenario-id>/`. Templates are read-only inputs to
 the installer. Operator-owned, editable copies live under the ignored
 `chatbot/scenarios/local/<scenario-id>/` tree.
 
-The validated baseline scenarios are `fortistore-injection`, `hr-tool-dlp`, and
-`resume-tool-injection`. The older resume candidates are archived after being
-consolidated into the latter package.
+The [Scenario Catalog](scenario-catalog.md) is the authority for validated,
+candidate, and archived scenario state.
 
 ## Package Contents
 
@@ -187,5 +186,5 @@ Removal archives the local package. It does not mutate appliance configuration
 or track remote GUI objects; rebuild or adjust the disposable FAIG environment
 separately when needed.
 
-Phase 10 slot commands remain compatibility-only and should not appear in new
+Legacy slot commands remain compatibility-only and should not appear in new
 scenario designs or runbooks.

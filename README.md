@@ -1,9 +1,9 @@
 # FortiAIGate Demo
 
-Infrastructure-as-code for a repeatable FortiAIGate v1.0 demonstration on an
-AWS GPU instance or an operator-owned Ubuntu 24.04 GPU host. The deployed lab
-combines FortiAIGate, LiteLLM, a custom chatbot, deterministic MCP tools, and
-three validated security scenarios.
+Version 1.0 of this repository provides infrastructure-as-code for a repeatable
+FortiAIGate 8.x demonstration on an AWS GPU instance or an operator-owned
+Ubuntu 24.04 GPU host. The deployed lab combines FortiAIGate, LiteLLM, a custom
+chatbot, deterministic MCP tools, and installable security scenarios.
 
 AWS with Amazon Bedrock is the primary deployment. Local hardware with Ollama
 uses the same k3s application layer and scenario model.
@@ -17,9 +17,10 @@ otherwise.
 |---|---|
 | Deploy the default AWS lab | [Automated Quick Start](docs/quickstart-automated.md) |
 | Deploy to an existing local Ubuntu GPU host | [Local Hardware Mode](docs/quickstart-automated.md#local-hardware-mode) |
-| Rerun or troubleshoot deployment steps individually | [Manual Quick Start](docs/quickstart-manual.md) |
+| Diagnose or recover a deployment | [Troubleshooting](docs/troubleshooting.md) and [Deployment Runbook](docs/deployment-runbook.md) |
 | Understand the components and traffic paths | [Architecture](docs/architecture.md) |
 | See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
+| Review validated and candidate scenarios | [Scenario Catalog](docs/scenario-catalog.md) |
 | Find an operator, author, or maintainer task | [Documentation Map](docs/README.md) |
 
 ## What The Default Lab Provides
@@ -44,17 +45,11 @@ See [Deployment Options](docs/reference/current-baseline.md#feature-and-support-
 for the distinction between defaults, optional components, validated behavior,
 and deferred paths.
 
-## Validated Scenarios
-
-| Scenario | Security story | Actions |
-|---|---|---|
-| `fortistore-injection` | Direct and compromised-frontend prompt injection | Alert, Deny |
-| `hr-tool-dlp` | Sensitive data returned by a simulated HR tool | Alert, Deny, Redact |
-| `resume-tool-injection` | Indirect injection from a simulated uploaded resume and excessive tool access | Alert, Deny |
-
 Scenario content is synthetic and intended for repeatable demonstrations, not
 production policy guidance. Installed scenarios are local, editable runtime
-state; tracked examples remain read-only templates.
+state; tracked examples remain read-only templates. The
+[Scenario Catalog](docs/scenario-catalog.md) is the authority for validated,
+candidate, and archived scenario status.
 
 ## Deployment Model
 
@@ -89,5 +84,19 @@ scripts/         Setup, scenario, build, and maintenance helpers
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for user-facing changes and
-[Upcoming Features](docs/upcoming-features.md) for directional work that is not
-part of the supported baseline.
+the [Current Baseline](docs/reference/current-baseline.md) for supported
+functionality.
+
+## Future Direction
+
+These are directional ideas, not implemented features, release commitments, or
+supported setup steps:
+
+- create reusable AMI images to replace the NVIDIA package-cache workaround
+  and shorten AWS rebuilds;
+- separate container-repository creation and image publishing from the normal
+  deployment quickstart;
+- integrate FortiFlex-based licensing choices;
+- add locally owned blank and copied scenario creation workflows;
+- publish selected repository documentation in Demo Home; and
+- validate additional candidate scenarios and optional appliance paths.

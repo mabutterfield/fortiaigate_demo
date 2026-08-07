@@ -36,6 +36,13 @@ The quickstart can explicitly disable either appliance and safely skips one
 when its license, inventory, or other prerequisites are missing. Appliance
 absence must not break the core k3s deployment.
 
+LiteLLM is the common model-proxy layer for both deployment lanes. It maps
+scenario aliases to the selected Bedrock or Ollama model, injects the installed
+scenario's backend instructions, and then proxies the request to that provider.
+This also gives FAIG guards one consistent OpenAI-compatible downstream
+endpoint and authentication pattern instead of requiring separate Bedrock or
+Ollama authentication configuration for each guard.
+
 ## Model Request Paths
 
 The custom chatbot presents named profiles generated from installed scenario
@@ -44,15 +51,20 @@ MCP tool selection, and the scenario action.
 
 ```text
 LLM Direct
-  chatbot -> LiteLLM scenario alias -> provider
+  chatbot -> LiteLLM scenario alias
+          -> inject backend scenario instructions
+          -> Bedrock or Ollama
 
 FAIG protected
   chatbot -> FortiAIGate /v1/<scenario>/<action>/*
-          -> LiteLLM scenario alias -> provider
+          -> LiteLLM scenario alias
+          -> inject backend scenario instructions
+          -> Bedrock or Ollama
 
 FAIG passthrough
   chatbot or test client -> FortiAIGate /v1/passthrough/*
-                         -> LiteLLM pass-model -> provider
+                         -> LiteLLM pass-model
+                         -> Bedrock or Ollama
 ```
 
 The passthrough path is a full bypass of project-added instruction profiles and
@@ -64,9 +76,10 @@ Scenario guard names follow `<scenario>_<action>`. Current action names are
 
 ## Optional FAIG Re-entry Chain
 
-The deployment includes a globally available re-entry capability for
-demonstrations where a request passes through FortiAIGate both before and after
-LiteLLM applies scenario instructions:
+The deployment includes a globally available re-entry capability so a user can
+show FAIG the instructions that LiteLLM added and inspect the resulting request.
+It also provides routing flexibility for future demonstrations where a request
+must pass through FortiAIGate both before and after LiteLLM processing:
 
 ```text
 chatbot
@@ -100,9 +113,10 @@ selects Direct MCP and reports a warning. The selected transport belongs to
 the scenario, while Advanced mode can select the scenario tool set or an
 explicitly broader installed-tool set for cross-domain demonstrations.
 
-The MCP server returns synthetic, deterministic data. The Resume Tool
-Injection upload and cloud-inventory behavior is simulated; it does not upload
-files or access a cloud account.
+The MCP server uses simulated or synthetic data for repeatable demo behavior.
+Scenario instructions and fixtures are written to support clear security
+demonstrations while remaining as realistic as practical. They do not imply
+access to real business records, uploaded files, or cloud accounts.
 
 ## Optional Appliance Boundaries
 

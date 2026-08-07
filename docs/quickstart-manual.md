@@ -1,9 +1,9 @@
-# Manual Quick Start
+# Manual Deployment Reference
 
-This is the step-by-step manual deployment and recovery path for the
-FortiAIGate demo. Use [Automated Quick Start](quickstart-automated.md) for a
-normal first run. Use this page when you need to inspect, rerun, or recover one
-Terraform or Ansible step.
+This is the step-by-step command reference for inspecting, rerunning, or
+recovering individual Terraform and Ansible operations. It is not a second
+installation lane. Use [Automated Quick Start](quickstart-automated.md) for all
+normal first-run AWS and local deployments.
 
 Run these commands from the `fortiaigate_demo` repo root unless a step
 explicitly says otherwise.

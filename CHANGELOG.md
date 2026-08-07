@@ -12,11 +12,12 @@ a "what's new" guide rather than a raw commit log.
   - documented Direct, FAIG protected, passthrough, FortiWeb MCP, optional
     FortiGate, and opt-in FAIG re-entry request paths in one architecture view
   - moved the authoritative baseline into `docs/reference/` and classified
-    defaults, optional components, configurable behavior, validated scenarios,
-    candidates, and deferred paths
-  - added a clearly non-committal upcoming-features page for repository
-    separation, FortiFlex, local scenario creation, Demo Home documentation,
-    and future scenario/appliance validation
+    defaults, optional components, configurable behavior, and deferred paths
+  - made the scenario catalog the sole scenario-status authority and kept the
+    repository landing page focused on deployment choices
+  - added a concise, non-committal Future Direction section for AMI creation,
+    repository separation, FortiFlex, local scenario creation, Demo Home
+    documentation, and future scenario/appliance validation
 
 - Updated the local traffic generator for the complete Phase 11 baseline:
   - moved live validation, path checks, traffic generation, result aggregation,
