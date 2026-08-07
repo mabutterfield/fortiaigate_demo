@@ -264,7 +264,6 @@ def install_scenario(
         "mcp": mcp,
         "tool_profile": profile.get("mcp", {}).get("tool_profile", ""),
         "required_tools": profile.get("mcp", {}).get("required_tools", []),
-        "chatbot_demo_profiles": profile.get("chatbot_demo_profiles", []),
         "updated_at": int(time.time()),
     }
     instruction_profiles.write_json(instruction_profiles.metadata_path_for_instruction(destination), metadata)
@@ -768,8 +767,8 @@ def baseline_profile_validation(
     symbols["model_alias"].append(scenario_id)
 
     faig_chain = matrix.get("faig_chain")
-    if not isinstance(faig_chain, dict) or faig_chain.get("enabled") is not False:
-        errors.append("matrix.faig_chain.enabled must be false for the Phase 11 baseline")
+    if not isinstance(faig_chain, dict) or not isinstance(faig_chain.get("enabled"), bool):
+        errors.append("matrix.faig_chain.enabled must be a boolean")
     else:
         errors.extend(
             unexpected_key_errors(

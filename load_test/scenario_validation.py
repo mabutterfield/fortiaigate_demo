@@ -18,7 +18,7 @@ from load_test import statistics as run_statistics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_ROOT = REPO_ROOT / "load_test" / "output" / "validation"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "functional_test" / "output"
 TRACKED_SCENARIOS_ROOT = REPO_ROOT / "chatbot" / "scenarios" / "examples"
 
 LEGACY_PATH_CONFIGS = {
@@ -252,6 +252,12 @@ def scenario_action_configs(
             if profile.get("provider_path") == "faig-static"
             and profile.get("route") == route.get("name")
         ]
+        matching_profiles.sort(
+            key=lambda profile: (
+                str(profile.get("id") or "") != f"{scenario_id}-{action}",
+                str(profile.get("id") or ""),
+            )
+        )
         profile = matching_profiles[0] if matching_profiles else {}
         resolved.append(
             {
@@ -765,6 +771,18 @@ def normalized_live_result(result: dict[str, Any]) -> dict[str, Any]:
 def run_metadata_validation(args: argparse.Namespace) -> int:
     store = scenario_local.LocalScenarioStore()
     matrix = installed_matrix(store)
+    stale_sources = [
+        item["scenario_id"]
+        for item in matrix.get("source_scenarios", [])
+        if item.get("source_update_available")
+    ]
+    if stale_sources:
+        print(
+            "warning: tracked scenario updates are available for "
+            + ", ".join(stale_sources)
+            + "; reinstall or explicitly update local copies before validating the new template behavior.",
+            file=sys.stderr,
+        )
     state = store.load_state()
     installed_ids = [entry["scenario_id"] for entry in state["installed_scenarios"]]
     scenario_ids = [
@@ -777,7 +795,11 @@ def run_metadata_validation(args: argparse.Namespace) -> int:
         for scenario_id in scenario_ids
     }
     items = validation_plan_items(matrix, profiles, scenario_ids)
-    passthrough = scenario_action_configs(matrix, scenario_ids[0], ["passthrough"])[0]
+    passthrough = scenario_action_configs(
+        matrix,
+        scenario_ids[0] if scenario_ids else "",
+        ["passthrough"],
+    )[0]
     items.append(
         {
             "scenario": "passthrough",

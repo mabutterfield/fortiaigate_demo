@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from load_test import scenario_validation
+from functional_test import validation as scenario_validation
 
 
 class ScenarioTestHarnessTests(unittest.TestCase):
@@ -75,6 +75,44 @@ class ScenarioTestHarnessTests(unittest.TestCase):
                 "hr-tool-dlp",
                 ["missing-action"],
             )
+
+    def test_action_profile_wins_over_same_route_baseline_profile(self) -> None:
+        self.matrix["chatbot_faig_static_routes"].append(
+            {
+                "name": "fortistore-injection-alert",
+                "label": "FortiStore Injection Alert",
+                "model": "fortistore-injection",
+                "action": "alert",
+                "scenario_id": "fortistore-injection",
+            }
+        )
+        self.matrix["chatbot_simplified_profiles"].extend(
+            [
+                {
+                    "id": "fortistore-injection-baseline",
+                    "provider_path": "faig-static",
+                    "route": "fortistore-injection-alert",
+                    "scenario_id": "fortistore-injection",
+                    "frontend_instruction_profile": "none",
+                },
+                {
+                    "id": "fortistore-injection-alert",
+                    "provider_path": "faig-static",
+                    "route": "fortistore-injection-alert",
+                    "scenario_id": "fortistore-injection",
+                    "frontend_instruction_profile": "fortistore-injection-compromised",
+                },
+            ]
+        )
+        config = scenario_validation.scenario_action_configs(
+            self.matrix,
+            "fortistore-injection",
+            ["alert"],
+        )[0]
+        self.assertEqual(
+            config["frontend_instruction_profile"],
+            "fortistore-injection-compromised",
+        )
 
     def test_cloud_tool_execution_takes_precedence_over_final_block_language(self) -> None:
         classified = scenario_validation.classify_response(

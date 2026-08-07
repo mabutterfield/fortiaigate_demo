@@ -9,6 +9,8 @@ from typing import Any
 
 
 MATRIX_SCHEMA_VERSION = 1
+FAIG_PASSTHROUGH_URI = "/v1/passthrough"
+FAIG_CHAIN_LLM_TARGET = "faig-chain-reentry"
 
 
 class ScenarioMatrixError(RuntimeError):
@@ -131,7 +133,7 @@ def mcp_paths(
         }
     ]
     warnings: list[str] = []
-    fortiweb_desired = bool(capabilities.get("fortiweb_mcp_desired", False))
+    fortiweb_desired = bool(capabilities.get("fortiweb_mcp_desired", True))
     fortiweb_installed = bool(capabilities.get("fortiweb_installed", False))
     fortiweb_base_url = str(capabilities.get("fortiweb_mcp_base_url") or "").strip()
     if fortiweb_desired and fortiweb_installed and fortiweb_base_url:
@@ -163,6 +165,10 @@ def build_scenario_matrix(
         key=lambda scenario: scenario["scenario_id"],
     )
     warnings: list[str] = []
+    faig_chain_available = bool(capabilities.get("faig_chain_available", True))
+    faig_chain_reentry_uri = str(
+        capabilities.get("faig_chain_reentry_uri") or FAIG_PASSTHROUGH_URI
+    ).rstrip("/")
 
     llm_targets = {"llm-default"}
     litellm_models = [
@@ -186,13 +192,14 @@ def build_scenario_matrix(
         {
             "name": "passthrough",
             "label": "FAIG Passthrough",
-            "base_path": "/v1/passthrough",
+            "base_path": FAIG_PASSTHROUGH_URI,
             "model": "pass-model",
             "scenario_id": "",
             "action": "passthrough",
         }
     ]
     work_order: list[dict[str, Any]] = []
+    faig_chains: list[dict[str, Any]] = []
 
     rendered_frontend_profiles = frontend_profiles(scenarios)
     rendered_mcp_profiles, mcp_default_candidates = mcp_profiles(
@@ -231,6 +238,44 @@ def build_scenario_matrix(
         model_instruction_profiles[scenario_id] = scenario_id
         chatbot_model_options.append(scenario_id)
 
+        faig_chain = scenario.get("faig_chain", {"enabled": False})
+        chain_enabled = bool(faig_chain.get("enabled", False))
+        chain_model_alias = f"{scenario_id}-faig-chain"
+        if chain_enabled:
+            if not faig_chain_available:
+                raise ScenarioMatrixError(
+                    f"{scenario_id} enables FAIG chaining, but the global capability is disabled"
+                )
+            if faig_chain_reentry_uri != FAIG_PASSTHROUGH_URI:
+                raise ScenarioMatrixError(
+                    f"{scenario_id} FAIG chain must re-enter through {FAIG_PASSTHROUGH_URI}; "
+                    f"got {faig_chain_reentry_uri}"
+                )
+            llm_targets.add(FAIG_CHAIN_LLM_TARGET)
+            litellm_models.append(
+                {
+                    "name": chain_model_alias,
+                    "llm_target": FAIG_CHAIN_LLM_TARGET,
+                    "instruction_profile": scenario_id,
+                }
+            )
+            model_instruction_profiles[chain_model_alias] = scenario_id
+            faig_chains.append(
+                {
+                    "scenario_id": scenario_id,
+                    "model_alias": chain_model_alias,
+                    "reentry_uri": faig_chain_reentry_uri,
+                    "downstream_model": "pass-model",
+                    "topology": [
+                        "chatbot",
+                        "faig-scenario-path",
+                        chain_model_alias,
+                        faig_chain_reentry_uri,
+                        "pass-model",
+                    ],
+                }
+            )
+
         entry_points = {
             entry_point["action"]: entry_point
             for entry_point in scenario.get("entry_points", [])
@@ -245,12 +290,11 @@ def build_scenario_matrix(
                 "action": entry_point["action"],
             }
             chatbot_faig_routes.append(route)
-            work_order.append(
-                {
-                    "scenario_id": scenario_id,
-                    **entry_point,
-                }
-            )
+            work_order_entry = {"scenario_id": scenario_id, **entry_point}
+            if chain_enabled:
+                work_order_entry["guard_next_hop_model"] = chain_model_alias
+                work_order_entry["faig_chain_enabled"] = True
+            work_order.append(work_order_entry)
 
         mcp = scenario.get("mcp", {})
         mcp_enabled = bool(mcp.get("enabled", False))
@@ -346,20 +390,28 @@ def build_scenario_matrix(
 
     if capabilities.get("fortigate_routes_desired", False):
         warnings.append(
-            "FortiGate scenario routes are disabled during the initial Phase 11 matrix implementation."
+            "FortiGate scenario routes are not part of the current runtime baseline and were not generated."
         )
+
+    preferred_mcp_path = (
+        "fortiweb"
+        if any(path["name"] == "fortiweb" for path in rendered_mcp_paths)
+        else "direct"
+    )
 
     matrix = {
         "schema_version": MATRIX_SCHEMA_VERSION,
         "global": {
             "passthrough_model_alias": "pass-model",
-            "faig_passthrough_uri": "/v1/passthrough",
+            "faig_passthrough_uri": FAIG_PASSTHROUGH_URI,
+            "faig_chain_reentry_uri": faig_chain_reentry_uri,
         },
         "capabilities": {
             "fortigate_routes_enabled": False,
             "fortiweb_mcp_enabled": any(
                 path["name"] == "fortiweb" for path in rendered_mcp_paths
             ),
+            "faig_chain_available": faig_chain_available,
         },
         "llm_targets": [
             {"name": target}
@@ -384,19 +436,20 @@ def build_scenario_matrix(
         "chatbot_advanced_controls": {
             "default_model": "pass-model" if not scenarios else scenarios[0]["scenario_id"],
             "default_faig_route": "passthrough",
-            "default_mcp_path": "direct",
+            "default_mcp_path": preferred_mcp_path,
             "default_mcp_tool_profile": (
                 mcp_default_candidates[0] if mcp_default_candidates else ""
             ),
         },
-        "chatbot_simplified_profiles": sorted(
-            simplified_profiles,
-            key=lambda profile: profile["id"],
-        ),
+        "chatbot_simplified_profiles": simplified_profiles,
         "chatbot_mcp_tool_profiles": rendered_mcp_profiles,
         "faig_work_order": sorted(
             work_order,
             key=lambda entry: (entry["scenario_id"], entry["action"]),
+        ),
+        "faig_chains": sorted(
+            faig_chains,
+            key=lambda entry: entry["scenario_id"],
         ),
         "source_scenarios": [
             {
@@ -422,6 +475,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
         "- LiteLLM passthrough alias: `pass-model`",
         "- FAIG passthrough configured URI: `/v1/passthrough/*`",
         "- Behavior: no scenario instructions",
+        f"- FAIG chain capability: `{'available' if matrix.get('capabilities', {}).get('faig_chain_available') else 'disabled'}`",
         "",
         "## Installed Scenario Objects",
         "",
@@ -459,6 +513,37 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                 "",
                 "Guard and flow names may differ, but each configured URI and guard next-hop",
                 "LiteLLM model alias must match this work order.",
+                "",
+            ]
+        )
+
+    chains = matrix.get("faig_chains", [])
+    lines.extend(["## Optional FAIG Re-entry Chains", ""])
+    if not chains:
+        lines.extend(
+            [
+                "No installed scenario has opted in to FAIG re-entry chaining.",
+                "Built-in scenarios leave this capability disabled per scenario.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "| Scenario | LiteLLM chain alias | Re-entry URI | Downstream model |",
+                "|---|---|---|---|",
+            ]
+        )
+        for chain in chains:
+            lines.append(
+                f"| `{chain['scenario_id']}` | `{chain['model_alias']}` | "
+                f"`{chain['reentry_uri']}/*` | `{chain['downstream_model']}` |"
+            )
+        lines.extend(
+            [
+                "",
+                "The re-entry flow must terminate at the passthrough model. Never route it",
+                "back to a `*-faig-chain` alias, or the request will loop.",
                 "",
             ]
         )

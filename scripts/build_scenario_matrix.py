@@ -35,8 +35,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--fortiweb-mcp-desired",
+        dest="fortiweb_mcp_desired",
         action="store_true",
-        help="Request FortiWeb MCP generation when installed and configured.",
+        default=True,
+        help="Request FortiWeb MCP generation when installed and configured (default).",
+    )
+    parser.add_argument(
+        "--no-fortiweb-mcp",
+        dest="fortiweb_mcp_desired",
+        action="store_false",
+        help="Explicitly disable FortiWeb MCP generation and use Direct MCP.",
     )
     parser.add_argument(
         "--fortiweb-installed",
@@ -51,7 +59,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fortigate-routes-desired",
         action="store_true",
-        help="Request FortiGate routes; Phase 3 emits a deferred warning and no routes.",
+        help="Request FortiGate routes; the current baseline emits a deferred warning and no routes.",
+    )
+    parser.add_argument(
+        "--disable-faig-chain",
+        dest="faig_chain_available",
+        action="store_false",
+        default=True,
+        help="Disable the globally available FAIG re-entry capability.",
+    )
+    parser.add_argument(
+        "--faig-chain-reentry-uri",
+        default="/v1/passthrough",
+        help="Global FAIG re-entry URI. Enabled chains require /v1/passthrough.",
     )
     return parser.parse_args()
 
@@ -68,6 +88,8 @@ def main() -> int:
                 "fortiweb_installed": args.fortiweb_installed,
                 "fortiweb_mcp_base_url": args.fortiweb_mcp_base_url,
                 "fortigate_routes_desired": args.fortigate_routes_desired,
+                "faig_chain_available": args.faig_chain_available,
+                "faig_chain_reentry_uri": args.faig_chain_reentry_uri,
             },
             include_debug_all_server_tools=args.debug_all_server_tools,
         )

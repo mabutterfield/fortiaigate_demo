@@ -21,6 +21,7 @@ def scenario_preview(
     mcp_enabled: bool,
     frontend_profile: str = "none",
     default_tool_set: str = "scenario",
+    default_transport: str = "direct",
 ) -> dict:
     display_name = scenario_id.replace("-", " ").title()
     frontend_profiles = [
@@ -56,7 +57,7 @@ def scenario_preview(
         "instruction_file": f"chatbot/scenarios/local/{scenario_id}/instructions.txt",
         "mcp": {
             "enabled": mcp_enabled,
-            "default_transport": "direct",
+            "default_transport": default_transport,
             "default_tool_set": default_tool_set,
             "required_tools": [f"{scenario_id}_tool"] if mcp_enabled else [],
             "extended_tool_sets": (
@@ -89,8 +90,8 @@ def scenario_preview(
         "frontend_instruction_profiles": frontend_profiles,
         "chatbot_profiles": [
             {
-                "id": f"{scenario_id}-direct",
-                "display_name": f"{display_name} Direct",
+                "id": f"{scenario_id}-llm-direct",
+                "display_name": f"{display_name} - LLM Direct",
                 "provider_path": "direct",
                 "context_mode": "recent",
                 "context_window": 8,
@@ -206,7 +207,7 @@ class ScenarioMatrixTests(unittest.TestCase):
             for profile in matrix["chatbot_simplified_profiles"]
         }
         self.assertEqual(
-            simplified["resume-tool-injection-direct"]["mcp_tool_profile"],
+            simplified["resume-tool-injection-llm-direct"]["mcp_tool_profile"],
             "resume-tool-injection-cross-domain",
         )
         self.assertEqual(
@@ -245,6 +246,71 @@ class ScenarioMatrixTests(unittest.TestCase):
             ["direct", "fortiweb"],
         )
         self.assertTrue(enabled["capabilities"]["fortiweb_mcp_enabled"])
+
+    def test_fortiweb_is_preferred_and_direct_is_deterministic_fallback(self) -> None:
+        scenario = scenario_preview(
+            "hr-tool-dlp",
+            mcp_enabled=True,
+            default_transport="fortiweb",
+        )
+        fallback = scenario_matrix.build_scenario_matrix(
+            {"installed_scenarios": [scenario]}
+        )
+        self.assertEqual(fallback["chatbot_advanced_controls"]["default_mcp_path"], "direct")
+        self.assertEqual(
+            {profile["mcp_path"] for profile in fallback["chatbot_simplified_profiles"]},
+            {"direct"},
+        )
+        self.assertTrue(any("FortiWeb MCP was requested" in warning for warning in fallback["warnings"]))
+
+        enabled = scenario_matrix.build_scenario_matrix(
+            {"installed_scenarios": [scenario]},
+            capabilities={
+                "fortiweb_installed": True,
+                "fortiweb_mcp_base_url": "http://fortiweb.example:30084",
+            },
+        )
+        self.assertEqual(enabled["chatbot_advanced_controls"]["default_mcp_path"], "fortiweb")
+        self.assertEqual(
+            {profile["mcp_path"] for profile in enabled["chatbot_simplified_profiles"]},
+            {"fortiweb"},
+        )
+
+    def test_opted_in_faig_chain_generates_loop_safe_topology(self) -> None:
+        scenario = scenario_preview("fortistore-injection", mcp_enabled=False)
+        scenario["faig_chain"]["enabled"] = True
+        matrix = scenario_matrix.build_scenario_matrix(
+            {"installed_scenarios": [scenario]}
+        )
+        self.assertTrue(matrix["capabilities"]["faig_chain_available"])
+        self.assertIn(
+            "faig-chain-reentry",
+            [target["name"] for target in matrix["llm_targets"]],
+        )
+        self.assertIn(
+            "fortistore-injection-faig-chain",
+            [model["name"] for model in matrix["litellm_models"]],
+        )
+        self.assertEqual(
+            matrix["faig_work_order"][0]["guard_next_hop_model"],
+            "fortistore-injection-faig-chain",
+        )
+        self.assertEqual(matrix["faig_chains"][0]["reentry_uri"], "/v1/passthrough")
+        self.assertEqual(matrix["faig_chains"][0]["downstream_model"], "pass-model")
+
+    def test_faig_chain_rejects_disabled_capability_and_non_passthrough_reentry(self) -> None:
+        scenario = scenario_preview("fortistore-injection", mcp_enabled=False)
+        scenario["faig_chain"]["enabled"] = True
+        with self.assertRaisesRegex(scenario_matrix.ScenarioMatrixError, "capability is disabled"):
+            scenario_matrix.build_scenario_matrix(
+                {"installed_scenarios": [scenario]},
+                capabilities={"faig_chain_available": False},
+            )
+        with self.assertRaisesRegex(scenario_matrix.ScenarioMatrixError, "must re-enter"):
+            scenario_matrix.build_scenario_matrix(
+                {"installed_scenarios": [scenario]},
+                capabilities={"faig_chain_reentry_uri": "/v1/fortistore-injection/alert"},
+            )
 
     def test_matrix_output_is_deterministic_for_scenario_order(self) -> None:
         first = scenario_preview("fortistore-injection", mcp_enabled=False)

@@ -50,9 +50,12 @@ Scenario-specific output guard reference:
 
 ## Chatbot And MCP Settings
 
-The four simplified profiles use model alias `hr-tool-dlp`, recent context with
-an eight-message window, Direct MCP, tool profile `hr-tool-dlp`, and up to five
-tool rounds.
+The four simplified profiles are `HR Tool DLP - LLM Direct`, `HR Tool DLP -
+Alert`, `HR Tool DLP - Redact`, and `HR Tool DLP - Deny`. They use model alias
+`hr-tool-dlp`, recent context with an eight-message window, tool profile
+`hr-tool-dlp`, and up to five tool rounds. FortiWeb MCP is preferred when its
+endpoint is installed and desired; otherwise generation warns and falls back
+to Direct MCP.
 
 The scoped MCP tools are:
 
@@ -62,7 +65,7 @@ The scoped MCP tools are:
 - `employee_table_with_cc`
 
 Advanced mode may select `all-installed` for an intentional cross-domain tool
-demonstration or switch the MCP path to FortiWeb. Do not use those alternates
+demonstration or switch the MCP path to Direct. Do not use those alternates
 for the baseline comparison.
 
 ## Prompt Walkthrough
@@ -93,7 +96,7 @@ redaction as a pass.
 Direct scoped-tools control:
 
 ```bash
-python3 -m load_test validate \
+python3 -m functional_test \
   --scenario hr-tool-dlp \
   --action direct \
   --run-label hr-direct
@@ -102,7 +105,7 @@ python3 -m load_test validate \
 Required FAIG comparisons:
 
 ```bash
-python3 -m load_test validate \
+python3 -m functional_test \
   --scenario hr-tool-dlp \
   --action alert \
   --action deny \
@@ -113,7 +116,7 @@ python3 -m load_test validate \
 Advanced FortiWeb MCP alternate:
 
 ```bash
-python3 -m load_test validate \
+python3 -m functional_test \
   --scenario hr-tool-dlp \
   --action direct \
   --mcp-path fortiweb \

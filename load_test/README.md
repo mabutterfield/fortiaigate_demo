@@ -1,13 +1,12 @@
-# Local Validation And Dashboard Workloads
+# Developer Dashboard Workloads
 
-This package owns live Phase 11 scenario validation, FAIG path checks, and
-long-running local workload generation. It is separate from `tests/`, which
-contains fast offline unit and schema tests.
+This developer-focused package owns FAIG path traffic and long-running local
+dashboard workload generation. Supported scenario validation has the separate
+operator-facing entry point `python3 -m functional_test`.
 
 Commands:
 
 ```bash
-python3 -m load_test validate --help
 python3 -m load_test paths --help
 python3 -m load_test run --help
 ```
@@ -26,7 +25,8 @@ not an exact hourly quota, and guarantees hourly Alert, Deny, and Redact cases.
 
 Runtime modules are intentionally separated:
 
-- `scenario_validation.py`: metadata case planning and deployed behavior checks
+- `scenario_validation.py`: shared validation implementation behind the public
+  `functional_test` facade; retained here to avoid duplicating result logic
 - `workload.py`: reproducible hourly request planning
 - `dashboard_runner.py`: bounded scheduling and graceful process lifecycle
 - `statistics.py`: atomic progress, result, latency, token, and GPU rollups

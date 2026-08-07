@@ -46,7 +46,8 @@
     },
     "chatbot_demo_profiles": {
       "type": "array",
-      "description": "Temporary Phase 10 compatibility data; removed after matrix integration.",
+      "deprecated": true,
+      "description": "Ignored read compatibility for previously installed local scenario copies; tracked templates must not use it.",
       "items": {
         "type": "object"
       }
@@ -288,7 +289,7 @@
           ],
           "properties": {
             "enabled": {
-              "const": false
+              "type": "boolean"
             }
           }
         }

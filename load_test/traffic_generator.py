@@ -23,7 +23,8 @@ from urllib.parse import urlparse
 
 from scripts import scenario_local, scenario_matrix, scenario_profiles
 
-from load_test import scenario_validation, statistics as run_statistics
+from functional_test import validation as scenario_validation
+from load_test import statistics as run_statistics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

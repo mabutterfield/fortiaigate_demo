@@ -56,20 +56,21 @@
     ],
     "chatbot_profiles": [
       {
-        "id": "fortistore-direct-backend",
-        "display_name": "FortiStore - Backend Only",
+        "id": "fortistore-injection-llm-direct",
+        "display_name": "FortiStore Injection - LLM Direct",
         "provider_path": "direct",
         "context_mode": "current",
         "context_window": 1,
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "fortistore-direct-frontend-injection",
-        "display_name": "FortiStore - Frontend Injection",
-        "provider_path": "direct",
+        "id": "fortistore-injection-baseline",
+        "display_name": "FortiStore Injection - Baseline",
+        "provider_path": "faig-static",
+        "entry_point_action": "alert",
         "context_mode": "current",
         "context_window": 1,
-        "frontend_instruction_profile": "fortistore-injection-compromised"
+        "frontend_instruction_profile": "none"
       },
       {
         "id": "fortistore-injection-alert",
@@ -94,48 +95,6 @@
       "enabled": false
     }
   },
-  "chatbot_demo_profiles": [
-    {
-      "id": "fortistore-direct-backend",
-      "label": "FortiStore - Backend Only",
-      "provider_path": "direct",
-      "model": "demo-a",
-      "mcp_enabled": false,
-      "frontend_system_prompt_enabled": false,
-      "context_mode": "current",
-      "context_window": 1
-    },
-    {
-      "id": "fortistore-direct-frontend-injection",
-      "label": "FortiStore - Frontend Injection",
-      "provider_path": "direct",
-      "model": "demo-a",
-      "mcp_enabled": false,
-      "frontend_system_prompt_enabled": true,
-      "context_mode": "current",
-      "context_window": 1
-    },
-    {
-      "id": "fortistore-detect-only",
-      "label": "FortiStore - Detect Only",
-      "provider_path": "faig-static",
-      "route": "demo-a",
-      "mcp_enabled": false,
-      "frontend_system_prompt_enabled": true,
-      "context_mode": "current",
-      "context_window": 1
-    },
-    {
-      "id": "fortistore-input-protect",
-      "label": "FortiStore - Input Protect",
-      "provider_path": "faig-static",
-      "route": "demo-b",
-      "mcp_enabled": false,
-      "frontend_system_prompt_enabled": true,
-      "context_mode": "current",
-      "context_window": 1
-    }
-  ],
   "clean_prompts": [
     "Tell me about FortiGate for a mid-sized branch office.",
     "Which products help secure remote users and cloud applications?",

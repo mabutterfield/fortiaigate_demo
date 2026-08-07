@@ -1118,12 +1118,34 @@ def choose_local_ssh_private_key(default_private_key: str, key_name: str) -> str
 
 
 def requested_appliance_keys(args: argparse.Namespace) -> list[str]:
+    """Return desired appliances; both are default-on unless explicitly disabled."""
     requested: list[str] = []
-    if args.include_appliances or args.include_fortigate:
+    disable_all = bool(getattr(args, "no_appliances", False))
+    if not disable_all and not bool(getattr(args, "no_fortigate", False)):
         requested.append("fortigate")
-    if args.include_appliances or args.include_fortiweb:
+    if not disable_all and not bool(getattr(args, "no_fortiweb", False)):
         requested.append("fortiweb")
     return requested
+
+
+def explicitly_requested_appliance_keys(args: argparse.Namespace) -> set[str]:
+    requested: set[str] = set()
+    if bool(getattr(args, "include_appliances", False)) or bool(getattr(args, "include_fortigate", False)):
+        requested.add("fortigate")
+    if bool(getattr(args, "include_appliances", False)) or bool(getattr(args, "include_fortiweb", False)):
+        requested.add("fortiweb")
+    return requested
+
+
+def explicitly_disabled_appliance_keys(args: argparse.Namespace) -> set[str]:
+    if bool(getattr(args, "no_appliances", False)):
+        return set(APPLIANCE_LOCAL_FILE_PAIRS)
+    disabled: set[str] = set()
+    if bool(getattr(args, "no_fortigate", False)):
+        disabled.add("fortigate")
+    if bool(getattr(args, "no_fortiweb", False)):
+        disabled.add("fortiweb")
+    return disabled
 
 
 def appliance_tfvars_path(appliance_key: str) -> Path:
@@ -1139,8 +1161,11 @@ def appliance_enabled_from_tfvars(appliance_key: str) -> bool:
 
 def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
     requested = set(requested_appliance_keys(args))
+    disabled = explicitly_disabled_appliance_keys(args)
     selected: list[str] = []
     for appliance_key in APPLIANCE_LOCAL_FILE_PAIRS:
+        if appliance_key in disabled:
+            continue
         if appliance_key in requested or appliance_enabled_from_tfvars(appliance_key):
             selected.append(appliance_key)
     return selected
@@ -1148,15 +1173,35 @@ def selected_appliance_keys(args: argparse.Namespace) -> list[str]:
 
 def selected_local_appliance_keys(args: argparse.Namespace) -> list[str]:
     requested = set(requested_appliance_keys(args))
+    explicitly_requested = explicitly_requested_appliance_keys(args)
+    disabled = explicitly_disabled_appliance_keys(args)
     selected: list[str] = []
     for appliance_key, inventory in LOCAL_APPLIANCE_INVENTORIES.items():
+        if appliance_key in disabled:
+            print(f"{appliance_key}: explicitly disabled; skipping local appliance configuration.")
+            continue
+        configured_enabled = get_layered_yaml_bool(
+            f"{appliance_key}_local_enabled",
+            True,
+        )
+        if not configured_enabled and appliance_key not in explicitly_requested:
+            print(
+                f"{appliance_key}: disabled by local setup; skipping its existing inventory."
+            )
+            continue
         inventory_path = REPO_ROOT / inventory
         if appliance_key in requested:
             if not inventory_path.exists():
-                raise SystemExit(
-                    f"{appliance_key} was requested, but {inventory} does not exist. "
-                    "Run scripts/local_setup.py and choose that appliance, or omit the appliance flag."
+                if appliance_key in explicitly_requested:
+                    raise SystemExit(
+                        f"{appliance_key} was explicitly requested, but {inventory} does not exist. "
+                        "Run scripts/local_setup.py and configure that appliance first."
+                    )
+                print(
+                    f"{appliance_key}: desired by default, but {inventory} is missing; "
+                    "skipping it and continuing with the core deployment."
                 )
+                continue
             selected.append(appliance_key)
             continue
         if inventory_path.exists():
@@ -1175,6 +1220,112 @@ def configure_appliance_tfvars(appliance_keys: list[str]) -> None:
         content = set_tf_bool(content, f"{appliance_key}_enabled", True)
         write_file(path, content)
         print(f"updated: {path.relative_to(REPO_ROOT)}")
+
+
+def configure_disabled_appliance_tfvars(args: argparse.Namespace) -> None:
+    disabled = explicitly_disabled_appliance_keys(args)
+    if not disabled:
+        return
+    print_header("Disabled Appliance Terraform Config")
+    for appliance_key in sorted(disabled):
+        path = appliance_tfvars_path(appliance_key)
+        content = read_existing_file(path)
+        updated = set_tf_bool(content, f"{appliance_key}_enabled", False)
+        if updated != content:
+            write_file(path, updated)
+            print(f"updated: {path.relative_to(REPO_ROOT)}")
+        else:
+            print(f"{appliance_key}: already disabled in {path.relative_to(REPO_ROOT)}")
+
+
+def configure_appliance_runtime_intent(args: argparse.Namespace) -> None:
+    """Persist only explicit CLI MCP intent; default runs preserve user overrides."""
+    explicit = explicitly_requested_appliance_keys(args)
+    disabled = explicitly_disabled_appliance_keys(args)
+    if "fortiweb" not in explicit and "fortiweb" not in disabled:
+        return
+    path = REPO_ROOT / "ansible/group_vars/user.yml"
+    content = read_existing_file(path)
+    if not content.strip():
+        content = "---\n# User-specific overrides generated by the guided quickstart.\n"
+    desired = "fortiweb" in explicit and "fortiweb" not in disabled
+    updated = set_yaml_scalar(
+        content,
+        "fortiweb_mcp_proxy_enabled",
+        "true" if desired else "false",
+    )
+    if updated != content:
+        write_file(path, updated)
+    print(
+        "FortiWeb MCP runtime intent: "
+        + ("preferred when available" if desired else "disabled; Direct MCP fallback selected")
+    )
+
+
+def appliance_license_ready(appliance_key: str) -> tuple[bool, str]:
+    config = APPLIANCE_LICENSES[appliance_key]
+    content = read_effective_module_tfvars(config["module_path"])
+    license_mode = get_tf_string(content, config["mode_key"], "byol_file")
+    if license_mode == "none":
+        return True, "license mode is none"
+    if license_mode == "fortiflex_token":
+        if get_tf_string(content, config["token_key"]):
+            return True, "FortiFlex token is configured"
+        return False, f"{config['token_key']} is empty"
+    if license_mode != "byol_file":
+        return False, f"unsupported {config['mode_key']}={license_mode}"
+    license_path, _license_value, license_name = resolve_appliance_license_parts(content, config)
+    if license_name == config["default_file"]:
+        return False, "only the placeholder BYOL filename is configured"
+    if not license_path.is_file():
+        return False, f"BYOL file is missing: {license_path}"
+    return True, f"BYOL file is available: {license_path.name}"
+
+
+def filter_noninteractive_default_appliances(
+    args: argparse.Namespace,
+    appliance_keys: list[str],
+) -> list[str]:
+    """Skip only default-selected appliances whose license input is unavailable."""
+    if not args.yolo or args.skip_terraform:
+        return appliance_keys
+    explicit = explicitly_requested_appliance_keys(args)
+    selected: list[str] = []
+    for appliance_key in appliance_keys:
+        ready, reason = appliance_license_ready(appliance_key)
+        if ready or appliance_key in explicit:
+            selected.append(appliance_key)
+            continue
+        print(
+            f"{appliance_key}: desired by default but prerequisites are unavailable "
+            f"({reason}); skipping it and continuing with the core deployment."
+        )
+    return selected
+
+
+def filter_existing_appliances_for_skipped_terraform(
+    args: argparse.Namespace,
+    appliance_keys: list[str],
+) -> list[str]:
+    if not args.skip_terraform:
+        return appliance_keys
+    explicit = explicitly_requested_appliance_keys(args)
+    selected: list[str] = []
+    for appliance_key in appliance_keys:
+        inventory = REPO_ROOT / APPLIANCE_ANSIBLE_PLANS[appliance_key]["inventory"]
+        if inventory.exists():
+            selected.append(appliance_key)
+            continue
+        if appliance_key in explicit:
+            raise SystemExit(
+                f"{appliance_key} was explicitly requested with --skip-terraform, "
+                f"but {inventory.relative_to(REPO_ROOT)} does not exist."
+            )
+        print(
+            f"{appliance_key}: desired by default, but --skip-terraform was set and "
+            f"{inventory.relative_to(REPO_ROOT)} is missing; skipping it."
+        )
+    return selected
 
 
 def ensure_appliance_prep_tfvars(appliance_keys: list[str]) -> None:
@@ -2108,17 +2259,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-fortigate",
         action="store_true",
-        help="Ensure FortiGate local overrides are enabled, run terraform/aws-fortigate, and apply FortiGate Ansible configuration.",
+        help="Explicitly require FortiGate. FortiGate is otherwise desired by default and may be skipped when prerequisites are missing.",
     )
     parser.add_argument(
         "--include-fortiweb",
         action="store_true",
-        help="Ensure FortiWeb local overrides are enabled, run terraform/aws-fortiweb, and apply FortiWeb Ansible configuration.",
+        help="Explicitly require FortiWeb. FortiWeb is otherwise desired by default and may be skipped when prerequisites are missing.",
     )
     parser.add_argument(
         "--include-appliances",
         action="store_true",
-        help="Shortcut for --include-fortigate --include-fortiweb.",
+        help="Explicitly require both appliances; retained as a compatibility convenience.",
+    )
+    parser.add_argument(
+        "--no-fortigate",
+        action="store_true",
+        help="Explicitly disable FortiGate deployment/configuration.",
+    )
+    parser.add_argument(
+        "--no-fortiweb",
+        action="store_true",
+        help="Explicitly disable FortiWeb deployment/configuration and use Direct MCP fallback.",
+    )
+    parser.add_argument(
+        "--no-appliances",
+        action="store_true",
+        help="Explicitly disable both FortiGate and FortiWeb.",
     )
     parser.add_argument(
         "--ec2-status-delay",
@@ -2187,17 +2353,23 @@ def main() -> None:
         print("- Image publishing is skipped.")
         print("- FortiAIGate status is checked once after deploy, then again after app deployment.")
         print("- Terraform/Ansible execution prompts are skipped where safe.")
+    conflicting = explicitly_requested_appliance_keys(args) & explicitly_disabled_appliance_keys(args)
+    if conflicting:
+        raise SystemExit(
+            "Conflicting appliance options for: " + ", ".join(sorted(conflicting))
+        )
     requested_appliances = requested_appliance_keys(args)
-    if requested_appliances:
-        print("\nRequested optional appliance deployment:")
-        for appliance_key in requested_appliances:
-            print(f"- {appliance_key}")
+    print("\nAppliance deployment intent:")
+    for appliance_key in APPLIANCE_LOCAL_FILE_PAIRS:
+        state = "desired" if appliance_key in requested_appliances else "disabled"
+        print(f"- {appliance_key}: {state}")
 
     check_requirements(args.target)
     profile_action = ensure_user_profile(args)
     if profile_action == "export":
         return
     profile_tool.warn_legacy_files()
+    configure_appliance_runtime_intent(args)
 
     if args.target == "local":
         ensure_local_generated_files()
@@ -2231,6 +2403,8 @@ def main() -> None:
         run_ansible_flow(args, appliance_keys, inventory=LOCAL_INVENTORY)
         print_header("Automated Quick Start Complete")
         print("Local Ansible deployment steps completed.")
+        print("Next validation command from the repo root:")
+        print("  python3 -m functional_test")
         return
 
     current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
@@ -2269,6 +2443,9 @@ def main() -> None:
 
     configure_ansible_env(profile, region)
     appliance_keys = selected_appliance_keys(args)
+    appliance_keys = filter_existing_appliances_for_skipped_terraform(args, appliance_keys)
+    appliance_keys = filter_noninteractive_default_appliances(args, appliance_keys)
+    configure_disabled_appliance_tfvars(args)
     if not args.yolo:
         configure_appliance_tfvars(appliance_keys)
     elif appliance_keys:
@@ -2331,6 +2508,8 @@ def main() -> None:
 
     print_header("Automated Quick Start Complete")
     print("Terraform and Ansible deployment steps completed.")
+    print("Next validation command from the repo root:")
+    print("  python3 -m functional_test")
 
 
 if __name__ == "__main__":

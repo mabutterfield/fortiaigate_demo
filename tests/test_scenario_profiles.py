@@ -68,6 +68,47 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
                 profile_path, profile = self.load_baseline(scenario_id)
                 self.assertEqual(self.validate(scenario_id, profile_path, profile), [])
 
+    def test_builtin_profile_names_follow_the_chatbot_display_convention(self) -> None:
+        expected = {
+            "fortistore-injection": [
+                "FortiStore Injection - LLM Direct",
+                "FortiStore Injection - Baseline",
+                "FortiStore Injection - Alert",
+                "FortiStore Injection - Deny",
+            ],
+            "hr-tool-dlp": [
+                "HR Tool DLP - LLM Direct",
+                "HR Tool DLP - Alert",
+                "HR Tool DLP - Redact",
+                "HR Tool DLP - Deny",
+            ],
+            "resume-tool-injection": [
+                "Resume Tool Injection - LLM Direct",
+                "Resume Tool Injection - Alert",
+                "Resume Tool Injection - Deny",
+            ],
+        }
+        for scenario_id, labels in expected.items():
+            _profile_path, profile = self.load_baseline(scenario_id)
+            self.assertEqual(
+                [item["display_name"] for item in profile["matrix"]["chatbot_profiles"]],
+                labels,
+            )
+            self.assertNotIn("chatbot_demo_profiles", profile)
+
+    def test_builtin_mcp_scenarios_prefer_fortiweb_and_chains_default_off(self) -> None:
+        for scenario_id in BASELINE_IDS:
+            _profile_path, profile = self.load_baseline(scenario_id)
+            self.assertFalse(profile["matrix"]["faig_chain"]["enabled"])
+            if profile["mcp"]["enabled"]:
+                self.assertEqual(profile["mcp"]["default_transport"], "fortiweb")
+
+    def test_local_profile_may_opt_in_to_faig_chain(self) -> None:
+        profile_path, profile = self.load_baseline("fortistore-injection")
+        profile = copy.deepcopy(profile)
+        profile["matrix"]["faig_chain"]["enabled"] = True
+        self.assertEqual(self.validate("fortistore-injection", profile_path, profile), [])
+
     def test_profile_id_must_match_catalog_id(self) -> None:
         profile_path, profile = self.load_baseline("fortistore-injection")
         profile = copy.deepcopy(profile)

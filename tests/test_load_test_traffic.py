@@ -4,7 +4,8 @@ import types
 import unittest
 from collections import Counter
 
-from load_test import scenario_validation, statistics, traffic_generator
+from functional_test import validation as scenario_validation
+from load_test import statistics, traffic_generator
 
 
 class TrafficGeneratorMatrixTests(unittest.TestCase):

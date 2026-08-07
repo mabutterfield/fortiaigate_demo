@@ -20,6 +20,14 @@ TERRAFORM_MODULES = [
     "terraform/aws-fortigate",
     "terraform/aws-fortiweb",
 ]
+INVENTORY_ALIASES = {
+    "local": "ansible/inventory/local.generated.ini",
+    "cloud": "ansible/inventory/aws.generated.ini",
+    "local-fortigate": "ansible/inventory/fortigate.local.generated.ini",
+    "local-fortiweb": "ansible/inventory/fortiweb.local.generated.ini",
+    "cloud-fortigate": "ansible/inventory/fortigate.generated.ini",
+    "cloud-fortiweb": "ansible/inventory/fortiweb.generated.ini",
+}
 REQUIRED_PATHS = [
     "CHANGELOG.md",
     "README.md",
@@ -30,6 +38,8 @@ REQUIRED_PATHS = [
     "scripts/build_scenario_matrix.py",
     "scripts/scenario_matrix.py",
     "scripts/scenario_profiles.py",
+    "functional_test/__main__.py",
+    "functional_test/validation.py",
     "load_test/__main__.py",
     "load_test/scenario_validation.py",
     "load_test/traffic_generator.py",
@@ -91,6 +101,8 @@ def check_python_compile() -> None:
         py_compile.compile(str(path), doraise=True)
     for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
+    for path in sorted((REPO_ROOT / "functional_test").glob("*.py")):
+        py_compile.compile(str(path), doraise=True)
     print("ok python compile")
 
 
@@ -106,7 +118,8 @@ def check_script_help() -> None:
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
-    for command in ["validate", "paths", "run"]:
+    run([sys.executable, "-m", "functional_test", "--help"], show_stdout=False)
+    for command in ["paths", "run"]:
         run(
             [sys.executable, "-m", "load_test", command, "--help"],
             show_stdout=False,
@@ -139,6 +152,21 @@ def check_user_tfvars_symlinks() -> None:
     if problems:
         raise SmokeFailure("; ".join(problems))
     print("ok terraform user tfvars symlinks")
+
+
+def check_inventory_aliases() -> None:
+    problems: list[str] = []
+    for alias, expected_target in INVENTORY_ALIASES.items():
+        path = REPO_ROOT / alias
+        if not path.is_symlink():
+            problems.append(f"{alias} is not a symlink")
+            continue
+        actual_target = str(path.readlink())
+        if actual_target != expected_target:
+            problems.append(f"{alias} points to {actual_target}; expected {expected_target}")
+    if problems:
+        raise SmokeFailure("; ".join(problems))
+    print("ok inventory aliases (generated targets may be absent before setup)")
 
 
 def check_terraform_fmt(strict_tools: bool) -> None:
@@ -214,6 +242,7 @@ def main() -> int:
         check_script_help()
         check_tracked_secrets()
         check_user_tfvars_symlinks()
+        check_inventory_aliases()
         if not args.skip_terraform:
             check_terraform_fmt(args.strict_tools)
         if not args.skip_ansible:

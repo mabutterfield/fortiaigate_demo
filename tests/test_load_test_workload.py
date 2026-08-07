@@ -6,7 +6,8 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-from load_test import scenario_validation, statistics, traffic_generator, workload
+from functional_test import validation as scenario_validation
+from load_test import statistics, traffic_generator, workload
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

@@ -51,6 +51,8 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
             {profile["provider_path"] for profile in profiles},
             {"direct", "faig-static"},
         )
+        self.assertEqual(profiles[0]["display_name"], "Resume Tool Injection - LLM Direct")
+        self.assertEqual(self.profile["mcp"]["default_transport"], "fortiweb")
 
     def test_least_privilege_and_cloud_pivot_profiles_are_distinct(self) -> None:
         mcp = self.profile["mcp"]

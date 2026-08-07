@@ -7,7 +7,7 @@
   "status": "phase11-baseline",
   "mcp": {
     "enabled": true,
-    "default_transport": "direct",
+    "default_transport": "fortiweb",
     "default_tool_set": "cloud-pivot",
     "tool_profile": "resume-tool-injection",
     "required_tools": [
@@ -66,8 +66,8 @@
     ],
     "chatbot_profiles": [
       {
-        "id": "resume-tool-injection-direct",
-        "display_name": "Resume Tool Injection - Direct",
+        "id": "resume-tool-injection-llm-direct",
+        "display_name": "Resume Tool Injection - LLM Direct",
         "provider_path": "direct",
         "mcp_tool_set": "cloud-pivot",
         "context_mode": "current",

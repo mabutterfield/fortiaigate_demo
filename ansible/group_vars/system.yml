@@ -182,6 +182,7 @@ demo_configuration_source: scenario_matrix
 scenario_matrix_builder_path: "{{ faig_workspace_root }}/fortiaigate_demo/scripts/build_scenario_matrix.py"
 scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
 scenario_matrix_llm_target_overrides: {}
+faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
 # Phase 10 compatibility aliases remain temporarily for old local overrides.
 # The scenario_matrix source does not consume or generate these aliases.
@@ -325,10 +326,11 @@ chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_file
 chatbot_frontend_system_prompt_enabled: false
 chatbot_frontend_instruction_profile: none
 chatbot_frontend_instruction_profiles: []
-# MCP tools are enabled in the browser UI by default. The current default path
-# is direct chatbot -> MCP. When terraform/aws-fortiweb has generated
-# ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
-# defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
+# MCP tools are enabled in the browser UI by default. FortiWeb is preferred
+# when terraform/aws-fortiweb has generated a usable endpoint; otherwise the
+# scenario matrix emits a warning and deterministically falls back to Direct
+# chatbot -> MCP. chatbot_mcp_fortiweb_base_url defaults to the FortiWeb
+# front-end port1 private IP on the MCP HTTP NodePort.
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
 fortiweb_mcp_http_base_url: >-
@@ -344,7 +346,7 @@ fortiweb_mcp_http_base_url: >-
     else ''
   }}
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
-chatbot_mcp_default_path: direct
+chatbot_mcp_default_path: fortiweb
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3

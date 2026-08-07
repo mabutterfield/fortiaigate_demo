@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import sys
 
-from load_test import dashboard_runner, scenario_validation, traffic_generator
+from functional_test import validation as scenario_validation
+from load_test import dashboard_runner, traffic_generator
 
 
 USAGE = """usage: python3 -m load_test <command> [options]
 
 commands:
-  validate  Run live scenario validation through the deployed chatbot
+  validate  Compatibility alias for `python3 -m functional_test`
   paths     Send one lightweight request to each installed FAIG path
   run       Generate a scheduled local dashboard workload
 

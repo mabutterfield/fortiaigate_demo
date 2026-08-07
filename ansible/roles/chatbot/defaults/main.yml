@@ -9,6 +9,7 @@ demo_configuration_source: scenario_matrix
 chatbot_routes_source: scenario_matrix
 scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
 scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname }}"
+faig_chain_capability_enabled: true
 chatbot_fortigate_routes_desired: false
 
 chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else 'fortiaigate/chatbot-basic') }}"
@@ -86,7 +87,7 @@ chatbot_mcp_fortiweb_base_url: >-
       true
     )
   }}
-chatbot_mcp_default_path: direct
+chatbot_mcp_default_path: fortiweb
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3

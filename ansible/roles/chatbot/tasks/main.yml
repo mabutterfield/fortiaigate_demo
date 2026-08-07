@@ -17,7 +17,7 @@
         + (
           ['--fortiweb-mcp-desired']
           if fortiweb_mcp_proxy_enabled | default(false) | bool
-          else []
+          else ['--no-fortiweb-mcp']
         )
         + (
           ['--fortiweb-installed']
@@ -34,6 +34,15 @@
           if chatbot_fortigate_routes_desired | bool
           else []
         )
+        + (
+          []
+          if faig_chain_capability_enabled | default(true) | bool
+          else ['--disable-faig-chain']
+        )
+        + [
+          '--faig-chain-reentry-uri',
+          litellm_faig_backend_base_path | default('/v1/passthrough')
+        ]
       }}
   changed_when: false
   check_mode: false
@@ -54,6 +63,25 @@
     - demo_configuration_source == 'scenario_matrix'
   # - ansible.builtin.debug:
   #     var: chatbot_scenario_matrix
+
+- name: Report scenario matrix fallbacks and skipped capabilities
+  ansible.builtin.debug:
+    msg: "{{ chatbot_scenario_matrix.warnings }}"
+  when:
+    - chatbots_enabled | bool
+    - demo_configuration_source == 'scenario_matrix'
+    - chatbot_scenario_matrix.warnings | length > 0
+
+- name: Report selected scenario matrix defaults
+  ansible.builtin.debug:
+    msg:
+      mcp_path: "{{ chatbot_scenario_matrix.chatbot_advanced_controls.default_mcp_path }}"
+      fortiweb_mcp_enabled: "{{ chatbot_scenario_matrix.capabilities.fortiweb_mcp_enabled }}"
+      faig_chain_available: "{{ chatbot_scenario_matrix.capabilities.faig_chain_available }}"
+      enabled_faig_chains: "{{ chatbot_scenario_matrix.faig_chains | map(attribute='scenario_id') | list }}"
+  when:
+    - chatbots_enabled | bool
+    - demo_configuration_source == 'scenario_matrix'
 
 - name: Reset effective chatbot frontend instruction profiles
   ansible.builtin.set_fact:

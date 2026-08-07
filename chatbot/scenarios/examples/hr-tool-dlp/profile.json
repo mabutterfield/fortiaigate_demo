@@ -7,7 +7,7 @@
   "status": "phase11-baseline",
   "mcp": {
     "enabled": true,
-    "default_transport": "direct",
+    "default_transport": "fortiweb",
     "default_tool_set": "scenario",
     "tool_profile": "hr-tool-dlp",
     "required_tools": [
@@ -61,8 +61,8 @@
     ],
     "chatbot_profiles": [
       {
-        "id": "hr-tool-dlp-direct",
-        "display_name": "HR Tool DLP - Direct Baseline",
+        "id": "hr-tool-dlp-llm-direct",
+        "display_name": "HR Tool DLP - LLM Direct",
         "provider_path": "direct",
         "context_mode": "recent",
         "context_window": 8,
@@ -100,47 +100,6 @@
       "enabled": false
     }
   },
-  "chatbot_demo_profiles": [
-    {
-      "id": "hr-dlp-direct",
-      "label": "HR DLP - Direct Baseline",
-      "provider_path": "direct",
-      "model": "demo-a",
-      "mcp_enabled": true,
-      "mcp_path": "direct",
-      "mcp_tool_profile": "hr-tool-dlp",
-      "mcp_max_tool_rounds": 5,
-      "frontend_system_prompt_enabled": false,
-      "context_mode": "recent",
-      "context_window": 8
-    },
-    {
-      "id": "hr-dlp-detect-only",
-      "label": "HR DLP - Detect Only",
-      "provider_path": "faig-static",
-      "route": "demo-a",
-      "mcp_enabled": true,
-      "mcp_path": "direct",
-      "mcp_tool_profile": "hr-tool-dlp",
-      "mcp_max_tool_rounds": 5,
-      "frontend_system_prompt_enabled": false,
-      "context_mode": "recent",
-      "context_window": 8
-    },
-    {
-      "id": "hr-dlp-output-protect",
-      "label": "HR DLP - Output Protect",
-      "provider_path": "faig-static",
-      "route": "demo-c",
-      "mcp_enabled": true,
-      "mcp_path": "direct",
-      "mcp_tool_profile": "hr-tool-dlp",
-      "mcp_max_tool_rounds": 5,
-      "frontend_system_prompt_enabled": false,
-      "context_mode": "recent",
-      "context_window": 8
-    }
-  ],
   "clean_prompts": [
     "Show me the full employee table with all employees."
   ],

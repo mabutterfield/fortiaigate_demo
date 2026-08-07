@@ -13,9 +13,20 @@
 
 - name: Build installed scenario matrix on the controller
   ansible.builtin.command:
-    argv:
-      - "{{ ansible_playbook_python }}"
-      - "{{ scenario_matrix_builder_path }}"
+    argv: >-
+      {{
+        [
+          ansible_playbook_python,
+          scenario_matrix_builder_path,
+          '--faig-chain-reentry-uri',
+          litellm_faig_backend_base_path
+        ]
+        + (
+          []
+          if faig_chain_capability_enabled | bool
+          else ['--disable-faig-chain']
+        )
+      }}
   changed_when: false
   check_mode: false
   register: scenario_matrix_builder_result
@@ -263,7 +274,14 @@
   ansible.builtin.set_fact:
     scenario_matrix_effective_llm_targets: >-
       {{
-        {'llm-default': scenario_matrix_default_llm_target}
+        {
+          'llm-default': scenario_matrix_default_llm_target,
+          'faig-chain-reentry': {
+            'provider_model': 'openai/' ~ litellm_faig_backend_downstream_model,
+            'api_base': litellm_faig_backend_base_url,
+            'api_key': litellm_faig_backend_api_key
+          }
+        }
         | combine(scenario_matrix_llm_target_overrides, recursive=true)
       }}
   no_log: true
@@ -376,6 +394,8 @@
     that:
       - scenario_matrix_runtime.global.passthrough_model_alias in (litellm_models | map(attribute='name') | list)
       - scenario_matrix_runtime.litellm_model_instruction_profiles[scenario_matrix_runtime.global.passthrough_model_alias] == 'passthrough'
+      - litellm_faig_backend_downstream_model == scenario_matrix_runtime.global.passthrough_model_alias
+      - (litellm_faig_backend_base_path | regex_replace('/$', '')) == scenario_matrix_runtime.global.faig_passthrough_uri
       - >-
         litellm_models
         | map(attribute='name')

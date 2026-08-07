@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from load_test import scenario_validation
+from functional_test import validation as scenario_validation
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

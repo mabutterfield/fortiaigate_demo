@@ -28,6 +28,15 @@
 #     provider_model: ollama_chat/llama3.1:8b
 #     api_base: http://ollama.ollama.svc.cluster.local:11434
 
+# FAIG re-entry support is available globally, while every built-in scenario
+# leaves it disabled. Set this false to remove the capability entirely.
+# faig_chain_capability_enabled: false
+
+# FortiWeb is the preferred MCP transport when its appliance endpoint is
+# installed and configured. Disable the proxy to force deterministic Direct
+# MCP fallback without changing scenario templates.
+# fortiweb_mcp_proxy_enabled: false
+
 # Optional smaller chatbot/FAIG demo surface. When enabled and chatbots are
 # redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
 # chatbot_faig_lite_mode: true
