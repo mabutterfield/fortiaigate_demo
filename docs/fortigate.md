@@ -141,7 +141,9 @@ The goal is to generate traffic that FortiGate classifies, inspects, and logs.
 Do not insert or falsify appliance log records. This path does not alter the
 default AWS quickstart, local quickstart, or FAIG scenario routing.
 
-See [FortiGate Traffic Demo](fortigate-proxy-demo.md) for the current runbook.
+The retired proxy/application-control investigation is preserved under
+[Historical Documentation](historical/README.md); it is not a current scenario
+or default FortiGate path.
 
 `configure_fortigate_api_accounts.yml` creates a managed read-only profile
 named `FAIG_READ_ONLY` and a read-only API admin named `faig-readonly-api` by

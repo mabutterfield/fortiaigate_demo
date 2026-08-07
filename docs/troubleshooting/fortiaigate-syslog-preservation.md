@@ -1,6 +1,9 @@
 # FortiAIGate Syslog Preservation
 
-Phase 8 scenario testing should preserve FortiAIGate logs before teardown.
+This detailed troubleshooting/operations procedure supplements the current
+syslog option description. It is not a replacement for FortiAnalyzer.
+
+Scenario testing may preserve FortiAIGate logs before teardown.
 FortiAIGate syslog output is assumed to use UDP/514, so the collector design
 must support that port.
 
@@ -133,20 +136,20 @@ will produce small gzip objects periodically. Reconstruct them from a local
 backup with:
 
 ```bash
-scripts/export_fortiaigate_syslog.py --label phase8-syslog-current
+scripts/export_fortiaigate_syslog.py --label scenario-syslog-current
 ```
 
 The script first syncs S3 objects to:
 
 ```text
-/Users/mbutterfield/code/FAIG/backups/<label>/raw/
+../backups/<label>/raw/
 ```
 
 Then it writes:
 
 ```text
-/Users/mbutterfield/code/FAIG/backups/<label>/fortiaigate-syslog-combined.jsonl
-/Users/mbutterfield/code/FAIG/backups/<label>/manifest.json
+../backups/<label>/fortiaigate-syslog-combined.jsonl
+../backups/<label>/manifest.json
 ```
 
 To reconstruct from an existing backup without re-syncing:
@@ -154,13 +157,13 @@ To reconstruct from an existing backup without re-syncing:
 ```bash
 scripts/export_fortiaigate_syslog.py \
   --skip-sync \
-  --download-dir ../backups/phase8-syslog-current/raw
+  --download-dir ../backups/scenario-syslog-current/raw
 ```
 
 Pretty-print the reconstructed JSONL with `jq`:
 
 ```bash
-LOG_FILE="../backups/phase8-syslog-current/fortiaigate-syslog-combined.jsonl"
+LOG_FILE="../backups/scenario-syslog-current/fortiaigate-syslog-combined.jsonl"
 
 jq -r '
   . as $r

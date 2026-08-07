@@ -21,15 +21,17 @@ Current scripts:
   `chatbot/instructions/local/`. Examples and their metadata remain tracked
   under `chatbot/instructions/examples/`. Run it without a subcommand to open a
   menu-driven wizard for changing one slot at a time.
-- `scenario_profiles.py`: lists, validates, shows, and installs active or
-  candidate scenario profiles from `chatbot/scenarios/examples/` into local
-  instruction slots. Inactive archived profiles remain inspectable through the
-  catalog with `--include-inactive`. Scenario profiles package repeatable demo
-  instructions, MCP tool expectations, clean prompts, and attack prompts while
-  still leaving local instruction slots editable.
-- Live scenario validation, FAIG path checks, and long-running dashboard
-  workloads live in the separate `load_test/` package. Use `python3 -m
-  load_test validate|paths|run`; see `load_test/README.md`.
+- `scenario_profiles.py`: lists and validates tracked scenarios; installs,
+  updates with an explicit backup/overwrite boundary, removes, and reports
+  Git-ignored operator-owned packages; previews the installed matrix; and
+  renders the manual FortiAIGate work order. It also verifies scenario-owned
+  functional curl templates against validation metadata.
+- Supported live scenario validation and curl rendering live in
+  `functional_test/`. Use `python3 -m functional_test validate` and `python3
+  -m functional_test render-curl`; see `docs/functional-validation.md`.
+- Lightweight path traffic and bounded long-running dashboard workloads live
+  in the developer-only `load_test/` package. Use `python3 -m load_test
+  paths|run`; see `docs/development/load-testing.md`.
 - `fortigate_ai_app_proxy_touch.py`: touches known AI application, MCP, and
   Bedrock endpoints directly by default, or through a run-scoped FortiGate
   explicit proxy URL when `--proxy-url` is supplied. It defaults to dry-run

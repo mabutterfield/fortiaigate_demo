@@ -24,6 +24,7 @@ otherwise.
 | Understand the components and traffic paths | [Architecture](docs/architecture.md) |
 | See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
 | Review validated and candidate scenarios | [Scenario Catalog](chatbot/scenarios/examples/scenario-catalog.md) |
+| Prove passthrough and installed scenario behavior | [Functional Validation](docs/functional-validation.md) |
 | Find an operator, author, or maintainer task | [Documentation Map](docs/README.md) |
 
 ## What The Default Lab Provides

@@ -7,6 +7,9 @@ The service is a small Python HTTP application with deterministic demo tools.
 It exposes OpenAI-compatible function schemas at `/tools` so the custom chatbot
 can let the LLM choose tools instead of forcing the user to select one manually.
 
+All commands run from `<repo_root>`. Select `FAIG_INVENTORY=cloud` or
+`FAIG_INVENTORY=local` before running Ansible examples.
+
 Exact lookup tools:
 
 - `customer_lookup`
@@ -102,7 +105,7 @@ ansible-playbook ansible/playbooks/validate_mcp.yml
 Run a single sample tool call:
 
 ```bash
-ansible-playbook ansible/playbooks/test_mcp.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_mcp.yml
 ```
 
 `test_mcp.yml` defaults to `mcp_test_target_mode=auto`. In AWS mode, auto uses
@@ -111,10 +114,10 @@ tests from the k3s host against `http://127.0.0.1:<mcp-node-port>/mcp`, which
 avoids requiring the controller workstation to reach the local NodePort
 directly.
 
-Run deterministic Phase 8 document retrieval checks:
+Run deterministic document retrieval checks:
 
 ```bash
-ansible-playbook ansible/playbooks/validate_phase8_documents.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/validate_mcp_documents.yml
 ```
 
 This calls clean document listing, poisoned resume upload simulation, poisoned
@@ -230,7 +233,7 @@ The default demo data file is:
 fortiaigate_demo/mcp/chart/files/tools.json
 ```
 
-The Phase 8 document library is mounted from:
+The synthetic document library is mounted from:
 
 ```text
 fortiaigate_demo/mcp/chart/files/documents/
@@ -319,7 +322,7 @@ curl -X POST http://127.0.0.1:8000/mcp \
 ```
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
-these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
+these tools today, and the optional FortiWeb path can front MCP/tool traffic.
 The FortiStore tools are deterministic and use synthetic product-advisor data
 for repeatable product-fit, prompt-injection, and token-wasting demos. They are
 not current Fortinet datasheets, pricing, or availability data. The menu tools
@@ -334,7 +337,7 @@ behavior.
 The custom chatbot UI can run an LLM-directed MCP tool loop. The browser
 sidebar exposes:
 
-- `Model`: LiteLLM model/profile alias, such as `pass-bedrock`, `demo-a`, or `demo-b`
+- `Model`: LiteLLM model/profile alias, such as `pass-model`, `hr-tool-dlp`, or `resume-tool-injection`
 - `Use MCP tools`: simple on/off toggle
 - `MCP path`: direct MCP or FortiWeb-fronted MCP
 - `Max tool rounds`: limit for model-requested tool calls

@@ -222,7 +222,7 @@ After quickstart completes:
 5. run operator-facing scenario validation:
 
    ```bash
-   python3 -m functional_test
+   python3 -m functional_test validate
    ```
 
 Functional validation assumes the corresponding FortiAIGate GUI flows exist.

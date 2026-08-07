@@ -127,7 +127,7 @@ ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/validate_k3s.yml
 
 If NVIDIA package downloads are unusually slow on AWS, see
 [Known Issues](known-issues.md) and the
-[AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md).
+[AWS NVIDIA Package Cache Workaround](troubleshooting/aws-nvidia-package-cache-workaround.md).
 
 On the host, inspect:
 
@@ -289,7 +289,7 @@ scenario is installed and its GUI work order matches the deployed FAIG objects:
 ```bash
 python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py render-work-order
-python3 -m functional_test --scenario-id <scenario-id>
+python3 -m functional_test validate --scenario-id <scenario-id>
 ```
 
 A missing or stale GUI flow is not repaired by rerunning the functional test.

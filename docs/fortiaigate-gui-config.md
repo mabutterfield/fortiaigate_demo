@@ -326,7 +326,7 @@ metadata:
 Run the metadata-driven validation for the configured scenario and passthrough:
 
 ```bash
-python3 -m functional_test \
+python3 -m functional_test validate \
   --inventory "$FAIG_INVENTORY" \
   --host-alias "$FAIG_HOST_ALIAS" \
   --scenario-id {{scenario_id}}

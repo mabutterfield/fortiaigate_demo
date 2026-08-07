@@ -157,7 +157,7 @@ result.
 Validate passthrough and every declared test case for all installed scenarios:
 
 ```bash
-python3 -m functional_test \
+python3 -m functional_test validate \
   --inventory "$FAIG_INVENTORY" \
   --host-alias "$FAIG_HOST_ALIAS"
 ```
@@ -165,7 +165,7 @@ python3 -m functional_test \
 Restrict the metadata-driven run without changing its expected-result rules:
 
 ```bash
-python3 -m functional_test \
+python3 -m functional_test validate \
   --inventory "$FAIG_INVENTORY" \
   --host-alias "$FAIG_HOST_ALIAS" \
   --scenario-id hr-tool-dlp

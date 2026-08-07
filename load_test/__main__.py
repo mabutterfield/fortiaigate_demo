@@ -12,7 +12,7 @@ from load_test import dashboard_runner, traffic_generator
 USAGE = """usage: python3 -m load_test <command> [options]
 
 commands:
-  validate  Compatibility alias for `python3 -m functional_test`
+  validate  Compatibility alias for `python3 -m functional_test validate`
   paths     Send one lightweight request to each installed FAIG path
   run       Generate a scheduled local dashboard workload
 

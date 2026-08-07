@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "cases": {
+    "alert-attack": {
+      "request": "sensitive-record-request.json"
+    },
+    "deny-attack": {
+      "request": "bulk-sensitive-table-request.json"
+    },
+    "redact-attack": {
+      "request": "bulk-sensitive-table-request.json"
+    }
+  }
+}

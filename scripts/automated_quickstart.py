@@ -2404,7 +2404,7 @@ def main() -> None:
         print_header("Automated Quick Start Complete")
         print("Local Ansible deployment steps completed.")
         print("Next validation command from the repo root:")
-        print("  python3 -m functional_test")
+        print("  python3 -m functional_test validate")
         return
 
     current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
@@ -2509,7 +2509,7 @@ def main() -> None:
     print_header("Automated Quick Start Complete")
     print("Terraform and Ansible deployment steps completed.")
     print("Next validation command from the repo root:")
-    print("  python3 -m functional_test")
+    print("  python3 -m functional_test validate")
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ REQUIRED_PATHS = [
     "scripts/scenario_matrix.py",
     "scripts/scenario_profiles.py",
     "functional_test/__main__.py",
+    "functional_test/curl_renderer.py",
     "functional_test/validation.py",
     "load_test/__main__.py",
     "load_test/scenario_validation.py",
@@ -118,7 +119,11 @@ def check_script_help() -> None:
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
-    run([sys.executable, "-m", "functional_test", "--help"], show_stdout=False)
+    for command in ["validate", "render-curl"]:
+        run(
+            [sys.executable, "-m", "functional_test", command, "--help"],
+            show_stdout=False,
+        )
     for command in ["paths", "run"]:
         run(
             [sys.executable, "-m", "load_test", command, "--help"],

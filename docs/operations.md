@@ -235,19 +235,19 @@ After the required FortiAIGate GUI flows exist, validate all installed scenario
 metadata and paths:
 
 ```bash
-python3 -m functional_test
+python3 -m functional_test validate
 ```
 
 For a targeted scenario or action:
 
 ```bash
-python3 -m functional_test --scenario-id fortistore-injection
-python3 -m functional_test --scenario-id hr-tool-dlp --action deny
+python3 -m functional_test validate --scenario-id fortistore-injection
+python3 -m functional_test validate --scenario-id hr-tool-dlp --action deny
 ```
 
 The functional tester validates expected Alert, Deny, and Redact behavior from
 scenario metadata and writes run evidence under its configured output root.
-See [Functional Test](../functional_test/README.md).
+See [Functional Validation](functional-validation.md).
 
 ## Direct Component Probes
 
@@ -288,7 +288,7 @@ kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n <namespace> logs <pod> --all-c
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n <namespace> logs <pod> --all-containers --previous
 ```
 
-See [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) for
+See [FortiAIGate Syslog Preservation](troubleshooting/fortiaigate-syslog-preservation.md) for
 collector and S3 export details.
 
 ## AWS Teardown

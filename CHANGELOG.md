@@ -5,6 +5,34 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Separated supported functional validation from developer dashboard traffic:
+  - `python3 -m functional_test validate` now owns installed-scenario and
+    passthrough readiness checks, scenario/action/case filters, effective
+    route/model/MCP/tool/frontend reporting, actionable failure details, and a
+    compact `INSTALLATION READY` result
+  - added metadata-checked `render-curl` output that inserts selected frontend
+    instructions and targets canonical FortiAIGate scenario flows without
+    misrepresenting a single request as a live MCP agent loop
+  - added scenario-owned functional request templates for all seven protected
+    action cases and semantic validation that keeps them aligned with model
+    aliases and prompts
+  - confined bounded 75/25 dashboard workload generation, approximate tokens,
+    checkpointing, safe shutdown, demonstration cost interpretation, and
+    NVIDIA metrics to developer documentation
+  - moved retained proxy/model experiments under historical documentation and
+    detailed NVIDIA/syslog procedures under troubleshooting
+
+- Rebuilt scenario management and presenter runbooks around named scenarios:
+  - centralized discover, install, local tuning, work-order, deployment, GUI,
+    validation, backup/update, and removal behavior
+  - moved the catalog beside its machine-readable source and made installation
+    status explicitly separate from catalog lifecycle
+  - standardized FortiStore, HR, and Resume runbooks around generated objects,
+    Simplified/Advanced comparisons, prompts, actions, evidence, and simulated
+    data boundaries
+  - renamed active raw tool fixtures as transcript replays and corrected HR
+    and Resume guard boundaries without changing candidate content
+
 - Split FortiAIGate GUI setup into a minimal initial configuration and a
   reusable scenario workflow:
   - initial configuration now stops after first login, the shared LiteLLM
@@ -73,10 +101,10 @@ a "what's new" guide rather than a raw commit log.
     repository separation, FortiFlex, local scenario creation, Demo Home
     documentation, and future scenario/appliance validation
 
-- Updated the local traffic generator for the complete Phase 11 baseline:
-  - moved live validation, path checks, traffic generation, result aggregation,
-    and tracked high-token prompt metadata into the dedicated `load_test/`
-    package with `validate`, `paths`, and `run` commands
+- Updated the local traffic generator for the complete scenario baseline:
+  - moved path checks, traffic generation, result aggregation, and tracked
+    high-token prompt metadata into the dedicated developer `load_test/`
+    package with `paths` and `run` commands
   - baseline selection now includes `resume-tool-injection`
   - configurable high-token canonical passthrough traffic supports tunable
     bypass-to-scenario mixes

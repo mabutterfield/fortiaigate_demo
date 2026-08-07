@@ -164,7 +164,7 @@ ansible-playbook -i cloud-fortigate ansible/playbooks/status_fortigate.yml
 ansible-playbook -i local-fortiweb ansible/playbooks/status_fortiweb.yml
 
 # Functional acceptance
-python3 -m functional_test
+python3 -m functional_test validate
 
 # Terraform module operation
 terraform -chdir=terraform/aws-ec2-k3s plan

@@ -1,4 +1,8 @@
-# Phase 8 Reference Matrix
+# Historical Scenario And Model Matrix
+
+> **Historical reference:** This document preserves retired experiment names,
+> paths, model sweeps, and captured evidence. It is not the current scenario,
+> validation, or runtime configuration model.
 
 This document is a planning and test-capture reference for Phase 8 document
 ingestion, prompt-injection, RAG-style retrieval, DLP, and tool-use demos.
@@ -277,19 +281,19 @@ Observed test note, `gpt-oss:20b`, `HR-bot` installed into `demo-a`:
 
 Raw artifacts:
 
-- [direct-litellm/request.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/direct-litellm/request.json)
-- [direct-litellm/response.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/direct-litellm/response.json)
-- [faig-scan-demo-a/request.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-scan-demo-a/request.json)
-- [faig-scan-demo-a/response.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-scan-demo-a/response.json)
-- [faig-protect-demo-b/request.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-protect-demo-b/request.json)
-- [faig-protect-demo-b/response.json](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-protect-demo-b/response.json)
+- [direct-litellm/request.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/direct-litellm/request.json)
+- [direct-litellm/response.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/direct-litellm/response.json)
+- [faig-scan-demo-a/request.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-scan-demo-a/request.json)
+- [faig-scan-demo-a/response.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-scan-demo-a/response.json)
+- [faig-protect-demo-b/request.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-protect-demo-b/request.json)
+- [faig-protect-demo-b/response.json](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/faig-protect-demo-b/response.json)
 
 Additional raw artifact folders:
 
-- [`gpt-oss-20b`](raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/)
-- [`gpt-oss-120b`](raw-output/phase8/hr-dlp-hrbot/gpt-oss-120b/)
-- [`gemma3-4b`](raw-output/phase8/hr-dlp-hrbot/gemma3-4b/)
-- [`ministral3-3b`](raw-output/phase8/hr-dlp-hrbot/ministral3-3b/)
+- [`gpt-oss-20b`](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-20b/)
+- [`gpt-oss-120b`](../raw-output/phase8/hr-dlp-hrbot/gpt-oss-120b/)
+- [`gemma3-4b`](../raw-output/phase8/hr-dlp-hrbot/gemma3-4b/)
+- [`ministral3-3b`](../raw-output/phase8/hr-dlp-hrbot/ministral3-3b/)
 
 Model comparison notes:
 

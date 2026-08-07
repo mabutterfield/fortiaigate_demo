@@ -126,7 +126,7 @@ treat partial redaction as a pass.
 Run the metadata-declared Alert, Redact, and Deny cases plus passthrough:
 
 ```bash
-python3 -m functional_test \
+python3 -m functional_test validate \
   --inventory "$FAIG_INVENTORY" \
   --host-alias "$FAIG_HOST_ALIAS" \
   --scenario-id hr-tool-dlp
@@ -134,7 +134,22 @@ python3 -m functional_test \
 
 The required results are Alert `sensitive-tool-result`, Redact `redacted`, and
 Deny `blocked`, with each case's required MCP tool present. Results are written
-below `functional_test/output/hr-tool-dlp/`.
+below `functional_test/output/all-scenarios/`.
+
+Render direct-flow equivalents for each supported action:
+
+```bash
+python3 -m functional_test render-curl \
+  --scenario hr-tool-dlp --action alert --case alert-attack
+python3 -m functional_test render-curl \
+  --scenario hr-tool-dlp --action redact --case redact-attack
+python3 -m functional_test render-curl \
+  --scenario hr-tool-dlp --action deny --case deny-attack
+```
+
+These requests contain preconstructed synthetic tool results so the selected
+FAIG output guard can be exercised. They do not execute the HR MCP tools or
+prove FortiWeb transport.
 
 The files under [`transcript-replays/`](transcript-replays/) are operator-shaped
 raw FAIG/LLM diagnostics with preconstructed synthetic assistant/tool

@@ -11,7 +11,7 @@ mirrors. Some rebuilds have taken 30–60 minutes while downloading those
 packages. This is slow progress rather than a failed deployment when package
 activity continues.
 
-The optional [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md)
+The optional [AWS NVIDIA Package Cache Workaround](troubleshooting/aws-nvidia-package-cache-workaround.md)
 documents the current recovery path. Reusable AMI creation is intended to
 replace this workaround in a future release, but custom AMIs are not required
 by the current quickstart.

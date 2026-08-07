@@ -146,6 +146,36 @@ class ScenarioTestHarnessTests(unittest.TestCase):
             ["document_upload_simulation", "document_read"],
         )
 
+    def test_metadata_filters_reject_unknown_actions_and_cases(self) -> None:
+        items = [
+            {"route": "alert", "validation_case_id": "alert-attack"},
+            {"route": "deny", "validation_case_id": "deny-attack"},
+        ]
+        with self.assertRaisesRegex(SystemExit, "missing-action"):
+            scenario_validation.filter_validation_items(
+                items,
+                ["deny", "missing-action"],
+                None,
+            )
+        with self.assertRaisesRegex(SystemExit, "missing-case"):
+            scenario_validation.filter_validation_items(
+                items,
+                ["deny"],
+                ["deny-attack", "missing-case"],
+            )
+
+    def test_metadata_filters_select_exact_action_and_case(self) -> None:
+        items = [
+            {"route": "alert", "validation_case_id": "alert-attack"},
+            {"route": "deny", "validation_case_id": "deny-attack"},
+        ]
+        filtered = scenario_validation.filter_validation_items(
+            items,
+            ["deny"],
+            ["deny-attack"],
+        )
+        self.assertEqual(filtered, [items[1]])
+
 
 if __name__ == "__main__":
     unittest.main()

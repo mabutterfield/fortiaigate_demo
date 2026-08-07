@@ -106,7 +106,7 @@ repeatable LLM Direct → Baseline → Alert → Deny presentation.
 Run the metadata-declared Alert and Deny attack cases plus global passthrough:
 
 ```bash
-python3 -m functional_test \
+python3 -m functional_test validate \
   --inventory "$FAIG_INVENTORY" \
   --host-alias "$FAIG_HOST_ALIAS" \
   --scenario-id fortistore-injection
@@ -114,7 +114,20 @@ python3 -m functional_test \
 
 The required results are Alert `completed` and Deny `blocked`, with no MCP tool
 calls. Results are written below
-`functional_test/output/fortistore-injection/`.
+`functional_test/output/all-scenarios/`.
+
+Render the direct-flow equivalents for the supported actions:
+
+```bash
+python3 -m functional_test render-curl \
+  --scenario fortistore-injection --action alert --case alert-attack
+python3 -m functional_test render-curl \
+  --scenario fortistore-injection --action deny --case deny-attack
+```
+
+The renderer inserts `fortistore-injection-compromised` as a system message,
+then sends the request directly to the selected FAIG flow. It does not prove
+that the chatbot UI selected that frontend profile.
 
 ## Evidence And Troubleshooting
 

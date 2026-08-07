@@ -88,5 +88,5 @@ chains are not part of the supported baseline.
 - Installed local scenario metadata owns the active matrix.
 - The generated work order owns FAIG paths, guards, templates, and aliases.
 - Tracked scenario examples are read-only sources.
-- [Functional validation](../functional_test/README.md) proves the deployed
+- [Functional validation](functional-validation.md) proves the deployed
   chatbot/MCP/FAIG behavior after GUI objects exist.

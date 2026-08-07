@@ -1,5 +1,8 @@
 # Temporary AWS NVIDIA Package Cache Workaround
 
+This is a detailed troubleshooting workaround, not a normal quickstart step.
+Future AMI creation is intended to replace it.
+
 This is a temporary operator workaround for slow NVIDIA package downloads during
 AWS k3s host bootstrap. It creates a private S3 cache bucket and grants the
 existing k3s EC2 instance role read/write access, so the instance can pull cached

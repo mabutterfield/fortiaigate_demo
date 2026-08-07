@@ -1,4 +1,9 @@
-# FortiGate Traffic Demo
+# Historical FortiGate AI Application Traffic Experiment
+
+> **Historical experiment:** This runbook preserves retired proxy,
+> application-control, and compatibility-path investigation. It is not a
+> supported scenario, default LLM path, or release requirement. Current
+> FortiGate deployment guidance remains in [FortiGate](../fortigate.md).
 
 This Phase 10E runbook covers two FortiGate-only demo paths. These are separate
 from the FortiAIGate guard demos and do not change the default AWS quickstart or

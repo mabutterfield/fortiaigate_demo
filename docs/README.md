@@ -22,6 +22,7 @@ changes directories.
 | Complete first login and create passthrough | [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) |
 | Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
 | Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
+| Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 
 The automated quickstart is the only normal installation journey. Detailed
@@ -82,14 +83,13 @@ references remain available but are not part of the current runtime contract.
 | [Scenario Management](scenario-management.md) | Install, update, remove, inspect, and validate local scenarios |
 | [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Scenario lifecycle and support classification |
 | [MCP](mcp.md) | Deterministic tools, tool profiles, and MCP transports |
-| [Functional Test](../functional_test/README.md) | Operator-facing metadata-driven validation of installed scenario paths |
+| [Functional Validation](functional-validation.md) | Operator-facing metadata-driven validation, evidence, filters, and direct-flow curl rendering |
 
 ### Operate
 
 | Document | Owns |
 |---|---|
-| [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) | Syslog collection, retention, and export |
-| [FortiGate Traffic Demo](fortigate-proxy-demo.md) | Optional investigation of FortiGate-observed AI traffic; not a baseline scenario path |
+| [FortiAIGate Syslog Preservation](troubleshooting/fortiaigate-syslog-preservation.md) | Detailed syslog collection, retention, and export procedure |
 
 ### Troubleshoot
 
@@ -97,23 +97,22 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common diagnosis and recovery procedures |
 | [Known Issues](known-issues.md) | Current limitations and workarounds |
-| [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
+| [AWS NVIDIA Package Cache Workaround](troubleshooting/aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
 
 ### Author
 
 | Document | Owns |
 |---|---|
 | [Scenario Authoring](scenario-authoring.md) | Scenario package schema and deployment boundaries |
-| [Scenario Documentation Process](scenario-documentation-process.md) | Scenario evidence, walkthrough, and documentation expectations |
 
 ### Maintain
 
 | Document | Owns |
 |---|---|
 | [Release Validation Matrix](release-validation-matrix.md) | No-apply and live release checks |
-| [Traffic Generator](traffic-generator.md) | Developer-only dashboard load generation; not required for demo setup |
+| [Developer Load Testing](development/load-testing.md) | Bounded dashboard traffic, statistics, GPU collection, and safe shutdown |
 | [Future Direction](../README.md#future-direction) | Directional ideas, not supported features or commitments |
-| [Historical Scenario/Model Matrix](phase8-reference-matrix.md) | Historical test evidence only; not the current naming model |
+| [Historical Documentation](historical/README.md) | Retired scenario/model evidence and optional proxy experiments |
 | [Changelog](../CHANGELOG.md) | User-facing change history |
 
 Internal plans, progress notes, and experiments belong in the parent FAIG

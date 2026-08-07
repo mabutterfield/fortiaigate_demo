@@ -410,11 +410,103 @@ def payload_validation_errors(profile_path: Path) -> list[str]:
     return errors
 
 
+def functional_request_validation_errors(
+    profile_path: Path,
+    profile: dict,
+) -> list[str]:
+    """Verify scenario-owned curl templates against validation metadata."""
+    errors: list[str] = []
+    functional_root = profile_path.parent / "functional-tests"
+    mapping_path = functional_root / "cases.json"
+    try:
+        mapping = read_json(mapping_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"functional-tests/cases.json cannot be read: {exc}"]
+    if mapping.get("schema_version") != 1:
+        errors.append("functional-tests/cases.json schema_version must be 1")
+    mapped_cases = mapping.get("cases")
+    if not isinstance(mapped_cases, dict):
+        return errors + ["functional-tests/cases.json cases must be an object"]
+    validation_cases = profile.get("validation", {}).get("cases", [])
+    if not isinstance(validation_cases, list) or not validation_cases:
+        return errors + ["validation.cases must be a non-empty list"]
+    case_ids = [
+        str(case.get("id") or "")
+        for case in validation_cases
+        if isinstance(case, dict)
+    ]
+    missing = sorted(set(case_ids) - set(mapped_cases))
+    extra = sorted(set(mapped_cases) - set(case_ids))
+    if missing:
+        errors.append("functional request mappings missing cases: " + ", ".join(missing))
+    if extra:
+        errors.append("functional request mappings contain unknown cases: " + ", ".join(extra))
+    for case in validation_cases:
+        if not isinstance(case, dict):
+            continue
+        case_id = str(case.get("id") or "")
+        entry = mapped_cases.get(case_id)
+        if not isinstance(entry, dict) or not isinstance(entry.get("request"), str):
+            continue
+        request_name = entry["request"]
+        try:
+            request_path = resolve_package_file(
+                profile_path,
+                f"functional-tests/{request_name}",
+                label=f"functional request {case_id}",
+            )
+            request = read_json(request_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(f"functional request {case_id} cannot be read: {exc}")
+            continue
+        if request.get("model") != profile.get("id"):
+            errors.append(
+                f"functional request {case_id} model must equal scenario ID"
+            )
+        messages = request.get("messages")
+        if not isinstance(messages, list) or not messages:
+            errors.append(f"functional request {case_id} must contain messages")
+            continue
+        if any(
+            isinstance(message, dict) and message.get("role") == "system"
+            for message in messages
+        ):
+            errors.append(
+                f"functional request {case_id} must not embed frontend instructions"
+            )
+        prompt_kind = str(case.get("prompt_kind") or "")
+        prompt_index = case.get("prompt_index")
+        prompts = profile.get(f"{prompt_kind}_prompts", [])
+        if (
+            not isinstance(prompt_index, int)
+            or isinstance(prompt_index, bool)
+            or prompt_index < 0
+            or prompt_index >= len(prompts)
+        ):
+            errors.append(
+                f"validation case {case_id} references an invalid {prompt_kind} prompt"
+            )
+            continue
+        expected_prompt = prompts[prompt_index]
+        if not any(
+            isinstance(message, dict)
+            and message.get("role") == "user"
+            and message.get("content") == expected_prompt
+            for message in messages
+        ):
+            errors.append(
+                f"functional request {case_id} must contain its exact metadata prompt"
+            )
+    return errors
+
+
 def baseline_profile_validation(
     scenario_id: str,
     profile_path: Path,
     profile: dict,
     available_tools: set[str],
+    *,
+    validate_functional_requests: bool = True,
 ) -> tuple[list[str], dict[str, list[str]]]:
     errors: list[str] = []
     symbols: dict[str, list[str]] = {
@@ -792,6 +884,8 @@ def baseline_profile_validation(
     if not isinstance(clean_prompts, list) or not clean_prompts:
         errors.append("clean_prompts must be a non-empty list")
     errors.extend(payload_validation_errors(profile_path))
+    if validate_functional_requests:
+        errors.extend(functional_request_validation_errors(profile_path, profile))
     return errors, symbols
 
 
@@ -926,6 +1020,7 @@ def validate_local_matrix(store: scenario_local.LocalScenarioStore) -> None:
                 profile_path,
                 profile,
                 available_tools,
+                validate_functional_requests=False,
             )
             errors.extend(f"{scenario_id}: {error}" for error in profile_errors)
             errors.extend(

@@ -7,7 +7,7 @@ conversation.
 
 They are requests, not captured outputs. Sending one does not execute the
 chatbot, MCP transport, MCP server, upload simulation, document read, or tool.
-Use the metadata-driven [functional test](../functional_test/README.md) as the
+Use [Functional Validation](functional-validation.md) as the
 authoritative end-to-end validation.
 
 ## Active Replay Fixtures
@@ -40,9 +40,9 @@ to the selected scenario flow's `/chat/completions` URL. The body uses the
 scenario alias and is shaped like a chatbot request, but it must not be
 described as originating from the chatbot.
 
-The supported user-facing curl tests will live with each scenario and will be
-generated from the same functional metadata. They will include required
-frontend instructions in the request body and go directly to the appropriate
-FortiAIGate flow. Until that generator is available, use
-`python3 -m functional_test` for pass/fail validation and these replays only
-for focused guard inspection.
+Supported user-facing curl templates live under each validated scenario's
+`functional-tests/` directory and are checked against the same validation
+metadata. `python3 -m functional_test render-curl` inserts required frontend
+instructions and emits the direct FortiAIGate flow command. Use
+`python3 -m functional_test validate` for live pass/fail validation and these
+replays only for focused guard inspection.

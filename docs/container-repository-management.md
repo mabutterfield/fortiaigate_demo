@@ -233,7 +233,7 @@ under the current tag.
 ```bash
 ansible-playbook -i cloud ansible/playbooks/deploy_chatbots.yml
 ansible-playbook -i cloud ansible/playbooks/status_chatbots.yml
-python3 -m functional_test
+python3 -m functional_test validate
 ```
 
 For FortiAIGate vendor images, keep the application and Triton tag set aligned
