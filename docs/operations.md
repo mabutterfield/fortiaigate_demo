@@ -11,6 +11,15 @@ All commands run from `<repo_root>`. Use `-i cloud` for the AWS k3s host and
 See [Command And Inventory Reference](reference/command-inventory.md) for the
 alias and generated-file contract.
 
+Both Terraform and Ansible are designed to bring the environment to the
+configuration currently described by the repository and operator values.
+Terraform shows the infrastructure changes it intends to make before approval;
+Ansible checks the managed host and changes only what is missing or different.
+That makes the guided workflow and component playbooks suitable for repeat
+runs: matching resources are left in place and detected drift is reconciled.
+Always review a Terraform plan before approval because an intentional
+configuration removal can still produce a destroy action.
+
 ## Status Sweep
 
 Start with status commands. They are read-only unless a referenced component
@@ -96,8 +105,10 @@ destroy or overwrite unrelated state.
 
 ## Component Redeploy And Status
 
-Component playbooks are idempotent deployment or configuration reruns. The
-commands below use the `FAIG_INVENTORY` value selected in the status sweep.
+Component playbooks can be run again safely when a deployment was interrupted
+or one component changed. They inspect the current state and apply only the
+changes needed to reach the configured state. The commands below use the
+`FAIG_INVENTORY` value selected in the status sweep.
 
 | Component | Deploy or configure | Status/validation |
 |---|---|---|
@@ -236,12 +247,7 @@ python3 -m functional_test --scenario-id hr-tool-dlp --action deny
 
 The functional tester validates expected Alert, Deny, and Redact behavior from
 scenario metadata and writes run evidence under its configured output root.
-See [Functional Test](../functional_test/README.md) and
-[Curl Payloads](curl-payloads.md).
-
-`scripts/smoke_test.py` is a maintainer/release no-apply suite. The load
-generator is a developer dashboard tool. Neither replaces operator functional
-validation.
+See [Functional Test](../functional_test/README.md).
 
 ## Direct Component Probes
 

@@ -71,7 +71,7 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) | Provider, passthrough, scenario flow, route, and guard setup |
 | [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical request-path diagrams and generated names |
-| [Curl Payloads](curl-payloads.md) | Replayable request equivalents for validated scenario tests |
+| [Legacy Transcript Replay Fixtures](curl-payloads.md) | Preconstructed assistant/tool transcripts pending reclassification; not live functional-test equivalents |
 
 ### Manage Scenarios
 

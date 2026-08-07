@@ -21,6 +21,12 @@ a "what's new" guide rather than a raw commit log.
   - centralized operational constraints in Known Issues, including manual
     FortiAIGate GUI objects, deferred FortiWeb MCP Security policy automation,
     unconfigured optional Open WebUI, and the current local-uninstall boundary
+  - clarified that quickstart automatically initializes or reuses the operator
+    profile, image publishing is normally an initial-deployment task, and
+    repeat Terraform/Ansible runs reconcile the configured desired state
+  - added FortiAIGate path, flow, guard, GUI test, and optional API-key
+    troubleshooting without making client authentication a normal lab
+    prerequisite
 
 - Added the v1.0 preparation and option documentation layer:
   - centralized first-run workstation, AWS/local, profile, license, generated

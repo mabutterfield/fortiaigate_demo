@@ -12,6 +12,15 @@ Before continuing, complete these two required guides:
 
 All commands run from `<repo_root>`, the `fortiaigate_demo/` directory.
 
+You do not need to run the profile tool before quickstart. If the required
+operator-owned files do not exist, quickstart launches profile initialization
+or import before it starts the deployment. On later runs, existing values are
+shown as the defaults so they can be accepted or changed.
+
+Running `python3 scripts/user_profile.py init` separately is useful only when
+you want to configure and review those values before beginning the longer
+Terraform and Ansible workflow.
+
 ## Readiness Check
 
 Confirm the following before starting:
@@ -23,8 +32,8 @@ Confirm the following before starting:
 - [ ] FortiGate and FortiWeb will use valid prerequisites or have been
       explicitly disabled;
 - [ ] Docker can reach the selected registry if images must be published;
-- [ ] operator configuration is ready, or interactive quickstart may create or
-      import it; and
+- [ ] operator configuration is ready, or quickstart will create or import it;
+      and
 - [ ] `scripts/local_setup.py` has generated inventory and variables when using
       the local lane.
 
@@ -65,8 +74,9 @@ Start the guided AWS deployment:
 python3 scripts/automated_quickstart.py
 ```
 
-On a new checkout, quickstart offers to import or create the operator-owned
-configuration files. It then guides the following sequence:
+Quickstart runs the operator-profile step before deployment. Missing files
+trigger initialization or import; existing values pre-populate the prompts.
+It then guides the following sequence:
 
 1. verify Terraform, AWS CLI, Ansible, and the repository root;
 2. verify the AWS session and shared profile values;
@@ -114,8 +124,7 @@ Then run local quickstart:
 python3 scripts/automated_quickstart.py --local
 ```
 
-The `local` inventory supplies `deployment_target=local`; manual commands do
-not need `FAIG_DEPLOYMENT_TARGET`. Local quickstart:
+Local quickstart:
 
 1. verifies Ansible and the generated local files;
 2. offers to import or create operator configuration without AWS onboarding;
@@ -147,10 +156,9 @@ rerun local quickstart.
 
 ## Image Publishing Decision
 
-Repository creation and image publication are still integrated with
-quickstart. The intended future design separates that maintenance from normal
-deployment, but the current calls must remain until deployment can consume a
-fully external image contract.
+Image publication is currently integrated into quickstart. It is normally
+needed only for the initial deployment, unless a required tag is missing or
+image content has changed.
 
 At the image prompt, choose:
 
@@ -217,8 +225,6 @@ After quickstart completes:
    ```
 
 Functional validation assumes the corresponding FortiAIGate GUI flows exist.
-The repository smoke suite is a maintainer check and is not part of first-run
-acceptance.
 
 For repeat runs, component updates, status commands, recovery, and teardown,
 continue with [Operations](operations.md). For a failed first run, start with

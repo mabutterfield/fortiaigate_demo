@@ -32,7 +32,6 @@ relationships, see [Architecture](../architecture.md).
 | Open WebUI | Optional, disabled, unconfigured | Deployment capability for future or custom use; no supported scenario/provider configuration or validation is supplied |
 | FAIG re-entry chain | Available, configurable, scenario-disabled | Global topology is enabled; every built-in scenario opts out by default |
 | Functional scenario validation | Validated | `python3 -m functional_test` reads installed scenario metadata and verifies expected Alert, Deny, and Redact behavior |
-| Dashboard load generation | Developer-only | Optional `load_test` workload; not part of setup or functional acceptance |
 | FortiGate LLM and appliance-fronted FAIG traffic | Deferred | Configuration experiments remain available, but these are disabled and not baseline paths |
 
 ## Scenario Authority

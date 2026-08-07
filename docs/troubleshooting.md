@@ -157,6 +157,49 @@ storage, and ingress before redeploying.
 
 The FortiAIGate UI is expected under `https://<k3s-host>/ui/`.
 
+## FortiAIGate Returns 401, 404, Or The Wrong Guard
+
+Check the FortiAIGate configuration before changing the chatbot or scenario:
+
+1. Render the installed scenario work order and compare its exact path, flow,
+   and guard names with the deployed GUI objects:
+
+   ```bash
+   python3 scripts/scenario_profiles.py render-work-order
+   ```
+
+2. Confirm the configured flow URI ends in `/*`, the request uses that same
+   prefix followed by `/chat/completions`, and the flow is deployed and
+   enabled.
+3. Confirm the flow has the intended Alert, Deny, or Redact AI Guard attached.
+   Check that the guard's OpenAI-compatible provider points to LiteLLM and uses
+   the work-order model alias.
+4. Use the built-in AI Guard test in the FortiAIGate GUI with the scenario's
+   exact test prompt or transcript. Confirm the expected detector and action
+   there before testing the complete chatbot and MCP path.
+5. Check flow authentication separately from the provider credential.
+   Client-to-FAIG API-key validation is disabled for most flows in this
+   isolated lab. The LiteLLM key configured on the guard provider is still
+   required and is a different credential.
+
+Test a normal lab flow without an `Authorization` header first. If API-key
+validation was explicitly enabled on that flow, add the header:
+
+```bash
+export FAIG_URL="https://faig.example.test"
+export FAIG_API_KEY="replace-with-private-lab-key"
+
+curl -skS "$FAIG_URL/v1/passthrough/chat/completions" \
+  -H "Authorization: Bearer $FAIG_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"model":"pass-model","messages":[{"role":"user","content":"Reply with the model name."}]}'
+```
+
+The `-k` option is only for this self-signed lab endpoint. Omit the
+`Authorization` line when flow API-key validation is disabled. For automated
+tests of an explicitly protected flow, store `fortiaigate_test_api_key` only
+in ignored `ansible/group_vars/user.yml`; never place it in tracked files.
+
 ## LiteLLM Or Direct Model Calls Fail
 
 Isolate the model provider from the rest of the chain:
@@ -225,7 +268,7 @@ Marketplace subscription and license mode for AWS, management reachability,
 admin port, credentials, and lockout state. Optional appliance failure does not
 invalidate the core deployment unless the appliance was explicitly required.
 
-## Local Commands Load AWS Variables
+## A Local Status Command Shows Cloud Values
 
 Use the `local` inventory alias:
 
@@ -233,10 +276,10 @@ Use the `local` inventory alias:
 ansible-playbook -i local ansible/playbooks/show_demo_outputs.yml
 ```
 
-The inventory is authoritative for deployment-target selection, including
-localhost-only utility playbooks. Remove a stale `FAIG_DEPLOYMENT_TARGET`
-environment override if one was deliberately set for an unusual no-inventory
-call.
+The inventory alias selects the local generated values, including for
+localhost-only utility playbooks. If the output is still wrong, rerun
+`python3 scripts/local_setup.py` and confirm that the `local` alias points to
+`ansible/inventory/local.generated.ini`.
 
 ## Functional Scenario Validation Fails
 

@@ -277,9 +277,8 @@ Before quickstart, confirm:
 - [ ] Docker can reach the selected registry if publishing is required; and
 - [ ] [Deployment Options](deployment-options.md) has been reviewed.
 
-No separate smoke or unit-test command is required for an operator first run.
-Quickstart checks required commands and required local files before deployment.
-If operator configuration was pre-staged manually, this optional check confirms
+Quickstart checks required commands and local files before deployment. If
+operator configuration was pre-staged manually, this optional check confirms
 that its required files exist:
 
 ```bash
@@ -287,6 +286,4 @@ python3 scripts/user_profile.py check
 ```
 
 Successful output includes `Required user profile files exist.` After
-deployment, use `python3 -m functional_test` for operator-facing scenario
-validation. The repository smoke suite is a maintainer/release check, not a
-setup requirement.
+deployment, use `python3 -m functional_test` for scenario validation.

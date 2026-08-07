@@ -17,6 +17,5 @@ python3 -m functional_test --help
 ```
 
 Results are written under the ignored `functional_test/output/` directory.
-The validator shares transport and response-classification internals with the
-developer-only `load_test` package so load traffic cannot drift from the
-functional result contract.
+All paths use the same response-classification contract so expected-result
+counts remain consistent.
