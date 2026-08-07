@@ -24,7 +24,7 @@ for install-specific tuning.
 
 ## Generated FAIG Objects
 
-Use the reusable [FAIG GUI walkthrough](../../../../docs/FortiAIGate-initial-config.MD)
+Use the reusable [Scenario GUI Configuration](../../../../docs/fortiaigate-gui-config.md)
 with these concrete values:
 
 | Action | Flow name | Configured URI | Guard name | Template | Next-hop model | Required |

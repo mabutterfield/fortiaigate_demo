@@ -1,206 +1,215 @@
-# FortiAIGate Scenario Flow Configuration
+# FortiAIGate Initial Configuration
 
-Use this guide after Helm deployment reports `FortiAIGate status: READY` and
-the baseline scenarios have been installed. Phase 11 uses scenario-owned flow
-URIs and LiteLLM aliases; it does not require `demo-a`/`demo-b` routes.
+Use this guide after Deployment Quickstart reports FortiAIGate `READY`. It
+creates the smallest usable configuration: one LiteLLM provider, the
+`pass-model` target, one no-protection AI Guard, and the global
+`/v1/passthrough/*` flow.
 
-## Generate The Work Order
+Do not install scenario-specific FAIG objects yet. After passthrough works,
+continue with [Scenario GUI Configuration](fortiaigate-gui-config.md).
 
-From the repo root:
+All commands run from `<repo_root>`.
 
-```bash
-python3 scripts/scenario_profiles.py list-installed
-python3 scripts/scenario_profiles.py render-work-order
-python3 scripts/build_scenario_matrix.py --output /tmp/scenario-matrix.json
-```
+## Before Opening The GUI
 
-The ignored work order is written under
-`docs/raw-output/scenario-work-orders/`. It is the installation-specific source
-for flow URIs, suggested names, guard templates, and next-hop LiteLLM aliases.
-Tracked scenario runbooks explain the test story; they do not override locally
-tuned installed profiles.
-
-Validate LiteLLM before configuring FortiAIGate:
+Select the deployed environment and confirm FortiAIGate and LiteLLM are ready:
 
 ```bash
-ansible-playbook ansible/playbooks/test_litellm_direct.yml
+export FAIG_INVENTORY=cloud
+# or
+export FAIG_INVENTORY=local
+
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_fortiaigate.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_litellm.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_litellm_direct.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/show_demo_outputs.yml
 ```
 
-The canonical aliases are:
+Use the FortiAIGate Admin URL printed by Demo Outputs. The configuration below
+uses these values:
 
-- `pass-model`: full custom-instruction bypass.
-- `<scenario-id>`: the scenario backend instructions, for example
-  `fortistore-injection` or `hr-tool-dlp`.
-
-## Screenshot Variables
-
-The walkthrough uses these tokens so one set of screenshots can apply to every
-scenario:
-
-| Token | Work-order value |
+| Variable | Value |
 |---|---|
-| `{{scenario-id}}` | Installed scenario ID |
-| `{{action}}` | FAIG action such as `alert`, `deny`, or `redact` |
-| `{{flow-name}}` | Suggested flow name |
-| `{{flow-uri}}` | Generated request prefix, without wildcard or OpenAI suffix |
-| `{{configured-uri}}` | Exact FAIG value: `{{flow-uri}}/*` |
-| `{{guard-name}}` | Suggested AI guard name |
-| `{{guard-template}}` | Required behavior template |
-| `{{next-hop-model}}` | LiteLLM alias selected by the guard |
-| `{{litellm-endpoint}}` | Private LiteLLM OpenAI-compatible endpoint |
-| `{{litellm-api-key}}` | LiteLLM API key from ignored deployment output |
+| `{{litellm_url}}` | `http://litellm.litellm.svc.cluster.local:4000/v1` unless locally overridden |
+| `{{litellm_api_key}}` | `litellm_master_key` from ignored `ansible/group_vars/user.yml` |
+| Passthrough model | `pass-model` |
+| Guard name | `pass_model` |
+| Flow name | `passthrough` |
+| Configured flow URI | `/v1/passthrough/*` |
 
-Existing screenshots below identify the relevant GUI pages. Some contain old
-example values; ignore those values and use the token mapping and generated
-work order. Tokenized Phase 11 screenshots can replace them without changing
-the scenario runbooks.
+Never put `{{litellm_api_key}}`, a FortiAIGate API key, passwords, private
+addresses, or other environment secrets in screenshots or committed files.
 
-## Request Paths
+## 1. Complete First Login And Confirm Licensing
 
-```mermaid
-flowchart LR
-    UI["Chatbot profile"] -->|"Direct"| LL["LiteLLM /v1/chat/completions"]
-    UI -->|"FAIG Static Route"| FLOW["FAIG {{flow-uri}}/chat/completions"]
-    FLOW --> GUARD["AI guard {{guard-name}}"]
-    GUARD -->|"model {{next-hop-model}}"| LL
-    UI -.->|"MCP Direct"| MCP["MCP server"]
-    UI -.->|"MCP alternate"| FW["FortiWeb"]
-    FW -.-> MCP
-```
+Open the Admin URL, complete the FortiAIGate 8.x first-login workflow, and
+confirm that the deployed license is active. Change any initial password when
+the product prompts for it and store the result outside Git.
 
-The LLM path and MCP path are independent. FortiWeb is an advanced MCP
-alternate only when its proxy is desired and an installed endpoint exists.
-FortiGate LLM routes remain disabled while that path is under development.
+> **Screenshot placeholder — `faig-initial-login-license`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-login-license.png`
+>
+> Caption: Complete initial FortiAIGate onboarding and confirm that the license is active.
+>
+> Capture: The licensed/ready landing page after onboarding. Show the 8.x product version and active license state; omit usernames, license identifiers, serial numbers, and addresses.
 
-## Create Canonical Passthrough
+## 2. Configure LiteLLM As The Provider
 
-Create this global control first:
+In the provider or model-provider area, create an OpenAI-compatible provider
+named `litellm`:
+
+| Field | Value |
+|---|---|
+| Name | `litellm` |
+| Provider type | OpenAI-compatible |
+| Base URL | `{{litellm_url}}` |
+| API key | `{{litellm_api_key}}` |
+
+This key authenticates FortiAIGate to LiteLLM. It is not the optional key that
+authenticates a chatbot or curl client to a FortiAIGate flow.
+
+> **Screenshot placeholder — `faig-initial-provider`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-provider.png`
+>
+> Caption: Configure the LiteLLM provider at `{{litellm_url}}`.
+>
+> Capture: The OpenAI-compatible provider editor with provider name and URL populated. Keep the API-key field masked and exclude browser-saved credential prompts.
+
+Add or expose `pass-model` through that provider. The model name must match the
+LiteLLM alias exactly.
+
+> **Screenshot placeholder — `faig-initial-model`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-model.png`
+>
+> Caption: Configure `pass-model` as the passthrough next-hop model.
+>
+> Capture: The provider model/target editor showing `pass-model` selected under the `litellm` provider. Do not show the provider API key.
+
+## 3. Create The No-Protection Passthrough Guard
+
+Create an AI Guard named `pass_model` and select the LiteLLM `pass-model`
+target. Leave prompt-injection protection, DLP, deny, and redaction actions
+disabled. This guard exists to provide a full FAIG traversal control without
+scenario protection or LiteLLM scenario instructions.
+
+> **Screenshot placeholder — `faig-initial-passthrough-guard`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-passthrough-guard.png`
+>
+> Caption: Create the minimal no-protection guard used by FAIG passthrough.
+>
+> Capture: The complete `pass_model` guard summary showing the `litellm` provider, `pass-model`, and no enabled protection actions.
+
+Use the built-in AI Guard test with a simple prompt such as `Reply with only:
+ok passthrough validation`. Confirm that the request completes and no detector
+or enforcement action is applied.
+
+## 4. Create The Passthrough Flow
+
+Create one explicit flow:
 
 | Field | Value |
 |---|---|
 | Flow name | `passthrough` |
-| Configured URI | `/v1/passthrough/*` |
-| Guard/provider name | `pass_model` (suggested) |
-| Provider type | OpenAI-compatible |
-| Provider endpoint | `{{litellm-endpoint}}` |
-| Provider model | `pass-model` |
-| Provider API key | `{{litellm-api-key}}` |
-| API-key validation | Disable for the isolated demo lab if required by the current test workflow |
+| URI | `/v1/passthrough/*` |
+| AI Guard | `pass_model` |
+| Client API-key validation | Disabled for the normal isolated lab |
 
-Do not inject instructions in this guard and do not point it to a scenario
-alias. `/v1/passthrough` is the full bypass control.
+The wildcard is required. A request to this flow uses
+`/v1/passthrough/chat/completions`. Do not create a generic `/v1/*` fallback;
+it can conceal a missing scenario flow or make URI ordering ambiguous.
 
-The onboarding screenshots show the page sequence:
+> **Screenshot placeholder — `faig-initial-passthrough-flow`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-passthrough-flow.png`
+>
+> Caption: Publish `/v1/passthrough/*` through the passthrough guard and `pass-model`.
+>
+> Capture: The flow editor showing `passthrough`, the complete wildcard URI, and attached `pass_model` guard.
 
-1. Define the explicit URI. Do not create a generic `/v1/*` fallback first.
-   [Flow page](images/onboard-step1.jpg)
-2. Create the OpenAI-compatible provider with the LiteLLM endpoint and key.
-   [Guard/provider page](images/onboard-step2.jpg)
-3. Attach the guard to the flow. [Guard selection](images/onboard-step3.jpg)
-4. Review and deploy. [Deployment review](images/onboard-step4.jpg)
-5. If appropriate for the isolated lab, disable flow API-key validation.
-   [Flow API-key setting](images/edit-flow-apienabled.jpg)
+Most lab flows disable client-to-FAIG API-key validation. This keeps scenario
+testing focused on AI protections. It does not disable the separate LiteLLM
+provider credential.
 
-Validate it:
+> **Screenshot placeholder — `faig-initial-flow-auth`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-flow-auth.png`
+>
+> Caption: Disable client API-key validation for the isolated lab baseline; identify the control used to enable an explicit API-key test.
+>
+> Capture: The passthrough flow authentication setting in its disabled state. Show the setting label and flow name without exposing credentials.
 
-```bash
-python3 -m load_test paths \
-  --mode path_test \
-  --path-test-path passthrough
-```
+## 5. Deploy The Configuration
 
-## Create A Scenario Guard
+Review and deploy/apply the provider, model, guard, and flow. Wait until the
+deployment reports success before testing the URL.
 
-For each work-order row, create or clone one AI guard:
+> **Screenshot placeholder — `faig-initial-deploy`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-deploy.png`
+>
+> Caption: Deploy the initial provider, guard, and passthrough flow.
+>
+> Capture: The deployment review or successful deployment status showing `litellm`, `pass_model`, and `passthrough`; omit unrelated objects and secrets.
 
-| Field | Value |
-|---|---|
-| Guard name | `{{guard-name}}` |
-| Provider type | OpenAI-compatible |
-| Provider endpoint | `{{litellm-endpoint}}` |
-| Provider model | `{{next-hop-model}}` |
-| Provider API key | `{{litellm-api-key}}` |
-| Input/output protection | Configure from `{{guard-template}}` below |
+## 6. Validate Passthrough
 
-The provider model must equal the scenario alias in the work order. Different
-actions for one scenario intentionally share the same next-hop model so the
-comparison changes FAIG policy, not backend instructions.
-
-[Create guard page](images/create-demo-guard.jpg)
-
-### Guard Templates
-
-| Template | Required behavior |
-|---|---|
-| `detect_only` | Enable the scenario-relevant detectors, log findings, allow the request and response, and do not redact content. |
-| `protect_input` | Enable prompt-injection inspection on the complete input transcript and deny/stop instruction-control attacks before generation. For MCP agent loops, include retrieved `tool`-role messages in the inspected input. |
-| `input_dlp` | Reserved for future `redact-dummy` input-DLP behavior. |
-| `output_dlp_deny` | Enable output DLP and deny the response when protected data is detected. |
-| `output_dlp_redact` | Enable output DLP and redact detected protected values while allowing the remaining response. |
-
-Scenario runbooks list detector and PII tuning that is specific to the demo.
-The input and output pages are shown here:
-
-- [Input protection page](<images/input guard.jpg>)
-- [Output protection page](<images/output guard.jpg>)
-
-## Create A Scenario Flow
-
-Create the flow after its guard:
-
-| Field | Value |
-|---|---|
-| Flow name | `{{flow-name}}` |
-| Configured URI | `{{configured-uri}}` |
-| Attached guard | `{{guard-name}}` |
-| Resulting request URL | `{{flow-uri}}/chat/completions` |
-
-[Create flow page](images/create-demo-flow.jpg)
-
-Specific routes should be created before any generic `/v1/*` fallback because
-URI evaluation may be order-sensitive. Phase 11 does not generate intelligent
-header routes or FAIG re-entry chains by default.
-
-## Validate Scenario Paths
-
-Test one action through the chatbot-owned agent loop:
+Run the controller-side FortiAIGate test against the exact flow:
 
 ```bash
-python3 -m load_test validate \
-  --scenario {{scenario-id}} \
-  --action {{action}}
+ansible-playbook -i "$FAIG_INVENTORY" \
+  ansible/playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_endpoint_path=/v1/passthrough/chat/completions \
+  -e fortiaigate_test_model=pass-model
 ```
 
-Test raw FAIG path connectivity:
+Expected result:
+
+- HTTP success;
+- response from `pass-model`;
+- flow `passthrough` and guard `pass_model` in FortiAIGate telemetry;
+- no scenario instruction marker; and
+- no prompt-injection, DLP, deny, or redaction action.
+
+If it fails, use
+[FortiAIGate Returns 401, 404, Or The Wrong Guard](troubleshooting.md#fortiaigate-returns-401-404-or-the-wrong-guard).
+
+> **Screenshot placeholder — `faig-initial-passthrough-event`**
+>
+> Expected filename: `images/fortiaigate/faig-initial-passthrough-event.png`
+>
+> Caption: Confirm the passthrough request reached `pass-model` without scenario protection.
+>
+> Capture: The FortiAIGate event or request detail showing the passthrough path, `pass_model`, allowed outcome, `pass-model`, and timestamp. Exclude prompt content if it contains anything beyond the synthetic test string.
+
+## Optional: Test Client API-Key Validation
+
+Client API-key validation is not required for the normal lab. To test it
+explicitly, create a lab-only key, enable validation on a chosen flow, and
+store the key only in ignored local configuration. The optional curl header is:
 
 ```bash
-python3 -m load_test paths \
-  --mode path_test \
-  --path-test-path {{flow-name}}
+-H "Authorization: Bearer $FAIG_API_KEY"
 ```
 
-Capture the chatbot selection, response, MCP trace when applicable, and FAIG
-traffic log fields including flow, guard, action, verdict, model, and timestamp.
-[Traffic log page](images/traffic-log-validation.jpg)
+Set `fortiaigate_test_api_key` in ignored `ansible/group_vars/user.yml` when
+the Ansible test must send that key. Remove or disable the test configuration
+when returning to the normal lab baseline.
 
-## Updates And Removal
+> **Screenshot placeholder — `faig-optional-api-key`**
+>
+> Expected filename: `images/fortiaigate/faig-optional-api-key.png`
+>
+> Caption: Optionally create a lab API key for an explicit authenticated-flow test.
+>
+> Capture: The API-key creation confirmation or key-list entry with the actual key value, identifier, and any secret-bearing QR/code fully omitted or redacted.
 
-Tracked examples are read-only templates. Local scenario files are ignored and
-operator-owned. Pulling repo changes never overwrites them.
+## Next Step
 
-```bash
-python3 scripts/scenario_profiles.py update {{scenario-id}}
-python3 scripts/scenario_profiles.py update {{scenario-id}} --force
-```
-
-`--force` creates an ignored backup before replacement. Redeploy LiteLLM and
-the chatbot after an installed scenario changes. Re-render the work order and
-manually update FAIG objects.
-
-Removing a scenario archives its local files. It does not mutate or track GUI
-state in the disposable FAIG environment:
-
-```bash
-python3 scripts/scenario_profiles.py remove {{scenario-id}}
-python3 scripts/scenario_profiles.py render-work-order
-```
+Install scenarios, render their work order, and continue with
+[Scenario GUI Configuration](fortiaigate-gui-config.md). The global
+passthrough flow is reused by Advanced chatbot testing and by any explicitly
+enabled, loop-safe FAIG re-entry chain.

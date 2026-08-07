@@ -5,6 +5,21 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Split FortiAIGate GUI setup into a minimal initial configuration and a
+  reusable scenario workflow:
+  - initial configuration now stops after first login, the shared LiteLLM
+    provider, `pass-model`, a no-protection guard, and a validated
+    `/v1/passthrough/*` flow
+  - scenario configuration maps generated work-order variables into Alert,
+    Deny, Redact, flow, authentication, deployment, GUI test, chatbot, and
+    telemetry steps
+  - documented FortiWeb-preferred/Direct-fallback MCP independently from FAIG
+    LLM paths and documented optional loop-safe FAIG re-entry
+  - replaced obsolete GUI screenshots with inline placeholders carrying final
+    captions, exact filenames, capture instructions, and redaction rules
+  - retained the established `FortiAIGate-initial-config.MD` path so existing
+    links and case-insensitive worktrees use one canonical initial guide
+
 - Consolidated deployment and operations documentation into one supported
   journey:
   - added a single guided AWS/local quickstart with readiness checks,

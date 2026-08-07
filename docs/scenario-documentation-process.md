@@ -105,7 +105,7 @@ needs them visible to make the redaction result understandable.
 
 ## Screenshots
 
-Use the reusable [FAIG GUI walkthrough](FortiAIGate-initial-config.MD) for the
+Use the reusable [Scenario GUI Configuration](fortiaigate-gui-config.md) for the
 common page sequence. Its `{{variable}}` tokens are replaced with values from
 the generated work order.
 

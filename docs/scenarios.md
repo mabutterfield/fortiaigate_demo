@@ -39,7 +39,7 @@ pull conflicts.
 
 Global controls are `pass-model` and `/v1/passthrough`. See the
 [Scenario Catalog](scenario-catalog.md) for candidate/archive status and the
-[FAIG GUI walkthrough](FortiAIGate-initial-config.MD) for flow creation.
+[Scenario GUI Configuration](fortiaigate-gui-config.md) for flow creation.
 
 ## Chatbot Use
 

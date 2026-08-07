@@ -27,7 +27,8 @@ created in the FortiAIGate 8.x GUI.
 
 Create the minimal passthrough configuration first, then use the installed
 scenario work order for protected paths. See
-[FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) and
+[FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD),
+[Scenario GUI Configuration](fortiaigate-gui-config.md), and
 [Scenario Management](scenarios.md). Functional validation cannot repair a
 missing or stale GUI flow.
 

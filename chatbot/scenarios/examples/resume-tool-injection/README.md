@@ -41,6 +41,10 @@ Use the generated work order as the installation authority:
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
+Use the reusable
+[Scenario GUI Configuration](../../../../docs/fortiaigate-gui-config.md) to
+create and validate those objects.
+
 ## Tool Profiles
 
 | Profile | Purpose | Cloud tool exposed |

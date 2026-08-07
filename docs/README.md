@@ -19,7 +19,8 @@ changes directories.
 | Check, update, recover, or remove a deployment | [Operations](operations.md) |
 | Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
-| Configure FortiAIGate flows and guards | [FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) |
+| Complete first login and create passthrough | [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) |
+| Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
 | Install, update, remove, or validate scenarios | [Scenario Management](scenarios.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 
@@ -69,7 +70,8 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [FortiAIGate GUI Configuration](FortiAIGate-initial-config.MD) | Provider, passthrough, scenario flow, route, and guard setup |
+| [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) | First login, LiteLLM provider, `pass-model`, and global passthrough proof |
+| [Scenario GUI Configuration](fortiaigate-gui-config.md) | Reusable work-order-driven Alert, Deny, Redact, flow, test, and telemetry workflow |
 | [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical request-path diagrams and generated names |
 | [Legacy Transcript Replay Fixtures](curl-payloads.md) | Preconstructed assistant/tool transcripts pending reclassification; not live functional-test equivalents |
 
