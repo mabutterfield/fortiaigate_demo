@@ -72,17 +72,16 @@ Never commit real `99-local.auto.tfvars`, Ansible secret vars, license files, pr
 ## Quick Start
 
 This section describes the AWS path. For local Ubuntu hardware mode, first run
-the local setup helper and then use the local inventory and deployment target
-for any manual playbook runs:
+the local setup helper and then use the local inventory for manual playbook
+runs; the inventory supplies the deployment target:
 
 ```bash
 python3 scripts/local_setup.py
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
-  -i local \
+ansible-playbook -i local \
   ansible/playbooks/bootstrap_gpu_k3s.yml
 ```
 
-Local mode skips Terraform, uses generated ignored local files, deploys Ollama
+Local mode skips Terraform, uses environment-owned generated local files, deploys Ollama
 in k3s as the default local provider through LiteLLM, and can onboard optional
 local FortiGate/FortiWeb appliances. Do not commit
 `ansible/inventory/local.generated.ini`,
@@ -446,9 +445,9 @@ The default LiteLLM deployment exposes model aliases backed by the same Bedrock
 model, plus an optional chained FAIG inspection alias:
 
 - `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
-- `demo-a`: uses ignored local instructions at
+- `demo-a`: uses operator-owned local instructions at
   `chatbot/instructions/local/demo-a/instructions.txt`
-- `demo-b`: uses ignored local instructions at
+- `demo-b`: uses operator-owned local instructions at
   `chatbot/instructions/local/demo-b/instructions.txt`
 - `demo-a-faig-be`: uses demo-a instructions, then calls the
   configured backend FortiAIGate URI as an OpenAI-compatible upstream

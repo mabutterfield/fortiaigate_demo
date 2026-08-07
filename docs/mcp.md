@@ -258,8 +258,9 @@ into the staged Helm chart before deployment, so data changes do not require
 rebuilding an image.
 
 FortiGate MCP secrets are not committed. The role reads the generated API token
-from ignored local Ansible secret material and writes a Kubernetes secret named
-`fortigate-readonly-api` when both the token and management URL are available.
+from local Ansible secret material excluded from Git and writes a Kubernetes
+secret named `fortigate-readonly-api` when both the token and management URL
+are available.
 Automated quickstart runs `configure_fortigate_api_accounts.yml` before
 `deploy_mcp.yml`; that API-account play regenerates the read-only token when
 the local token file is missing, rotation is requested, or the saved token was

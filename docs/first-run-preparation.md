@@ -16,19 +16,20 @@ The default path variables expect this parent workspace:
 FAIG/
 ├── fortiaigate_demo/              <repo_root>
 ├── FAIG_helm/
-│   └── 8.x/
+│   └── <8.x.y>/
 │       └── fortiaigate/           extracted vendor Helm chart
 ├── images/
-│   └── 8.x/                       vendor Docker image archives
+│   └── <8.x.y>/                   vendor Docker image archives
 └── licenses/
-    ├── License1.lic               FortiAIGate license
+    ├── <fortiaigate-license>.lic  FortiAIGate license
     ├── <fortigate-license>.lic    optional FortiGate BYOL license
     └── <fortiweb-license>.lic     optional FortiWeb BYOL license
 ```
 
-The exact vendor release directory can be `8.0.0`, `8.0.1`, or another
-configured FortiAIGate 8.x build. Override `faig_workspace_root`, chart, image,
-or license paths in ignored user files if the workspace differs.
+Use the exact three-part vendor release directory, such as `8.0.0` or `8.0.1`,
+for both the chart and image inputs. Override `faig_workspace_root`, chart,
+image, or license paths in operator-owned local configuration if the workspace
+differs.
 
 Never put licenses, tokens, private keys, certificates, credentials, image
 archives, or extracted vendor charts in Git.
@@ -64,13 +65,20 @@ ssh -V
 # AWS lane
 terraform version
 aws --version
+
+# Any lane that publishes images
 docker version
 ```
 
 The quickstart performs its own required-command check before changing the
 environment.
 
-## 3. Prepare AWS
+## 3. Prepare One Deployment Target
+
+Choose either the AWS lane or the local Ubuntu lane. They are alternatives,
+not sequential preparation steps.
+
+### 3A. AWS
 
 Before the AWS first run:
 
@@ -104,7 +112,7 @@ Model listing does not by itself guarantee invocation permission or capacity.
 Use the AWS console or account-specific quota process to resolve access and
 quota issues before the deployment window.
 
-## 4. Prepare A Local Ubuntu GPU Host
+### 3B. Local Ubuntu GPU Host
 
 The supported local lane starts with an existing Ubuntu 24.04 GPU host.
 Prepare:
@@ -127,38 +135,8 @@ foundation. NVIDIA discovery may be incomplete before bootstrap. If so, local
 quickstart intentionally stops after GPU setup so `local_setup.py` can be run
 again to record GPU UUID assignments.
 
-## 5. Initialize User-Owned Files
-
-For AWS, initialize the ignored user profile:
-
-```bash
-python3 scripts/user_profile.py init
-python3 scripts/user_profile.py check
-```
-
-Initialization creates and configures:
-
-```text
-terraform/user.tfvars
-ansible/group_vars/user.yml
-```
-
-`terraform/user.tfvars` supplies the AWS profile, region, name prefix, SSH key,
-trusted CIDRs, and tags to every Terraform module through tracked
-`50-user.auto.tfvars` symlinks. `ansible/group_vars/user.yml` contains only
-operator overrides layered after repo and generated defaults.
-
-Create a module-local override only when that module needs a value different
-from the shared profile:
-
-```bash
-cp terraform/aws-fortigate/99-local.auto.tfvars.example \
-  terraform/aws-fortigate/99-local.auto.tfvars
-cp terraform/aws-fortiweb/99-local.auto.tfvars.example \
-  terraform/aws-fortiweb/99-local.auto.tfvars
-```
-
-For local deployment, generate environment-owned inventory and variables:
+Generate the environment-owned local inventory and variables before running
+local quickstart:
 
 ```bash
 python3 scripts/local_setup.py
@@ -175,40 +153,88 @@ ansible/group_vars/local.secrets.yml
 ansible/group_vars/registry.generated.yml
 ```
 
-`local.secrets.yml` is written with mode `0600`. Treat profile archives and
-generated local exports as sensitive because they can contain managed appliance
-credentials.
+`local.secrets.yml` is written with mode `0600`. Treat generated local exports
+as sensitive because they can contain managed appliance credentials.
 
-## 6. Place Licenses And Optional Tokens
+## 4. Optionally Pre-Stage Operator Configuration
+
+Manual profile initialization is not required for a normal interactive first
+run. If `terraform/user.tfvars` or `ansible/group_vars/user.yml` is missing,
+automated quickstart offers to import an existing profile, create and configure
+the files, or exit.
+
+Use the standalone profile tool only when you want to prepare the files before
+starting quickstart:
+
+```bash
+# AWS pre-staging
+python3 scripts/user_profile.py init
+
+# Local pre-staging without AWS onboarding
+python3 scripts/user_profile.py init --local
+
+python3 scripts/user_profile.py check
+```
+
+These are operator-owned local configuration files excluded from version
+control by `.gitignore`:
+
+```text
+terraform/user.tfvars
+ansible/group_vars/user.yml
+```
+
+`terraform/user.tfvars` supplies the AWS profile, region, name prefix, SSH key,
+trusted CIDRs, and tags to every Terraform module through tracked
+`50-user.auto.tfvars` symlinks. `ansible/group_vars/user.yml` contains only
+operator overrides layered after repo and generated defaults.
+
+Create a module-local override only when that module needs a value different
+from the shared profile and the file does not already exist:
+
+```bash
+cp -n terraform/aws-fortigate/99-local.auto.tfvars.example \
+  terraform/aws-fortigate/99-local.auto.tfvars
+cp -n terraform/aws-fortiweb/99-local.auto.tfvars.example \
+  terraform/aws-fortiweb/99-local.auto.tfvars
+```
+
+Profile archives can contain operator configuration and must also be treated as
+sensitive. Unlike profile initialization, `local_setup.py` remains a required
+preparation step for the local lane because quickstart consumes its generated
+inventory and variables.
+
+## 5. Place Licenses And Optional Tokens
 
 The normal baseline uses BYOL license files from the parent `licenses/`
 directory:
 
 | Product | Expected configuration | Default lookup |
 |---|---|---|
-| FortiAIGate | `fortiaigate_license_files` in ignored `ansible/group_vars/user.yml` | `FAIG/licenses/License1.lic` |
-| FortiGate | `fortigate_license_file_name` in ignored `terraform/aws-fortigate/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
-| FortiWeb | `fortiweb_license_file_name` in ignored `terraform/aws-fortiweb/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
+| FortiAIGate | `fortiaigate_license_files`; override in local `ansible/group_vars/user.yml` only when needed | `FAIG/licenses/<configured-name>` |
+| FortiGate | `fortigate_license_file_name` in local `terraform/aws-fortigate/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
+| FortiWeb | `fortiweb_license_file_name` in local `terraform/aws-fortiweb/99-local.auto.tfvars` | `FAIG/licenses/<configured-name>` |
 
-The tracked all-zero FortiGate and FortiWeb names are placeholders, not usable
-licenses. Interactive quickstart asks for a real file when a desired appliance
-still has a placeholder or missing path.
+The tracked FortiAIGate default name is `License1.lic`; it can be replaced by
+the configured file name. The tracked all-zero FortiGate and FortiWeb names are
+placeholders, not usable licenses. Interactive quickstart asks for a real file
+when a desired appliance still has a placeholder or missing path.
 
 FortiFlex token variables exist as an advanced Terraform path, but guided
 FortiFlex lifecycle integration is not part of the current first-run baseline.
-If used, tokens belong only in the appropriate ignored
-`99-local.auto.tfvars`; they may also be recorded in Terraform state.
+If used, tokens belong only in the appropriate local `99-local.auto.tfvars`
+file excluded from Git; they may also be recorded in Terraform state.
 
 Restrict private inputs on a shared workstation:
 
 ```bash
-chmod 600 terraform/user.tfvars ansible/group_vars/user.yml
 chmod 600 ../licenses/*.lic
+chmod 600 terraform/user.tfvars ansible/group_vars/user.yml 2>/dev/null || true
 chmod 600 terraform/aws-fortigate/99-local.auto.tfvars 2>/dev/null || true
 chmod 600 terraform/aws-fortiweb/99-local.auto.tfvars 2>/dev/null || true
 ```
 
-## 7. Understand Generated And Sensitive State
+## 6. Understand Generated And Sensitive State
 
 Do not commit:
 
@@ -234,7 +260,7 @@ Secret. Operator-provided certificate and key paths remain local private
 inputs. Do not copy any of these files into the repository or expose them in
 diagnostic output.
 
-## 8. Preflight Checklist
+## 7. Preflight Checklist
 
 Before quickstart, confirm:
 
@@ -242,23 +268,25 @@ Before quickstart, confirm:
 - [ ] required control-workstation commands are installed;
 - [ ] the selected AWS or local host is reachable;
 - [ ] AWS login, region, quota, model availability, key pair, and Marketplace
-      terms are ready for the AWS lane;
+      terms are ready when using the AWS lane;
 - [ ] vendor chart, image archives, and FortiAIGate license are outside Git;
 - [ ] desired appliance licenses or explicit opt-outs are ready;
-- [ ] `terraform/user.tfvars` and `ansible/group_vars/user.yml` exist for AWS;
-- [ ] `local_setup.py` generated the local files for local deployment;
+- [ ] operator configuration is ready, or interactive quickstart will be
+      allowed to create/import it;
+- [ ] `local_setup.py` generated the local files when using the local lane;
 - [ ] Docker can reach the selected registry if publishing is required; and
 - [ ] [Deployment Options](deployment-options.md) has been reviewed.
 
-Useful no-apply checks:
+No separate smoke or unit-test command is required for an operator first run.
+Quickstart checks required commands and required local files before deployment.
+If operator configuration was pre-staged manually, this optional check confirms
+that its required files exist:
 
 ```bash
 python3 scripts/user_profile.py check
-python3 scripts/scenario_profiles.py validate
-python3 scripts/smoke_test.py
 ```
 
-Successful profile output includes `Required user profile files exist.` The
-smoke test ends without a failed command and checks the tracked inventory and
-Terraform symlink contracts without requiring ignored generated targets to
-exist.
+Successful output includes `Required user profile files exist.` After
+deployment, use `python3 -m functional_test` for operator-facing scenario
+validation. The repository smoke suite is a maintainer/release check, not a
+setup requirement.

@@ -624,10 +624,13 @@ def ensure_instruction_slots() -> list[Path]:
     return created
 
 
-def init_profile(*, force: bool) -> None:
+def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     copy_profile_examples(force=force)
     ensure_instruction_slots()
-    configure_terraform_user_profile()
+    if configure_aws:
+        configure_terraform_user_profile()
+    else:
+        print("Local profile initialization: skipped AWS/Terraform onboarding.")
     configure_ansible_user_profile()
 
 
@@ -770,6 +773,11 @@ def parse_args() -> argparse.Namespace:
 
     init_parser = subparsers.add_parser("init", help="Create and configure local user profile files.")
     init_parser.add_argument("--force", action="store_true", help="Offer to overwrite existing user profile files from examples.")
+    init_parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Prepare local-deployment operator files without AWS/Terraform onboarding.",
+    )
 
     import_parser = subparsers.add_parser("import", help="Import a user profile .tgz archive.")
     import_parser.add_argument("path", nargs="?", default=str(DEFAULT_PROFILE_ARCHIVE), help="Profile archive path.")
@@ -786,7 +794,7 @@ def main() -> None:
     os.chdir(REPO_ROOT)
     args = parse_args()
     if args.command == "init":
-        init_profile(force=args.force)
+        init_profile(force=args.force, configure_aws=not args.local)
     elif args.command == "import":
         import_profile(Path(args.path), yes=args.yes)
     elif args.command == "export":

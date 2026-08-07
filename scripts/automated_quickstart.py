@@ -2130,8 +2130,8 @@ def require_local_gpu_assignment_after_bootstrap() -> None:
     )
 
 
-def run_profile_init() -> str:
-    profile_tool.init_profile(force=True)
+def run_profile_init(target: str) -> str:
+    profile_tool.init_profile(force=True, configure_aws=target == "aws")
     return "init"
 
 
@@ -2155,7 +2155,7 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
                 raise SystemExit("--init with --yolo refuses to overwrite existing profile files.")
             if prompt_yes_no("Export the current user profile before reinitializing?", True):
                 profile_tool.export_profile(profile_tool.DEFAULT_PROFILE_ARCHIVE)
-        action = run_profile_init()
+        action = run_profile_init(args.target)
 
     missing = missing_user_profile_files()
     if not missing:
@@ -2182,7 +2182,7 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
             import_path = prompt_text("Profile archive path", str(profile_tool.DEFAULT_PROFILE_ARCHIVE))
             return run_profile_import(import_path, yes=False)
         if choice in {"2", "init", "initialize", "onboard"}:
-            return run_profile_init()
+            return run_profile_init(args.target)
         if choice in {"3", "exit", "quit", "stop"}:
             raise SystemExit("Stopped before deployment.")
         print("Choose import, init, or exit.")

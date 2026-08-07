@@ -43,7 +43,7 @@ python3 scripts/scenario_profiles.py list --include-candidates
 For each installed baseline scenario, the matrix generates:
 
 - one LiteLLM alias matching the scenario ID;
-- one backend instruction mapping loaded from the ignored local package;
+- one backend instruction mapping loaded from the operator-owned local package;
 - scenario-owned FAIG route names and URIs;
 - simplified chatbot profiles;
 - advanced model, FAIG route, frontend instruction, MCP path, and MCP tool

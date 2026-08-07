@@ -38,8 +38,9 @@ uses `imagePullPolicy: Always`, but a unique tag is the reliable audit trail.
 
 Primary tag variables live in tracked `ansible/group_vars/system.yml` for the
 repository baseline. An operator can test an alternate existing tag through
-ignored `ansible/group_vars/user.yml`. A repository release must update the
-tracked tag in the same change that changes image content.
+local `ansible/group_vars/user.yml`, which is excluded by `.gitignore`. A
+repository release must update the tracked tag in the same change that changes
+image content.
 
 ## AWS ECR Infrastructure
 
@@ -110,7 +111,7 @@ ansible-playbook ansible/playbooks/publish_images.yml \
   -e publish_target_repos=api,webui
 ```
 
-Use `image_archive_dir` in ignored user vars or as an explicit extra variable
+Use `image_archive_dir` in local operator vars or as an explicit extra variable
 when the archive path differs from the configured build catalog:
 
 ```bash
@@ -143,15 +144,15 @@ require a chatbot image rebuild. Changes to `chatbot.py`, `agent_probe.py`,
 ## Local Registry
 
 `scripts/local_setup.py` records the registry endpoint and repository prefix in
-ignored `ansible/group_vars/registry.generated.yml`. Both the workstation and
-local k3s host must resolve and reach the exact configured host and port.
+environment-owned `ansible/group_vars/registry.generated.yml`, which is
+excluded from Git. Both the workstation and local k3s host must resolve and
+reach the exact configured host and port.
 
 ```bash
 ansible-playbook ansible/playbooks/publish_images.yml \
   -e registry_type=local \
   -e local_registry=<registry-host>:5000
 
-FAIG_DEPLOYMENT_TARGET=local \
 ansible-playbook -i local ansible/playbooks/publish_chatbot_images.yml
 ```
 
@@ -189,7 +190,6 @@ ansible-playbook -i cloud ansible/playbooks/status_fortiaigate.yml
 ansible-playbook -i cloud ansible/playbooks/status_chatbots.yml
 
 # Local lane
-FAIG_DEPLOYMENT_TARGET=local \
 ansible-playbook -i local ansible/playbooks/status_chatbots.yml
 ```
 
@@ -225,7 +225,7 @@ Rollback reuses a known registry tag/digest; it does not rebuild old source
 under the current tag.
 
 1. Confirm the previous tag exists in ECR or the local registry.
-2. Set the applicable image tag in ignored `ansible/group_vars/user.yml` for a
+2. Set the applicable image tag in local `ansible/group_vars/user.yml` for a
    local rollback, or revert the tracked tag in a release branch.
 3. Redeploy only the affected workload.
 4. Run its status playbook and functional validation.

@@ -85,8 +85,8 @@ YOLO mode is intended for subsequent lab cycles, not first-time setup. It:
 ## Local Hardware Mode
 
 Cloud deployment remains the default. To target an existing local Ubuntu/k3s
-host and local registry instead of AWS Terraform, generate ignored local
-inventory and variable files first:
+host and local registry instead of AWS Terraform, generate environment-owned
+local inventory and variable files first:
 
 ```bash
 python3 scripts/local_setup.py
@@ -94,21 +94,21 @@ python3 scripts/local_setup.py
 
 The setup script prompts for the Ubuntu SSH target, local registry, optional
 existing FortiGate/FortiWeb appliance targets, and GPU assignment when
-`nvidia-smi` can enumerate GPUs. It writes ignored files under
+`nvidia-smi` can enumerate GPUs. It writes files excluded by `.gitignore` under
 `ansible/inventory/` and `ansible/group_vars/`, including local registry
 settings and Ollama defaults.
 
 For local FortiGate onboarding, `local_setup.py` can use the prompted current
 admin username/password once to create or refresh a managed `apiadmin` API
 account, generate its API token, validate token login, and then store only the
-managed token in ignored `ansible/group_vars/local.secrets.yml`. The prompted
+managed token in local `ansible/group_vars/local.secrets.yml`. The prompted
 admin password is written only to a temporary vars file used by the bootstrap
 playbook and is deleted when the playbook exits.
 
 For local FortiWeb onboarding, `local_setup.py` can use the prompted current
 admin username/password once to create or refresh a managed `apiadmin` local
 admin with a generated password. Only the managed `apiadmin` username/password
-is stored in ignored `ansible/group_vars/local.secrets.yml`; the prompted
+is stored in local `ansible/group_vars/local.secrets.yml`; the prompted
 bootstrap password is not stored in inventory or committed files.
 
 The generated local appliance inventories contain host, port, and connection
@@ -138,16 +138,17 @@ Ollama service, and exposes Ollama on the plain HTTP NodePort range. The
 default local Ollama NodePort is `30085`; keep this endpoint restricted to a
 trusted lab network because stock Ollama does not provide built-in API auth.
 Automated quickstart passes the deployment target to Ansible so AWS generated
-vars and local generated vars do not leak into each other. If you run local
-playbooks manually, pass the same target explicitly:
+vars and local generated vars do not leak into each other. For manual
+playbooks, the selected inventory supplies the target:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i local ansible/playbooks/status_demo_home.yml
+ansible-playbook -i local ansible/playbooks/status_demo_home.yml
 ```
 
-The repo root `local` and `cloud` entries are tracked symlinks to the ignored
-generated inventories under `ansible/inventory/`. They shorten manual commands
-without committing generated inventory contents.
+The repo root `local` and `cloud` entries are tracked symlinks to
+environment-owned generated inventories under `ansible/inventory/`. The target
+files are excluded by `.gitignore`; the aliases shorten manual commands without
+committing environment contents.
 
 To reset only the local generated vars and inventories in this checkout without
 touching the deployed lab, export them. Export creates a backup archive and then
@@ -180,11 +181,14 @@ k3s/GPU bootstrap and stops before FortiAIGate deployment. Rerun
 `local_setup.py`, select the FortiAIGate and Ollama GPUs, then rerun
 `automated_quickstart.py --local`.
 
-To initialize, export, or import local user-owned settings without running
-Terraform or Ansible, use the standalone user profile tool:
+Interactive quickstart offers to import or initialize operator configuration
+when required files are missing. The standalone profile tool is optional; use
+it to pre-stage, export, or import those settings without running Terraform or
+Ansible:
 
 ```bash
 python3 scripts/user_profile.py init
+python3 scripts/user_profile.py init --local
 python3 scripts/user_profile.py export ../user_profile.tgz
 python3 scripts/user_profile.py import ../user_profile.tgz
 ```
@@ -203,7 +207,7 @@ python3 scripts/automated_quickstart.py --skip-ansible
 Appliance defaults are prepared by default. The tracked
 `00-system.auto.tfvars` files set `fortigate_enabled=true` and
 `fortiweb_enabled=true`, so automated quickstart runs those Terraform modules
-unless ignored `99-local.auto.tfvars` files set them to false.
+unless local `99-local.auto.tfvars` overrides set them to false.
 
 Use these flags to force-enable appliances when local overrides previously set
 one or both to false:
@@ -310,7 +314,7 @@ For AWS deployments, Terraform writes shared Ansible values such as
 `aws_profile`, `aws_region`, SSH key details, CIDRs, and k3s host facts into
 `ansible/group_vars/terraform.generated.yml`. Tracked
 `ansible/group_vars/system.yml` owns repo defaults. Local operator overrides
-belong in ignored `ansible/group_vars/user.yml`.
+belong in `ansible/group_vars/user.yml`, which is excluded by `.gitignore`.
 
 Existing `terraform/*.tfvars`, module `99-local.auto.tfvars`, and local
 `ansible/group_vars/*.yml` values are read and offered as defaults. The script
@@ -341,8 +345,8 @@ The legacy `*_license_file` full-path setting remains available as an override.
 
 When `fortigate_license_mode = "fortiflex_token"` or
 `fortiweb_license_mode = "fortiflex_token"`, interactive quickstart prompts for
-the corresponding FortiFlex token if it is not already set in ignored local
-tfvars. `--yolo` mode fails fast when token mode is enabled and the token is
+the corresponding FortiFlex token if it is not already set in local tfvars.
+`--yolo` mode fails fast when token mode is enabled and the token is
 empty. FortiFlex tokens are rendered into instance user-data and therefore into
 local Terraform state; do not commit local tfvars or state. Before tainting and
 rebuilding a FortiFlex-licensed appliance, clear or replace the token in local

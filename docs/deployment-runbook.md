@@ -361,9 +361,9 @@ The default deployment creates LiteLLM model aliases for direct and chained
 inspection paths:
 
 - `pass-bedrock`: no backend instruction injection; LiteLLM proxies to Bedrock
-- `demo-a`: backend instructions from ignored local slot
+- `demo-a`: backend instructions from a local slot excluded from Git
   `chatbot/instructions/local/demo-a/instructions.txt`
-- `demo-b`: backend instructions from ignored local slot
+- `demo-b`: backend instructions from a local slot excluded from Git
   `chatbot/instructions/local/demo-b/instructions.txt`
 - `demo-a-faig-be`: demo-a backend instructions, then an
   OpenAI-compatible call to the configured backend FortiAIGate URI
@@ -621,7 +621,7 @@ The script reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS
 
 If `terraform output -raw bedrock_secret_access_key` appears to end with `%` in an interactive zsh terminal, that `%` is zsh showing that the command did not print a trailing newline. It is not part of the secret. Command substitution in the `export` example above captures the secret value without that prompt marker. The Ansible playbook and direct script also trim surrounding whitespace from credential input before signing.
 
-The direct model playbook sends `Hello, is this thing on? Reply in one short sentence and include the name of the model answering.` and summarizes the provider response. AWS runs use Bedrock direct by default. Local runs with `FAIG_DEPLOYMENT_TARGET=local` or the local generated inventory use the configured Ollama endpoint and skip Bedrock Terraform output and credential checks.
+The direct model playbook sends `Hello, is this thing on? Reply in one short sentence and include the name of the model answering.` and summarizes the provider response. AWS runs use Bedrock direct by default. The local inventory selects the configured Ollama endpoint and skips Bedrock Terraform output and credential checks.
 
 After the guard is configured, run:
 

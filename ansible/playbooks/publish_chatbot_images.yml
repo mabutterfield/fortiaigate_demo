@@ -9,11 +9,11 @@
       ansible.builtin.set_fact:
         chatbot_publish_playbook_deployment_target: >-
           {{
-            lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim
-            if lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim | length > 0
+            hostvars[(groups.get('fortiaigate', []) | first)].deployment_target | default(deployment_target | default('aws', true), true)
+            if (groups.get('fortiaigate', []) | length > 0)
             else (
-              hostvars[(groups.get('fortiaigate', []) | first)].deployment_target | default(deployment_target | default('aws', true), true)
-              if (groups.get('fortiaigate', []) | length > 0)
+              lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim
+              if lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim | length > 0
               else deployment_target | default('aws', true)
             )
           }}

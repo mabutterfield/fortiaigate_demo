@@ -28,8 +28,8 @@ from silently resolving against the wrong module or `ansible/` directory.
 
 ## Root Inventory Aliases
 
-Git tracks six root symlinks. Their generated targets are environment-owned and
-ignored:
+Git tracks six root symlinks. Their generated targets are environment-owned
+files excluded from version control by `.gitignore`:
 
 | Alias | Generated target | Producer | Use |
 |---|---|---|---|
@@ -40,7 +40,7 @@ ignored:
 | `local-fortigate` | `ansible/inventory/fortigate.local.generated.ini` | `scripts/local_setup.py` | Existing local FortiGate |
 | `local-fortiweb` | `ansible/inventory/fortiweb.local.generated.ini` | `scripts/local_setup.py` | Existing local FortiWeb |
 
-A fresh clone intentionally has symlinks whose ignored targets do not yet
+A fresh clone intentionally has symlinks whose generated targets do not yet
 exist. Generate only the environment being deployed. Do not replace a symlink
 with a tracked inventory file.
 
@@ -65,24 +65,26 @@ ansible-inventory \
 
 Normal operator commands should prefer the root alias.
 
-## Local Deployment Target
+## Deployment Target Resolution
 
 The `local` inventory records `deployment_target=local`, and repository
-playbooks load the local generated variable set. For explicit diagnostic calls,
-set the target too:
+playbooks—including localhost-only utility playbooks—resolve the target from
+the selected inventory. The inventory alias is sufficient for normal commands:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local \
 ansible-playbook -i local ansible/playbooks/validate_ollama.yml
 ```
 
-Do not combine a cloud inventory with `FAIG_DEPLOYMENT_TARGET=local`, or a local
-inventory with AWS-generated vars.
+`FAIG_DEPLOYMENT_TARGET` remains an advanced compatibility override for unusual
+calls that deliberately do not supply a repository inventory. It is not needed
+with `-i local` or `-i cloud`, and it must never contradict the selected
+inventory.
 
 ## Shared Terraform User Values
 
-The ignored `terraform/user.tfvars` is the one shared user profile. Git tracks
-a `50-user.auto.tfvars` symlink in every user-facing module:
+The operator-owned `terraform/user.tfvars` is the one shared profile file. It
+is excluded from version control by `.gitignore`. Git tracks a
+`50-user.auto.tfvars` symlink in every user-facing module:
 
 | Module link | Target |
 |---|---|
@@ -96,15 +98,21 @@ Terraform loads configuration in this intended order:
 
 ```text
 00-system.auto.tfvars       tracked repository defaults
-50-user.auto.tfvars         tracked link to ignored shared user.tfvars
-99-local.auto.tfvars        ignored module-specific overrides, when present
+50-user.auto.tfvars         tracked link to local shared user.tfvars
+99-local.auto.tfvars        local module-specific overrides, when present
 ```
 
-Create the shared file through `scripts/user_profile.py`; do not copy separate
-`terraform.tfvars` files into each module:
+Interactive quickstart offers to import or create the shared operator files
+when they are missing. The standalone profile commands are optional and are
+useful when pre-staging configuration before quickstart:
 
 ```bash
+# AWS pre-staging
 python3 scripts/user_profile.py init
+
+# Local pre-staging without AWS onboarding
+python3 scripts/user_profile.py init --local
+
 python3 scripts/user_profile.py check
 ```
 
@@ -124,8 +132,8 @@ Common AWS outputs written for Ansible:
 | `ansible/group_vars/fortiweb.generated.yml` | `terraform/aws-fortiweb` | FortiWeb endpoint and proxy facts |
 
 Local equivalents are `local.generated.yml`, `registry.generated.yml`, and
-`local.secrets.yml`. These files are ignored because they belong to one
-environment and can be sensitive.
+`local.secrets.yml`. These environment-specific files are excluded from Git
+and can be sensitive.
 
 Terraform commands always target the owning module:
 
@@ -184,11 +192,12 @@ Next validation command from <repo_root>:
 
 Avoid output that depends on an unstated `cd ansible` or module directory.
 
-## Mechanical Checks
+## Maintainer Mechanical Checks
 
 The no-apply smoke test validates all six inventory symlink paths and all five
 Terraform shared-user symlinks. It validates the tracked link contract even
-when an ignored generated target does not exist yet:
+when a generated target does not exist yet. This is a developer/release check,
+not an operator setup requirement:
 
 ```bash
 python3 scripts/smoke_test.py

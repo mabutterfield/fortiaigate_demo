@@ -58,7 +58,7 @@ candidate, and archived scenario status.
 Terraform owns AWS infrastructure. Ansible publishes images, configures the
 GPU/k3s host and optional appliances, and deploys the application layer.
 Local mode replaces Terraform with `scripts/local_setup.py`, which creates
-ignored inventory and variable files for the operator's lab.
+environment-owned inventory and variable files excluded from version control.
 
 Tracked inventory shortcuts are available at the repository root:
 
@@ -68,8 +68,9 @@ ansible-playbook -i cloud ansible/playbooks/status_demo_home.yml
 ```
 
 Additional `local-*` and `cloud-*` aliases target the k3s host, FortiGate, and
-FortiWeb inventories. The aliases point to ignored generated files, so lab
-addresses and credentials are never stored in the links themselves.
+FortiWeb inventories. The aliases point to generated files excluded by
+`.gitignore`, so lab addresses and credentials are never stored in the links
+themselves.
 
 ## Repository Layout
 

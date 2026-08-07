@@ -130,12 +130,11 @@ python3 scripts/local_setup.py
 python3 scripts/automated_quickstart.py --local
 ```
 
-Manual local checks should pass `FAIG_DEPLOYMENT_TARGET=local` and the local
-inventory:
+Manual local checks should use the local inventory, which supplies the
+deployment target:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
-  -i ansible/inventory/local.generated.ini \
+ansible-playbook -i local \
   ansible/playbooks/status_demo_home.yml
 ```
 
@@ -143,7 +142,7 @@ Required validation points:
 
 | Area | Expected result |
 |---|---|
-| Local generated var lifecycle | `local_setup.py` creates ignored inventory/vars; `local_var_cleanup.py export/import` preserves and restores local generated files without committing them. |
+| Local generated var lifecycle | `local_setup.py` creates environment-owned inventory/vars excluded from Git; `local_var_cleanup.py export/import` preserves and restores them without committing them. |
 | SSH/default reuse | Rerun uses saved local host and SSH values without re-entering data. |
 | GPU discovery | GPU UUIDs and product names are captured when `nvidia-smi` is available. |
 | GPU assignment | FortiAIGate and Ollama use the selected UUIDs or documented defaults. |

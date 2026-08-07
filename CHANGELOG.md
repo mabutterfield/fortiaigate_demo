@@ -15,6 +15,11 @@ a "what's new" guide rather than a raw commit log.
     quickstart integration, and the future separation boundary
   - documented all root inventory aliases, Terraform shared-user symlinks,
     generated targets, repo-root command shapes, and recovery-hint conventions
+  - clarified AWS and local preparation as alternative lanes, made manual
+    profile initialization optional, and reserved smoke testing for maintainers
+  - made the selected inventory authoritative for local/cloud target resolution
+    in localhost utility playbooks and added local-only profile initialization
+    that does not require AWS onboarding
 
 - Established the v1.0 documentation entry points and support vocabulary:
   - rebuilt the repository and documentation landing pages around AWS/local

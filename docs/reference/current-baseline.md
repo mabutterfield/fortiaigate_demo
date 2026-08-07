@@ -21,7 +21,7 @@ relationships, see [Architecture](../architecture.md).
 | Feature | Classification | Current behavior |
 |---|---|---|
 | AWS EC2 GPU deployment | Default, validated | Primary lane; Terraform builds infrastructure and LiteLLM uses Bedrock |
-| Local Ubuntu 24.04 GPU deployment | Optional, validated | Supported lab lane; generated ignored inventory replaces Terraform and LiteLLM uses in-cluster Ollama |
+| Local Ubuntu 24.04 GPU deployment | Optional, validated | Supported lab lane; environment-owned generated inventory replaces Terraform and LiteLLM uses in-cluster Ollama |
 | FortiAIGate, LiteLLM, custom chatbot, MCP, Demo Home | Default | Core k3s application layer |
 | FortiGate appliance | Default when prerequisites exist; optional to the core | Desired by quickstart with an explicit opt-out; missing prerequisites produce a safe skip |
 | FortiWeb appliance | Default when prerequisites exist; optional to the core | Desired by quickstart with an explicit opt-out; missing prerequisites produce a safe skip |
@@ -69,7 +69,7 @@ the internal HTTP services.
 | Lane | Provider | Infrastructure | Support statement |
 |---|---|---|---|
 | AWS quickstart | Bedrock through LiteLLM | Terraform-created EC2 GPU/k3s, ECR, AWS prep, and desired appliances | Primary supported path |
-| Local quickstart | Ollama through LiteLLM | Existing Ubuntu GPU host, local/LAN registry, ignored generated inventory, and optional existing appliances | Supported trusted-lab path |
+| Local quickstart | Ollama through LiteLLM | Existing Ubuntu GPU host, local/LAN registry, generated inventory excluded from Git, and optional existing appliances | Supported trusted-lab path |
 
 Both lanes use the automated quickstart. Individual Terraform and Ansible
 commands are documented only for operations, inspection, and recovery.
@@ -94,8 +94,9 @@ committed.
 - Scenario commands generate an exact FAIG work order but do not create or
   delete GUI objects.
 - Tracked scenario examples are read-only templates. Installed scenarios are
-  ignored local copies; updating a template requires an explicit reinstall or
-  overwrite workflow so local instruction tuning is not silently replaced.
+  operator-owned local copies excluded by `.gitignore`; updating a template
+  requires an explicit reinstall or overwrite workflow so local instruction
+  tuning is not silently replaced.
 - FortiWeb MCP Security policy automation is unavailable through the current
   collection, so the supported FortiWeb role is transport/reverse proxy.
 - Local NodePorts are for trusted labs and must not be exposed to untrusted

@@ -5,6 +5,21 @@
   gather_facts: false
   become: false
   pre_tasks:
+    - name: Determine image publish deployment target
+      ansible.builtin.set_fact:
+        publish_images_playbook_deployment_target: >-
+          {{
+            hostvars[(groups.get('fortiaigate', []) | first)].deployment_target | default(deployment_target | default('aws', true), true)
+            if (groups.get('fortiaigate', []) | length > 0)
+            else (
+              lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim
+              if lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('', true) | trim | length > 0
+              else deployment_target | default('aws', true)
+            )
+          }}
+      # - ansible.builtin.debug:
+      #     var: publish_images_playbook_deployment_target
+
     - name: Load environment, generated, and local group vars when present
       ansible.builtin.include_vars:
         file: "{{ item }}"
@@ -13,13 +28,19 @@
           query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/env.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/images.yml')
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/system.yml')
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/registry.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'aws' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
-          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.secrets.yml') if (deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true))) == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/terraform.generated.yml') if publish_images_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ecr.generated.yml') if publish_images_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/registry.generated.yml') if publish_images_playbook_deployment_target == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/ports.generated.yml') if publish_images_playbook_deployment_target == 'aws' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.generated.yml') if publish_images_playbook_deployment_target == 'local' else [])
+          + (query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/local.secrets.yml') if publish_images_playbook_deployment_target == 'local' else [])
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
+
+    - name: Set resolved image publish deployment target
+      ansible.builtin.set_fact:
+        deployment_target: "{{ publish_images_playbook_deployment_target }}"
+      # - ansible.builtin.debug:
+      #     var: deployment_target
   roles:
     - publish_images

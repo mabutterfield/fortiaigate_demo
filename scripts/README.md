@@ -10,10 +10,12 @@ Current scripts:
   profile. The profile contains `terraform/user.tfvars`,
   `ansible/group_vars/user.yml`, and any existing module
   `99-local.auto.tfvars` overrides. It also includes local instruction profiles
-  under `chatbot/instructions/local/` when they exist. Use
-  `python3 scripts/user_profile.py init` for guided setup, `export
-  ../user_profile.tgz` to save the user profile, and `import
-  ../user_profile.tgz` to restore it in a fresh clone.
+  under `chatbot/instructions/local/` when they exist. Interactive quickstart
+  invokes this workflow when required files are missing. Use `python3
+  scripts/user_profile.py init` for standalone AWS pre-staging, add `--local`
+  to skip AWS/Terraform onboarding, use `export ../user_profile.tgz` to save
+  the user profile, and use `import ../user_profile.tgz` to restore it in a
+  fresh clone.
 - `instruction_profiles.py`: initializes, validates, activates examples into,
   and opens local operator-owned instruction slots under
   `chatbot/instructions/local/`. Examples and their metadata remain tracked

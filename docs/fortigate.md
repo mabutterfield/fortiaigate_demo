@@ -17,7 +17,7 @@ FortiGate shape:
 - public/management ENI in `subnet_ids.fortigate_public`
 - internal ENI in `subnet_ids.fortigate_internal`
 - prep-owned FortiGate EIP association
-- BYOL license file support from ignored local files
+- BYOL license file support from operator-owned local files excluded from Git
 - generated API key marked sensitive in Terraform outputs
 
 Apply order:
@@ -146,7 +146,7 @@ See [FortiGate Traffic Demo](fortigate-proxy-demo.md) for the current runbook.
 `configure_fortigate_api_accounts.yml` creates a managed read-only profile
 named `FAIG_READ_ONLY` and a read-only API admin named `faig-readonly-api` by
 default. FortiGate only returns a generated API key once, so the play stores the
-generated key in the ignored local file:
+generated key in this operator-owned local file excluded by `.gitignore`:
 
 ```text
 ansible/secrets/fortigate_api.generated.yml

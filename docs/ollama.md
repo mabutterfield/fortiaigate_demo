@@ -24,15 +24,14 @@ Then run the local quickstart:
 python3 scripts/automated_quickstart.py --local
 ```
 
-For manual local validation, pass the local deployment target and inventory:
+For manual local validation, select the local inventory; it supplies the
+deployment target:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
-  -i ansible/inventory/local.generated.ini \
+ansible-playbook -i local \
   ansible/playbooks/status_ollama.yml
 
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook \
-  -i ansible/inventory/local.generated.ini \
+ansible-playbook -i local \
   ansible/playbooks/validate_ollama.yml
 ```
 
@@ -69,15 +68,15 @@ Common variables:
 - `direct_model_ollama_model`
 
 Use `ansible/group_vars/user.yml` for operator-owned overrides. Generated local
-defaults from `local_setup.py` live in ignored generated local files and must
-not be committed.
+defaults from `local_setup.py` live in environment-owned generated local files
+excluded from Git.
 
 ## Validation Boundary
 
 Use `validate_ollama.yml` and `test_model_direct.yml` for direct provider smoke
-tests. When `test_model_direct.yml` runs with the local inventory or
-`FAIG_DEPLOYMENT_TARGET=local`, it uses the configured Ollama endpoint and skips
-Bedrock credential checks. FortiAIGate forwarding validation remains disabled by
+tests. When `test_model_direct.yml` runs with the local inventory, it uses the
+configured Ollama endpoint and skips Bedrock credential checks. FortiAIGate
+forwarding validation remains disabled by
 default until the corresponding FortiAIGate provider, guard, and flow are
 configured manually in the GUI.
 
