@@ -23,7 +23,7 @@ otherwise.
 | Diagnose a failed checkpoint | [Troubleshooting](docs/troubleshooting.md) |
 | Understand the components and traffic paths | [Architecture](docs/architecture.md) |
 | See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
-| Review validated and candidate scenarios | [Scenario Catalog](docs/scenario-catalog.md) |
+| Review validated and candidate scenarios | [Scenario Catalog](chatbot/scenarios/examples/scenario-catalog.md) |
 | Find an operator, author, or maintainer task | [Documentation Map](docs/README.md) |
 
 ## What The Default Lab Provides
@@ -51,7 +51,7 @@ and deferred paths.
 Scenario content is synthetic and intended for repeatable demonstrations, not
 production policy guidance. Installed scenarios are local, editable runtime
 state; tracked examples remain read-only templates. The
-[Scenario Catalog](docs/scenario-catalog.md) is the authority for validated,
+[Scenario Catalog](chatbot/scenarios/examples/scenario-catalog.md) is the authority for validated,
 candidate, and archived scenario status.
 
 ## Deployment Model

@@ -215,10 +215,16 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
         for item in trace:
             print(f"- {item}")
 
-    payloads = sorted((profile_path.parent / "curl-payloads").glob("*.json"))
-    if payloads:
-        print("curl payloads:")
-        for payload in payloads:
+    replays = sorted((profile_path.parent / "transcript-replays").glob("*.json"))
+    if replays:
+        print("transcript replays:")
+        for replay in replays:
+            print(f"- {replay.relative_to(REPO_ROOT)}")
+
+    legacy_payloads = sorted((profile_path.parent / "curl-payloads").glob("*.json"))
+    if legacy_payloads:
+        print("legacy curl payloads:")
+        for payload in legacy_payloads:
             print(f"- {payload.relative_to(REPO_ROOT)}")
 
 
@@ -378,8 +384,13 @@ def validate_relative_file(
 
 def payload_validation_errors(profile_path: Path) -> list[str]:
     errors: list[str] = []
-    payload_dir = profile_path.parent / "curl-payloads"
-    for payload_path in sorted(payload_dir.glob("*.json")):
+    replay_paths = sorted(
+        (profile_path.parent / "transcript-replays").glob("*.json")
+    )
+    legacy_payload_paths = sorted(
+        (profile_path.parent / "curl-payloads").glob("*.json")
+    )
+    for payload_path in replay_paths + legacy_payload_paths:
         try:
             payload = read_json(payload_path)
         except (OSError, json.JSONDecodeError) as exc:

@@ -216,7 +216,7 @@ After quickstart completes:
 1. save the printed URLs without copying credentials into tickets or logs;
 2. complete [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD)
    to create and validate the minimal passthrough path;
-3. install or inspect scenarios through [Scenario Management](scenarios.md);
+3. install or inspect scenarios through [Scenario Management](scenario-management.md);
 4. create the scenario GUI objects with
    [Scenario GUI Configuration](fortiaigate-gui-config.md); and
 5. run operator-facing scenario validation:

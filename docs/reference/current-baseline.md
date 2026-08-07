@@ -36,7 +36,7 @@ relationships, see [Architecture](../architecture.md).
 
 ## Scenario Authority
 
-The [Scenario Catalog](../scenario-catalog.md) owns the validated scenario
+The [Scenario Catalog](../../chatbot/scenarios/examples/scenario-catalog.md) owns the validated scenario
 matrix, security stories, supported actions, aliases, MCP defaults, candidates,
 and archived state. This baseline intentionally does not duplicate that list.
 

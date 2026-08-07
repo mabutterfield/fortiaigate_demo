@@ -2,7 +2,7 @@
 
 Use this page to find the shortest path from a task to its owning document.
 The [Current Baseline](reference/current-baseline.md) is the authority for what
-is supported today. The [Scenario Catalog](scenario-catalog.md) is the
+is supported today. The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the
 authority for validated, candidate, and archived scenario status.
 
 All commands are run from the repository root unless a document explicitly
@@ -21,7 +21,7 @@ changes directories.
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
 | Complete first login and create passthrough | [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) |
 | Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
-| Install, update, remove, or validate scenarios | [Scenario Management](scenarios.md) |
+| Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 
 The automated quickstart is the only normal installation journey. Detailed
@@ -73,14 +73,14 @@ references remain available but are not part of the current runtime contract.
 | [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) | First login, LiteLLM provider, `pass-model`, and global passthrough proof |
 | [Scenario GUI Configuration](fortiaigate-gui-config.md) | Reusable work-order-driven Alert, Deny, Redact, flow, test, and telemetry workflow |
 | [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical request-path diagrams and generated names |
-| [Legacy Transcript Replay Fixtures](curl-payloads.md) | Preconstructed assistant/tool transcripts pending reclassification; not live functional-test equivalents |
+| [Transcript Replays](transcript-replays.md) | Preconstructed assistant/tool requests for raw FAIG/LLM diagnostics; not live functional tests |
 
 ### Manage Scenarios
 
 | Document | Owns |
 |---|---|
-| [Scenario Management](scenarios.md) | Install, update, remove, inspect, and validate local scenarios |
-| [Scenario Catalog](scenario-catalog.md) | Scenario lifecycle and support classification |
+| [Scenario Management](scenario-management.md) | Install, update, remove, inspect, and validate local scenarios |
+| [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Scenario lifecycle and support classification |
 | [MCP](mcp.md) | Deterministic tools, tool profiles, and MCP transports |
 | [Functional Test](../functional_test/README.md) | Operator-facing metadata-driven validation of installed scenario paths |
 

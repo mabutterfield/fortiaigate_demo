@@ -293,7 +293,7 @@ python3 -m functional_test --scenario-id <scenario-id>
 ```
 
 A missing or stale GUI flow is not repaired by rerunning the functional test.
-Use [Scenario Management](scenarios.md), the generated work order, and
+Use [Scenario Management](scenario-management.md), the generated work order, and
 [Scenario GUI Configuration](fortiaigate-gui-config.md).
 
 ## Escalate With Evidence

@@ -5,7 +5,7 @@ Scenario templates live under
 the installer. Operator-owned, editable copies live under the ignored
 `chatbot/scenarios/local/<scenario-id>/` tree.
 
-The [Scenario Catalog](scenario-catalog.md) is the authority for validated,
+The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the authority for validated,
 candidate, and archived scenario state.
 
 ## Package Contents
@@ -16,7 +16,7 @@ A schema-v2 scenario package contains:
   instruction profiles, and simplified chatbot profiles;
 - `instructions.txt`: backend instructions loaded by LiteLLM;
 - optional frontend instruction files;
-- optional `curl-payloads/`, scenario screenshots, and a scenario README.
+- optional `transcript-replays/`, scenario screenshots, and a scenario README.
 
 The schema is `chatbot/scenarios/scenario-profile-v2.schema.json`. Scenario IDs
 are lowercase kebab-case and become the LiteLLM alias. Use
@@ -160,7 +160,7 @@ python3 -m load_test validate \
   --action <action>
 ```
 
-Raw curl payloads under `curl-payloads/` simulate tool-result-like content for
+Raw requests under `transcript-replays/` simulate tool-result-like content for
 FAIG/LiteLLM testing. Use the chatbot UI or harness when real MCP tool
 selection and execution are part of the test.
 

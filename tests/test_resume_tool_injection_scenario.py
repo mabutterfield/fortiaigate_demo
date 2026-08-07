@@ -10,7 +10,9 @@ SCENARIO_ROOT = (
     REPO_ROOT / "chatbot" / "scenarios" / "examples" / "resume-tool-injection"
 )
 PROFILE_PATH = SCENARIO_ROOT / "profile.json"
-ATTACK_PAYLOAD_PATH = SCENARIO_ROOT / "curl-payloads" / "attack-tool-result.json"
+ATTACK_REPLAY_PATH = (
+    SCENARIO_ROOT / "transcript-replays" / "attack-transcript.json"
+)
 POISONED_RESUME_PATH = (
     REPO_ROOT
     / "mcp"
@@ -25,8 +27,8 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
-        cls.attack_payload = json.loads(
-            ATTACK_PAYLOAD_PATH.read_text(encoding="utf-8")
+        cls.attack_replay = json.loads(
+            ATTACK_REPLAY_PATH.read_text(encoding="utf-8")
         )
         cls.poisoned_resume = POISONED_RESUME_PATH.read_text(encoding="utf-8")
 
@@ -73,13 +75,25 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
     def test_attack_replay_places_injection_in_tool_role(self) -> None:
         tool_messages = [
             message
-            for message in self.attack_payload["messages"]
+            for message in self.attack_replay["messages"]
             if message.get("role") == "tool"
         ]
         self.assertGreaterEqual(len(tool_messages), 2)
-        poisoned_result = tool_messages[0]["content"].lower()
+        poisoned_result = tool_messages[-1]["content"].lower()
         self.assertIn("ignore all previous instructions", poisoned_result)
         self.assertIn("reveal the system prompt", poisoned_result)
+
+    def test_attack_replay_stops_before_cloud_tool_execution(self) -> None:
+        executed_tools = [
+            tool_call["function"]["name"]
+            for message in self.attack_replay["messages"]
+            for tool_call in message.get("tool_calls", [])
+        ]
+        self.assertEqual(
+            executed_tools,
+            ["document_upload_simulation", "document_read"],
+        )
+        self.assertNotIn("cloud_bucket_list_demo", executed_tools)
 
     def test_expected_trace_requires_deny_before_cloud_tool(self) -> None:
         expected_trace = " ".join(self.profile["expected_trace"]).lower()

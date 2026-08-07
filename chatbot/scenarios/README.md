@@ -1,6 +1,4 @@
-# Scenario Profiles
-
-Status: v1.0 scenario package model.
+# Scenario Packages
 
 Scenario profiles package repeatable demo instructions, MCP tool expectations,
 and prompt examples. They do not deploy separate MCP servers; every scenario
@@ -15,12 +13,10 @@ and can point at either location.
 The current runtime installs editable local scenario packages and generates
 scenario-owned paths, aliases, chatbot profiles, frontend instructions, and
 MCP selections.
-The old `demo-a`, `demo-b`, and `frontend` slots remain compatibility-only and
-are not expanded by the current runtime.
 
 ## Current Scenario Set
 
-The [Scenario Catalog](../../docs/scenario-catalog.md) is the human-readable
+The [Scenario Catalog](examples/scenario-catalog.md) is the human-readable
 authority for validated, candidate, and archived scenario status. The
 machine-readable `examples/catalog.json` owns the same lifecycle state for
 tools. Do not duplicate the scenario matrix in package documentation.
@@ -28,6 +24,22 @@ tools. Do not duplicate the scenario matrix in package documentation.
 Baseline profiles use `schema_version: 2` and the generation
 contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
 their current pre-migration format until they are selected for future work.
+
+## Package And Runtime Boundaries
+
+Each package owns metadata, backend instructions, optional frontend
+instructions, prompts, expected traces, and documentation. It does not own a
+separate MCP service or an independent appliance deployment.
+
+MCP-enabled packages select a base scenario tool profile and may define an
+extended comparison profile. `all-installed` is generated from the union of
+installed scenario tools for an intentional Advanced-mode cross-domain demo;
+it is not the normal Simplified selection. FortiWeb is preferred when its MCP
+proxy is installed and usable, with Direct MCP as the fallback.
+
+The optional FAIG re-entry chain is globally available. Built-in packages keep
+it disabled with `matrix.faig_chain.enabled: false`; changing that value is an
+operator-owned local customization.
 
 ## Local Scenario Lifecycle
 
@@ -84,14 +96,14 @@ remain a generated manual work order. Use `--debug-all-server-tools` only when
 intentionally exposing every tool reported by the MCP server for
 troubleshooting.
 
-In advanced chatbot mode, `All Installed Scenario Tools` is the expanded
+In Advanced chatbot mode, `All Installed Scenario Tools` is the expanded
 cross-domain MCP set; the scenario-named profile is the scoped default. Direct
 MCP is always available for an MCP-enabled installed scenario. FortiWeb MCP is
 added only when the proxy is desired and an installed appliance endpoint is
 available. The simplified profiles keep the scenario's normal MCP choice so
 the advanced alternate does not multiply every preset.
 
-## Catalog And Compatibility Commands
+## Catalog Commands
 
 Use the helper from the repo root:
 
@@ -100,12 +112,8 @@ python3 scripts/scenario_profiles.py list
 python3 scripts/scenario_profiles.py list --include-candidates
 python3 scripts/scenario_profiles.py list --include-inactive
 python3 scripts/scenario_profiles.py show hr-tool-dlp
-python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
 python3 scripts/scenario_profiles.py validate
 ```
-
-`install --slot` is the legacy compatibility workflow. New scenario work
-should use `add` and the ignored local scenario packages above.
 
 Inactive archived scenarios can still be inspected for reference:
 
@@ -116,9 +124,9 @@ python3 scripts/scenario_profiles.py show fastfood-ordering --include-inactive
 Instruction profiles remain the place to fine-tune local wording after a
 scenario has been installed.
 
-## Related Docs
+## Related Documentation
 
-- Operator-facing scenario guidance: `docs/scenarios.md`
-- Scenario editing and deploy boundaries: `docs/scenario-authoring.md`
-- Scenario creation/evidence process: `docs/scenario-documentation-process.md`
-- Archived scenario notes: `archived_scenarios/README.md`
+- [Operator lifecycle](../../docs/scenario-management.md)
+- [Scenario editing and deploy boundaries](../../docs/scenario-authoring.md)
+- [Scenario creation and evidence process](../../docs/scenario-documentation-process.md)
+- [Archived scenario notes](../../archived_scenarios/README.md)

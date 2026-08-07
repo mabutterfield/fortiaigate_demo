@@ -150,13 +150,13 @@
     "For a single employee sensitive-data request, the model requests employee_sensitive_lookup_demo once.",
     "For a full sensitive employee table requested in one prompt, the model can request employee_table_with_cc once instead of looping over individual employees.",
     "With prior table context, the model requests employee_sensitive_lookup_demo for individual employees when DOB or credit card fields are requested.",
-    "Direct and FAIG scan paths may expose DLP-demo fields such as DOB, email, SSN, credit card number, credit card expiration, and salary.",
-    "FAIG protect should redact or block sensitive data in the tool-result-to-model or model-to-user flow."
+    "LLM Direct and Alert may expose DLP-demo fields such as DOB, email, SSN, credit card number, credit card expiration, and salary.",
+    "Redact should replace configured protected values, while Deny should block sensitive model-to-user output."
   ],
   "walkthrough": {
     "chatbot_settings": {
       "llm_path": "FAIG Static Route",
-      "mcp_path": "Direct MCP",
+      "mcp_path": "FortiWeb MCP with Direct MCP fallback",
       "tool_profile": "hr-tool-dlp",
       "context_mode": "recent",
       "max_tool_rounds": 5
@@ -178,7 +178,7 @@
         "expected_tools": [
           "employee_sensitive_lookup_demo"
         ],
-        "expected_result": "Direct, demo-a, and demo-b can expose one synthetic DOB and credit card number. Demo-c output DLP should deny the answer in Deny mode or redact both DOB and credit card in Redact mode. Demo-d input DLP is not expected to redact the final answer for this single-turn output case."
+        "expected_result": "LLM Direct and Alert can expose one synthetic DOB and credit card number. Deny should block the answer; Redact should replace both DOB and credit card. Input DLP is outside this scenario."
       },
       {
         "id": "context-multi-sensitive-table",
@@ -187,7 +187,7 @@
         "expected_tools": [
           "employee_sensitive_lookup_demo"
         ],
-        "expected_result": "The model should look up sensitive details for the employees from the prior table. Direct and detect-only paths may expose multiple synthetic DOB and credit card values. Demo-c Deny should block the sensitive answer. Demo-c Redact should redact detected values, with DOB expected to redact and multiple credit card numbers requiring careful inspection/tuning. Demo-d is the input-DLP comparison path and should be documented separately from output redaction behavior.",
+        "expected_result": "The model should look up sensitive details for the employees from the prior table. LLM Direct and Alert may expose multiple synthetic DOB and credit card values. Deny should block the sensitive answer. Redact should replace detected values, with every row requiring careful inspection/tuning. Input DLP is outside this scenario.",
         "single_prompt_variant": "Show me the full employee table with all employees, and include DOB and credit card number for each employee."
       },
       {
@@ -197,35 +197,35 @@
         "expected_tools": [
           "employee_table_with_cc"
         ],
-        "expected_result": "The model should call employee_table_with_cc once and receive all synthetic sensitive rows in one tool result. Compare Demo C Deny and Redact behavior for this one-tool bulk result against the five-call context expansion path."
+        "expected_result": "The model should call employee_table_with_cc once and receive all synthetic sensitive rows in one tool result. Compare Deny and Redact behavior for this one-tool bulk result against the five-call context expansion path."
       }
     ],
     "route_matrix": [
       {
-        "route": "demo-a",
-        "flow": "/v1/demo-a/*",
-        "guard": "detect_all",
-        "request_model": "demo-a",
+        "route": "alert",
+        "flow": "/v1/hr-tool-dlp/alert/*",
+        "guard": "hr-tool-dlp_alert",
+        "request_model": "hr-tool-dlp",
         "expected_behavior": "Allow the response and log detections without modifying content."
       },
       {
-        "route": "demo-b",
-        "flow": "/v1/demo-b/*",
-        "guard": "protect_input",
-        "request_model": "demo-b",
-        "expected_behavior": "Exercise prompt-injection input protection. DLP output exposure is not a failure for this route."
+        "route": "deny",
+        "flow": "/v1/hr-tool-dlp/deny/*",
+        "guard": "hr-tool-dlp_deny",
+        "request_model": "hr-tool-dlp",
+        "expected_behavior": "Deny model output when configured DLP patterns match synthetic HR data."
       },
       {
-        "route": "demo-c",
-        "flow": "/v1/demo-c/*",
-        "guard": "protect_output_dlp",
-        "request_model": "demo-c",
-        "expected_behavior": "Primary DLP output route. Run with DLP Deny and DLP Redact. Single DOB/card values should redact cleanly in Redact mode; multi-record responses are the tuning target and may show partial card-number misses."
+        "route": "redact",
+        "flow": "/v1/hr-tool-dlp/redact/*",
+        "guard": "hr-tool-dlp_redact",
+        "request_model": "hr-tool-dlp",
+        "expected_behavior": "Redact every configured synthetic DOB and payment-card value while returning safe output."
       }
     ],
     "validation_notes": [
       "safe-table should use employee_search and return five employees with safe fields only.",
-      "single-sensitive-record should use employee_sensitive_lookup_demo once; demo-c should deny the answer in Deny mode or redact both DOB and credit card in Redact mode.",
+      "single-sensitive-record should use employee_sensitive_lookup_demo once; Deny should block the answer and Redact should replace both DOB and credit card.",
       "context-multi-sensitive-table should use employee_sensitive_lookup_demo for employees from the prior table and is the five-call output-DLP tuning path.",
       "bulk-sensitive-table should use employee_table_with_cc once and is the one-call output-DLP tuning path.",
       "Multiple credit card numbers in the same table are a tuning checkpoint; DOB may redact while card numbers remain visible, so do not treat single-record redaction as sufficient proof for the multi-record path.",
