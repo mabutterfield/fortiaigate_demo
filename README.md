@@ -1,113 +1,93 @@
-# FortiAIGate Lab Deployment
+# FortiAIGate Demo
 
-Infrastructure-as-code for deploying a FortiAIGate demo on AWS GPU instances
-and supported local Ubuntu GPU lab hosts.
+Infrastructure-as-code for a repeatable FortiAIGate v1.0 demonstration on an
+AWS GPU instance or an operator-owned Ubuntu 24.04 GPU host. The deployed lab
+combines FortiAIGate, LiteLLM, a custom chatbot, deterministic MCP tools, and
+three validated security scenarios.
 
-The repo uses Terraform for AWS infrastructure, Ansible for host and Kubernetes configuration, k3s for single-node orchestration, and Helm for FortiAIGate and demo application deployment.
+AWS with Amazon Bedrock is the primary deployment. Local hardware with Ollama
+uses the same k3s application layer and scenario model.
 
-## Goals
+## Start Here
 
-- Deploy FortiAIGate consistently with minimal manual steps
-- Support AWS EC2 GPU labs as the default path and local Ubuntu 24.04 GPU labs
-  as a supported operator-owned hardware path
-- Keep FortiAIGate charts, release images, licenses, and generated credentials outside Git
-- Publish release images to private ECR with immutable tags
-- Preserve paths for Bedrock, local Ollama, LiteLLM, OpenWebUI, custom chatbot
-  demos, and appliance-fronted routing
+All commands are run from the repository root unless a document says
+otherwise.
 
-## Current Status
-
-- AWS EC2 single-node k3s deployment is implemented
-- NVIDIA driver, container runtime, RuntimeClass, and device plugin are automated
-- Private ECR repository creation and image publishing are implemented
-- FortiAIGate Helm deployment uses external release charts and post-render patches
-- LiteLLM, MCP demo tools, custom chatbot, HTTPS gateway, and demo home deployment roles are implemented for the agent demo path
-- Open WebUI is available as an optional secondary chat UI when enabled
-- MCP demo tools and chatbot tool-loop support are implemented, including deterministic ordering-demo tools, synthetic HR tools, and read-only FortiGate tool schemas
-- Scenario profiles package repeatable demo instructions, MCP tool expectations, and prompt examples while keeping local instruction slots editable
-- FortiGate and FortiWeb Terraform plus Ansible appliance baselines are enabled
-  by default for the full AWS demo and can be disabled with local overrides
-- Local Ubuntu mode is implemented through generated ignored inventory and vars,
-  local/LAN registry settings, in-cluster Ollama, GPU UUID mapping, and optional
-  local FortiGate/FortiWeb onboarding
-- Automated quickstart and teardown scripts support repeat lab rebuilds
-- FortiAIGate 8.0.0 and 8.0.1 image/chart version patterns are documented
-
-See [CHANGELOG.md](CHANGELOG.md) for a consolidated "what's new" summary.
-
-## Phase 10 Documentation Status
-
-Phase 10 is the final pre-Phase-11 stabilization pass. The current runtime still
-uses compatibility names such as `demo-a` and `demo-b` for LiteLLM profiles,
-chatbot paths, and FortiAIGate route testing. Phase 11 is planned as the v1.0
-baseline and will replace that model with scenario-owned paths and generated
-scenario metadata.
-
-## High-Level Architecture
-
-```text
-Operator workstation
-  -> Terraform: ECR, AWS prep IAM/EIPs, EC2 k3s foundation, appliance EC2s
-  -> Ansible: publish images, bootstrap k3s, configure appliances, deploy apps
-  -> k3s host: nginx ingress, FortiAIGate, LiteLLM, MCP, chatbot, HTTPS gateway, demo home
-  -> optional k3s apps: Open WebUI
-  -> AWS default provider path: Amazon Bedrock through LiteLLM
-  -> local provider path: Ollama in k3s through LiteLLM
-  -> appliance paths: FortiGate baseline objects/read-only MCP tools, FortiWeb reverse-proxy NodePorts
-```
-
-## Phase 10 Supported Paths
-
-| Path | Support level | Notes |
-|---|---|---|
-| AWS quickstart | Primary supported path | EC2 GPU host, k3s, FortiAIGate, LiteLLM to Bedrock, chatbot, MCP, demo home, optional Open WebUI/HTTPS gateway, FortiGate/FortiWeb enabled by default |
-| Local Ubuntu quickstart | Supported lab path | Existing Ubuntu 24.04 GPU host, local/LAN registry, generated local inventory, in-cluster Ollama, optional local FortiGate/FortiWeb onboarding |
-| Manual quickstart | Troubleshooting/recovery path | Same components as quickstart, run step by step when the guided script is not the right tool |
-
-FortiAIGate provider, flow, route, and guard setup in the GUI is still manual.
-Scenario content is synthetic repeatable demo material, not production policy
-guidance.
-
-## Choose Your Path
-
-| Goal | Start Here |
+| Goal | Start here |
 |---|---|
-| Run the default AWS demo | [Automated Quick Start](docs/quickstart-automated.md) |
-| Run on local Ubuntu hardware | [Automated Quick Start - Local Hardware Mode](docs/quickstart-automated.md#local-hardware-mode) |
-| Recover or inspect each step manually | [Manual Quick Start](docs/quickstart-manual.md) |
-| Understand the full deployment | [Full Documentation](docs/README.md) |
+| Deploy the default AWS lab | [Automated Quick Start](docs/quickstart-automated.md) |
+| Deploy to an existing local Ubuntu GPU host | [Local Hardware Mode](docs/quickstart-automated.md#local-hardware-mode) |
+| Rerun or troubleshoot deployment steps individually | [Manual Quick Start](docs/quickstart-manual.md) |
+| Understand the components and traffic paths | [Architecture](docs/architecture.md) |
+| See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
+| Find an operator, author, or maintainer task | [Documentation Map](docs/README.md) |
 
-Tracked inventory shortcuts are available at the repo root:
+## What The Default Lab Provides
+
+- A single-node k3s application layer with FortiAIGate, LiteLLM, the custom
+  chatbot, deterministic MCP tools, Demo Home, syslog preservation when its
+  AWS bucket is available, and a self-signed HTTPS gateway.
+- FortiGate and FortiWeb appliances desired by default, with explicit opt-outs
+  and safe skips when their licenses, inventory, or other prerequisites are
+  unavailable.
+- FortiWeb as the preferred chatbot-to-MCP transport when it is installed and
+  desired; the chatbot falls back to direct MCP with a warning.
+- Optional Open WebUI as a secondary UI. The custom chatbot remains the
+  primary scenario UI.
+- Scenario-owned FAIG paths using `/v1/<scenario>/<action>/*`, plus the
+  canonical `/v1/passthrough/*` test path.
+- A globally available FAIG re-entry capability that is disabled in each
+  built-in scenario unless an operator explicitly enables it in local scenario
+  metadata.
+
+See [Deployment Options](docs/reference/current-baseline.md#feature-and-support-matrix)
+for the distinction between defaults, optional components, validated behavior,
+and deferred paths.
+
+## Validated Scenarios
+
+| Scenario | Security story | Actions |
+|---|---|---|
+| `fortistore-injection` | Direct and compromised-frontend prompt injection | Alert, Deny |
+| `hr-tool-dlp` | Sensitive data returned by a simulated HR tool | Alert, Deny, Redact |
+| `resume-tool-injection` | Indirect injection from a simulated uploaded resume and excessive tool access | Alert, Deny |
+
+Scenario content is synthetic and intended for repeatable demonstrations, not
+production policy guidance. Installed scenarios are local, editable runtime
+state; tracked examples remain read-only templates.
+
+## Deployment Model
+
+Terraform owns AWS infrastructure. Ansible publishes images, configures the
+GPU/k3s host and optional appliances, and deploys the application layer.
+Local mode replaces Terraform with `scripts/local_setup.py`, which creates
+ignored inventory and variable files for the operator's lab.
+
+Tracked inventory shortcuts are available at the repository root:
 
 ```bash
 ansible-playbook -i local ansible/playbooks/status_demo_home.yml
 ansible-playbook -i cloud ansible/playbooks/status_demo_home.yml
 ```
 
-`local` and `cloud` are symlinks to ignored generated inventories. Git stores
-only the symlink paths; the generated inventory contents remain local.
-
-## Roadmap
-
-- Complete Phase 10 release-hardening validation without treating current
-  `demo-a`/`demo-b` names as final
-- Use Phase 11 as the v1.0 baseline for scenario-owned naming and generated
-  scenario metadata
-- Expand FortiGate/FortiWeb traffic-path policy generation after the Phase 11
-  scenario matrix design lands
-- Move Terraform state to a remote backend when the workflow leaves local lab mode
-- Automate FortiAIGate provider setup when a supported API is identified
-- Add cleanup and recovery runbooks for failed Helm releases and license resets
-- Evaluate custom AMI support to shorten AWS rebuilds
+Additional `local-*` and `cloud-*` aliases target the k3s host, FortiGate, and
+FortiWeb inventories. The aliases point to ignored generated files, so lab
+addresses and credentials are never stored in the links themselves.
 
 ## Repository Layout
 
 ```text
-terraform/      AWS infrastructure modules
-ansible/        Image publishing, host bootstrap, deploy, status, and validation playbooks
-helm-values/    Example FortiAIGate Helm values
-k8s-overlays/   Helm post-renderer and patch notes
-docs/           Quick starts, architecture, operations, and troubleshooting documentation
-scripts/        Operational helper scripts
-chatbot/        Demo chatbot, LiteLLM, OpenWebUI-adjacent app assets, and home page charts
+terraform/       AWS infrastructure modules
+ansible/         Host, appliance, deployment, status, and validation automation
+helm-values/     Example FortiAIGate Helm values
+k8s-overlays/    Helm post-render patches and notes
+chatbot/         Custom chatbot, scenarios, instructions, and demo application assets
+functional_test/ Metadata-driven scenario validation for operators
+load_test/       Developer-focused dashboard traffic generation
+docs/            Quick starts, operations, reference, and authoring documentation
+scripts/         Setup, scenario, build, and maintenance helpers
 ```
+
+See [CHANGELOG.md](CHANGELOG.md) for user-facing changes and
+[Upcoming Features](docs/upcoming-features.md) for directional work that is not
+part of the supported baseline.
