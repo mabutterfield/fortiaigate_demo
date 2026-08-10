@@ -36,7 +36,7 @@
       "$ref": "#/$defs/relativeFile"
     },
     "status": {
-      "const": "phase11-baseline"
+      "const": "baseline"
     },
     "mcp": {
       "$ref": "#/$defs/mcp"
@@ -66,14 +66,14 @@
     },
     "route_matrix": {
       "type": "array",
-      "description": "Temporary Phase 10 documentation data.",
+      "description": "Optional scenario documentation route data.",
       "items": {
         "type": "object"
       }
     },
     "walkthrough": {
       "type": "object",
-      "description": "Temporary Phase 10 documentation data."
+      "description": "Optional scenario walkthrough metadata."
     }
   },
   "$defs": {

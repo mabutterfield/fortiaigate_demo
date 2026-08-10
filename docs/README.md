@@ -40,7 +40,7 @@ references remain available but are not part of the current runtime contract.
 |---|---|
 | [First-Run Preparation](first-run-preparation.md) | Control workstation, AWS/local prerequisites, user files, licenses, generated-state warnings, and preflight |
 | [Deployment Quickstart](quickstart.md) | The single guided AWS and local first-run journey |
-| [AWS Instance Sizing](aws_instance.MD) | GPU instance selection |
+| [AWS Instance Sizing](aws-instance.md) | GPU instance selection |
 | [Command And Inventory Reference](reference/command-inventory.md) | Repo-root commands, inventory aliases, Terraform user links, generated files, and recovery hints |
 
 ### Choose Options

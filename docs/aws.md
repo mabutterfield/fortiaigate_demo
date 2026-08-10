@@ -32,4 +32,4 @@ NodePorts.
 - [Terraform Reference](terraform.md)
 - [VPC Layout](vpc-layout.md)
 - [AWS k3s Foundation](aws-k3s-foundation.md)
-- [AWS Instance Sizing](aws_instance.MD)
+- [AWS Instance Sizing](aws-instance.md)

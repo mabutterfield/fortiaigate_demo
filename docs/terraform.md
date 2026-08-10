@@ -280,4 +280,6 @@ The Terraform default instance type is `g4dn.4xlarge`.
 
 Use `g6.8xlarge` for a stronger production-like L4 validation target. Use `g6.4xlarge` when you want a lower-cost official L4 lab candidate.
 
-See [aws_instance.MD](aws_instance.MD) for the detailed table separating test infrastructure, supported validation infrastructure, and experimental instance families.
+See [AWS Instance Sizing](aws-instance.md) for the detailed table separating
+test infrastructure, supported validation infrastructure, and experimental
+instance families.

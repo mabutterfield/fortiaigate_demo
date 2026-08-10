@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install repeatable demo scenario profiles into local instruction slots."""
+"""Manage tracked and operator-installed scenario profiles."""
 
 from __future__ import annotations
 
@@ -7,17 +7,14 @@ import argparse
 import importlib.util
 import json
 import re
-import shutil
 import sys
-import time
 from pathlib import Path
 
 try:
-    import instruction_profiles
     import scenario_local
     import scenario_matrix
 except ModuleNotFoundError:
-    from scripts import instruction_profiles, scenario_local, scenario_matrix
+    from scripts import scenario_local, scenario_matrix
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -138,7 +135,7 @@ def resolve_package_file(profile_path: Path, relative_path: str, *, label: str) 
 
 def instruction_path(profile_path: Path, profile: dict, *, slot: str | None = None) -> Path:
     instruction_key = "instruction_file"
-    if slot and instruction_profiles.resolve_slot(slot) == "frontend" and profile.get("frontend_instruction_file"):
+    if slot == "frontend" and profile.get("frontend_instruction_file"):
         instruction_key = "frontend_instruction_file"
     try:
         path = resolve_package_file(
@@ -229,59 +226,6 @@ def print_scenario(profile_path: Path, profile: dict) -> None:
         print("legacy curl payloads:")
         for payload in legacy_payloads:
             print(f"- {payload.relative_to(REPO_ROOT)}")
-
-
-def install_scenario(
-    scenario_id: str,
-    *,
-    slot: str | None,
-    force: bool,
-    link: bool,
-    include_inactive: bool = False,
-    include_candidates: bool = False,
-) -> Path:
-    profile_path, profile = load_scenario(
-        scenario_id,
-        include_inactive=include_inactive,
-        include_candidates=include_candidates,
-    )
-    if not slot:
-        raise SystemExit("Choose the target instruction slot with --slot, for example: --slot demo-b")
-    target_slot = slot
-    source = instruction_path(profile_path, profile, slot=target_slot)
-    destination = instruction_profiles.slot_path(target_slot)
-    if destination.exists() and not force:
-        raise SystemExit(f"Target slot already exists: {destination}. Use --force to replace it.")
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() or destination.is_symlink():
-        destination.unlink()
-    if link:
-        destination.symlink_to(source.resolve())
-    else:
-        shutil.copy2(source, destination)
-
-    mcp = dict(profile.get("mcp", {}))
-    mcp.setdefault("enabled", bool(mcp.get("tool_profile") or mcp.get("required_tools")))
-    metadata = {
-        "display_name": profile.get("display_name", scenario_id),
-        "description": profile.get("description", ""),
-        "slot": instruction_profiles.resolve_slot(target_slot),
-        "source_type": "scenario",
-        "scenario_id": scenario_id,
-        "source": str(source.relative_to(REPO_ROOT)),
-        "mcp": mcp,
-        "tool_profile": profile.get("mcp", {}).get("tool_profile", ""),
-        "required_tools": profile.get("mcp", {}).get("required_tools", []),
-        "updated_at": int(time.time()),
-    }
-    instruction_profiles.write_json(instruction_profiles.metadata_path_for_instruction(destination), metadata)
-
-    print(f"installed: {scenario_id} -> {instruction_profiles.resolve_slot(target_slot)} -> {destination}")
-    if metadata["tool_profile"]:
-        print(f"chatbot MCP tool profile: {metadata['tool_profile']}")
-    instruction_profiles.print_deploy_hint(scenario_id, target_slot, destination)
-    return destination
 
 
 def shared_mcp_tool_names() -> set[str]:
@@ -510,6 +454,7 @@ def baseline_profile_validation(
     available_tools: set[str],
     *,
     validate_functional_requests: bool = True,
+    allow_legacy_installed_status: bool = False,
 ) -> tuple[list[str], dict[str, list[str]]]:
     errors: list[str] = []
     symbols: dict[str, list[str]] = {
@@ -550,8 +495,11 @@ def baseline_profile_validation(
         errors.append("profile id must equal the catalog scenario ID")
     if not SCENARIO_ID_PATTERN.fullmatch(str(profile.get("id") or "")):
         errors.append("profile id must be lowercase kebab-case")
-    if profile.get("status") != "phase11-baseline":
-        errors.append("status must be phase11-baseline")
+    allowed_statuses = {"baseline"}
+    if allow_legacy_installed_status:
+        allowed_statuses.add("phase11-baseline")
+    if profile.get("status") not in allowed_statuses:
+        errors.append("status must be baseline")
     for field_name in ("display_name", "description"):
         if not isinstance(profile.get(field_name), str) or not profile[field_name].strip():
             errors.append(f"{field_name} must be a non-empty string")
@@ -1028,6 +976,7 @@ def validate_local_matrix(store: scenario_local.LocalScenarioStore) -> None:
                 profile,
                 available_tools,
                 validate_functional_requests=False,
+                allow_legacy_installed_status=True,
             )
             errors.extend(f"{scenario_id}: {error}" for error in profile_errors)
             errors.extend(
@@ -1108,13 +1057,11 @@ def parse_args() -> argparse.Namespace:
   python3 scripts/scenario_profiles.py list --include-inactive
   python3 scripts/scenario_profiles.py validate
 
-Phase 11 add/remove state is not consumed by Ansible until matrix integration.
-The old install --slot command remains temporarily for Phase 10 runtime testing.
 """,
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    list_parser = subparsers.add_parser("list", help="List Phase 11 baseline scenario profiles.")
+    list_parser = subparsers.add_parser("list", help="List baseline scenario profiles.")
     list_parser.add_argument("--include-candidates", action="store_true", help="Also show future candidate profiles.")
     list_parser.add_argument("--include-inactive", action="store_true", help="Show baseline, candidate, and archived profiles.")
 
@@ -1123,32 +1070,13 @@ The old install --slot command remains temporarily for Phase 10 runtime testing.
     show_parser.add_argument("--include-candidates", action="store_true", help="Allow showing a future candidate profile.")
     show_parser.add_argument("--include-inactive", action="store_true", help="Allow showing a candidate or archived profile.")
 
-    install_parser = subparsers.add_parser(
-        "install",
-        help="Install a scenario into a local instruction slot.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""examples:
-  python3 scripts/scenario_profiles.py install fortistore-injection --slot demo-a --force
-  python3 scripts/scenario_profiles.py install hr-tool-dlp --slot demo-a --force
-
-then deploy the prepared instructions:
-  ansible-playbook ansible/playbooks/deploy_litellm.yml
-""",
-    )
-    install_parser.add_argument("scenario", help="Scenario ID.")
-    install_parser.add_argument("--slot", required=True, help="Instruction slot to install into, such as demo-a or demo-b.")
-    install_parser.add_argument("--force", action="store_true", help="Replace the target local slot if it exists.")
-    install_parser.add_argument("--link", action="store_true", help="Symlink instead of copying scenario instructions.")
-    install_parser.add_argument("--include-candidates", action="store_true", help="Allow installing a future candidate profile for testing.")
-    install_parser.add_argument("--include-inactive", action="store_true", help="Allow installing a candidate or archived profile for testing.")
-
-    validate_parser = subparsers.add_parser("validate", help="Validate Phase 11 baseline scenario profiles.")
+    validate_parser = subparsers.add_parser("validate", help="Validate baseline scenario profiles.")
     validate_parser.add_argument("--include-candidates", action="store_true", help="Also validate future candidate profiles with the legacy checks.")
     validate_parser.add_argument("--include-inactive", action="store_true", help="Also validate candidate and archived profiles with the legacy checks.")
 
     add_parser = subparsers.add_parser(
         "add",
-        help="Install an editable local copy of a Phase 11 baseline scenario.",
+        help="Install an editable local copy of a baseline scenario.",
     )
     add_parser.add_argument("scenario", help="Baseline scenario ID.")
 
@@ -1175,7 +1103,7 @@ then deploy the prepared instructions:
     )
     subparsers.add_parser(
         "show-matrix",
-        help="Show the Phase 2 generated matrix preview for installed scenarios.",
+        help="Show the generated matrix preview for installed scenarios.",
     )
 
     work_order_parser = subparsers.add_parser(
@@ -1212,15 +1140,6 @@ def main() -> None:
                 include_candidates=args.include_candidates,
             )
             print_scenario(profile_path, profile)
-        elif args.command == "install":
-            install_scenario(
-                args.scenario,
-                slot=args.slot,
-                force=args.force,
-                link=args.link,
-                include_inactive=args.include_inactive,
-                include_candidates=args.include_candidates,
-            )
         elif args.command == "validate":
             validate_scenarios(
                 include_inactive=args.include_inactive,

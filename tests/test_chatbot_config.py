@@ -30,7 +30,7 @@ def load_chatbot_module():
             "openai": openai,
         },
     ):
-        spec = importlib.util.spec_from_file_location("phase11_chatbot", CHATBOT_PATH)
+        spec = importlib.util.spec_from_file_location("scenario_matrix_chatbot", CHATBOT_PATH)
         if spec is None or spec.loader is None:
             raise RuntimeError(f"Unable to load {CHATBOT_PATH}")
         module = importlib.util.module_from_spec(spec)

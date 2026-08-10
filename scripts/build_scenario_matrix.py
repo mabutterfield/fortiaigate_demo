@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the deterministic Phase 11 matrix for installed local scenarios."""
+"""Print the deterministic matrix for installed local scenarios."""
 
 from __future__ import annotations
 

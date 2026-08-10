@@ -99,7 +99,7 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
         )
         self.assertEqual(plan[0]["tool_profile"], "hr-tool-dlp")
 
-    def test_phase11_load_mix_is_exact_and_covers_every_scenario_lane(self) -> None:
+    def test_installed_load_mix_is_exact_and_covers_every_scenario_lane(self) -> None:
         args = types.SimpleNamespace(
             seed=42,
             traffic_profile="attack",
@@ -162,7 +162,7 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
         self.assertTrue(all(item["path_config"]["mcp_enabled"] is False for item in passthrough_items))
         self.assertTrue(all("1200 words" in item["prompt"] for item in passthrough_items))
 
-    def test_phase11_load_mix_rejects_too_few_requests_for_lane_coverage(self) -> None:
+    def test_installed_load_mix_rejects_too_few_requests_for_lane_coverage(self) -> None:
         args = types.SimpleNamespace(
             seed=42,
             traffic_profile="attack",

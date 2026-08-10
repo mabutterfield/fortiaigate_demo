@@ -33,6 +33,7 @@ REQUIRED_PATHS = [
     "README.md",
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
+    "scripts/docs_quality.py",
     "scripts/instruction_profiles.py",
     "scripts/fortigate_ai_app_proxy_touch.py",
     "scripts/build_scenario_matrix.py",
@@ -116,6 +117,7 @@ def check_script_help() -> None:
         "scripts/scenario_profiles.py",
         "scripts/automated_quickstart.py",
         "scripts/automated_teardown.py",
+        "scripts/docs_quality.py",
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
@@ -143,6 +145,10 @@ def check_tracked_secrets() -> None:
     if matches:
         raise SmokeFailure("Forbidden tracked local/secret files: " + ", ".join(matches))
     print("ok tracked file guard")
+
+
+def check_documentation_quality() -> None:
+    run([sys.executable, "scripts/docs_quality.py"])
 
 
 def check_user_tfvars_symlinks() -> None:
@@ -245,6 +251,7 @@ def main() -> int:
         check_required_paths()
         check_python_compile()
         check_script_help()
+        check_documentation_quality()
         check_tracked_secrets()
         check_user_tfvars_symlinks()
         check_inventory_aliases()

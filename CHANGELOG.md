@@ -5,6 +5,20 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Completed the v1.0 documentation and naming quality gate:
+  - added an automated tracked-Markdown check for local links, anchors,
+    lowercase kebab-case filenames, and current release vocabulary
+  - normalized active scenario status metadata from an internal numbered label
+    to `baseline`, while retaining read compatibility for older ignored local
+    scenario copies until the operator updates them
+  - renamed optional document-fixture S3 settings and outputs to
+    `scenario_documents_*` and added Terraform moved declarations for existing
+    resource addresses
+  - replaced numbered document-fixture paths and validation labels with stable
+    scenario terminology
+  - removed unreferenced legacy screenshots and retained concise compatibility
+    documentation pointers for established inbound URLs
+
 - Separated supported functional validation from developer dashboard traffic:
   - `python3 -m functional_test validate` now owns installed-scenario and
     passthrough readiness checks, scenario/action/case filters, effective

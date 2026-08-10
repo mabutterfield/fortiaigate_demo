@@ -184,7 +184,7 @@ scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
 scenario_matrix_llm_target_overrides: {}
 faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
-# Phase 10 compatibility aliases remain temporarily for old local overrides.
+# Legacy compatibility aliases remain temporarily for old local overrides.
 # The scenario_matrix source does not consume or generate these aliases.
 litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b
@@ -352,7 +352,7 @@ chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
 chatbot_mcp_tool_profile: ""
 chatbot_mcp_tool_profiles: []
-# Build chatbot MCP profiles from the Phase 11 scenario matrix by default.
+# Build chatbot MCP profiles from the installed scenario matrix by default.
 # Set
 # chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
 # troubleshooting profile.
@@ -412,7 +412,7 @@ chatbot_instances:
     ingress_host: ""
 
 # === MCP demo tools: ansible/playbooks/deploy_mcp.yml ===
-# Phase 3B baseline tool server for the later Python agent tool loop.
+# Shared tool server for the Python chatbot agent loop.
 # Terraform opens the generated HTTP/HTTPS demo ports for direct testing.
 mcp_enabled: true
 mcp_namespace: mcp
@@ -461,7 +461,7 @@ demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(304
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 
 # === FortiWeb reverse-proxy appliance configuration ===
-# Repo-owned Phase 6 default: build pass-through FortiWeb virtual servers,
+# Repo-owned default: build pass-through FortiWeb virtual servers,
 # VIPs, server pools, pool members, services, and server policies for the demo
 # NodePorts. Operators can set this false in ignored user.yml for direct-only
 # testing.
@@ -491,7 +491,7 @@ fortiweb_nodeport_proxy_https_paths:
     policy_use_https_service: true
     pool_member_ssl: enable
 
-# === Fortinet appliance traffic paths: Phase 6 desired-state input ===
+# === Fortinet appliance traffic paths: desired-state input ===
 # Empty by default so the direct public k3s demo path remains unchanged.
 # User-specific path selections belong in ignored ansible/group_vars/user.yml.
 fortinet_traffic_paths: []

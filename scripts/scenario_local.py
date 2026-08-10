@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage ignored, operator-editable Phase 11 scenario installations."""
+"""Manage ignored, operator-editable scenario installations."""
 
 from __future__ import annotations
 

@@ -43,7 +43,7 @@ scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname 
 scenario_matrix_llm_target_overrides: {}
 faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
-# Phase 10 compatibility aliases remain temporarily for old local overrides.
+# Legacy compatibility aliases remain temporarily for old local overrides.
 # The scenario_matrix source does not consume or generate these aliases.
 litellm_demo_a_model_alias: demo-a
 litellm_demo_b_model_alias: demo-b

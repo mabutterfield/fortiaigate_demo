@@ -54,9 +54,15 @@ Document fixture S3 prep is disabled by default. Enable it only when
 you are ready to test S3-backed document retrieval through MCP:
 
 ```hcl
-phase8_documents_bucket_enabled = true
-phase8_documents_prefix         = "phase8-fixtures"
+scenario_documents_bucket_enabled = true
+scenario_documents_prefix         = "scenario-fixtures"
 ```
+
+Older local overrides used numbered development variable names. Rename those
+entries in ignored `99-local.auto.tfvars` to the `scenario_documents_*` names
+above before the next plan. Terraform moved declarations preserve existing
+resource addresses; review the plan normally because the IAM policy's display
+name is also normalized.
 
 When enabled, this module creates a private encrypted bucket, blocks public
 access, and attaches a read/list policy for the configured prefix to the k3s

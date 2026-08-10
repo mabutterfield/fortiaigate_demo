@@ -54,7 +54,7 @@ ansible_terraform_vars_output_path = "../../ansible/group_vars/terraform.generat
 # Use this only for extra public TCP listeners beyond the generated demo ports.
 additional_ingress_tcp_ports = []
 
-# Phase 2 application routing placeholders. The current public demo is
+# Application routing placeholders. The current public demo is
 # port_based through generated NodePorts. path_based and host_based are future
 # ingress/DNS-backed options.
 ingress_routing_strategy = "port_based"

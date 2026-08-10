@@ -15,9 +15,9 @@
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
 
-# Phase 11 uses installed local scenarios as the single LiteLLM/chatbot
-# configuration source. Keep this at the repo-owned default unless debugging a
-# pre-Phase-11 deployment.
+# Installed local scenarios are the single LiteLLM/chatbot configuration
+# source. Keep this at the repo-owned default unless debugging a legacy
+# deployment.
 # demo_configuration_source: scenario_matrix
 #
 # Advanced provider mapping: add or replace an abstract matrix LLM target. Do
@@ -36,51 +36,6 @@
 # installed and configured. Disable the proxy to force deterministic Direct
 # MCP fallback without changing scenario templates.
 # fortiweb_mcp_proxy_enabled: false
-
-# Optional smaller chatbot/FAIG demo surface. When enabled and chatbots are
-# redeployed, the UI shows only passthrough, demo-a, and demo-b FAIG choices.
-# chatbot_faig_lite_mode: true
-
-# Optional Phase 10 scenario-development FAIG surface. This appends demo-c and
-# demo-d to the chatbot static-route picker and model picker without changing
-# the default supported quickstart surface. Configure matching FAIG flows and
-# guards manually before enabling this for scenario testing.
-# chatbot_phase10_scenario_routes_enabled: true
-
-# Optional Phase 10 FortiGate AI inspection path. The FortiGate config role can
-# build cloud defaults from generated Terraform/inventory values with this
-# single switch: TCP 4000 to LiteLLM and TCP 443 to FortiAIGate HTTPS ingress.
-# fortigate_llm_proxy_enabled: true
-#
-# Optional chatbot UI routing through those FortiGate listeners. Set these only
-# when the FortiGate listener IP is available to the chatbot deployment vars.
-# chatbot_fortigate_litellm_base_url: "http://{{ fortigate_public_private_ip }}:4000/v1"
-# chatbot_faig_base_url: "https://{{ fortigate_public_private_ip }}"
-#
-# If VIPs already exist, disable VIP management and override vip_name values to
-# match the existing FortiGate objects. Keep service_name values aligned with
-# the services referenced by the generated policies, or override policy fields
-# with policy_overrides.
-# fortigate_llm_proxy_manage_vips: false
-# fortigate_llm_proxy_paths:
-#   - name: litellm
-#     service_name: FAIG_LITELLM_LISTENER_4000
-#     policy_service_name: FAIG_LITELLM_BACKEND_30083
-#     policy_service_port: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
-#     vip_name: LiteLLM
-#     policy_name: allow-faig-litellm-http-proxy
-#     policyid: 9400
-#     extport: 4000
-#     mappedport: "{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) | int }}"
-#     comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
-#   - name: faig_https
-#     service_name: FAIG_HTTPS_LISTENER_443
-#     vip_name: FortiAIGateHTTPS
-#     policy_name: allow-faig-https-proxy
-#     policyid: 9401
-#     extport: 443
-#     mappedport: 443
-#     comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
 
 # FortiAIGate licenses are local/private and must not be committed.
 license_source_dir: "{{ faig_workspace_root }}/licenses"
@@ -194,7 +149,7 @@ fortiaigate_licenses: {}
 #     # Optional reorder support. Target policy IDs must already exist.
 #     # move_after: 99
 
-# Optional Phase 6 appliance traffic-path source of truth. This is data only
+# Optional appliance traffic-path source of truth. This is data only
 # until the FortiGate/FortiWeb config roles consume it.
 # fortinet_traffic_paths:
 #   - name: chatbot_to_fortigate_to_fortiaigate

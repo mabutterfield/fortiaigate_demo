@@ -201,7 +201,7 @@ variable "fortigate_enable_icmp" {
 
 variable "fortigate_public_listener_tcp_ports" {
   type        = list(number)
-  description = "Additional trusted-public TCP listener ports exposed on the FortiGate public ENI security group. Port 4000 supports the optional Phase 10 LiteLLM proxy path."
+  description = "Additional trusted-public TCP listener ports exposed on the FortiGate public ENI security group. Port 4000 supports the optional experimental LiteLLM proxy path."
   default     = [4000]
 }
 

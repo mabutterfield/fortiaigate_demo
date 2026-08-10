@@ -21,24 +21,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "functional_test" / "output"
 TRACKED_SCENARIOS_ROOT = REPO_ROOT / "chatbot" / "scenarios" / "examples"
 
-LEGACY_PATH_CONFIGS = {
-    "direct": {
-        "destination": "Direct Response",
-        "provider": "direct",
-        "route": "demo-a",
-    },
-    "faig-scan": {
-        "destination": "FAIG - Scan",
-        "provider": "faig-static",
-        "route": "demo-a",
-    },
-    "faig-protect": {
-        "destination": "FAIG - Protect",
-        "provider": "faig-static",
-        "route": "demo-b",
-    },
-}
-
 DEFAULT_MODEL_LABELS = {
     "openai.gpt-oss-20b-1:0": "gpt-oss-20b",
     "openai.gpt-oss-120b-1:0": "gpt-oss-120b",
@@ -405,12 +387,7 @@ def deploy_mcp(args: argparse.Namespace) -> None:
 
 def install_profile(args: argparse.Namespace) -> None:
     command = [sys.executable, "scripts/scenario_profiles.py"]
-    if args.legacy_slot_mode:
-        command.extend(
-            ["install", args.scenario, "--slot", args.slot, "--force"]
-        )
-    else:
-        command.extend(["add", args.scenario])
+    command.extend(["add", args.scenario])
     checked(command, dry_run=args.dry_run)
 
 
@@ -733,26 +710,11 @@ def run_tests(args: argparse.Namespace) -> None:
     scenario_tool_profile = str(
         profile.get("mcp", {}).get("tool_profile") or args.scenario
     )
-    if args.paths:
-        path_configs = [
-            {
-                "action": path_name,
-                **LEGACY_PATH_CONFIGS[path_name],
-                "model": args.model_profile or args.slot,
-                "mcp_enabled": bool(profile.get("mcp", {}).get("enabled", True)),
-                "mcp_path": args.mcp_path or "direct",
-                "tool_profile": args.tool_profile or scenario_tool_profile,
-                "max_tool_rounds": args.max_tool_rounds or 3,
-                "frontend_instruction_profile": args.frontend_profile or "",
-            }
-            for path_name in args.paths
-        ]
-    else:
-        path_configs = scenario_action_configs(
-            matrix,
-            args.scenario,
-            args.action or ["direct", "alert"],
-        )
+    path_configs = scenario_action_configs(
+        matrix,
+        args.scenario,
+        args.action or ["direct", "alert"],
+    )
     models = parse_models(args.models)
     if models and not args.deploy_models:
         raise SystemExit("--models requires --deploy-models so output labels match the live backend model")
@@ -1103,13 +1065,6 @@ def parse_args() -> argparse.Namespace:
             "to direct and alert."
         ),
     )
-    parser.add_argument(
-        "--paths",
-        nargs="+",
-        default=[],
-        choices=sorted(LEGACY_PATH_CONFIGS),
-        help="Compatibility path names for ad hoc sweeps. Prefer --action.",
-    )
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--models", nargs="*", help="Bedrock model IDs. Requires --deploy-models.")
     parser.add_argument("--deploy-models", action="store_true", help="Redeploy LiteLLM once per --models entry.")
@@ -1117,8 +1072,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--install-profile", action="store_true", help="Add the tracked scenario to ignored local installed state.")
     parser.add_argument("--deploy-profile", action="store_true", help="Redeploy matrix-driven LiteLLM after --install-profile when --models is not used.")
     parser.add_argument("--deploy-mcp", action="store_true", help="Redeploy the MCP server before testing.")
-    parser.add_argument("--legacy-slot-mode", action="store_true", help="Use the retired instruction-slot installer with --install-profile.")
-    parser.add_argument("--slot", default="demo-a", help="Compatibility slot used only with --legacy-slot-mode.")
     parser.add_argument("--model-profile", default="", help="Override the matrix-derived OpenAI-compatible model alias.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="", help="Override the scenario profile MCP path.")
     parser.add_argument("--tool-profile", default="", help="Override the scenario matrix MCP tool profile.")
@@ -1144,10 +1097,6 @@ def parse_args() -> argparse.Namespace:
     args.run_label = slugify(args.run_label) if args.run_label else timestamp_label()
     if args.runs < 1:
         raise SystemExit("--runs must be at least 1")
-    if args.action and args.paths:
-        raise SystemExit("Use --action or compatibility --paths, not both")
-    if args.legacy_slot_mode and not args.install_profile:
-        raise SystemExit("--legacy-slot-mode requires --install-profile")
     return args
 
 

@@ -4,7 +4,7 @@
   "display_name": "Resume Tool Injection",
   "description": "Simulated uploaded-resume scenario where indirect prompt injection attempts to pivot a resume-screening assistant into an unrelated synthetic cloud inventory tool.",
   "instruction_file": "instructions.txt",
-  "status": "phase11-baseline",
+  "status": "baseline",
   "mcp": {
     "enabled": true,
     "default_transport": "fortiweb",

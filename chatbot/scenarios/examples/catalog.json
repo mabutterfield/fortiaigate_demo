@@ -18,14 +18,14 @@
     "fortistore-injection": {
       "path": "fortistore-injection/profile.json",
       "display_name": "FortiStore Injection Product Advisor",
-      "status": "phase11-baseline",
+      "status": "baseline",
       "lifecycle": "baseline",
       "active": true
     },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",
       "display_name": "FortiGate Operator Assistant",
-      "status": "phase11-candidate",
+      "status": "candidate",
       "lifecycle": "candidate",
       "active": false
     },
@@ -46,7 +46,7 @@
     "hr-tool-dlp": {
       "path": "hr-tool-dlp/profile.json",
       "display_name": "HR Tool DLP Vulnerable",
-      "status": "phase11-baseline",
+      "status": "baseline",
       "lifecycle": "baseline",
       "active": true
     },
@@ -88,7 +88,7 @@
     "resume-tool-injection": {
       "path": "resume-tool-injection/profile.json",
       "display_name": "Resume Tool Injection",
-      "status": "phase11-baseline",
+      "status": "baseline",
       "lifecycle": "baseline",
       "active": true
     },

@@ -12,7 +12,7 @@ All commands run from `<repo_root>`.
 ```bash
 git status --short
 python3 scripts/scenario_profiles.py validate
-python3 scripts/instruction_profiles.py validate
+python3 scripts/docs_quality.py
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/smoke_test.py
 ```

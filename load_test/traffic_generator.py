@@ -213,7 +213,7 @@ def installed_runtime() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
         raise SystemExit(str(exc)) from exc
     if not profiles:
         raise SystemExit(
-            "No Phase 11 scenarios are installed. Run scenario_profiles.py add first."
+            "No scenarios are installed. Run scenario_profiles.py add first."
         )
     return matrix, profiles
 
@@ -457,7 +457,7 @@ def build_plan(
     passthrough_templates = high_token_prompt_templates() if passthrough_count else []
     if passthrough_count and passthrough_config is None:
         raise SystemExit(
-            "--passthrough-percent is supported only by the Phase 11 installed scenario matrix"
+            "--passthrough-percent is supported only by the installed scenario matrix"
         )
     scenario_count = total - passthrough_count
     if lanes and scenario_count < len(lanes):
@@ -1399,12 +1399,12 @@ def parse_args() -> argparse.Namespace:
         "--scenario-source",
         choices=["installed", "active-slot", "family", "explicit"],
         default="installed",
-        help="Scenario selection source. installed uses ignored Phase 11 local packages; active-slot is Phase 10 compatibility.",
+        help="Scenario selection source. installed uses ignored local packages; active-slot is legacy compatibility.",
     )
     parser.add_argument("--scenario-family", choices=sorted(SCENARIO_FAMILIES), default="baseline")
     parser.add_argument("--traffic-profile", choices=["clean", "attack", "mixed"], default="mixed")
-    parser.add_argument("--action", action="append", help="Phase 11 action. Can be repeated or comma-separated; defaults to direct and alert.")
-    parser.add_argument("--route", action="append", help="Phase 10 compatibility route label. Use --action for Phase 11.")
+    parser.add_argument("--action", action="append", help="Scenario action. Can be repeated or comma-separated; defaults to direct and alert.")
+    parser.add_argument("--route", action="append", help="Legacy compatibility route label. Use --action for installed scenarios.")
     parser.add_argument("--model", default="", help="Override the matrix-derived chatbot model alias.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="", help="Override the matrix-derived MCP path.")
     parser.add_argument("--tool-profile", default="", help="Override the matrix-derived MCP tool profile for every request.")
@@ -1416,7 +1416,7 @@ def parse_args() -> argparse.Namespace:
         "--passthrough-percent",
         type=float,
         default=0.0,
-        help="Percentage of Phase 11 traffic sent through canonical passthrough with high-output prompts.",
+        help="Percentage of installed-scenario traffic sent through canonical passthrough with high-output prompts.",
     )
     parser.add_argument(
         "--passthrough-output-words",
@@ -1431,7 +1431,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-test-base-url", default="", help="Base URL for path_test. Defaults to the target's inferred external FAIG HTTPS endpoint.")
     parser.add_argument("--path-test-execution", choices=["direct", "chatbot-pod"], default="direct")
     parser.add_argument("--path-test-path", action="append", help="Path to test. Can be repeated or comma-separated.")
-    parser.add_argument("--legacy-routes", action="store_true", help="Use Phase 10 demo-a/demo-b path-test cases.")
+    parser.add_argument("--legacy-routes", action="store_true", help="Use legacy demo-letter path-test cases.")
     parser.add_argument("--path-test-timeout", type=int, default=60)
     parser.add_argument("--path-test-passthrough-model", default="", help="Override passthrough model for path_test.")
     parser.add_argument("--path-test-verify-tls", action="store_true", help="Verify TLS certificates for direct path_test curl requests.")
@@ -1447,9 +1447,9 @@ def parse_args() -> argparse.Namespace:
     if args.scenario:
         args.scenario_source = "explicit"
     if args.action and args.route:
-        raise SystemExit("Use --action or Phase 10 --route, not both")
+        raise SystemExit("Use --action or legacy --route, not both")
     if args.route and args.scenario_source != "active-slot":
-        raise SystemExit("Phase 10 --route requires --scenario-source active-slot")
+        raise SystemExit("Legacy --route requires --scenario-source active-slot")
     if args.concurrency < 1:
         raise SystemExit("--concurrency must be at least 1")
     if args.concurrency > 4:
