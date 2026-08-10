@@ -35,9 +35,9 @@ python3 scripts/scenario_profiles.py render-work-order
 ```
 
 The command first prints a terminal-friendly object list. Each numbered entry
-uses the exact labels Scenario, Action, Flow, Configured URI, Guard Name,
-Guard Template, Next-hop Model, Required, and Expected Behavior. It then
-prints the path to the ignored formatted Markdown version:
+uses the exact labels Scenario, Action, Flow Name, Configured URI, Guard Name,
+Guard Template, Guard Protections, Next-hop Model, Required, and Expected
+Behavior. It then prints the path to the ignored formatted Markdown version:
 
 ```text
 Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
@@ -51,11 +51,12 @@ Map one row at a time:
 | Guide variable | Work-order column or value | Example shape |
 |---|---|---|
 | `{{scenario_id}}` | Scenario | `resume-tool-injection` |
-| `{{action}}` | Action | `alert`, `deny`, `redact`, or chain-default `detect` |
-| `{{flow_name}}` | Flow | `{{scenario_id}}-{{action}}` |
+| `{{action}}` | Action | `alert`, `deny`, `redact`, or `chain` |
+| `{{flow_name}}` | Flow Name | `{{scenario_id}}-{{action}}` |
 | `{{scenario_path}}` | Configured URI | `/v1/{{scenario_id}}/{{action}}/*` |
 | `{{guard_name}}` | Guard Name | `{{scenario_id}}_{{action}}` |
-| `{{guard_template}}` | Guard Template | `detect_only`, `protect_input`, `output_dlp_deny`, or `output_dlp_redact` |
+| `{{guard_template}}` | Guard Template | `inject_alert`, `inject_deny`, `output_dlp_alert`, `output_dlp_deny`, `output_dlp_redact`, or `alert_all` |
+| `{{guard_protections}}` | Guard Protections | Concrete recipes to configure; `alert_all` expands to `inject_alert`, `output_dlp_alert` |
 | `{{model_alias}}` | Next-hop Model | Normally `{{scenario_id}}` |
 | `{{expected_behavior}}` | Expected Behavior | Work-order description |
 
@@ -69,7 +70,7 @@ makes troubleshooting and telemetry correlation substantially easier.
 >
 > Caption: Map the generated terminal work-order entry into FortiAIGate objects.
 >
-> Capture: A tightly cropped terminal work-order entry showing Scenario, Action, Flow, Configured URI, Guard Name, Guard Template, Next-hop Model, and Expected Behavior. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
+> Capture: A tightly cropped terminal work-order entry showing Scenario, Action, Flow Name, Configured URI, Guard Name, Guard Template, Guard Protections, Next-hop Model, and Expected Behavior. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
 
 ## Request-Path Model
 
@@ -113,7 +114,7 @@ Create one guard for each work-order row:
 
 | Field | Value |
 |---|---|
-| Guard name | `{{guard_name}}` |
+| Guard Name | `{{guard_name}}` |
 | Provider | `OpenAI` |
 | Model | `{{model_alias}}` |
 | Private endpoint | Enabled |
@@ -121,7 +122,8 @@ Create one guard for each work-order row:
 | API key | `{{litellm_api_key}}` |
 | Token pricing | Enabled |
 | Input/output token costs | The same demonstration values used for `pass_model` |
-| Protection behavior | `{{guard_template}}` |
+| Guard Template | `{{guard_template}}` |
+| Guard Protections | `{{guard_protections}}` |
 
 FortiAIGate configures the model connection per guard. Select `OpenAI`, turn on
 **Private endpoint**, and put the shared LiteLLM URL in the field labeled
@@ -166,22 +168,21 @@ test succeeds.
 
 ## 4. Configure The Protection
 
-### `detect_only`: Alert Without Enforcement
+### `inject_alert`: Alert On Prompt Injection
 
-Enable the scenario-relevant prompt-injection or sensitive-data detector,
-enable logging/telemetry, and allow the request and response. Do not select
-deny, block, or redact. The matching work-order behavior should say the attack
-continues while FortiAIGate records the detection.
+Enable prompt-injection inspection, select **Alert**, and allow the request and
+response. Do not select Deny. The matching work-order behavior should say the
+attack continues while FortiAIGate records the alert.
 
 > **Screenshot placeholder — `faig-scenario-alert-protection`**
 >
 > Expected filename: `images/fortiaigate/faig-scenario-alert-protection.png`
 >
-> Caption: Configure `{{guard_name}}` with `{{guard_template}}` to detect and alert without denying.
+> Caption: Configure `{{guard_name}}` with `{{guard_template}}` to alert without denying.
 >
-> Capture: The relevant protection page with detection and logging enabled and enforcement disabled. Show the action summary; avoid scenario-specific tuning that will require a different shared screenshot.
+> Capture: The prompt-injection protection page with Alert selected and enforcement disabled. Show the action summary; avoid scenario-specific tuning that will require a different shared screenshot.
 
-### `protect_input`: Deny Prompt Injection
+### `inject_deny`: Deny Prompt Injection
 
 Enable prompt-injection inspection for the complete input transcript and set
 the action to deny/block. For tool scenarios, confirm inspection includes
@@ -195,6 +196,13 @@ poisoned content before the model can follow it or select a prohibited tool.
 > Caption: Configure `{{guard_name}}` to deny the protected prompt or tool response.
 >
 > Capture: The input prompt-injection protection page showing full-transcript/tool-message inspection when the GUI exposes it and the deny/block action selected.
+
+### `output_dlp_alert`: Alert On Sensitive Output
+
+Enable the scenario's required output DLP patterns and select **Alert**. The
+response is returned unchanged while FortiAIGate records the alert. For the
+validated HR scenario, remove or disable `first_name`, `last_name`, `city`,
+and `state`; those broad matches create demo noise.
 
 ### `output_dlp_deny`: Deny Sensitive Output
 
@@ -225,6 +233,19 @@ remainder of the response is returned. Do not treat input-DLP or the future
 >
 > Capture: The output DLP page using the same representative patterns as Deny, with redact selected and the replacement behavior visible if configurable.
 
+### `alert_all`: Configure Both Alert Recipes
+
+`alert_all` is a composite work-order template, not an additional FortiAIGate
+protection type. Configure both entries listed under **Guard Protections** on
+the same named AI Guard:
+
+1. `inject_alert`
+
+2. `output_dlp_alert`
+
+The passthrough guard is the exception: its template is `no_protections`, so
+no prompt-injection or DLP protection is enabled.
+
 ## 5. Create The Scenario Flow
 
 Create the flow after Test Model succeeds and the protection settings are
@@ -232,7 +253,7 @@ saved:
 
 | Field | Value |
 |---|---|
-| Flow name | `{{flow_name}}` |
+| Flow Name | `{{flow_name}}` |
 | URI | `{{scenario_path}}` |
 | AI Guard | `{{guard_name}}` |
 | Client API-key validation | Disabled for the normal isolated lab |
@@ -268,19 +289,20 @@ Redact objects remain unchanged. The matrix adds this dedicated object:
 | Field | Generated value |
 |---|---|
 | Scenario | `{{scenario_id}}` |
-| Action | `detect` |
-| Flow | `{{scenario_id}}-faig-chain` |
+| Action | `chain` |
+| Flow Name | `{{scenario_id}}-faig-chain` |
 | Configured URI | `/v1/{{scenario_id}}/faig-chain/*` |
 | Guard Name | `{{scenario_id}}_faig_chain` |
-| Guard Template | `detect_only` |
+| Guard Template | `alert_all` |
+| Guard Protections | `inject_alert`, `output_dlp_alert` |
 | Next-hop Model | `{{scenario_id}}-faig-chain` |
 
 Create the dedicated flow and guard from that row. The new flow points to the
 new guard, and the guard points to the generated `{{scenario_id}}-faig-chain`
 LiteLLM model. That model injects the scenario instructions and re-enters only
 through the global `/v1/passthrough/*` flow, which terminates at `pass-model`.
-The dedicated guard uses detection without enforcement by default so the
-operator can observe the complete re-entry demonstration.
+The dedicated guard alerts without enforcement by default so the operator can
+observe the complete re-entry demonstration.
 
 Never point the passthrough guard or the chain's downstream model back to a
 `*-faig-chain` alias. That creates a request loop.
@@ -289,9 +311,9 @@ Never point the passthrough guard or the chain's downstream model back to a
 >
 > Expected filename: `images/fortiaigate/faig-scenario-chain-enabled.png`
 >
-> Caption: Configure the dedicated detect-only flow and guard for a loop-safe FAIG re-entry demonstration.
+> Caption: Configure the dedicated alerting flow and guard for a loop-safe FAIG re-entry demonstration.
 >
-> Capture: The opted-in work-order row and dedicated guard showing `{{scenario_id}}_faig_chain`, `detect_only`, and next-hop model `{{scenario_id}}-faig-chain`. Include the dedicated `/v1/{{scenario_id}}/faig-chain/*` flow or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
+> Capture: The opted-in work-order row and dedicated guard showing `{{scenario_id}}_faig_chain`, `alert_all`, both Guard Protections, and next-hop model `{{scenario_id}}-faig-chain`. Include the dedicated `/v1/{{scenario_id}}/faig-chain/*` flow or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
 
 ## 7. Validate The Active Path
 

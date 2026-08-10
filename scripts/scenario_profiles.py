@@ -694,17 +694,19 @@ def baseline_profile_validation(
         errors.append("matrix.entry_points must be a non-empty list")
         entry_points = []
     entry_actions: list[str] = []
-    entry_templates: dict[str, str] = {}
     valid_guard_templates = {
-        "detect_only",
-        "protect_input",
-        "output_dlp_redact",
+        "no_protections",
+        "inject_alert",
+        "inject_deny",
+        "output_dlp_alert",
         "output_dlp_deny",
+        "output_dlp_redact",
+        "alert_all",
         "input_dlp",
     }
     valid_templates_by_action = {
-        "alert": {"detect_only"},
-        "deny": {"protect_input", "output_dlp_deny"},
+        "alert": {"inject_alert", "output_dlp_alert", "alert_all"},
+        "deny": {"inject_deny", "output_dlp_deny"},
         "redact": {"output_dlp_redact"},
         "redact-dummy": {"input_dlp"},
     }
@@ -727,14 +729,18 @@ def baseline_profile_validation(
         )
         action = str(entry_point.get("action") or "")
         entry_actions.append(action)
-        entry_templates[action] = str(entry_point.get("guard_template") or "")
         if action not in {"alert", "deny", "redact", "redact-dummy"}:
             errors.append(f"matrix.entry_points[{index}].action is invalid")
         if not isinstance(entry_point.get("display_name"), str) or not entry_point["display_name"].strip():
             errors.append(f"matrix.entry_points[{index}].display_name must be non-empty")
-        if entry_point.get("guard_template") not in valid_guard_templates:
-            errors.append(f"matrix.entry_points[{index}].guard_template is invalid")
-        elif entry_point.get("guard_template") not in valid_templates_by_action.get(action, set()):
+        guard_template = entry_point.get("guard_template")
+        if guard_template not in valid_guard_templates:
+            errors.append(
+                f"matrix.entry_points[{index}].guard_template "
+                f"{guard_template!r} is invalid; use a current Alert, Deny, or "
+                "Redact guard template"
+            )
+        elif guard_template not in valid_templates_by_action.get(action, set()):
             errors.append(
                 f"matrix.entry_points[{index}].guard_template is invalid for action {action}"
             )
@@ -751,8 +757,6 @@ def baseline_profile_validation(
         )
     if entry_actions.count("alert") != 1:
         errors.append("matrix.entry_points must contain exactly one alert action")
-    elif entry_templates.get("alert") != "detect_only":
-        errors.append("the alert entry point must use guard_template detect_only")
 
     frontend_profiles = matrix.get("frontend_instruction_profiles")
     if not isinstance(frontend_profiles, list) or not frontend_profiles:

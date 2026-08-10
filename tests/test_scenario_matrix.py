@@ -81,7 +81,7 @@ def scenario_preview(
                 "route": f"{scenario_id}-alert",
                 "suggested_flow_name": f"{scenario_id}-alert",
                 "suggested_guard_name": f"{scenario_id}_alert",
-                "guard_template": "detect_only",
+                "guard_template": "inject_alert",
                 "guard_next_hop_model": scenario_id,
                 "expected_behavior": "Allow and log.",
                 "required_for_release": True,
@@ -314,21 +314,25 @@ class ScenarioMatrixTests(unittest.TestCase):
             "fortistore-injection",
         )
         self.assertEqual(
-            work_order["detect"]["suggested_flow_name"],
+            work_order["chain"]["suggested_flow_name"],
             "fortistore-injection-faig-chain",
         )
         self.assertEqual(
-            work_order["detect"]["uri"],
+            work_order["chain"]["uri"],
             "/v1/fortistore-injection/faig-chain",
         )
         self.assertEqual(
-            work_order["detect"]["suggested_guard_name"],
+            work_order["chain"]["suggested_guard_name"],
             "fortistore-injection_faig_chain",
         )
-        self.assertEqual(work_order["detect"]["guard_template"], "detect_only")
-        self.assertTrue(work_order["detect"]["required_for_release"])
+        self.assertEqual(work_order["chain"]["guard_template"], "alert_all")
         self.assertEqual(
-            work_order["detect"]["guard_next_hop_model"],
+            work_order["chain"]["guard_protections"],
+            ["inject_alert", "output_dlp_alert"],
+        )
+        self.assertTrue(work_order["chain"]["required_for_release"])
+        self.assertEqual(
+            work_order["chain"]["guard_next_hop_model"],
             "fortistore-injection-faig-chain",
         )
         chain_route = next(
@@ -343,7 +347,11 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.assertEqual(chain_route["model"], "fortistore-injection-faig-chain")
         self.assertEqual(
             matrix["faig_chains"][0]["guard_template"],
-            "detect_only",
+            "alert_all",
+        )
+        self.assertEqual(
+            matrix["faig_chains"][0]["guard_protections"],
+            ["inject_alert", "output_dlp_alert"],
         )
         self.assertEqual(matrix["faig_chains"][0]["reentry_uri"], "/v1/passthrough")
         self.assertEqual(matrix["faig_chains"][0]["downstream_model"], "pass-model")
@@ -412,10 +420,11 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.assertIn("Installed scenario objects: 1", terminal_work_order)
         self.assertIn("Scenario: fortistore-injection", terminal_work_order)
         self.assertIn("Action: alert", terminal_work_order)
-        self.assertIn("Flow: fortistore-injection-alert", terminal_work_order)
+        self.assertIn("Flow Name: fortistore-injection-alert", terminal_work_order)
         self.assertIn("Configured URI: /v1/fortistore-injection/alert/*", terminal_work_order)
         self.assertIn("Guard Name: fortistore-injection_alert", terminal_work_order)
-        self.assertIn("Guard Template: detect_only", terminal_work_order)
+        self.assertIn("Guard Template: inject_alert", terminal_work_order)
+        self.assertIn("Guard Protections: inject_alert", terminal_work_order)
         self.assertIn("Next-hop Model: fortistore-injection", terminal_work_order)
         self.assertNotIn("| Scenario |", terminal_work_order)
         self.assertNotIn("Warnings:", terminal_work_order)

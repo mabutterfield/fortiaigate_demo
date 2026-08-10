@@ -47,14 +47,14 @@ class LocalScenarioStoreTests(unittest.TestCase):
                             {
                                 "action": "alert",
                                 "display_name": "Alert",
-                                "guard_template": "detect_only",
+                                "guard_template": "inject_alert",
                                 "expected_behavior": "Allow and log.",
                                 "required_for_release": True,
                             },
                             {
                                 "action": "deny",
                                 "display_name": "Deny",
-                                "guard_template": "protect_input",
+                                "guard_template": "inject_deny",
                                 "expected_behavior": "Protect input.",
                                 "required_for_release": True,
                             },

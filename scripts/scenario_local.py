@@ -13,6 +13,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+try:
+    import scenario_matrix
+except ModuleNotFoundError:
+    from scripts import scenario_matrix
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_ROOT = REPO_ROOT / "chatbot" / "scenarios"
@@ -558,7 +563,10 @@ class LocalScenarioStore:
             "## Global Controls",
             "",
             "- LiteLLM passthrough alias: `pass-model`",
+            "- FAIG passthrough Flow Name: `passthrough`",
             "- FAIG passthrough configured URI: `/v1/passthrough/*`",
+            "- FAIG passthrough Guard Name: `pass_model`",
+            "- FAIG passthrough Guard Template: `no_protections`",
             "- Behavior: no scenario instructions",
             "",
             "## Installed Scenarios",
@@ -576,8 +584,8 @@ class LocalScenarioStore:
                     f"- Underlying target: `{scenario['llm_target']}`",
                     f"- Local profile: `{scenario['local_profile']}`",
                     "",
-                    "| Action | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
-                    "|---|---|---|---|---|---|---|---|",
+                    "| Action | Flow Name | Configured URI | Guard Name | Guard Template | Guard Protections | Next-hop Model | Required | Expected Behavior |",
+                    "|---|---|---|---|---|---|---|---|---|",
                 ]
             )
             for entry_point in scenario["entry_points"]:
@@ -589,8 +597,15 @@ class LocalScenarioStore:
                             f"`{entry_point['suggested_flow_name']}`",
                             f"`{entry_point['uri']}/*`",
                             f"`{entry_point['suggested_guard_name']}`",
-                            f"`{entry_point['guard_next_hop_model']}`",
                             f"`{entry_point['guard_template']}`",
+                            ", ".join(
+                                f"`{protection}`"
+                                for protection in scenario_matrix.guard_template_components(
+                                    entry_point["guard_template"]
+                                )
+                            )
+                            or "none",
+                            f"`{entry_point['guard_next_hop_model']}`",
                             "yes" if entry_point["required_for_release"] else "no",
                             entry_point["expected_behavior"].replace("|", "\\|"),
                         ]

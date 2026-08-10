@@ -33,8 +33,8 @@
       {
         "action": "alert",
         "display_name": "Alert",
-        "guard_template": "detect_only",
-        "expected_behavior": "Allow scenario traffic and log detections without modifying sensitive tool results or model output.",
+        "guard_template": "output_dlp_alert",
+        "expected_behavior": "Allow scenario traffic and log output DLP alerts without modifying sensitive tool results or model output.",
         "required_for_release": true
       },
       {
@@ -206,7 +206,7 @@
         "flow": "/v1/hr-tool-dlp/alert/*",
         "guard": "hr-tool-dlp_alert",
         "request_model": "hr-tool-dlp",
-        "expected_behavior": "Allow the response and log detections without modifying content."
+        "expected_behavior": "Allow the response and log output DLP alerts without modifying content."
       },
       {
         "route": "deny",

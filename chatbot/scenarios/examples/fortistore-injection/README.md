@@ -43,10 +43,10 @@ Tune only the ignored installed copy under
 
 ## Generated Objects
 
-| Action | Flow | Configured URI | Guard | Template | Next-hop model |
+| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
-| Alert | `fortistore-injection-alert` | `/v1/fortistore-injection/alert/*` | `fortistore-injection_alert` | `detect_only` | `fortistore-injection` |
-| Deny | `fortistore-injection-deny` | `/v1/fortistore-injection/deny/*` | `fortistore-injection_deny` | `protect_input` | `fortistore-injection` |
+| Alert | `fortistore-injection-alert` | `/v1/fortistore-injection/alert/*` | `fortistore-injection_alert` | `inject_alert` | `fortistore-injection` |
+| Deny | `fortistore-injection-deny` | `/v1/fortistore-injection/deny/*` | `fortistore-injection_deny` | `inject_deny` | `fortistore-injection` |
 
 Use [Scenario GUI Configuration](../../../../docs/fortiaigate-gui-config.md)
 with this variable resolution:
@@ -58,7 +58,7 @@ with this variable resolution:
 | `{{flow_name}}` | `fortistore-injection-{{action}}` |
 | `{{scenario_path}}` | `/v1/fortistore-injection/{{action}}/*` |
 | `{{guard_name}}` | `fortistore-injection_{{action}}` |
-| `{{guard_template}}` | Alert: `detect_only`; Deny: `protect_input` |
+| `{{guard_template}}` | Alert: `inject_alert`; Deny: `inject_deny` |
 | `{{faig_chain_enabled}}` | `false` |
 
 ## Simplified Demo
@@ -96,7 +96,7 @@ repeatable LLM Direct → Baseline → Alert → Deny presentation.
 
 ## Action Behavior
 
-- Alert uses prompt-injection detection and logging without enforcement.
+- Alert uses prompt-injection inspection and logging without enforcement.
 - Deny inspects the complete input and blocks explicit instruction-control
   attacks before the compromised frontend can cause disclosure or token spend.
 - Redact is not defined for this scenario.

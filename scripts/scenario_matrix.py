@@ -11,8 +11,25 @@ from typing import Any
 MATRIX_SCHEMA_VERSION = 1
 FAIG_PASSTHROUGH_URI = "/v1/passthrough"
 FAIG_CHAIN_LLM_TARGET = "faig-chain-reentry"
-FAIG_CHAIN_ACTION = "detect"
-FAIG_CHAIN_GUARD_TEMPLATE = "detect_only"
+FAIG_CHAIN_ACTION = "chain"
+FAIG_CHAIN_GUARD_TEMPLATE = "alert_all"
+PASSTHROUGH_GUARD_TEMPLATE = "no_protections"
+
+GUARD_TEMPLATE_COMPONENTS = {
+    "no_protections": [],
+    "inject_alert": ["inject_alert"],
+    "inject_deny": ["inject_deny"],
+    "output_dlp_alert": ["output_dlp_alert"],
+    "output_dlp_deny": ["output_dlp_deny"],
+    "output_dlp_redact": ["output_dlp_redact"],
+    "alert_all": ["inject_alert", "output_dlp_alert"],
+    "input_dlp": ["input_dlp"],
+}
+
+
+def guard_template_components(template: str) -> list[str]:
+    """Return the concrete FAIG protection recipes for a named template."""
+    return list(GUARD_TEMPLATE_COMPONENTS.get(template, [template]))
 
 
 class ScenarioMatrixError(RuntimeError):
@@ -284,15 +301,18 @@ def build_scenario_matrix(
                 {
                     "scenario_id": scenario_id,
                     "action": FAIG_CHAIN_ACTION,
-                    "display_name": "FAIG Chain - Detect",
+                    "display_name": "FAIG Chain - Alert",
                     "uri": chain_uri,
                     "route": chain_route_name,
                     "suggested_flow_name": chain_route_name,
                     "suggested_guard_name": f"{scenario_id}_faig_chain",
                     "guard_template": FAIG_CHAIN_GUARD_TEMPLATE,
+                    "guard_protections": guard_template_components(
+                        FAIG_CHAIN_GUARD_TEMPLATE
+                    ),
                     "guard_next_hop_model": chain_model_alias,
                     "expected_behavior": (
-                        "Detect and log at the dedicated chain guard, then send the "
+                        "Alert and log at the dedicated chain guard, then send the "
                         "request to the scenario FAIG-chain model for instruction "
                         "injection and loop-safe re-entry through passthrough."
                     ),
@@ -308,6 +328,9 @@ def build_scenario_matrix(
                     "flow_name": chain_route_name,
                     "guard_name": f"{scenario_id}_faig_chain",
                     "guard_template": FAIG_CHAIN_GUARD_TEMPLATE,
+                    "guard_protections": guard_template_components(
+                        FAIG_CHAIN_GUARD_TEMPLATE
+                    ),
                     "reentry_uri": faig_chain_reentry_uri,
                     "downstream_model": "pass-model",
                     "topology": [
@@ -335,6 +358,9 @@ def build_scenario_matrix(
             }
             chatbot_faig_routes.append(route)
             work_order_entry = {"scenario_id": scenario_id, **entry_point}
+            work_order_entry["guard_protections"] = guard_template_components(
+                str(work_order_entry["guard_template"])
+            )
             work_order.append(work_order_entry)
 
         mcp = scenario.get("mcp", {})
@@ -514,7 +540,10 @@ def render_work_order(matrix: dict[str, Any]) -> str:
         "## Global Controls",
         "",
         "- LiteLLM passthrough alias: `pass-model`",
+        "- FAIG passthrough Flow Name: `passthrough`",
         "- FAIG passthrough configured URI: `/v1/passthrough/*`",
+        "- FAIG passthrough Guard Name: `pass_model`",
+        f"- FAIG passthrough Guard Template: `{PASSTHROUGH_GUARD_TEMPLATE}`",
         "- Behavior: no scenario instructions",
         f"- FAIG chain capability: `{'available' if matrix.get('capabilities', {}).get('faig_chain_available') else 'disabled'}`",
         "",
@@ -527,8 +556,8 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Action | Flow | Configured URI | Guard Name | Guard Template | Next-hop Model | Required | Expected Behavior |",
-                "|---|---|---|---|---|---|---|---|---|",
+                "| Scenario | Action | Flow Name | Configured URI | Guard Name | Guard Template | Guard Protections | Next-hop Model | Required | Expected Behavior |",
+                "|---|---|---|---|---|---|---|---|---|---|",
             ]
         )
         for entry in work_order:
@@ -542,6 +571,11 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                         f"`{entry['uri']}/*`",
                         f"`{entry['suggested_guard_name']}`",
                         f"`{entry['guard_template']}`",
+                        ", ".join(
+                            f"`{protection}`"
+                            for protection in entry["guard_protections"]
+                        )
+                        or "none",
                         f"`{entry['guard_next_hop_model']}`",
                         "yes" if entry["required_for_release"] else "no",
                         str(entry["expected_behavior"]).replace("|", "\\|"),
@@ -571,15 +605,19 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Flow | Guard Name | Guard Template | Next-hop Model | Re-entry URI | Downstream Model |",
-                "|---|---|---|---|---|---|---|",
+                "| Scenario | Flow Name | Guard Name | Guard Template | Guard Protections | Next-hop Model | Re-entry URI | Downstream Model |",
+                "|---|---|---|---|---|---|---|---|",
             ]
         )
         for chain in chains:
             lines.append(
                 f"| `{chain['scenario_id']}` | `{chain['flow_name']}` | "
                 f"`{chain['guard_name']}` | `{chain['guard_template']}` | "
-                f"`{chain['model_alias']}` | `{chain['reentry_uri']}/*` | "
+                + ", ".join(
+                    f"`{protection}`"
+                    for protection in chain["guard_protections"]
+                )
+                + f" | `{chain['model_alias']}` | `{chain['reentry_uri']}/*` | "
                 f"`{chain['downstream_model']}` |"
             )
         lines.extend(
@@ -600,7 +638,10 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
         "",
         "Global controls:",
         "  Passthrough alias: pass-model",
+        "  Passthrough Flow Name: passthrough",
         "  Passthrough URI: /v1/passthrough/*",
+        "  Passthrough Guard Name: pass_model",
+        f"  Passthrough Guard Template: {PASSTHROUGH_GUARD_TEMPLATE}",
         "  Passthrough behavior: no scenario instructions",
         "  FAIG chain capability: "
         + (
@@ -620,10 +661,12 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
                 f"[{index}/{len(work_order)}] Scenario object",
                 f"  Scenario: {entry['scenario_id']}",
                 f"  Action: {entry['action']}",
-                f"  Flow: {entry['suggested_flow_name']}",
+                f"  Flow Name: {entry['suggested_flow_name']}",
                 f"  Configured URI: {entry['uri']}/*",
                 f"  Guard Name: {entry['suggested_guard_name']}",
                 f"  Guard Template: {entry['guard_template']}",
+                "  Guard Protections: "
+                + (", ".join(entry["guard_protections"]) or "none"),
                 f"  Next-hop Model: {entry['guard_next_hop_model']}",
                 f"  Required: {'yes' if entry['required_for_release'] else 'no'}",
                 f"  Expected Behavior: {entry['expected_behavior']}",
@@ -636,10 +679,12 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
         lines.extend(
             [
                 f"  {chain['scenario_id']}: {chain['model_alias']}",
-                f"    Flow: {chain['flow_name']}",
+                f"    Flow Name: {chain['flow_name']}",
                 f"    Configured URI: {chain['entry_uri']}/*",
                 f"    Guard Name: {chain['guard_name']}",
                 f"    Guard Template: {chain['guard_template']}",
+                "    Guard Protections: "
+                + (", ".join(chain["guard_protections"]) or "none"),
                 f"    Re-entry URI: {chain['reentry_uri']}/*",
                 f"    Downstream Model: {chain['downstream_model']}",
             ]

@@ -38,8 +38,8 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
             for entry in self.profile["matrix"]["entry_points"]
         }
         self.assertEqual(set(entry_points), {"alert", "deny"})
-        self.assertEqual(entry_points["alert"]["guard_template"], "detect_only")
-        self.assertEqual(entry_points["deny"]["guard_template"], "protect_input")
+        self.assertEqual(entry_points["alert"]["guard_template"], "inject_alert")
+        self.assertEqual(entry_points["deny"]["guard_template"], "inject_deny")
         self.assertTrue(entry_points["alert"]["required_for_release"])
         self.assertTrue(entry_points["deny"]["required_for_release"])
 

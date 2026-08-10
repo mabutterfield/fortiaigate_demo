@@ -51,8 +51,8 @@ names are:
 |---|---|
 | LiteLLM alias | `<scenario-id>` |
 | FAIG configured URI | `/v1/<scenario-id>/<action>/*` |
-| Flow/route | `<scenario-id>-<action>` |
-| Suggested guard | `<scenario-id>_<action>` |
+| Flow Name/route | `<scenario-id>-<action>` |
+| Guard Name | `<scenario-id>_<action>` |
 | Extended MCP profile | `<scenario-id>-<tool-set-id>` |
 
 ## Backend And Frontend Instructions
@@ -77,8 +77,8 @@ Define only actions used by the security story:
 
 | Action | Guard intent |
 |---|---|
-| `alert` | Detect and record without enforcement; uses `detect_only` |
-| `deny` | Block protected input or output; uses `protect_input` or `output_dlp_deny` |
+| `alert` | Record without enforcement; uses `inject_alert`, `output_dlp_alert`, or composite `alert_all` |
+| `deny` | Block protected input or output; uses `inject_deny` or `output_dlp_deny` |
 | `redact` | Replace protected output and return the safe remainder; uses `output_dlp_redact` |
 | `redact-dummy` | Reserved for a future input-DLP replacement scenario |
 
@@ -130,7 +130,8 @@ profile changes.
 The capability is globally available, while every built-in sets
 `matrix.faig_chain.enabled: false`. An operator-owned local scenario may opt
 in. The generated work order adds a dedicated `faig-chain` flow and
-`detect_only` guard whose `*-faig-chain` model alias re-enters only through
+`alert_all` guard whose concrete protection list is `inject_alert` plus
+`output_dlp_alert`. Its `*-faig-chain` model alias re-enters only through
 global passthrough and terminates at `pass-model`; it does not rewrite normal
 scenario guards. Never route passthrough back to a chain alias.
 

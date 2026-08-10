@@ -37,6 +37,11 @@ a "what's new" guide rather than a raw commit log.
     data boundaries
   - renamed active raw tool fixtures as transcript replays and corrected HR
     and Resume guard boundaries without changing candidate content
+  - aligned guard recipes with FortiAIGate Alert terminology using
+    `inject_alert`, `inject_deny`, `output_dlp_alert`, `output_dlp_deny`, and
+    `output_dlp_redact`; composite `alert_all` expands to both Alert recipes,
+    while passthrough explicitly uses `no_protections`
+  - standardized generated work-order labels as Flow Name and Guard Name
 
 - Split FortiAIGate GUI setup into a minimal initial configuration and a
   reusable scenario workflow:

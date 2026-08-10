@@ -36,9 +36,10 @@ flow names, flow paths, guard names, and model aliases vary by scenario.
 |---|---|
 | LiteLLM endpoint | `{{litellm_url}}`, normally `http://litellm.litellm.svc.cluster.local:4000/v1` |
 | LiteLLM API key | `{{litellm_api_key}}`, the ignored `litellm_master_key` value |
-| Flow name | `passthrough` |
+| Flow Name | `passthrough` |
 | Flow path | `/v1/passthrough/*` |
-| Guard name | `pass_model` |
+| Guard Name | `pass_model` |
+| Guard Template | `no_protections` |
 | Model | `pass-model` |
 
 Never put `{{litellm_api_key}}`, a FortiAIGate API key, passwords, private
@@ -67,7 +68,7 @@ Enter the passthrough flow identity:
 
 | Field | Value |
 |---|---|
-| Flow name | `passthrough` |
+| Flow Name | `passthrough` |
 | Path | `/v1/passthrough/*` |
 
 The wildcard is required. Requests use
@@ -138,7 +139,8 @@ successfully.*
 Leave every protection switch off. This guard provides a full FortiAIGate
 traversal control without prompt-injection, DLP, deny, or redaction behavior.
 It also avoids scenario-specific LiteLLM instructions because `pass-model` is
-the next-hop alias.
+the next-hop alias. The generated work order calls this guard template
+`no_protections`.
 
 ![Disable protections for the passthrough guard](images/fortiaigate/faig-onboarding-protection.png)
 

@@ -347,10 +347,13 @@
         },
         "guard_template": {
           "enum": [
-            "detect_only",
-            "protect_input",
-            "output_dlp_redact",
+            "no_protections",
+            "inject_alert",
+            "inject_deny",
+            "output_dlp_alert",
             "output_dlp_deny",
+            "output_dlp_redact",
+            "alert_all",
             "input_dlp"
           ]
         },

@@ -47,10 +47,10 @@ Tune only the ignored installed package under
 
 ## Generated Objects
 
-| Action | Flow | Configured URI | Guard | Template | Next-hop model |
+| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
-| Alert | `resume-tool-injection-alert` | `/v1/resume-tool-injection/alert/*` | `resume-tool-injection_alert` | `detect_only` | `resume-tool-injection` |
-| Deny | `resume-tool-injection-deny` | `/v1/resume-tool-injection/deny/*` | `resume-tool-injection_deny` | `protect_input` | `resume-tool-injection` |
+| Alert | `resume-tool-injection-alert` | `/v1/resume-tool-injection/alert/*` | `resume-tool-injection_alert` | `inject_alert` | `resume-tool-injection` |
+| Deny | `resume-tool-injection-deny` | `/v1/resume-tool-injection/deny/*` | `resume-tool-injection_deny` | `inject_deny` | `resume-tool-injection` |
 
 Use [Scenario GUI Configuration](../../../../docs/fortiaigate-gui-config.md)
 with this variable resolution:
@@ -62,7 +62,7 @@ with this variable resolution:
 | `{{flow_name}}` | `resume-tool-injection-{{action}}` |
 | `{{scenario_path}}` | `/v1/resume-tool-injection/{{action}}/*` |
 | `{{guard_name}}` | `resume-tool-injection_{{action}}` |
-| `{{guard_template}}` | Alert: `detect_only`; Deny: `protect_input` |
+| `{{guard_template}}` | Alert: `inject_alert`; Deny: `inject_deny` |
 | `{{faig_chain_enabled}}` | `false` |
 
 ## Simplified Demo
@@ -70,7 +70,7 @@ with this variable resolution:
 | Profile | LLM behavior | MCP tool profile |
 |---|---|---|
 | `Resume Tool Injection - LLM Direct` | No FAIG inspection | `resume-tool-injection-cloud-pivot` |
-| `Resume Tool Injection - Alert` | Detect/log; allow pivot | `resume-tool-injection-cloud-pivot` |
+| `Resume Tool Injection - Alert` | Alert/log; allow pivot | `resume-tool-injection-cloud-pivot` |
 | `Resume Tool Injection - Deny` | Block poisoned tool result before pivot | `resume-tool-injection-cloud-pivot` |
 
 All three use alias `resume-tool-injection`, Current Prompt context, and up to

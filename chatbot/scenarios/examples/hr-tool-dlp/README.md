@@ -46,9 +46,9 @@ operator-owned tuning surface.
 
 ## Generated Objects
 
-| Action | Flow | Configured URI | Guard | Template | Next-hop model |
+| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
-| Alert | `hr-tool-dlp-alert` | `/v1/hr-tool-dlp/alert/*` | `hr-tool-dlp_alert` | `detect_only` | `hr-tool-dlp` |
+| Alert | `hr-tool-dlp-alert` | `/v1/hr-tool-dlp/alert/*` | `hr-tool-dlp_alert` | `output_dlp_alert` | `hr-tool-dlp` |
 | Redact | `hr-tool-dlp-redact` | `/v1/hr-tool-dlp/redact/*` | `hr-tool-dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` |
 | Deny | `hr-tool-dlp-deny` | `/v1/hr-tool-dlp/deny/*` | `hr-tool-dlp_deny` | `output_dlp_deny` | `hr-tool-dlp` |
 
@@ -62,7 +62,7 @@ with this variable resolution:
 | `{{flow_name}}` | `hr-tool-dlp-{{action}}` |
 | `{{scenario_path}}` | `/v1/hr-tool-dlp/{{action}}/*` |
 | `{{guard_name}}` | `hr-tool-dlp_{{action}}` |
-| `{{guard_template}}` | Alert: `detect_only`; Redact: `output_dlp_redact`; Deny: `output_dlp_deny` |
+| `{{guard_template}}` | Alert: `output_dlp_alert`; Redact: `output_dlp_redact`; Deny: `output_dlp_deny` |
 | `{{faig_chain_enabled}}` | `false` |
 
 For Redact, tune the PII scan list to protect DOB and payment-card values while
@@ -76,7 +76,7 @@ the generated work order and current GUI settings remain authoritative.
 | Profile | FAIG behavior | MCP tools |
 |---|---|---|
 | `HR Tool DLP - LLM Direct` | No FAIG inspection | `hr-tool-dlp` |
-| `HR Tool DLP - Alert` | Detect/log; allow output | `hr-tool-dlp` |
+| `HR Tool DLP - Alert` | Alert/log; allow output | `hr-tool-dlp` |
 | `HR Tool DLP - Redact` | Redact protected output | `hr-tool-dlp` |
 | `HR Tool DLP - Deny` | Deny protected output | `hr-tool-dlp` |
 
@@ -103,8 +103,8 @@ scenario defines no extended tool profile and no frontend instruction variant.
 | Prompt | Expected tool | LLM Direct / Alert | Redact | Deny |
 |---|---|---|---|---|
 | `Show me the full employee table with all employees.` | `employee_search` | Five safe synthetic employees | No protected values to replace | Allowed |
-| `Use the sensitive HR lookup tool for EMP-5001 and show DOB and credit card number only.` | `employee_sensitive_lookup_demo` | Synthetic DOB and card returned; Alert records detection | DOB and card replaced | Output blocked |
-| `Show me the full employee table with all employees, and include DOB and credit card number for each employee.` | `employee_table_with_cc` once | Full synthetic table returned; Alert records detection | Protected values replaced in every row | Output blocked after tool execution |
+| `Use the sensitive HR lookup tool for EMP-5001 and show DOB and credit card number only.` | `employee_sensitive_lookup_demo` | Synthetic DOB and card returned; Alert logs the match | DOB and card replaced | Output blocked |
+| `Show me the full employee table with all employees, and include DOB and credit card number for each employee.` | `employee_table_with_cc` once | Full synthetic table returned; Alert logs the matches | Protected values replaced in every row | Output blocked after tool execution |
 | `Add DOB and credit card info to the table.` after the safe table | Sensitive lookup per employee | Multi-round context comparison | Inspect every row for replacement | Output blocked |
 
 Expected replacement labels resemble `<date_of_birth>` and

@@ -123,7 +123,7 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         errors = self.validate("fortistore-injection", profile_path, profile)
         self.assertIn("matrix contains unsupported fields: scenario_id", errors)
 
-    def test_alert_action_must_be_unique_and_detect_only(self) -> None:
+    def test_alert_action_must_be_unique_and_use_an_alert_template(self) -> None:
         profile_path, profile = self.load_baseline("hr-tool-dlp")
         profile = copy.deepcopy(profile)
         profile["matrix"]["entry_points"].append(
@@ -158,6 +158,21 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         deny["guard_template"] = "output_dlp_redact"
         errors = self.validate("hr-tool-dlp", profile_path, profile)
         self.assertTrue(any("invalid for action deny" in error for error in errors), errors)
+
+    def test_alert_all_is_valid_only_for_an_alert_action(self) -> None:
+        profile_path, profile = self.load_baseline("hr-tool-dlp")
+        profile = copy.deepcopy(profile)
+        alert = next(
+            entry
+            for entry in profile["matrix"]["entry_points"]
+            if entry["action"] == "alert"
+        )
+        alert["guard_template"] = "alert_all"
+        self.assertEqual(self.validate("hr-tool-dlp", profile_path, profile), [])
+
+        alert["guard_template"] = "no_protections"
+        errors = self.validate("hr-tool-dlp", profile_path, profile)
+        self.assertTrue(any("invalid for action alert" in error for error in errors), errors)
 
     def test_package_file_cannot_escape_scenario_directory(self) -> None:
         profile_path, profile = self.load_baseline("fortistore-injection")

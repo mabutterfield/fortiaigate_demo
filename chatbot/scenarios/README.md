@@ -40,8 +40,8 @@ proxy is installed and usable, with Direct MCP as the fallback.
 The optional FAIG re-entry chain is globally available. Built-in packages keep
 it disabled with `matrix.faig_chain.enabled: false`; changing that value is an
 operator-owned local customization. Enabling it generates a separate
-`faig-chain` flow and `detect_only` guard; the scenario's normal action paths
-are not rewritten.
+`faig-chain` flow and `alert_all` guard, expanded as `inject_alert` plus
+`output_dlp_alert`; the scenario's normal action paths are not rewritten.
 
 ## Local Scenario Lifecycle
 
