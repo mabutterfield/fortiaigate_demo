@@ -3,7 +3,7 @@
 This guide turns an installed scenario's generated work order into reusable
 FortiAIGate 8.x GUI objects. Complete
 [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) first so the
-LiteLLM provider and global passthrough flow already work.
+LiteLLM connection values and global passthrough flow already work.
 
 The generated work order is authoritative for names, paths, model aliases, and
 guard templates. Screenshots use `{{variable}}` values so the same walkthrough
@@ -18,11 +18,11 @@ export FAIG_INVENTORY=cloud
 export FAIG_HOST_ALIAS=faig-aws
 # or
 export FAIG_INVENTORY=local
-export FAIG_HOST_ALIAS=jarvis
+export FAIG_HOST_ALIAS={{ubuntu-hostname}}
 ```
 
-For local mode, replace `jarvis` with the host alias selected during
-`local_setup.py` when it differs.
+For local mode, use the Ubuntu hostname recorded as the host alias by
+`local_setup.py`.
 
 ## 1. Generate And Read The Work Order
 
@@ -34,8 +34,16 @@ python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
-The command writes an ignored Markdown file under
-`docs/raw-output/scenario-work-orders/` and prints its path. Re-render it after
+The command first prints a terminal-friendly object list. Each numbered entry
+shows one scenario/action and its Flow, Configured URI, Guard, Next-hop model,
+Guard template, requirement state, and expected behavior. It then prints the
+path to the ignored formatted Markdown version:
+
+```text
+Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
+```
+
+Open the Markdown file when reviewing the complete table. Re-render after
 installing, updating, removing, or locally tuning a scenario.
 
 Map one row at a time:
@@ -61,9 +69,9 @@ makes troubleshooting and telemetry correlation substantially easier.
 >
 > Expected filename: `images/fortiaigate/faig-scenario-work-order-map.png`
 >
-> Caption: Map `{{scenario_id}}`, `{{action}}`, `{{scenario_path}}`, `{{guard_name}}`, and `{{model_alias}}` into FortiAIGate objects.
+> Caption: Map the generated terminal work-order entry into FortiAIGate objects.
 >
-> Capture: A tightly cropped rendered work-order row or terminal view using literal synthetic `{{variable}}` values. Include the guard template and expected behavior; exclude local paths, warnings containing addresses, and unrelated scenarios.
+> Capture: A tightly cropped terminal work-order entry showing one numbered scenario/action with Flow, Configured URI, Guard, Next-hop model, Guard template, and Expected fields. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
 
 ## Request-Path Model
 
@@ -88,19 +96,18 @@ messages and are included in the next LLM request. A prompt-injection Deny
 guard must inspect those tool-role messages to stop a poisoned document before
 the model selects another tool.
 
-## 2. Reuse The LiteLLM Provider
+## 2. Confirm The LiteLLM Alias
 
-Use the `litellm` OpenAI-compatible provider created during initial
-configuration. Confirm the scenario model alias is visible before building the
-guard:
+Confirm the scenario model alias is available through LiteLLM before building
+the guard:
 
 ```bash
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_litellm_direct.yml
 ```
 
-Create or select `{{model_alias}}` under that provider. For normal scenario
-paths it equals `{{scenario_id}}`; do not substitute the underlying Bedrock or
-Ollama model ID. LiteLLM owns that final mapping and instruction injection.
+For normal scenario paths `{{model_alias}}` equals `{{scenario_id}}`; do not
+substitute the underlying Bedrock or Ollama model ID. LiteLLM owns that final
+mapping and instruction injection.
 
 ## 3. Create The Scenario Guard
 
@@ -109,9 +116,25 @@ Create one guard for each work-order row:
 | Field | Value |
 |---|---|
 | Guard name | `{{guard_name}}` |
-| Provider | `litellm` |
+| Provider | `OpenAI` |
 | Model | `{{model_alias}}` |
+| Private endpoint | Enabled |
+| Endpoint | `{{litellm_url}}` |
+| API key | `{{litellm_api_key}}` |
+| Token pricing | Enabled |
+| Input/output token costs | The same demonstration values used for `pass_model` |
 | Protection behavior | `{{guard_template}}` |
+
+FortiAIGate configures the model connection per guard. Select `OpenAI`, turn on
+**Private endpoint**, and put the shared LiteLLM URL in the field labeled
+**Endpoint**. Use the same ignored LiteLLM provider key configured during
+initial setup. Do not create or rely on a separate global `litellm` provider
+object.
+
+Enter input and output token costs for each guard. These values drive only the
+FortiAIGate GUI's demonstration cost calculations, so made-up values are fine.
+Use a consistent pricing policy across the scenario guards when you want the
+dashboard comparison to be meaningful.
 
 Different actions for the same scenario normally share the same model alias.
 The guard policy—not a different backend instruction set—creates the Alert,
@@ -121,9 +144,29 @@ Deny, or Redact comparison.
 >
 > Expected filename: `images/fortiaigate/faig-scenario-guard-base.png`
 >
-> Caption: Create `{{guard_name}}` and select `{{model_alias}}` as its next hop.
+> Caption: Create `{{guard_name}}`, configure its OpenAI private LiteLLM Endpoint and display pricing, and select `{{model_alias}}` as its next hop.
 >
-> Capture: The guard identity/provider page with literal `{{guard_name}}` and `{{model_alias}}` values where free-text fields permit them. Keep the LiteLLM key masked.
+> Capture: The guard page with literal `{{guard_name}}` and `{{model_alias}}` values where free-text fields permit them, OpenAI selected, Private endpoint enabled, `{{litellm_url}}` in Endpoint, and demonstration token costs populated. Keep the LiteLLM key masked.
+
+### Test Model Connectivity
+
+Click **Test Model** before configuring protection. This test checks only the
+API key, model alias, endpoint, and connectivity from FortiAIGate to LiteLLM.
+It does not exercise the guard's Alert, Deny, or Redact policy and does not
+validate a scenario fixture.
+
+Use a short synthetic prompt and correct the connection fields until the model
+test succeeds.
+
+> **Screenshot placeholder — `faig-scenario-guard-test`**
+>
+> Expected filename: `images/fortiaigate/faig-scenario-guard-test.png`
+>
+> Caption: Confirm the scenario guard's API key, model alias, Endpoint, and connectivity with Test Model.
+>
+> Capture: A successful Test Model result with `{{guard_name}}` and `{{model_alias}}` visible. Use a short synthetic prompt and omit provider credentials and private endpoints.
+
+## 4. Configure The Protection
 
 ### `detect_only`: Alert Without Enforcement
 
@@ -158,9 +201,9 @@ poisoned content before the model can follow it or select a prohibited tool.
 ### `output_dlp_deny`: Deny Sensitive Output
 
 Enable the scenario's required output DLP patterns and set the output action to
-deny. The active HR demonstration uses synthetic date-of-birth and payment-card
-patterns. Scenario documentation supplies the exact tuning; this shared guide
-does not invent additional protected fields.
+deny. Remove or disable `first_name`, `last_name`, `city`, and `state`; those
+broad matches create noise in this demo. The scenario work order and runbook
+provide the remaining detector settings.
 
 > **Screenshot placeholder — `faig-scenario-output-dlp-deny`**
 >
@@ -168,7 +211,7 @@ does not invent additional protected fields.
 >
 > Caption: Configure output DLP to deny responses containing the selected sensitive-data patterns.
 >
-> Capture: The output DLP page with representative synthetic DOB/payment-card detectors and the deny action visible. Do not include real personal data in test fields.
+> Capture: The output DLP page with the scenario-required detectors and deny action visible; show that `first_name`, `last_name`, `city`, and `state` are not selected. Do not include real personal data in test fields.
 
 ### `output_dlp_redact`: Redact Sensitive Output
 
@@ -184,33 +227,10 @@ remainder of the response is returned. Do not treat input-DLP or the future
 >
 > Capture: The output DLP page using the same representative patterns as Deny, with redact selected and the replacement behavior visible if configurable.
 
-## 4. Test The Guard In The GUI
-
-Before creating the flow, use FortiAIGate's built-in AI Guard test. Use the
-exact scenario prompt from its metadata. For document/tool injection, use the
-preconstructed synthetic transcript only to test guard inspection; it does not
-prove a live MCP call occurred.
-
-Expected results:
-
-| Template | GUI test result |
-|---|---|
-| `detect_only` | Detection recorded; request/response allowed |
-| `protect_input` | Injection detected; input denied or blocked |
-| `output_dlp_deny` | Protected output detected; response denied |
-| `output_dlp_redact` | Protected output detected; matching values redacted |
-
-> **Screenshot placeholder — `faig-scenario-guard-test`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-guard-test.png`
->
-> Caption: Test `{{guard_name}}` with the scenario fixture and confirm the expected `{{action}}` result.
->
-> Capture: The AI Guard test result with detector, action, and disposition visible. Use only synthetic prompt/transcript content and omit provider credentials.
-
 ## 5. Create The Scenario Flow
 
-Create the flow after its guard passes the GUI test:
+Create the flow after Test Model succeeds and the protection settings are
+saved:
 
 | Field | Value |
 |---|---|
@@ -219,7 +239,7 @@ Create the flow after its guard passes the GUI test:
 | AI Guard | `{{guard_name}}` |
 | Client API-key validation | Disabled for the normal isolated lab |
 
-The configured path must end in `/*`. The chatbot and future generated curl
+The configured path must end in `/*`. The chatbot and generated curl
 tests send the OpenAI-compatible request to `{{request_path}}`. Create specific
 scenario routes rather than a generic `/v1/*` fallback.
 
@@ -261,20 +281,28 @@ Never point the passthrough guard or the chain's downstream model back to a
 >
 > Capture: An opted-in scenario guard showing `{{scenario_id}}-faig-chain`, alongside the work-order chain row or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
 
-## 7. Deploy The Guard And Flow
+## 7. Validate The Active Path
 
-Review and deploy/apply the new objects. A scenario is not ready merely because
-the draft guard or flow exists in the GUI.
+The guard and flow are active when created; there is no separate deployment
+step. Validate the configured scenario immediately:
 
-> **Screenshot placeholder — `faig-scenario-deploy`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-deploy.png`
->
-> Caption: Deploy the new `{{action}}` guard and flow.
->
-> Capture: The deployment review or success page listing `{{flow_name}}` and `{{guard_name}}`. If it is visually identical to the initial deployment screen, the initial image may be reused instead.
+```bash
+python3 -m functional_test validate \
+  --inventory "$FAIG_INVENTORY" \
+  --host-alias "$FAIG_HOST_ALIAS" \
+  --scenario-id {{scenario_id}}
+```
 
-## 8. Select The Chatbot Profile And Validate
+The validator selects the declared chatbot profile automatically and checks
+the complete scenario behavior, including Alert, Deny, Redact, frontend
+instructions, MCP calls, FortiWeb transport, and forbidden-tool boundaries as
+applicable. A successful run ends with `INSTALLATION READY`; a mismatch exits
+nonzero with the failed path and expected result.
+
+Use `python3 -m functional_test render-curl` only for a direct-flow diagnostic.
+It does not prove the chatbot agent or MCP server executed the exchange.
+
+## 8. Select The Chatbot Profile
 
 In Simplified mode, choose the scenario's named profile. One profile selects
 the LLM route, model alias, frontend instructions, MCP transport, scenario tool
@@ -296,47 +324,32 @@ profile, and tool-round limit together.
 >
 > Capture: A selected MCP-enabled scenario profile with its resolved summary visible. Use synthetic endpoint labels and avoid credentials.
 
-Advanced mode permits intentional comparison changes without editing scenario
+Detailed mode permits intentional comparison changes without editing scenario
 metadata:
 
-> **Screenshot placeholder — `chatbot-advanced-llm-controls`**
+> **Screenshot placeholder — `chatbot-detailed-llm-controls`**
 >
-> Expected filename: `images/fortiaigate/chatbot-advanced-llm-controls.png`
+> Expected filename: `images/fortiaigate/chatbot-detailed-llm-controls.png`
 >
 > Caption: Select LLM provider, FAIG route, model alias, and frontend instruction profile independently.
 >
-> Capture: The Advanced LLM controls with a scenario-owned FAIG route and model alias selected. Include the frontend instruction selector; exclude retired slot names.
+> Capture: The Detailed LLM controls with a scenario-owned FAIG route and model alias selected. Include the frontend instruction selector; exclude retired slot names.
 
-> **Screenshot placeholder — `chatbot-advanced-mcp-transport`**
+> **Screenshot placeholder — `chatbot-detailed-mcp-transport`**
 >
-> Expected filename: `images/fortiaigate/chatbot-advanced-mcp-transport.png`
+> Expected filename: `images/fortiaigate/chatbot-detailed-mcp-transport.png`
 >
 > Caption: Select FortiWeb MCP by default or Direct MCP as the explicit fallback.
 >
-> Capture: The Advanced MCP transport selector on an installation where FortiWeb is available. Show FortiWeb selected and Direct as an alternative; omit appliance addresses.
+> Capture: The Detailed MCP transport selector on an installation where FortiWeb is available. Show FortiWeb selected and Direct as an alternative; omit appliance addresses.
 
-> **Screenshot placeholder — `chatbot-advanced-tool-profile`**
+> **Screenshot placeholder — `chatbot-detailed-tool-profile`**
 >
-> Expected filename: `images/fortiaigate/chatbot-advanced-tool-profile.png`
+> Expected filename: `images/fortiaigate/chatbot-detailed-tool-profile.png`
 >
 > Caption: Use scenario tools by default or intentionally select the expanded all-installed tool set.
 >
-> Capture: The Advanced tool-profile selector showing the scenario-scoped profile and `all-installed`. Include the expanded-set warning if the UI displays it.
-
-Run the metadata-driven validation for the configured scenario and passthrough:
-
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --scenario-id {{scenario_id}}
-```
-
-This live test uses the deployed chatbot agent and is authoritative for
-frontend profile selection, MCP execution, FortiWeb transport, tool traces,
-and stop-before-tool behavior. A future generated curl test will instead go
-directly to `{{request_path}}` and include any frontend instructions in the
-request body so it resembles—but does not claim to originate from—the chatbot.
+> Capture: The Detailed tool-profile selector showing the scenario-scoped profile and `all-installed`. Include the expanded-set warning if the UI displays it.
 
 ## 9. Verify FortiAIGate Telemetry
 
@@ -352,8 +365,8 @@ tokens, cost, and latency.
 >
 > Capture: One synthetic scenario event detail with those fields visible. Redact authorization headers, private addresses, unique installation identifiers, and any non-synthetic prompt content.
 
-If the path is missing, returns `401`/`404`, selects the wrong guard, or behaves
-differently from the GUI test, use
+If the path is missing, returns `401`/`404`, selects the wrong guard, or the
+model connection differs from Test Model, use
 [Troubleshooting](troubleshooting.md#fortiaigate-returns-401-404-or-the-wrong-guard).
 
 ## Changes After Initial Configuration
@@ -364,7 +377,7 @@ scenario changes:
 1. deploy the affected LiteLLM/chatbot configuration;
 2. render a new work order;
 3. compare it with the deployed FAIG objects;
-4. update and deploy the affected guard/flow; and
+4. update or recreate the affected guard/flow; and
 5. rerun functional validation.
 
 Removing a local scenario does not delete its FAIG GUI objects. Remove or

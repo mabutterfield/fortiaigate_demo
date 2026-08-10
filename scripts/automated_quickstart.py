@@ -2403,7 +2403,10 @@ def main() -> None:
         run_ansible_flow(args, appliance_keys, inventory=LOCAL_INVENTORY)
         print_header("Automated Quick Start Complete")
         print("Local Ansible deployment steps completed.")
-        print("Next validation command from the repo root:")
+        print("Next: configure FortiAIGate before functional validation:")
+        print("  docs/FortiAIGate-initial-config.MD")
+        print("  docs/fortiaigate-gui-config.md")
+        print("After the required FortiAIGate flows are configured, validate from the repo root:")
         print("  python3 -m functional_test validate")
         return
 
@@ -2508,7 +2511,10 @@ def main() -> None:
 
     print_header("Automated Quick Start Complete")
     print("Terraform and Ansible deployment steps completed.")
-    print("Next validation command from the repo root:")
+    print("Next: configure FortiAIGate before functional validation:")
+    print("  docs/FortiAIGate-initial-config.MD")
+    print("  docs/fortiaigate-gui-config.md")
+    print("After the required FortiAIGate flows are configured, validate from the repo root:")
     print("  python3 -m functional_test validate")
 
 

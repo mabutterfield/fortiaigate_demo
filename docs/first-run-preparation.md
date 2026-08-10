@@ -286,4 +286,5 @@ python3 scripts/user_profile.py check
 ```
 
 Successful output includes `Required user profile files exist.` After
-deployment, use `python3 -m functional_test validate` for scenario validation.
+deployment, complete the FortiAIGate initial and scenario GUI configuration;
+then use `python3 -m functional_test validate` for scenario validation.

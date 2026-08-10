@@ -74,9 +74,9 @@ All profiles use `fortistore-injection`, Current Prompt context, and MCP
 disabled. Reset the conversation between comparisons. FortiStore is the
 reference naming pattern: `<Scenario Display Name> - <Comparison Or Action>`.
 
-## Advanced Comparison
+## Detailed Comparison
 
-Advanced mode can select Direct LiteLLM or a generated FAIG route, the
+Detailed mode can select Direct LiteLLM or a generated FAIG route, the
 `fortistore-injection` alias, and either `none` or
 `fortistore-injection-compromised` independently. Use it to isolate the effect
 of the frontend instruction layer. Do not enable MCP or `all-installed` tools;

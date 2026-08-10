@@ -26,6 +26,9 @@ EXAMPLES_ROOT = SCENARIO_ROOT / "examples"
 CATALOG_PATH = EXAMPLES_ROOT / "catalog.json"
 SCHEMA_PATH = SCENARIO_ROOT / "scenario-profile-v2.schema.json"
 MCP_SERVER_PATH = REPO_ROOT / "mcp" / "chart" / "files" / "server.py"
+DEFAULT_WORK_ORDER_PATH = (
+    REPO_ROOT / "docs/raw-output/scenario-work-orders/faig-scenario-work-order.md"
+)
 SCENARIO_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CATALOG_LIFECYCLES = {"baseline", "candidate", "archived"}
 
@@ -1178,7 +1181,7 @@ then deploy the prepared instructions:
     work_order_parser.add_argument(
         "--output",
         type=Path,
-        help="Optional ignored output path. Without this option, print to stdout.",
+        help="Optional Markdown output path. The default is the ignored current work-order path.",
     )
     work_order_parser.add_argument(
         "--force",
@@ -1249,17 +1252,18 @@ def main() -> None:
             validate_local_matrix(store)
             matrix = scenario_matrix.build_scenario_matrix(store.matrix_summary())
             rendered_work_order = scenario_matrix.render_work_order(matrix)
-            if args.output:
-                output_path = args.output.resolve()
-                if output_path.exists() and not args.force:
-                    raise scenario_local.LocalScenarioError(
-                        f"Work order already exists: {output_path}. Use --force to replace it."
-                    )
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                output_path.write_text(rendered_work_order, encoding="utf-8")
-                print(f"wrote: {scenario_local.relative_to_repo(output_path)}")
-            else:
-                print(rendered_work_order)
+            output_path = (args.output or DEFAULT_WORK_ORDER_PATH).resolve()
+            if args.output and output_path.exists() and not args.force:
+                raise scenario_local.LocalScenarioError(
+                    f"Work order already exists: {output_path}. Use --force to replace it."
+                )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(rendered_work_order, encoding="utf-8")
+            print(scenario_matrix.render_work_order_text(matrix), end="")
+            print(
+                "\nMarkdown version: "
+                + scenario_local.relative_to_repo(output_path)
+            )
         else:
             raise SystemExit(f"Unknown command: {args.command}")
     except scenario_local.LocalScenarioError as exc:

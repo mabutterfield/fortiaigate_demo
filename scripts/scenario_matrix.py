@@ -145,10 +145,16 @@ def mcp_paths(
                 "base_url": fortiweb_base_url,
             }
         )
+    elif fortiweb_desired and not fortiweb_installed:
+        warnings.append(
+            "FortiWeb MCP was requested but was not generated because an installed "
+            "FortiWeb port1 private IP was not supplied."
+        )
     elif fortiweb_desired:
         warnings.append(
-            "FortiWeb MCP was requested but was not generated because the appliance "
-            "is not installed or its MCP base URL is missing."
+            "FortiWeb is installed, but FortiWeb MCP was not generated because its "
+            "MCP base URL is missing. Regenerate fortiweb.generated.yml and redeploy "
+            "the chatbot."
         )
     return paths, warnings
 
@@ -547,11 +553,56 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                 "",
             ]
         )
-    if matrix.get("warnings"):
-        lines.extend(["## Warnings", ""])
-        lines.extend(f"- {warning}" for warning in matrix["warnings"])
-        lines.append("")
     return "\n".join(lines)
+
+
+def render_work_order_text(matrix: dict[str, Any]) -> str:
+    work_order = matrix.get("faig_work_order", [])
+    lines = [
+        "FAIG Scenario Work Order",
+        "",
+        "Global controls:",
+        "  Passthrough alias: pass-model",
+        "  Passthrough URI: /v1/passthrough/*",
+        "  Passthrough behavior: no scenario instructions",
+        "  FAIG chain capability: "
+        + (
+            "available"
+            if matrix.get("capabilities", {}).get("faig_chain_available")
+            else "disabled"
+        ),
+        "",
+        f"Installed scenario objects: {len(work_order)}",
+    ]
+    if not work_order:
+        lines.append("  No scenario-specific FAIG objects are required.")
+    for index, entry in enumerate(work_order, start=1):
+        lines.extend(
+            [
+                "",
+                f"[{index}/{len(work_order)}] {entry['scenario_id']} / {entry['display_name']}",
+                f"  Flow: {entry['suggested_flow_name']}",
+                f"  Configured URI: {entry['uri']}/*",
+                f"  Guard: {entry['suggested_guard_name']}",
+                f"  Next-hop model: {entry['guard_next_hop_model']}",
+                f"  Guard template: {entry['guard_template']}",
+                f"  Required: {'yes' if entry['required_for_release'] else 'no'}",
+                f"  Expected: {entry['expected_behavior']}",
+            ]
+        )
+
+    chains = matrix.get("faig_chains", [])
+    lines.extend(["", f"Enabled FAIG re-entry chains: {len(chains)}"])
+    for chain in chains:
+        lines.extend(
+            [
+                f"  {chain['scenario_id']}: {chain['model_alias']}",
+                f"    Re-entry URI: {chain['reentry_uri']}/*",
+                f"    Downstream model: {chain['downstream_model']}",
+            ]
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def canonical_json(matrix: dict[str, Any]) -> str:

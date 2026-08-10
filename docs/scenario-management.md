@@ -19,28 +19,32 @@ inventories. Choose the one you are operating on and its host alias:
 
 ```bash
 export FAIG_INVENTORY=local
-export FAIG_HOST_ALIAS=jarvis
+export FAIG_HOST_ALIAS={{ubuntu-hostname}}
 # or
 export FAIG_INVENTORY=cloud
 export FAIG_HOST_ALIAS=faig-aws
 ```
 
-Replace `jarvis` when local setup created a different host alias.
+For local mode, use the Ubuntu hostname recorded as the host alias by
+`local_setup.py`.
+
+`FAIG_INVENTORY` is a shell convenience used throughout the documentation.
+Set it once in each new shell so the same commands operate on either the
+repository-root `cloud` or `local` inventory link.
 
 ## 1. Discover And Inspect
 
-List the validated built-ins, include future candidates, or inspect one
-profile without installing it:
+List the validated built-ins or inspect one profile without installing it:
 
 ```bash
 python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py list --include-candidates
 python3 scripts/scenario_profiles.py show hr-tool-dlp
 ```
 
-Use candidate material for evaluation only. Do not present it as validated.
-Archived packages are reference material and appear only with
-`--include-inactive`.
+Candidate and archived package inspection is intentionally omitted from the
+normal installation path. See
+[Advanced Scenario Management](advanced-scenario-management.md#candidate-and-archived-packages)
+when evaluating non-baseline material.
 
 ## 2. Install An Editable Copy
 
@@ -57,50 +61,36 @@ python3 scripts/scenario_profiles.py list-installed
 overwrite an existing local package. Pulling repository changes also leaves
 installed packages untouched.
 
-## 3. Tune Local Instructions Or Metadata
+## 3. Optionally Tune A Local Scenario
 
-Edit only the installed copy:
+Normal installation uses the scenario exactly as shipped. To change backend
+or frontend instructions, prompts, tool sets, transport intent, round limits,
+or FAIG re-entry, edit only the ignored installed copy and follow
+[Advanced Scenario Management: Tuning](advanced-scenario-management.md#tuning).
 
-```text
-chatbot/scenarios/local/<scenario-id>/
-├── profile.json
-├── instructions.txt
-└── optional frontend instructions and supporting files
-```
+## 4. Render The Work Order
 
-Typical local changes include instruction wording, prompts, simplified
-profiles, MCP transport intent, scenario/extended tool sets, and tool-round
-limits. Keep the scenario ID stable unless creating a separate scenario.
-
-MCP scenarios use one shared MCP server. Their base profile exposes only
-scenario tools. An extended profile adds an intentional comparison set, and
-`all-installed` exposes the union of installed scenario tools for explicit
-cross-domain demonstrations. Normal Simplified profiles select one scoped
-base or extended set; choosing `all-installed` is an Advanced-mode decision.
-
-FortiWeb is the normal MCP transport when it is installed, configured, and
-desired. Matrix generation warns and uses Direct MCP when FortiWeb is not
-available. The MCP transport is independent of the FortiAIGate LLM route.
-
-FAIG re-entry is globally available. Every built-in scenario sets
-`matrix.faig_chain.enabled` to `false`; enable it only in an operator-owned
-local profile after reviewing
-[FortiAIGate Scenario GUI Configuration](fortiaigate-gui-config.md#6-keep-faig-re-entry-disabled-unless-deliberately-testing-it).
-
-## 4. Preview The Matrix And Work Order
-
-Validate packages, preview all generated consumers, and render the manual GUI
-work order:
+Render the manual GUI work order:
 
 ```bash
-python3 scripts/scenario_profiles.py validate
-python3 scripts/scenario_profiles.py show-matrix
 python3 scripts/scenario_profiles.py render-work-order
 ```
 
-Re-run these commands after every install, local edit, forced update, or
-removal. The work order owns each scenario path, flow, guard, guard template,
-and next-hop model alias.
+The command validates installed packages first. On success it prints a
+terminal-friendly list of the required scenario objects and ends with:
+
+```text
+Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
+```
+
+Open that ignored Markdown file for the formatted table. An invalid installed
+package instead produces a specific error and exits nonzero; use
+[Advanced Scenario Management: Matrix Validation And Diagnostics](advanced-scenario-management.md#matrix-validation-and-diagnostics)
+to diagnose it.
+
+Re-render after every install, local edit, forced update, or removal. The work
+order owns each scenario path, flow, guard, guard template, and next-hop model
+alias.
 
 ## 5. Deploy Matrix Consumers
 
@@ -120,7 +110,7 @@ the shared MCP server.
 | Backend instructions or model mapping | LiteLLM |
 | Installed profile, generated routes, frontend instructions, or Simplified profiles | Chatbot; LiteLLM when backend mapping/instructions also changed |
 | MCP code, schema, fixture, or credential wiring | MCP |
-| Advanced UI selection only | None |
+| Detailed UI selection only | None |
 | Scenario entry point or action | Render a new work order and update FortiAIGate manually |
 
 Ansible brings a deployed component back to the declared state, so these
@@ -136,25 +126,14 @@ each row in the generated work order. Built-in paths follow:
 /v1/<scenario-id>/<action>/*
 ```
 
-Create and deploy every required guard and flow. A draft GUI object is not an
-active route. The normal built-in next hop is the LiteLLM model alias matching
-the scenario ID.
+Create every required guard and flow. FortiAIGate activates each object when
+it is created; there is no separate scenario-object deployment step. The
+normal built-in next hop is the LiteLLM model alias matching the scenario ID.
 
-## 7. Select A Chatbot Profile
+## 7. Validate The Configured Paths
 
-Use Simplified mode for the validated comparison. One profile selects the
-model, LLM path, frontend instructions, MCP state and transport, scoped tools,
-context, and tool-round limit together.
-
-Use Advanced mode to deliberately change one component—for example Direct MCP
-instead of FortiWeb, a least-privilege base tool profile instead of an extended
-profile, or `all-installed` for a cross-domain demonstration. Reset the
-conversation when comparing profiles so previous messages do not change the
-result.
-
-## 8. Validate The Installation
-
-Validate passthrough and every declared test case for all installed scenarios:
+Immediately after the FortiAIGate objects are created, validate passthrough
+and every declared case for the installed scenarios:
 
 ```bash
 python3 -m functional_test validate \
@@ -162,7 +141,9 @@ python3 -m functional_test validate \
   --host-alias "$FAIG_HOST_ALIAS"
 ```
 
-Restrict the metadata-driven run without changing its expected-result rules:
+The validator selects the declared chatbot profiles itself; you do not need
+to select one manually in the browser first. Restrict a troubleshooting run
+without changing its expected-result rules:
 
 ```bash
 python3 -m functional_test validate \
@@ -171,11 +152,20 @@ python3 -m functional_test validate \
   --scenario-id hr-tool-dlp
 ```
 
-The live functional test is authoritative for chatbot frontend instructions,
-MCP execution, FortiWeb transport, tool order, denial before a forbidden tool,
-and redaction. A transcript replay sends a preconstructed tool exchange
-directly to a FAIG flow and proves only raw guard/model handling; it does not
-prove the chatbot or MCP server executed that exchange.
+The live test is authoritative for frontend instructions, MCP execution,
+FortiWeb transport, tool order, denial before a forbidden tool, and redaction.
+
+## 8. Select A Chatbot Profile
+
+Use Simplified mode for the validated comparison. One profile selects the
+model, LLM path, frontend instructions, MCP state and transport, scoped tools,
+context, and tool-round limit together.
+
+Use Detailed mode to deliberately change one component—for example Direct MCP
+instead of FortiWeb, a least-privilege base tool profile instead of an extended
+profile, or `all-installed` for a cross-domain demonstration. Reset the
+conversation when comparing profiles so previous messages do not change the
+result.
 
 ## 9. Update Without Losing Local Work
 
@@ -217,5 +207,7 @@ manually after confirming nothing references them.
 - [Resume Tool Injection](../chatbot/scenarios/examples/resume-tool-injection/README.md)
 
 For package schema and authoring decisions, see
-[Scenario Authoring](scenario-authoring.md). For deployment failures, see
-[Troubleshooting](troubleshooting.md).
+[Scenario Authoring](scenario-authoring.md). For tuning, candidate inspection,
+matrix diagnostics, and expanded tool/transport controls, see
+[Advanced Scenario Management](advanced-scenario-management.md). For
+deployment failures, see [Troubleshooting](troubleshooting.md).

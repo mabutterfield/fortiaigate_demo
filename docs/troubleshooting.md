@@ -169,7 +169,7 @@ Check the FortiAIGate configuration before changing the chatbot or scenario:
    ```
 
 2. Confirm the configured flow URI ends in `/*`, the request uses that same
-   prefix followed by `/chat/completions`, and the flow is deployed and
+   prefix followed by `/chat/completions`, and the flow is active and
    enabled.
 3. Confirm the flow has the intended Alert, Deny, or Redact AI Guard attached.
    Check that the guard's OpenAI-compatible provider points to LiteLLM and uses
@@ -228,6 +228,29 @@ If Direct MCP works but FortiWeb MCP fails, check FortiWeb status, generated
 proxy objects, backend reachability, and the selected MCP path. FortiWeb changes
 transport; it does not change the scenario tool profile. See [MCP](mcp.md) and
 [FortiWeb](fortiweb.md).
+
+An available FortiWeb Admin URL or EC2 instance proves only that the appliance
+exists. Confirm that the port1 private IP and MCP base URL were generated:
+
+```bash
+rg -n 'fortiweb_(public_private_ip|mcp_http_base_url)' \
+  ansible/group_vars/fortiweb.generated.yml
+ansible-playbook -i cloud ansible/playbooks/show_demo_outputs.yml
+```
+
+Demo Outputs should print a non-empty `FortiWeb MCP:` URL. If the generated
+file is absent, stale, or contains an empty value, refresh the Terraform-owned
+local file, configure the proxy objects, and redeploy the chatbot:
+
+```bash
+terraform -chdir=terraform/aws-fortiweb apply
+ansible-playbook -i cloud-fortiweb ansible/playbooks/configure_fortiweb.yml
+ansible-playbook -i cloud ansible/playbooks/deploy_chatbots.yml
+```
+
+The offline `scenario_profiles.py render-work-order` command intentionally
+does not assess FortiWeb readiness because MCP transport does not change the
+FortiAIGate guard/flow work order.
 
 ## Chatbot Or Demo Home Is Unavailable
 

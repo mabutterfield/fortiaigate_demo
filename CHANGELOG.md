@@ -25,19 +25,27 @@ a "what's new" guide rather than a raw commit log.
 - Rebuilt scenario management and presenter runbooks around named scenarios:
   - centralized discover, install, local tuning, work-order, deployment, GUI,
     validation, backup/update, and removal behavior
+  - kept the normal workflow focused on validated scenarios and moved
+    candidate/archive inspection, tuning, matrix diagnostics, expanded tools,
+    and optional chaining into Advanced Scenario Management
+  - made `render-work-order` print readable terminal entries and automatically
+    write the ignored formatted Markdown table at a stable path
   - moved the catalog beside its machine-readable source and made installation
     status explicitly separate from catalog lifecycle
   - standardized FortiStore, HR, and Resume runbooks around generated objects,
-    Simplified/Advanced comparisons, prompts, actions, evidence, and simulated
+    Simplified/Detailed comparisons, prompts, actions, evidence, and simulated
     data boundaries
   - renamed active raw tool fixtures as transcript replays and corrected HR
     and Resume guard boundaries without changing candidate content
 
 - Split FortiAIGate GUI setup into a minimal initial configuration and a
   reusable scenario workflow:
-  - initial configuration now stops after first login, the shared LiteLLM
-    provider, `pass-model`, a no-protection guard, and a validated
-    `/v1/passthrough/*` flow
+  - initial configuration now follows the four-step onboarding wizard, sets
+    OpenAI/private LiteLLM Endpoint details and display-only token pricing per
+    guard, disables wizard-added flow authentication, tests the model, and
+    validates the no-protection `/v1/passthrough/*` flow
+  - added optional FortiAIGate syslog GUI setup using the collector destination
+    printed by Ansible and the AWS Prep `99-local.auto.tfvars` ownership
   - scenario configuration maps generated work-order variables into Alert,
     Deny, Redact, flow, authentication, deployment, GUI test, chatbot, and
     telemetry steps
@@ -45,6 +53,11 @@ a "what's new" guide rather than a raw commit log.
     LLM paths and documented optional loop-safe FAIG re-entry
   - replaced obsolete GUI screenshots with inline placeholders carrying final
     captions, exact filenames, capture instructions, and redaction rules
+  - aligned chatbot UI terminology with its actual Simplified and Detailed
+    selectors and removed the nonexistent scenario guard/flow deployment step
+  - made Demo Outputs report the effective FortiWeb MCP URL separately from
+    the appliance admin URL and removed offline FortiWeb warnings from the
+    FortiAIGate-only work order
   - retained the established `FortiAIGate-initial-config.MD` path so existing
     links and case-insensitive worktrees use one canonical initial guide
 
@@ -174,7 +187,7 @@ a "what's new" guide rather than a raw commit log.
     `resume-tool-injection` baseline, with scenario-owned Alert and Deny paths,
     a poisoned `RESUME-9001` fixture, and no real uploads or cloud access
   - added per-chatbot-profile MCP tool-set selection so simplified resume
-    profiles can demonstrate the synthetic cloud-tool pivot while Advanced
+    profiles can demonstrate the synthetic cloud-tool pivot while Detailed
     mode retains a least-privilege comparison without the cloud tool
   - archived the superseded resume packages, taught the scenario harness to
     classify an executed cloud-tool pivot from the actual tool trace, and

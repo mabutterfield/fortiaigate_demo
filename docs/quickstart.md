@@ -219,13 +219,16 @@ After quickstart completes:
 3. install or inspect scenarios through [Scenario Management](scenario-management.md);
 4. create the scenario GUI objects with
    [Scenario GUI Configuration](fortiaigate-gui-config.md); and
-5. run operator-facing scenario validation:
+5. only after those FortiAIGate GUI objects are created and active, run operator-facing
+   scenario validation:
 
    ```bash
    python3 -m functional_test validate
    ```
 
-Functional validation assumes the corresponding FortiAIGate GUI flows exist.
+Do not run functional validation immediately after quickstart. It assumes the
+initial passthrough and corresponding scenario guards and flows have been
+configured in FortiAIGate.
 
 For repeat runs, component updates, status commands, recovery, and teardown,
 continue with [Operations](operations.md). For a failed first run, start with

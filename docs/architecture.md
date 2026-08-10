@@ -68,7 +68,7 @@ FAIG passthrough
 ```
 
 The passthrough path is a full bypass of project-added instruction profiles and
-exists for testing. In the Advanced UI it is always available. In the
+exists for testing. In the Detailed UI it is always available. In the
 Simplified UI it is available when no scenarios are installed.
 
 Scenario guard names follow `<scenario>_<action>`. Current action names are
@@ -110,7 +110,7 @@ FortiWeb MCP (preferred when available)
 FortiWeb MCP is preferred when the appliance is installed, desired, and has a
 usable generated endpoint. If any condition is missing, matrix generation
 selects Direct MCP and reports a warning. The selected transport belongs to
-the scenario, while Advanced mode can select the scenario tool set or an
+the scenario, while Detailed mode can select the scenario tool set or an
 explicitly broader installed-tool set for cross-domain demonstrations.
 
 The MCP server uses simulated or synthetic data for repeatable demo behavior.

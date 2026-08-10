@@ -77,7 +77,7 @@ All three use alias `resume-tool-injection`, Current Prompt context, and up to
 five tool rounds. FortiWeb is selected when available; generation warns and
 falls back to Direct MCP otherwise.
 
-## Advanced Comparison
+## Detailed Comparison
 
 | Tool profile | Exposed tools | Purpose |
 |---|---|---|
@@ -85,7 +85,7 @@ falls back to Direct MCP otherwise.
 | `resume-tool-injection-cloud-pivot` | Base tools plus `cloud_bucket_list_demo` | Intentional vulnerable comparison used by Simplified profiles |
 | `all-installed` | Union of every installed scenario tool | Explicit cross-domain experiment; outside the validated baseline |
 
-Advanced mode can select the least-privilege base profile or Direct MCP
+Detailed mode can select the least-privilege base profile or Direct MCP
 without changing the LLM route. The normal story uses the extended cloud-pivot
 profile so Alert and Deny receive the same available tools.
 
@@ -148,7 +148,7 @@ replace the functional test.
 
 ## Evidence And Troubleshooting
 
-Capture the selected profile or Advanced controls, chatbot response, ordered
+Capture the selected profile or Detailed controls, chatbot response, ordered
 MCP trace, and FAIG event fields for path, flow, guard, `PromptInjection`
 source, tool name, action, verdict, model, timestamp, tokens, cost, and latency.
 

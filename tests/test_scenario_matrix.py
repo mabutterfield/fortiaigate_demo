@@ -233,6 +233,21 @@ class ScenarioMatrixTests(unittest.TestCase):
         )
         self.assertTrue(incomplete["warnings"])
 
+        installed_without_endpoint = scenario_matrix.build_scenario_matrix(
+            preview,
+            capabilities={
+                "fortiweb_mcp_desired": True,
+                "fortiweb_installed": True,
+            },
+        )
+        self.assertTrue(
+            any(
+                "FortiWeb is installed" in warning
+                and "MCP base URL is missing" in warning
+                for warning in installed_without_endpoint["warnings"]
+            )
+        )
+
         enabled = scenario_matrix.build_scenario_matrix(
             preview,
             capabilities={
@@ -356,6 +371,14 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.assertIn("`/v1/fortistore-injection/alert/*`", work_order)
         self.assertIn("`fortistore-injection_alert`", work_order)
         self.assertIn("`fortistore-injection`", work_order)
+
+        terminal_work_order = scenario_matrix.render_work_order_text(matrix)
+        self.assertIn("FAIG Scenario Work Order", terminal_work_order)
+        self.assertIn("Installed scenario objects: 1", terminal_work_order)
+        self.assertIn("Configured URI: /v1/fortistore-injection/alert/*", terminal_work_order)
+        self.assertIn("Guard: fortistore-injection_alert", terminal_work_order)
+        self.assertNotIn("| Scenario |", terminal_work_order)
+        self.assertNotIn("Warnings:", terminal_work_order)
 
 
 if __name__ == "__main__":

@@ -52,12 +52,16 @@ interrupted component can be recovered through Operations.
 
 From current documentation only:
 
-1. complete first login and licensing;
-2. create the shared LiteLLM provider;
-3. configure `pass-model`;
-4. create/deploy the minimal passthrough guard and `/v1/passthrough/*` flow;
-5. prove passthrough returns without scenario instructions or protections; and
-6. capture required screenshots without secrets.
+1. complete first login, password setup, and licensing;
+2. complete all four onboarding-wizard steps;
+3. configure the `pass_model` guard with OpenAI, the private LiteLLM Endpoint,
+   `pass-model`, and demonstration token pricing;
+4. leave all protections off and deploy `/v1/passthrough/*`;
+5. edit the wizard-created flow to disable client authentication;
+6. prove the guard's Test Model action and the passthrough request succeed
+   without scenario instructions or protections;
+7. optionally configure the printed syslog collector destination; and
+8. capture required screenshots without secrets.
 
 ## 5. Scenario Installation And GUI Objects
 

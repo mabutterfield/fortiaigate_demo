@@ -107,12 +107,16 @@ redirect.
 `terraform/aws-prep` can create a separate S3 bucket for FortiAIGate log
 archives. It is distinct from document fixture storage.
 
-Enable it with:
+Enable it in ignored `terraform/aws-prep/99-local.auto.tfvars` with:
 
 ```hcl
 fortiaigate_syslog_bucket_enabled = true
 fortiaigate_syslog_prefix         = "fortiaigate/syslog"
 ```
+
+Do not place these AWS Prep-only inputs in shared `terraform/user.tfvars` or
+its `50-user.auto.tfvars` links. Terraform loads that shared file in every
+module and warns when another module does not declare the setting.
 
 Required protections:
 

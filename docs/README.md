@@ -71,7 +71,7 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) | First login, LiteLLM provider, `pass-model`, and global passthrough proof |
+| [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) | First login, per-guard LiteLLM endpoint settings, `pass-model`, and global passthrough proof |
 | [Scenario GUI Configuration](fortiaigate-gui-config.md) | Reusable work-order-driven Alert, Deny, Redact, flow, test, and telemetry workflow |
 | [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical request-path diagrams and generated names |
 | [Transcript Replays](transcript-replays.md) | Preconstructed assistant/tool requests for raw FAIG/LLM diagnostics; not live functional tests |
@@ -81,6 +81,7 @@ references remain available but are not part of the current runtime contract.
 | Document | Owns |
 |---|---|
 | [Scenario Management](scenario-management.md) | Install, update, remove, inspect, and validate local scenarios |
+| [Advanced Scenario Management](advanced-scenario-management.md) | Candidate/archive inspection, local tuning, matrix diagnostics, Detailed controls, and optional chaining |
 | [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Scenario lifecycle and support classification |
 | [MCP](mcp.md) | Deterministic tools, tool profiles, and MCP transports |
 | [Functional Validation](functional-validation.md) | Operator-facing metadata-driven validation, evidence, filters, and direct-flow curl rendering |

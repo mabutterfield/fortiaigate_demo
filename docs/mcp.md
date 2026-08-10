@@ -376,8 +376,9 @@ chatbot_mcp_max_tool_rounds: 3
 `fortiweb_mcp_http_base_url` is derived from the FortiWeb front-end port1 IP
 and MCP NodePort when `fortiweb_mcp_proxy_enabled=true`. If the chatbot only
 shows `Direct MCP`, confirm the FortiWeb generated vars include
-`fortiweb_public_private_ip` and redeploy the chatbot after FortiWeb is
-configured.
+non-empty `fortiweb_public_private_ip` and `fortiweb_mcp_http_base_url` values,
+then configure FortiWeb and redeploy the chatbot. An admin URL alone does not
+prove that the MCP listener endpoint was generated.
 
 Chatbot frontend instructions are available but disabled by default because
 backend demo instructions normally live in LiteLLM profiles. The default

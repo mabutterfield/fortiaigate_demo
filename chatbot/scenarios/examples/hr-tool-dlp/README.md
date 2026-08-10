@@ -91,9 +91,9 @@ The base profile contains:
 - `employee_sensitive_lookup_demo`
 - `employee_table_with_cc`
 
-## Advanced Comparison
+## Detailed Comparison
 
-Advanced mode can select Direct MCP instead of FortiWeb without changing the
+Detailed mode can select Direct MCP instead of FortiWeb without changing the
 LLM route. It can also select `all-installed` to demonstrate cross-domain
 exposure, but the validated HR comparison uses only `hr-tool-dlp`. This
 scenario defines no extended tool profile and no frontend instruction variant.
@@ -158,7 +158,7 @@ live tool execution.
 
 ## Evidence And Troubleshooting
 
-Capture the Simplified profile or Advanced route/MCP selections, visible
+Capture the Simplified profile or Detailed route/MCP selections, visible
 response, MCP tool trace, and FAIG event fields for path, flow, guard, DLP
 violation, action, verdict, model, timestamp, tokens, cost, and latency.
 

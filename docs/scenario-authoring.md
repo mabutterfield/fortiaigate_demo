@@ -98,7 +98,7 @@ least-privilege profile. `extended_tool_sets` add named comparison tools, and
 debug-only and must not appear in a normal Simplified profile.
 
 FortiWeb is the preferred transport when installed, configured, and desired.
-Direct MCP is the deterministic fallback and Advanced-mode troubleshooting
+Direct MCP is the deterministic fallback and Detailed-mode troubleshooting
 choice. Transport selection never expands the tool set.
 
 Record the maximum tool rounds, required tool sequence, and forbidden tools.
@@ -122,7 +122,7 @@ Follow the FortiStore display-name convention:
 <Scenario Display Name> - Deny
 ```
 
-Advanced mode remains available for intentional transport, frontend, or tool
+Detailed mode remains available for intentional transport, frontend, or tool
 profile changes.
 
 ## FAIG Re-entry
@@ -201,7 +201,7 @@ Each scenario README uses this order:
 2. simulated-data boundary;
 3. prerequisites and install/deploy;
 4. generated objects and GUI variables;
-5. Simplified and Advanced comparisons;
+5. Simplified and Detailed comparisons;
 6. prompt/outcome table and action behavior;
 7. headless validation and curl commands; and
 8. evidence and troubleshooting.
@@ -247,7 +247,7 @@ python3 -m functional_test validate --scenario-id <scenario-id>
 | Frontend instructions or generated chatbot profiles/routes | Deploy chatbot |
 | Chatbot or agent-probe code | Increment tag, publish image, deploy chatbot |
 | MCP code, schema, fixture, or credentials | Deploy MCP |
-| Advanced UI selection | No redeploy |
+| Detailed UI selection | No redeploy |
 | FAIG entry point | Render work order and update/deploy GUI objects manually |
 
 Removing or updating an installed scenario does not mutate remote FortiAIGate

@@ -19,7 +19,7 @@ flowchart TD
 
     UI -->|"No FAIG"| DIRECT
     UI -->|"Protected action"| FLOW
-    UI -->|"Advanced FAIG bypass"| PASS
+    UI -->|"Detailed FAIG bypass"| PASS
     DIRECT --> LL
     FLOW --> GUARD
     GUARD -->|"model = scenario ID"| LL

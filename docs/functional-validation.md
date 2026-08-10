@@ -16,20 +16,21 @@ All commands run from `<repo_root>`.
 - LiteLLM, chatbot, and required MCP components are ready.
 - Installed scenario packages match the version you intend to test.
 - Required FortiAIGate guards and wildcard flows from the generated work order
-  are deployed.
+  have been created and are active.
 - The workstation can SSH to the selected k3s inventory host.
 
 Select the deployment:
 
 ```bash
 export FAIG_INVENTORY=local
-export FAIG_HOST_ALIAS=jarvis
+export FAIG_HOST_ALIAS={{ubuntu-hostname}}
 # or
 export FAIG_INVENTORY=cloud
 export FAIG_HOST_ALIAS=faig-aws
 ```
 
-Replace the local host alias when local setup selected another name.
+For local mode, use the Ubuntu hostname recorded as the host alias by
+`local_setup.py`.
 
 ## Validate The Complete Installation
 
@@ -91,7 +92,7 @@ python3 -m functional_test validate \
 
 Action and case filters omit passthrough so the run stays focused. Use
 `--skip-passthrough` to omit it from an otherwise unfiltered run. Override MCP
-transport, tool profile, or frontend profile only for deliberate Advanced-mode
+transport, tool profile, or frontend profile only for deliberate Detailed-mode
 troubleshooting; the normal run uses the installed Simplified profile.
 
 Preview planned cases without contacting the deployment:
@@ -180,7 +181,7 @@ When a case fails:
 
 1. compare the generated path, flow, guard, and model alias with the work
    order;
-2. confirm the flow is deployed and client API-key validation matches the
+2. confirm the flow is active and client API-key validation matches the
    request;
 3. test the guard in the FortiAIGate GUI;
 4. confirm the installed chatbot profile resolves the expected MCP transport,

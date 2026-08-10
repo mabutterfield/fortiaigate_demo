@@ -86,7 +86,7 @@ The developer path probe sends one basic request to each generated FAIG route:
 python3 -m load_test paths \
   --path-test-execution chatbot-pod \
   --inventory local \
-  --host-alias jarvis
+  --host-alias {{ubuntu-hostname}}
 ```
 
 This is useful for traffic plumbing but does not replace semantic functional
