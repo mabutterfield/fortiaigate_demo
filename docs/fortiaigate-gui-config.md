@@ -64,13 +64,9 @@ Guard and flow display names can be changed locally, but the configured URI
 and next-hop model alias must match the work order. Keeping the suggested names
 makes troubleshooting and telemetry correlation substantially easier.
 
-> **Screenshot placeholder — `faig-scenario-work-order-map`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-work-order-map.png`
->
-> Caption: Map the generated terminal work-order entry into FortiAIGate objects.
->
-> Capture: A tightly cropped terminal work-order entry showing Scenario, Action, Flow Name, Configured URI, Guard Name, Guard Template, Guard Protections, Next-hop Model, and Expected Behavior. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
+![Generated FAIG scenario work order](images/fortiaigate/faig-scenario-work-order-map.png)
+
+*Map the generated terminal work-order entry into FortiAIGate objects.*
 
 ## Request-Path Model
 
@@ -140,17 +136,14 @@ Different actions for the same scenario normally share the same model alias.
 The guard policy—not a different backend instruction set—creates the Alert,
 Deny, or Redact comparison.
 
-> **Screenshot placeholder — `faig-scenario-guard-base`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-guard-base.png`
->
-> Caption: Create `{{guard_name}}`, configure its OpenAI private LiteLLM Endpoint and display pricing, and select `{{model_alias}}` as its next hop.
->
-> Capture: The guard page with literal `{{guard_name}}` and `{{model_alias}}` values where free-text fields permit them, OpenAI selected, Private endpoint enabled, `{{litellm_url}}` in Endpoint, and demonstration token costs populated. Keep the LiteLLM key masked.
+![Create the scenario AI Guard](images/fortiaigate/faig-scenario-guard-base.png)
 
-### Test Model Connectivity
+*Create `{{guard_name}}`, configure its OpenAI private LiteLLM Endpoint and
+display pricing, and select `{{model_alias}}` as its next hop.*
 
-Click **Test Model** before configuring protection. This test checks only the
+### Test Connectivity
+
+Click **Test Connectivity** before configuring protection. This test checks only the
 API key, model alias, endpoint, and connectivity from FortiAIGate to LiteLLM.
 It does not exercise the guard's Alert, Deny, or Redact policy and does not
 validate a scenario fixture.
@@ -158,13 +151,9 @@ validate a scenario fixture.
 Use a short synthetic prompt and correct the connection fields until the model
 test succeeds.
 
-> **Screenshot placeholder — `faig-scenario-guard-test`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-guard-test.png`
->
-> Caption: Confirm the scenario guard's API key, model alias, Endpoint, and connectivity with Test Model.
->
-> Capture: A successful Test Model result with `{{guard_name}}` and `{{model_alias}}` visible. Use a short synthetic prompt and omit provider credentials and private endpoints.
+The AI Provider screenshot above shows the button location. A successful test
+checks the connection only; use the Python functional validator after the flow
+exists to prove the guard's Alert, Deny, or Redact behavior.
 
 ## 4. Configure The Protection
 
@@ -174,64 +163,68 @@ Enable prompt-injection inspection, select **Alert**, and allow the request and
 response. Do not select Deny. The matching work-order behavior should say the
 attack continues while FortiAIGate records the alert.
 
-> **Screenshot placeholder — `faig-scenario-alert-protection`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-alert-protection.png`
->
-> Caption: Configure `{{guard_name}}` with `{{guard_template}}` to alert without denying.
->
-> Capture: The prompt-injection protection page with Alert selected and enforcement disabled. Show the action summary; avoid scenario-specific tuning that will require a different shared screenshot.
+![Prompt-injection Alert configuration](images/fortiaigate/faig-scenario-alert-protection.png)
+
+*Configure `{{guard_name}}` with `inject_alert` to alert without denying.*
 
 ### `inject_deny`: Deny Prompt Injection
 
 Enable prompt-injection inspection for the complete input transcript and set
-the action to deny/block. For tool scenarios, confirm inspection includes
-retrieved document content carried in `tool` messages. The goal is to stop the
-poisoned content before the model can follow it or select a prohibited tool.
+the action to **Alert & Deny**. For tool scenarios, enable Assistant Message,
+System Message, Tool Response, and Tool List scanning so retrieved document
+content carried in `tool` messages is inspected. The goal is to stop poisoned
+content before the model can follow it or select a prohibited tool.
 
-> **Screenshot placeholder — `faig-scenario-deny-protection`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-deny-protection.png`
->
-> Caption: Configure `{{guard_name}}` to deny the protected prompt or tool response.
->
-> Capture: The input prompt-injection protection page showing full-transcript/tool-message inspection when the GUI exposes it and the deny/block action selected.
+![Prompt-injection Deny configuration](images/fortiaigate/faig-scenario-deny-protection.png)
+
+*Configure `{{guard_name}}` with `inject_deny` to alert and deny the protected
+prompt or tool response.*
+
+### Output DLP PII Selection
+
+Use the same PII selection for `output_dlp_alert`, `output_dlp_deny`, and
+`output_dlp_redact`. In the shared demonstration configuration:
+
+- disable `first_name`, `last_name`, `street_address`, and `city`;
+
+- enable `ssn`, `date_of_birth`, `gender`, `email`, `phone_number`, `state`,
+  `postcode`, `country`, and `county`; and
+
+- leave every Financial, Technical, Identification, and Sensitive Attributes
+  type enabled.
+
+![Output DLP PII field selection](images/fortiaigate/faig_scenario_output_pii.png)
+
+*Use the shared PII selection for every output-DLP action; broad name, street,
+and city fields are disabled to reduce demo noise.*
 
 ### `output_dlp_alert`: Alert On Sensitive Output
 
-Enable the scenario's required output DLP patterns and select **Alert**. The
-response is returned unchanged while FortiAIGate records the alert. For the
-validated HR scenario, remove or disable `first_name`, `last_name`, `city`,
-and `state`; those broad matches create demo noise.
+Configure the PII fields above and select **Alert**. The response is returned
+unchanged while FortiAIGate records the alert.
 
 ### `output_dlp_deny`: Deny Sensitive Output
 
-Enable the scenario's required output DLP patterns and set the output action to
-deny. Remove or disable `first_name`, `last_name`, `city`, and `state`; those
-broad matches create noise in this demo. The scenario work order and runbook
-provide the remaining detector settings.
+Configure the PII fields above, leave the shown advanced controls enabled, and
+select **Alert & Deny**.
 
-> **Screenshot placeholder — `faig-scenario-output-dlp-deny`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-output-dlp-deny.png`
->
-> Caption: Configure output DLP to deny responses containing the selected sensitive-data patterns.
->
-> Capture: The output DLP page with the scenario-required detectors and deny action visible; show that `first_name`, `last_name`, `city`, and `state` are not selected. Do not include real personal data in test fields.
+![Output DLP Deny configuration](images/fortiaigate/faig-scenario-output-dlp-deny.png)
+
+*Configure output DLP to alert and deny responses containing the selected PII
+patterns.*
 
 ### `output_dlp_redact`: Redact Sensitive Output
 
-Use the same scenario-required patterns, but select redaction so the safe
-remainder of the response is returned. Do not treat input-DLP or the future
-`redact-dummy` behavior as part of this output-redaction path.
+Create this guard exactly like `output_dlp_deny`, including the same PII list
+and advanced controls, but change **Action** to **Redact**. The safe remainder
+of the response is returned with matching values replaced. FortiAIGate warns
+that tool calls remain Alert-only because partially redacting structured tool
+payloads could break their schema.
 
-> **Screenshot placeholder — `faig-scenario-output-dlp-redact`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-output-dlp-redact.png`
->
-> Caption: Configure output DLP to redact the selected sensitive-data patterns.
->
-> Capture: The output DLP page using the same representative patterns as Deny, with redact selected and the replacement behavior visible if configurable.
+![Output DLP Redact action](images/fortiaigate/faig-scenario-output-dlp-redact.png)
+
+*Copy the output-DLP Deny configuration and change only its action to
+Redact.*
 
 ### `alert_all`: Configure Both Alert Recipes
 
@@ -248,7 +241,7 @@ no prompt-injection or DLP protection is enabled.
 
 ## 5. Create The Scenario Flow
 
-Create the flow after Test Model succeeds and the protection settings are
+Create the flow after Test Connectivity succeeds and the protection settings are
 saved:
 
 | Field | Value |
@@ -261,61 +254,17 @@ saved:
 The configured path must end in `/*`. Create specific scenario routes rather
 than a generic `/v1/*` fallback.
 
-> **Screenshot placeholder — `faig-scenario-flow`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-flow.png`
->
-> Caption: Publish `{{scenario_path}}` through `{{guard_name}}` to `{{model_alias}}`.
->
-> Capture: The flow editor with literal variable values where supported, the complete wildcard URI, attached guard, and disabled client API-key validation.
+![Create the scenario flow](images/fortiaigate/faig-scenario-flow.png)
 
-## 6. Keep FAIG Re-entry Disabled Unless Deliberately Testing It
+*Publish `{{scenario_path}}` through `{{guard_name}}` with client API-key
+validation disabled for the isolated lab.*
 
-Every built-in scenario sets `matrix.faig_chain.enabled: false`. Its normal
-guard next hop is `{{scenario_id}}`.
+FAIG re-entry is not part of normal scenario configuration. Built-in scenarios
+leave it disabled. See
+[Advanced Scenario Management: Optional FAIG Re-entry](advanced-scenario-management.md#optional-faig-re-entry)
+only when deliberately building that comparison.
 
-> **Screenshot placeholder — `faig-scenario-chain-disabled`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-chain-disabled.png`
->
-> Caption: Keep FAIG re-entry disabled for the scenario's normal configuration.
->
-> Capture: The normal scenario guard summary showing next-hop model `{{scenario_id}}`, with no `-faig-chain` alias selected.
-
-When a locally owned scenario explicitly enables the chain, redeploy LiteLLM
-and the chatbot, then re-render the work order. Existing Alert, Deny, and
-Redact objects remain unchanged. The matrix adds this dedicated object:
-
-| Field | Generated value |
-|---|---|
-| Scenario | `{{scenario_id}}` |
-| Action | `chain` |
-| Flow Name | `{{scenario_id}}-faig-chain` |
-| Configured URI | `/v1/{{scenario_id}}/faig-chain/*` |
-| Guard Name | `{{scenario_id}}_faig_chain` |
-| Guard Template | `alert_all` |
-| Guard Protections | `inject_alert`, `output_dlp_alert` |
-| Next-hop Model | `{{scenario_id}}-faig-chain` |
-
-Create the dedicated flow and guard from that row. The new flow points to the
-new guard, and the guard points to the generated `{{scenario_id}}-faig-chain`
-LiteLLM model. That model injects the scenario instructions and re-enters only
-through the global `/v1/passthrough/*` flow, which terminates at `pass-model`.
-The dedicated guard alerts without enforcement by default so the operator can
-observe the complete re-entry demonstration.
-
-Never point the passthrough guard or the chain's downstream model back to a
-`*-faig-chain` alias. That creates a request loop.
-
-> **Screenshot placeholder — `faig-scenario-chain-enabled`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-chain-enabled.png`
->
-> Caption: Configure the dedicated alerting flow and guard for a loop-safe FAIG re-entry demonstration.
->
-> Capture: The opted-in work-order row and dedicated guard showing `{{scenario_id}}_faig_chain`, `alert_all`, both Guard Protections, and next-hop model `{{scenario_id}}-faig-chain`. Include the dedicated `/v1/{{scenario_id}}/faig-chain/*` flow or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
-
-## 7. Validate The Active Path
+## 6. Validate The Active Path
 
 The guard and flow are active when created; there is no separate deployment
 step. Validate the configured scenario immediately:
@@ -336,72 +285,30 @@ nonzero with the failed path and expected result.
 Use `python3 -m functional_test render-curl` only for a direct-flow diagnostic.
 It does not prove the chatbot agent or MCP server executed the exchange.
 
-## 8. Select The Chatbot Profile
+## 7. Verify FortiAIGate Telemetry
 
-In Simplified mode, choose the scenario's named profile. One profile selects
-the LLM route, model alias, frontend instructions, MCP transport, scenario tool
-profile, and tool-round limit together.
+Use the result from `python3 -m functional_test validate` as the correlation
+source. For each case, note its scenario, action, configured path, expected
+outcome, and execution time. In FortiAIGate, navigate to **Logs > Traffic**
+and locate the corresponding AI Flow, AI Guard, action, and timestamp.
 
-> **Screenshot placeholder — `chatbot-simplified-fortistore-profiles`**
->
-> Expected filename: `images/fortiaigate/chatbot-simplified-fortistore-profiles.png`
->
-> Caption: Select LLM Direct, Baseline, Alert, or Deny for the FortiStore Injection demonstration.
->
-> Capture: The Simplified profile list showing all four canonical FortiStore Injection labels and no compatibility slot names.
+![FortiAIGate scenario traffic](images/fortiaigate/faig-scenario-traffic.png)
 
-> **Screenshot placeholder — `chatbot-simplified-selected-profile`**
->
-> Expected filename: `images/fortiaigate/chatbot-simplified-selected-profile.png`
->
-> Caption: A Simplified profile selects model, FAIG path, frontend instructions, MCP transport, and tool profile together.
->
-> Capture: A selected MCP-enabled scenario profile with its resolved summary visible. Use synthetic endpoint labels and avoid credentials.
+*Use the Python validator result to locate each scenario flow, guard, and
+action in FortiAIGate Traffic logs.*
 
-Detailed mode permits intentional comparison changes without editing scenario
-metadata:
-
-> **Screenshot placeholder — `chatbot-detailed-llm-controls`**
->
-> Expected filename: `images/fortiaigate/chatbot-detailed-llm-controls.png`
->
-> Caption: Select LLM provider, FAIG route, model alias, and frontend instruction profile independently.
->
-> Capture: The Detailed LLM controls with a scenario-owned FAIG route and model alias selected. Include the frontend instruction selector; exclude retired slot names.
-
-> **Screenshot placeholder — `chatbot-detailed-mcp-transport`**
->
-> Expected filename: `images/fortiaigate/chatbot-detailed-mcp-transport.png`
->
-> Caption: Select FortiWeb MCP by default or Direct MCP as the explicit fallback.
->
-> Capture: The Detailed MCP transport selector on an installation where FortiWeb is available. Show FortiWeb selected and Direct as an alternative; omit appliance addresses.
-
-> **Screenshot placeholder — `chatbot-detailed-tool-profile`**
->
-> Expected filename: `images/fortiaigate/chatbot-detailed-tool-profile.png`
->
-> Caption: Use scenario tools by default or intentionally select the expanded all-installed tool set.
->
-> Capture: The Detailed tool-profile selector showing the scenario-scoped profile and `all-installed`. Include the expanded-set warning if the UI displays it.
-
-## 9. Verify FortiAIGate Telemetry
-
-Correlate the functional result with the FortiAIGate event using scenario,
-action, request path, flow, guard, model alias, timestamp, detector, outcome,
-tokens, cost, and latency.
-
-> **Screenshot placeholder — `faig-scenario-event-detail`**
->
-> Expected filename: `images/fortiaigate/faig-scenario-event-detail.png`
->
-> Caption: Correlate scenario, action, path, guard, outcome, tokens, cost, and latency.
->
-> Capture: One synthetic scenario event detail with those fields visible. Redact authorization headers, private addresses, unique installation identifiers, and any non-synthetic prompt content.
+Open the matching row when deeper evidence is needed. Confirm its model alias,
+outcome, token usage, displayed cost, and latency agree with the validator and
+the expected behavior in the generated work order.
 
 If the path is missing, returns `401`/`404`, selects the wrong guard, or the
-model connection differs from Test Model, use
+model connection differs from Test Connectivity, use
 [Troubleshooting](troubleshooting.md#fortiaigate-returns-401-404-or-the-wrong-guard).
+
+Chatbot profile selection and presenter comparisons belong to
+[Scenario Management: Select A Chatbot Profile](scenario-management.md#8-select-a-chatbot-profile)
+and the individual scenario runbooks, not this administrator configuration
+guide.
 
 ## Changes After Initial Configuration
 

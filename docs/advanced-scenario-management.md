@@ -106,14 +106,33 @@ access. MCP transport is independent of the FortiAIGate LLM route.
 ## Optional FAIG Re-entry
 
 FAIG re-entry is globally available but disabled by every built-in scenario.
-Enable `matrix.faig_chain.enabled` only in an installed local profile after
-reviewing
-[FAIG Re-entry](fortiaigate-gui-config.md#6-keep-faig-re-entry-disabled-unless-deliberately-testing-it).
-The enabled matrix adds a dedicated `/v1/<scenario>/faig-chain/*` flow and
-`alert_all` guard, expanded as `inject_alert` plus `output_dlp_alert`; it does
-not modify the normal scenario guards. The chain must re-enter through
-`/v1/passthrough/*` and terminate at `pass-model`; routing back to a
-`*-faig-chain` alias creates a loop.
+Enable `matrix.faig_chain.enabled` only in an installed local profile when
+deliberately demonstrating instruction visibility or alternate routing. After
+changing the profile, redeploy LiteLLM and the chatbot, then render a new work
+order. Existing Alert, Deny, and Redact objects remain unchanged.
+
+The enabled matrix adds this dedicated object:
+
+| Field | Generated value |
+|---|---|
+| Scenario | `<scenario-id>` |
+| Action | `chain` |
+| Flow Name | `<scenario-id>-faig-chain` |
+| Configured URI | `/v1/<scenario-id>/faig-chain/*` |
+| Guard Name | `<scenario-id>_faig_chain` |
+| Guard Template | `alert_all` |
+| Guard Protections | `inject_alert`, `output_dlp_alert` |
+| Next-hop Model | `<scenario-id>-faig-chain` |
+
+Create the dedicated AI Guard and Flow from that work-order row. The Flow
+points to the Guard, and the Guard points to the generated
+`<scenario-id>-faig-chain` LiteLLM model. LiteLLM injects the scenario
+instructions and re-enters FortiAIGate only through `/v1/passthrough/*`, where
+`pass_model` terminates the chain at `pass-model` with `no_protections`.
+
+Never point the passthrough Guard or downstream model back to a
+`*-faig-chain` alias; that creates a request loop. Run the Python functional
+validator after configuring the additional Flow and Guard.
 
 ## Updates, Backups, And Removal
 
