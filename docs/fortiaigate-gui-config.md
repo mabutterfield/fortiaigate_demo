@@ -35,9 +35,9 @@ python3 scripts/scenario_profiles.py render-work-order
 ```
 
 The command first prints a terminal-friendly object list. Each numbered entry
-shows one scenario/action and its Flow, Configured URI, Guard, Next-hop model,
-Guard template, requirement state, and expected behavior. It then prints the
-path to the ignored formatted Markdown version:
+uses the exact labels Scenario, Action, Flow, Configured URI, Guard Name,
+Guard Template, Next-hop Model, Required, and Expected Behavior. It then
+prints the path to the ignored formatted Markdown version:
 
 ```text
 Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
@@ -51,15 +51,13 @@ Map one row at a time:
 | Guide variable | Work-order column or value | Example shape |
 |---|---|---|
 | `{{scenario_id}}` | Scenario | `resume-tool-injection` |
-| `{{action}}` | Action, converted to lowercase where needed | `alert`, `deny`, or `redact` |
-| `{{flow_name}}` | Suggested flow | `{{scenario_id}}-{{action}}` |
+| `{{action}}` | Action | `alert`, `deny`, `redact`, or chain-default `detect` |
+| `{{flow_name}}` | Flow | `{{scenario_id}}-{{action}}` |
 | `{{scenario_path}}` | Configured URI | `/v1/{{scenario_id}}/{{action}}/*` |
-| `{{request_path}}` | Configured URI with wildcard replaced | `/v1/{{scenario_id}}/{{action}}/chat/completions` |
-| `{{guard_name}}` | Suggested guard | `{{scenario_id}}_{{action}}` |
-| `{{guard_template}}` | Guard template | `detect_only`, `protect_input`, `output_dlp_deny`, or `output_dlp_redact` |
-| `{{model_alias}}` | Next-hop model | Normally `{{scenario_id}}` |
-| `{{expected_behavior}}` | Expected behavior | Work-order description |
-| `{{faig_chain_enabled}}` | Optional-chain state | `false` for every built-in scenario |
+| `{{guard_name}}` | Guard Name | `{{scenario_id}}_{{action}}` |
+| `{{guard_template}}` | Guard Template | `detect_only`, `protect_input`, `output_dlp_deny`, or `output_dlp_redact` |
+| `{{model_alias}}` | Next-hop Model | Normally `{{scenario_id}}` |
+| `{{expected_behavior}}` | Expected Behavior | Work-order description |
 
 Guard and flow display names can be changed locally, but the configured URI
 and next-hop model alias must match the work order. Keeping the suggested names
@@ -71,13 +69,13 @@ makes troubleshooting and telemetry correlation substantially easier.
 >
 > Caption: Map the generated terminal work-order entry into FortiAIGate objects.
 >
-> Capture: A tightly cropped terminal work-order entry showing one numbered scenario/action with Flow, Configured URI, Guard, Next-hop model, Guard template, and Expected fields. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
+> Capture: A tightly cropped terminal work-order entry showing Scenario, Action, Flow, Configured URI, Guard Name, Guard Template, Next-hop Model, and Expected Behavior. Include the final relative `Markdown version:` path; exclude warnings containing addresses and unrelated scenarios.
 
 ## Request-Path Model
 
 ```mermaid
 flowchart LR
-    CHAT["Chatbot or operator-shaped request"] -->|"{{request_path}}"| FLOW["FAIG flow {{flow_name}}"]
+    CHAT["Chatbot or operator-shaped request"] -->|"{{scenario_path}}"| FLOW["FAIG flow {{flow_name}}"]
     FLOW --> GUARD["AI Guard {{guard_name}}"]
     GUARD -->|"model {{model_alias}}"| LL["LiteLLM"]
     LL --> MODEL["Bedrock or Ollama"]
@@ -239,9 +237,8 @@ saved:
 | AI Guard | `{{guard_name}}` |
 | Client API-key validation | Disabled for the normal isolated lab |
 
-The configured path must end in `/*`. The chatbot and generated curl
-tests send the OpenAI-compatible request to `{{request_path}}`. Create specific
-scenario routes rather than a generic `/v1/*` fallback.
+The configured path must end in `/*`. Create specific scenario routes rather
+than a generic `/v1/*` fallback.
 
 > **Screenshot placeholder — `faig-scenario-flow`**
 >
@@ -265,10 +262,25 @@ guard next hop is `{{scenario_id}}`.
 > Capture: The normal scenario guard summary showing next-hop model `{{scenario_id}}`, with no `-faig-chain` alias selected.
 
 When a locally owned scenario explicitly enables the chain, redeploy LiteLLM
-and the chatbot, then re-render the work order. The scenario guard next hop
-becomes `{{scenario_id}}-faig-chain`; LiteLLM injects the scenario instructions
-and re-enters only through the global `/v1/passthrough/*` flow, which terminates
-at `pass-model`.
+and the chatbot, then re-render the work order. Existing Alert, Deny, and
+Redact objects remain unchanged. The matrix adds this dedicated object:
+
+| Field | Generated value |
+|---|---|
+| Scenario | `{{scenario_id}}` |
+| Action | `detect` |
+| Flow | `{{scenario_id}}-faig-chain` |
+| Configured URI | `/v1/{{scenario_id}}/faig-chain/*` |
+| Guard Name | `{{scenario_id}}_faig_chain` |
+| Guard Template | `detect_only` |
+| Next-hop Model | `{{scenario_id}}-faig-chain` |
+
+Create the dedicated flow and guard from that row. The new flow points to the
+new guard, and the guard points to the generated `{{scenario_id}}-faig-chain`
+LiteLLM model. That model injects the scenario instructions and re-enters only
+through the global `/v1/passthrough/*` flow, which terminates at `pass-model`.
+The dedicated guard uses detection without enforcement by default so the
+operator can observe the complete re-entry demonstration.
 
 Never point the passthrough guard or the chain's downstream model back to a
 `*-faig-chain` alias. That creates a request loop.
@@ -277,9 +289,9 @@ Never point the passthrough guard or the chain's downstream model back to a
 >
 > Expected filename: `images/fortiaigate/faig-scenario-chain-enabled.png`
 >
-> Caption: Route an explicitly chained scenario through the loop-safe FAIG passthrough next hop.
+> Caption: Configure the dedicated detect-only flow and guard for a loop-safe FAIG re-entry demonstration.
 >
-> Capture: An opted-in scenario guard showing `{{scenario_id}}-faig-chain`, alongside the work-order chain row or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
+> Capture: The opted-in work-order row and dedicated guard showing `{{scenario_id}}_faig_chain`, `detect_only`, and next-hop model `{{scenario_id}}-faig-chain`. Include the dedicated `/v1/{{scenario_id}}/faig-chain/*` flow or passthrough target proving re-entry terminates at `pass-model`. Use synthetic names and no endpoints.
 
 ## 7. Validate The Active Path
 

@@ -73,13 +73,15 @@ An explicitly opted-in local scenario uses this loop-safe path:
 
 ```mermaid
 flowchart LR
-    FLOW["Scenario FAIG flow"] --> GUARD["Scenario guard"]
+    FLOW["Dedicated &lt;scenario&gt;-faig-chain flow"] --> GUARD["Dedicated detect-only chain guard"]
     GUARD --> CHAIN["LiteLLM &lt;scenario&gt;-faig-chain<br/>inject instructions"]
     CHAIN --> PASS["FAIG /v1/passthrough/*"]
     PASS --> MODEL["LiteLLM pass-model"]
 ```
 
-The re-entry must terminate at `pass-model`. Never route passthrough back to a
+The opted-in matrix adds the dedicated flow and `detect_only` guard without
+changing the scenario's normal Alert, Deny, or Redact objects. The re-entry
+must terminate at `pass-model`. Never route passthrough back to a
 `*-faig-chain` alias. FortiGate LLM proxy paths and appliance-fronted FAIG
 chains are not part of the supported baseline.
 

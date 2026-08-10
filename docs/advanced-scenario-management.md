@@ -109,8 +109,10 @@ FAIG re-entry is globally available but disabled by every built-in scenario.
 Enable `matrix.faig_chain.enabled` only in an installed local profile after
 reviewing
 [FAIG Re-entry](fortiaigate-gui-config.md#6-keep-faig-re-entry-disabled-unless-deliberately-testing-it).
-The chain must re-enter through `/v1/passthrough/*` and terminate at
-`pass-model`; routing back to a `*-faig-chain` alias creates a loop.
+The enabled matrix adds a dedicated `/v1/<scenario>/faig-chain/*` flow and
+`detect_only` guard; it does not modify the normal scenario guards. The chain
+must re-enter through `/v1/passthrough/*` and terminate at `pass-model`;
+routing back to a `*-faig-chain` alias creates a loop.
 
 ## Updates, Backups, And Removal
 

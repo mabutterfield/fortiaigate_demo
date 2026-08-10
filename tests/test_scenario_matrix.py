@@ -306,9 +306,44 @@ class ScenarioMatrixTests(unittest.TestCase):
             "fortistore-injection-faig-chain",
             [model["name"] for model in matrix["litellm_models"]],
         )
+        work_order = {
+            entry["action"]: entry for entry in matrix["faig_work_order"]
+        }
         self.assertEqual(
-            matrix["faig_work_order"][0]["guard_next_hop_model"],
+            work_order["alert"]["guard_next_hop_model"],
+            "fortistore-injection",
+        )
+        self.assertEqual(
+            work_order["detect"]["suggested_flow_name"],
             "fortistore-injection-faig-chain",
+        )
+        self.assertEqual(
+            work_order["detect"]["uri"],
+            "/v1/fortistore-injection/faig-chain",
+        )
+        self.assertEqual(
+            work_order["detect"]["suggested_guard_name"],
+            "fortistore-injection_faig_chain",
+        )
+        self.assertEqual(work_order["detect"]["guard_template"], "detect_only")
+        self.assertTrue(work_order["detect"]["required_for_release"])
+        self.assertEqual(
+            work_order["detect"]["guard_next_hop_model"],
+            "fortistore-injection-faig-chain",
+        )
+        chain_route = next(
+            route
+            for route in matrix["chatbot_faig_static_routes"]
+            if route["name"] == "fortistore-injection-faig-chain"
+        )
+        self.assertEqual(
+            chain_route["base_path"],
+            "/v1/fortistore-injection/faig-chain",
+        )
+        self.assertEqual(chain_route["model"], "fortistore-injection-faig-chain")
+        self.assertEqual(
+            matrix["faig_chains"][0]["guard_template"],
+            "detect_only",
         )
         self.assertEqual(matrix["faig_chains"][0]["reentry_uri"], "/v1/passthrough")
         self.assertEqual(matrix["faig_chains"][0]["downstream_model"], "pass-model")
@@ -375,8 +410,13 @@ class ScenarioMatrixTests(unittest.TestCase):
         terminal_work_order = scenario_matrix.render_work_order_text(matrix)
         self.assertIn("FAIG Scenario Work Order", terminal_work_order)
         self.assertIn("Installed scenario objects: 1", terminal_work_order)
+        self.assertIn("Scenario: fortistore-injection", terminal_work_order)
+        self.assertIn("Action: alert", terminal_work_order)
+        self.assertIn("Flow: fortistore-injection-alert", terminal_work_order)
         self.assertIn("Configured URI: /v1/fortistore-injection/alert/*", terminal_work_order)
-        self.assertIn("Guard: fortistore-injection_alert", terminal_work_order)
+        self.assertIn("Guard Name: fortistore-injection_alert", terminal_work_order)
+        self.assertIn("Guard Template: detect_only", terminal_work_order)
+        self.assertIn("Next-hop Model: fortistore-injection", terminal_work_order)
         self.assertNotIn("| Scenario |", terminal_work_order)
         self.assertNotIn("Warnings:", terminal_work_order)
 

@@ -50,13 +50,10 @@ Open the Admin URL and complete the FortiAIGate 8.x first-login workflow.
 Change the initial password when prompted, store it outside Git, and confirm
 that the deployed license is active before starting the onboarding wizard.
 
-> **Screenshot placeholder — `faig-initial-login-password`**
->
-> Expected filename: `images/fortiaigate/faig-initial-login-password.png`
->
-> Caption: Complete first login, set the administrator password, and confirm the FortiAIGate license is active.
->
-> Capture: The licensed/ready first-login state. Show the 8.x product version and active license state; omit usernames, password fields, license identifiers, serial numbers, and addresses.
+![FortiAIGate initial sign-in page](images/fortiaigate/faig-initial-login-password.png)
+
+*Sign in to begin the first-login workflow, then set the administrator
+password and confirm that the FortiAIGate license is active.*
 
 ## 2. Complete The Onboarding Wizard
 
@@ -77,13 +74,9 @@ The wildcard is required. Requests use
 `/v1/passthrough/chat/completions`. Do not create a generic `/v1/*` fallback;
 it can conceal a missing scenario flow or make path ordering ambiguous.
 
-> **Screenshot placeholder — `faig-onboarding-flow`**
->
-> Expected filename: `images/fortiaigate/faig-onboarding-flow.png`
->
-> Caption: Define the initial `passthrough` flow at `/v1/passthrough/*`.
->
-> Capture: The first onboarding step with the complete flow name and wildcard path visible. Exclude browser-saved credentials and unrelated objects.
+![Define the initial passthrough flow](images/fortiaigate/faig-onboarding-flow.png)
+
+*Define the initial `passthrough` flow at `/v1/passthrough/*`.*
 
 ### 2.2 Set Up Your First AI Guard
 
@@ -115,13 +108,30 @@ for later scenario guards so dashboard comparisons remain understandable.
 The API key authenticates FortiAIGate to LiteLLM. It is separate from optional
 client authentication on a FortiAIGate flow.
 
-> **Screenshot placeholder — `faig-onboarding-guard`**
->
-> Expected filename: `images/fortiaigate/faig-onboarding-guard.png`
->
-> Caption: Configure `pass_model` with the OpenAI provider, `pass-model`, the private LiteLLM endpoint, and demonstration token costs.
->
-> Capture: The second onboarding step showing OpenAI, `pass-model`, Private endpoint enabled, the Endpoint value, and populated input/output token costs. Keep the API-key field masked.
+![Configure the initial passthrough AI Guard](images/fortiaigate/faig-onboarding-guard.png)
+
+*Configure `pass_model` with the OpenAI provider, `pass-model`, the private
+LiteLLM endpoint, and demonstration token costs.*
+
+Before continuing, click **Test Model**. This generic connectivity check should
+be repeated for every guard created later. It verifies only the API key, model
+alias, Endpoint, and connectivity from FortiAIGate to LiteLLM; it does not
+exercise any Alert, Deny, or Redact protection.
+
+Use a simple prompt such as `Reply with only: ok passthrough validation`. If
+the test fails, compare the provider, Private endpoint switch, Endpoint, API
+key, and model alias with the table above. Correct the guard and test again
+until it succeeds.
+
+![Failed Test Model result](images/fortiaigate/faig-initial-model-test-failed.png)
+
+*A failed Test Model result identifies a guard-to-LiteLLM configuration
+problem before flow validation.*
+
+![Successful Test Model result](images/fortiaigate/faig-initial-model-test-success.png)
+
+*Confirm that `pass_model` reaches the LiteLLM `pass-model` alias
+successfully.*
 
 ### 2.3 Configure Your AI Guard Protection
 
@@ -130,13 +140,9 @@ traversal control without prompt-injection, DLP, deny, or redaction behavior.
 It also avoids scenario-specific LiteLLM instructions because `pass-model` is
 the next-hop alias.
 
-> **Screenshot placeholder — `faig-onboarding-protection`**
->
-> Expected filename: `images/fortiaigate/faig-onboarding-protection.png`
->
-> Caption: Leave all protection features disabled for the passthrough guard.
->
-> Capture: The third onboarding step with every protection switch visibly off and the `pass_model` guard identified.
+![Disable protections for the passthrough guard](images/fortiaigate/faig-onboarding-protection.png)
+
+*Leave all protection features disabled for the passthrough guard.*
 
 ### 2.4 Review And Finish
 
@@ -144,59 +150,23 @@ Review the flow, guard, endpoint, model, and disabled protections, then click
 **Deploy**. Wait for deployment to report success before editing or testing
 the new objects.
 
-> **Screenshot placeholder — `faig-onboarding-review-deploy`**
->
-> Expected filename: `images/fortiaigate/faig-onboarding-review-deploy.png`
->
-> Caption: Review and deploy the initial passthrough flow and `pass_model` guard.
->
-> Capture: The fourth onboarding step or deployment-success state showing `passthrough`, `/v1/passthrough/*`, `pass_model`, and `pass-model`. Omit the API key and private addresses.
+![Review and deploy the passthrough configuration](images/fortiaigate/faig-onboarding-review-deploy.png)
 
-## 3. Correct And Test The Wizard Configuration
+*Review and deploy the initial passthrough flow and `pass_model` guard.*
 
-### 3.1 Remove Flow Authentication
+## 3. Correct The Wizard Flow Authentication
 
 Edit the wizard-created `passthrough` flow and remove or disable its client
 authentication requirement. Most lab flows disable client-to-FortiAIGate API
 key validation so testing focuses on AI protections. This does not disable the
 separate LiteLLM API key configured on the guard.
 
-> **Screenshot placeholder — `faig-initial-flow-auth-disabled`**
->
-> Expected filename: `images/fortiaigate/faig-initial-flow-auth-disabled.png`
->
-> Caption: Edit the wizard-created passthrough flow and disable client authentication for the isolated lab baseline.
->
-> Capture: The `passthrough` flow authentication setting in its disabled state. Show the setting label and flow name without exposing credentials.
+![Disable client authentication on the passthrough flow](images/fortiaigate/faig-initial-flow-auth-disabled.png)
+
+*Edit the wizard-created passthrough flow and disable client authentication
+for the isolated lab baseline.*
 
 Deploy the flow change before testing the request path.
-
-### 3.2 Test The Model From The Guard
-
-Edit `pass_model` and click **Test Model**. A successful test proves that the
-OpenAI provider selection, private Endpoint, API key, and `pass-model` alias
-work before the flow and client path are added to the diagnosis.
-
-Use a simple prompt such as `Reply with only: ok passthrough validation`.
-If the test fails, compare the provider, Private endpoint switch, Endpoint,
-API key, and model alias with the onboarding table. Correct the guard and test
-again until it succeeds.
-
-> **Screenshot placeholder — `faig-initial-model-test-failed`**
->
-> Expected filename: `images/fortiaigate/faig-initial-model-test-failed.png`
->
-> Caption: A failed Test Model result identifies a guard-to-LiteLLM configuration problem before flow validation.
->
-> Capture: A representative failed Test Model result with its useful error visible. Do not expose the endpoint address, API key, prompt history, or unrelated guard details.
-
-> **Screenshot placeholder — `faig-initial-model-test-success`**
->
-> Expected filename: `images/fortiaigate/faig-initial-model-test-success.png`
->
-> Caption: Confirm `pass_model` reaches the LiteLLM `pass-model` alias successfully.
->
-> Capture: The successful Test Model result for the synthetic validation prompt, with guard and model names visible and secrets omitted.
 
 ## 4. Validate Passthrough
 
@@ -221,13 +191,10 @@ Expected result:
 If it fails, use
 [FortiAIGate Returns 401, 404, Or The Wrong Guard](troubleshooting.md#fortiaigate-returns-401-404-or-the-wrong-guard).
 
-> **Screenshot placeholder — `faig-initial-passthrough-event`**
->
-> Expected filename: `images/fortiaigate/faig-initial-passthrough-event.png`
->
-> Caption: Confirm the passthrough request reached `pass-model` without scenario protection.
->
-> Capture: The FortiAIGate event or request detail showing the passthrough path, `pass_model`, allowed outcome, `pass-model`, and timestamp. Exclude prompt content if it contains anything beyond the synthetic test string.
+![Validate the passthrough event](images/fortiaigate/faig-initial-passthrough-event.png)
+
+*Confirm that the passthrough request reached `pass-model` without scenario
+protection.*
 
 ## Optional: Configure Syslog
 
@@ -259,13 +226,10 @@ bring the existing deployment to the newly requested state. See
 [FortiAIGate Syslog Preservation](troubleshooting/fortiaigate-syslog-preservation.md)
 for AWS and local collector details.
 
-> **Screenshot placeholder — `faig-optional-syslog-output`**
->
-> Expected filename: `images/fortiaigate/faig-optional-syslog-output.png`
->
-> Caption: Read the deployed FortiAIGate syslog destination from Demo Outputs or collector status.
->
-> Capture: The output lines containing the syslog target IP, UDP port, and S3 or file destination. Omit host addresses, bucket account identifiers, credentials, and unrelated output.
+![Read the deployed syslog destination](images/fortiaigate/faig-optional-syslog-output.png)
+
+*Read the deployed FortiAIGate syslog destination from Demo Outputs or
+collector status.*
 
 In FortiAIGate, navigate to **Logs > Log Settings** and create or enable a
 syslog destination using the printed values:
@@ -280,13 +244,10 @@ syslog destination using the printed values:
 Save the settings, generate a synthetic passthrough event, and use the status
 playbook to confirm that the collector received it.
 
-> **Screenshot placeholder — `faig-optional-syslog-settings`**
->
-> Expected filename: `images/fortiaigate/faig-optional-syslog-settings.png`
->
-> Caption: Configure FortiAIGate to send logs by UDP/514 to the deployed syslog collector.
->
-> Capture: Logs > Log Settings with the syslog destination enabled and UDP/514 visible. Replace the real ClusterIP with `{{syslog_target_ip}}` or obscure it before committing.
+![Configure the FortiAIGate syslog destination](images/fortiaigate/faig-optional-syslog-settings.png)
+
+*Configure FortiAIGate to send logs by UDP/514 to the deployed syslog
+collector.*
 
 ## Next Step
 

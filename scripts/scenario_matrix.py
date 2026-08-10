@@ -11,6 +11,8 @@ from typing import Any
 MATRIX_SCHEMA_VERSION = 1
 FAIG_PASSTHROUGH_URI = "/v1/passthrough"
 FAIG_CHAIN_LLM_TARGET = "faig-chain-reentry"
+FAIG_CHAIN_ACTION = "detect"
+FAIG_CHAIN_GUARD_TEMPLATE = "detect_only"
 
 
 class ScenarioMatrixError(RuntimeError):
@@ -247,6 +249,8 @@ def build_scenario_matrix(
         faig_chain = scenario.get("faig_chain", {"enabled": False})
         chain_enabled = bool(faig_chain.get("enabled", False))
         chain_model_alias = f"{scenario_id}-faig-chain"
+        chain_route_name = f"{scenario_id}-faig-chain"
+        chain_uri = f"/v1/{scenario_id}/faig-chain"
         if chain_enabled:
             if not faig_chain_available:
                 raise ScenarioMatrixError(
@@ -266,15 +270,49 @@ def build_scenario_matrix(
                 }
             )
             model_instruction_profiles[chain_model_alias] = scenario_id
+            chatbot_faig_routes.append(
+                {
+                    "name": chain_route_name,
+                    "label": f"{scenario['display_name']} - FAIG Chain",
+                    "base_path": chain_uri,
+                    "model": chain_model_alias,
+                    "scenario_id": scenario_id,
+                    "action": FAIG_CHAIN_ACTION,
+                }
+            )
+            work_order.append(
+                {
+                    "scenario_id": scenario_id,
+                    "action": FAIG_CHAIN_ACTION,
+                    "display_name": "FAIG Chain - Detect",
+                    "uri": chain_uri,
+                    "route": chain_route_name,
+                    "suggested_flow_name": chain_route_name,
+                    "suggested_guard_name": f"{scenario_id}_faig_chain",
+                    "guard_template": FAIG_CHAIN_GUARD_TEMPLATE,
+                    "guard_next_hop_model": chain_model_alias,
+                    "expected_behavior": (
+                        "Detect and log at the dedicated chain guard, then send the "
+                        "request to the scenario FAIG-chain model for instruction "
+                        "injection and loop-safe re-entry through passthrough."
+                    ),
+                    "required_for_release": True,
+                    "faig_chain_enabled": True,
+                }
+            )
             faig_chains.append(
                 {
                     "scenario_id": scenario_id,
                     "model_alias": chain_model_alias,
+                    "entry_uri": chain_uri,
+                    "flow_name": chain_route_name,
+                    "guard_name": f"{scenario_id}_faig_chain",
+                    "guard_template": FAIG_CHAIN_GUARD_TEMPLATE,
                     "reentry_uri": faig_chain_reentry_uri,
                     "downstream_model": "pass-model",
                     "topology": [
                         "chatbot",
-                        "faig-scenario-path",
+                        chain_uri,
                         chain_model_alias,
                         faig_chain_reentry_uri,
                         "pass-model",
@@ -297,9 +335,6 @@ def build_scenario_matrix(
             }
             chatbot_faig_routes.append(route)
             work_order_entry = {"scenario_id": scenario_id, **entry_point}
-            if chain_enabled:
-                work_order_entry["guard_next_hop_model"] = chain_model_alias
-                work_order_entry["faig_chain_enabled"] = True
             work_order.append(work_order_entry)
 
         mcp = scenario.get("mcp", {})
@@ -492,7 +527,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Action | Suggested flow | Configured URI | Suggested guard | Next-hop model | Guard template | Required | Expected behavior |",
+                "| Scenario | Action | Flow | Configured URI | Guard Name | Guard Template | Next-hop Model | Required | Expected Behavior |",
                 "|---|---|---|---|---|---|---|---|---|",
             ]
         )
@@ -502,12 +537,12 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                 + " | ".join(
                     [
                         f"`{entry['scenario_id']}`",
-                        entry["display_name"],
+                        f"`{entry['action']}`",
                         f"`{entry['suggested_flow_name']}`",
                         f"`{entry['uri']}/*`",
                         f"`{entry['suggested_guard_name']}`",
-                        f"`{entry['guard_next_hop_model']}`",
                         f"`{entry['guard_template']}`",
+                        f"`{entry['guard_next_hop_model']}`",
                         "yes" if entry["required_for_release"] else "no",
                         str(entry["expected_behavior"]).replace("|", "\\|"),
                     ]
@@ -536,14 +571,16 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | LiteLLM chain alias | Re-entry URI | Downstream model |",
-                "|---|---|---|---|",
+                "| Scenario | Flow | Guard Name | Guard Template | Next-hop Model | Re-entry URI | Downstream Model |",
+                "|---|---|---|---|---|---|---|",
             ]
         )
         for chain in chains:
             lines.append(
-                f"| `{chain['scenario_id']}` | `{chain['model_alias']}` | "
-                f"`{chain['reentry_uri']}/*` | `{chain['downstream_model']}` |"
+                f"| `{chain['scenario_id']}` | `{chain['flow_name']}` | "
+                f"`{chain['guard_name']}` | `{chain['guard_template']}` | "
+                f"`{chain['model_alias']}` | `{chain['reentry_uri']}/*` | "
+                f"`{chain['downstream_model']}` |"
             )
         lines.extend(
             [
@@ -580,14 +617,16 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
         lines.extend(
             [
                 "",
-                f"[{index}/{len(work_order)}] {entry['scenario_id']} / {entry['display_name']}",
+                f"[{index}/{len(work_order)}] Scenario object",
+                f"  Scenario: {entry['scenario_id']}",
+                f"  Action: {entry['action']}",
                 f"  Flow: {entry['suggested_flow_name']}",
                 f"  Configured URI: {entry['uri']}/*",
-                f"  Guard: {entry['suggested_guard_name']}",
-                f"  Next-hop model: {entry['guard_next_hop_model']}",
-                f"  Guard template: {entry['guard_template']}",
+                f"  Guard Name: {entry['suggested_guard_name']}",
+                f"  Guard Template: {entry['guard_template']}",
+                f"  Next-hop Model: {entry['guard_next_hop_model']}",
                 f"  Required: {'yes' if entry['required_for_release'] else 'no'}",
-                f"  Expected: {entry['expected_behavior']}",
+                f"  Expected Behavior: {entry['expected_behavior']}",
             ]
         )
 
@@ -597,8 +636,12 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
         lines.extend(
             [
                 f"  {chain['scenario_id']}: {chain['model_alias']}",
+                f"    Flow: {chain['flow_name']}",
+                f"    Configured URI: {chain['entry_uri']}/*",
+                f"    Guard Name: {chain['guard_name']}",
+                f"    Guard Template: {chain['guard_template']}",
                 f"    Re-entry URI: {chain['reentry_uri']}/*",
-                f"    Downstream model: {chain['downstream_model']}",
+                f"    Downstream Model: {chain['downstream_model']}",
             ]
         )
 

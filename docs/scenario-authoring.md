@@ -129,9 +129,10 @@ profile changes.
 
 The capability is globally available, while every built-in sets
 `matrix.faig_chain.enabled: false`. An operator-owned local scenario may opt
-in. The generated `*-faig-chain` alias must re-enter only through global
-passthrough and terminate at `pass-model`; never route passthrough back to a
-chain alias.
+in. The generated work order adds a dedicated `faig-chain` flow and
+`detect_only` guard whose `*-faig-chain` model alias re-enters only through
+global passthrough and terminates at `pass-model`; it does not rewrite normal
+scenario guards. Never route passthrough back to a chain alias.
 
 ## Prompts And Validation Cases
 
