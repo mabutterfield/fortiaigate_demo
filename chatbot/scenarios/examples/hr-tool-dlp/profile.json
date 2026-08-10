@@ -64,7 +64,7 @@
         "id": "hr-tool-dlp-llm-direct",
         "display_name": "HR Tool DLP - LLM Direct",
         "provider_path": "direct",
-        "context_mode": "recent",
+        "context_mode": "consolidated",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
@@ -73,7 +73,7 @@
         "display_name": "HR Tool DLP - Alert",
         "provider_path": "faig-static",
         "entry_point_action": "alert",
-        "context_mode": "recent",
+        "context_mode": "consolidated",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
@@ -82,7 +82,7 @@
         "display_name": "HR Tool DLP - Redact",
         "provider_path": "faig-static",
         "entry_point_action": "redact",
-        "context_mode": "recent",
+        "context_mode": "consolidated",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       },
@@ -91,7 +91,7 @@
         "display_name": "HR Tool DLP - Deny",
         "provider_path": "faig-static",
         "entry_point_action": "deny",
-        "context_mode": "recent",
+        "context_mode": "consolidated",
         "context_window": 8,
         "frontend_instruction_profile": "none"
       }
@@ -158,7 +158,7 @@
       "llm_path": "FAIG Static Route",
       "mcp_path": "FortiWeb MCP with Direct MCP fallback",
       "tool_profile": "hr-tool-dlp",
-      "context_mode": "recent",
+      "context_mode": "consolidated",
       "max_tool_rounds": 5
     },
     "questions": [

@@ -74,9 +74,11 @@ the generated work order and current GUI settings remain authoritative.
 | `HR Tool DLP - Redact` | Redact protected output | `hr-tool-dlp` |
 | `HR Tool DLP - Deny` | Deny protected output | `hr-tool-dlp` |
 
-All four use alias `hr-tool-dlp`, Recent context with an eight-message window,
-and up to five tool rounds. FortiWeb is selected when it is installed and
-usable; matrix generation warns and falls back to Direct MCP otherwise.
+All four use alias `hr-tool-dlp`, Consolidated context, and up to five tool
+rounds. Consolidated context is more reliable for carrying the employee IDs
+from the safe table into the follow-up sensitive lookup. FortiWeb is selected
+when it is installed and usable; matrix generation warns and falls back to
+Direct MCP otherwise.
 
 The base profile contains:
 

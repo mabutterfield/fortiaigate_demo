@@ -154,6 +154,31 @@ Capture the selected profile, visible activation marker and response, plus the
 FAIG path, flow, guard, detector, action, verdict, model, timestamp, tokens,
 cost, and latency. Also show that MCP is disabled.
 
+The following sequence shows the distinction between path success and the
+actual FortiAIGate action. A clean product request can traverse the Alert flow
+without producing a violation:
+
+![FortiStore clean request with no violation](../../../../docs/images/fortiaigate/logs-fortistore-inject-clean.png)
+
+*A clean FortiStore product request completes through the inspected path with
+no prompt-injection violation.*
+
+With the compromised frontend instructions enabled, the same Alert flow logs
+the system-prompt injection and allows generation to continue:
+
+![FortiStore prompt-injection Alert event](../../../../docs/images/fortiaigate/logs-fortistore-injection-alert.png)
+
+*FortiAIGate records the injected system instruction as Prompt Injection and
+allows the Alert request to continue.*
+
+The Deny flow detects the same injected system instruction but stops the
+request before model tokens are generated:
+
+![FortiStore prompt-injection Deny event](../../../../docs/images/fortiaigate/logs-fortistore-deny.png)
+
+*FortiAIGate denies the injected request; the zero input/output token counts
+show that it did not continue to model generation.*
+
 If the activation marker is missing, verify the installed instructions and
 redeploy LiteLLM. If the Alert and Deny profiles behave identically, verify
 their exact wildcard paths, attached guards, and deployed state. If the

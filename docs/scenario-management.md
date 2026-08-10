@@ -107,6 +107,7 @@ the shared MCP server.
 
 | Change | Required deployment |
 |---|---|
+| Add or remove a built-in scenario whose tools already exist | LiteLLM and Chatbot; no MCP redeploy |
 | Backend instructions or model mapping | LiteLLM |
 | Installed profile, generated routes, frontend instructions, or Simplified profiles | Chatbot; LiteLLM when backend mapping/instructions also changed |
 | MCP code, schema, fixture, or credential wiring | MCP |
