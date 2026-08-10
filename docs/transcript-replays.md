@@ -7,8 +7,8 @@ conversation.
 
 They are requests, not captured outputs. Sending one does not execute the
 chatbot, MCP transport, MCP server, upload simulation, document read, or tool.
-Use [Functional Validation](functional-validation.md) as the
-authoritative end-to-end validation.
+Use [Functional Validation](functional-validation.md) for the live end-to-end
+path test, then correlate its timestamp with FortiAIGate telemetry.
 
 ## Active Replay Fixtures
 

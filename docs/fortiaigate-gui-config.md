@@ -277,10 +277,12 @@ python3 -m functional_test validate \
 ```
 
 The validator selects the declared chatbot profile automatically and checks
-the complete scenario behavior, including Alert, Deny, Redact, frontend
-instructions, MCP calls, FortiWeb transport, and forbidden-tool boundaries as
-applicable. A successful run ends with `INSTALLATION READY`; a mismatch exits
-nonzero with the failed path and expected result.
+the configured path's observable behavior, including completion, block or
+redaction response, frontend instructions, MCP calls, FortiWeb transport, and
+forbidden-tool boundaries as applicable. A successful run ends with
+`INSTALLATION READY`; a mismatch exits nonzero with the failed path and
+expected result. Confirm the actual appliance action in FortiAIGate Traffic
+logs.
 
 Use `python3 -m functional_test render-curl` only for a direct-flow diagnostic.
 It does not prove the chatbot agent or MCP server executed the exchange.

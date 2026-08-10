@@ -245,8 +245,10 @@ python3 -m functional_test validate --scenario-id fortistore-injection
 python3 -m functional_test validate --scenario-id hr-tool-dlp --action deny
 ```
 
-The functional tester validates expected Alert, Deny, and Redact behavior from
+The functional tester checks the expected observable path behavior from
 scenario metadata and writes run evidence under its configured output root.
+Correlate its timestamp with FortiAIGate Traffic logs to confirm the appliance
+Alert, Deny, or Redact action.
 See [Functional Validation](functional-validation.md).
 
 ## Direct Component Probes

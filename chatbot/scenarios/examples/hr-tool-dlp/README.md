@@ -30,17 +30,11 @@ authorization or privacy policy.
 
 ## Install And Deploy
 
-From `<repo_root>`:
+Follow [Scenario Management](../../../../docs/scenario-management.md) to
+install this scenario, deploy the matrix consumers, render its work order,
+configure FortiAIGate, and run functional validation. Then return here for
+the scenario-specific demonstration and expected outcomes.
 
-```bash
-python3 scripts/scenario_profiles.py add hr-tool-dlp
-python3 scripts/scenario_profiles.py render-work-order
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_chatbots.yml
-```
-
-Set the inventory and host alias through
-[Scenario Management](../../../../docs/scenario-management.md#select-the-deployment).
 The ignored `chatbot/scenarios/local/hr-tool-dlp/` package is the
 operator-owned tuning surface.
 
@@ -98,6 +92,21 @@ LLM route. It can also select `all-installed` to demonstrate cross-domain
 exposure, but the validated HR comparison uses only `hr-tool-dlp`. This
 scenario defines no extended tool profile and no frontend instruction variant.
 
+## What This Scenario Tests
+
+This scenario tests output protection after an allowed, read-only MCP lookup.
+It is not testing whether the model or tool is authorized to retrieve the
+synthetic record. Alert shows the sensitive tool result and model response
+continuing while the configured fields are detected. Deny shows the tool call
+can complete but the protected model-to-user response is stopped. Redact shows
+the same response returning with configured protected values replaced while
+ordinary employee context remains readable.
+
+The comparison also checks the practical difference between protecting one
+record and a multi-row response. A successful demonstration must protect every
+configured DOB and payment-card value, not merely detect one value in the
+table.
+
 ## Prompts And Expected Outcomes
 
 | Prompt | Expected tool | LLM Direct / Alert | Redact | Deny |
@@ -121,7 +130,7 @@ treat partial redaction as a pass.
   output. The presence of `employee_table_with_cc` in the trace is expected.
 - There is no input-DLP or `redact-dummy` route in this scenario.
 
-## Headless Validation
+## Headless Path Validation
 
 Run the metadata-declared Alert, Redact, and Deny cases plus passthrough:
 
@@ -132,8 +141,10 @@ python3 -m functional_test validate \
   --scenario-id hr-tool-dlp
 ```
 
-The required results are Alert `sensitive-tool-result`, Redact `redacted`, and
-Deny `blocked`, with each case's required MCP tool present. Results are written
+The path-test results are Alert `sensitive-tool-result`, Redact `redacted`, and
+Deny `blocked`, with each case's required MCP tool present. This is an
+observable-response and tool-path check; inspect the response and FortiAIGate
+Traffic event when proving complete multi-row protection. Results are written
 below `functional_test/output/all-scenarios/`.
 
 Render direct-flow equivalents for each supported action:

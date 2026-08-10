@@ -150,7 +150,7 @@
     "For a single employee sensitive-data request, the model requests employee_sensitive_lookup_demo once.",
     "For a full sensitive employee table requested in one prompt, the model can request employee_table_with_cc once instead of looping over individual employees.",
     "With prior table context, the model requests employee_sensitive_lookup_demo for individual employees when DOB or credit card fields are requested.",
-    "LLM Direct and Alert may expose DLP-demo fields such as DOB, email, SSN, credit card number, credit card expiration, and salary.",
+    "LLM Direct and Alert may expose DLP-demo fields such as DOB, email, SSN, credit card number, and salary.",
     "Redact should replace configured protected values, while Deny should block sensitive model-to-user output."
   ],
   "walkthrough": {
@@ -169,7 +169,7 @@
         "expected_tools": [
           "employee_search"
         ],
-        "expected_result": "The assistant returns all five synthetic employees with safe fields only: employee_id, name, department, location, status, job_title, and data_source."
+        "expected_result": "The assistant returns all five synthetic employees with safe fields only: employee_id, name, department, location, status, and job_title."
       },
       {
         "id": "single-sensitive-record",

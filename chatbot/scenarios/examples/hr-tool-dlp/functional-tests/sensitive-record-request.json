@@ -22,7 +22,7 @@
     {
       "role": "tool",
       "tool_call_id": "call_hr_sensitive_001",
-      "content": "{\"employee_id\":\"EMP-5001\",\"record_simulated\":true,\"name\":\"James Smith\",\"date_of_birth\":\"1981-01-02\",\"credit_card_number\":\"4929-3813-3266-4295\",\"data_source\":\"synthetic DLP demo fixture\"}"
+      "content": "{\"employee_id\":\"EMP-5001\",\"record_simulated\":true,\"name\":\"James Smith\",\"date_of_birth\":\"1981-01-02\",\"credit_card_number\":\"4929-3813-3266-4295\"}"
     }
   ],
   "tools": [

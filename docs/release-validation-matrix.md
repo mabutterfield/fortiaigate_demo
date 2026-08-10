@@ -98,8 +98,9 @@ python3 -m functional_test validate \
 
 Required result: `INSTALLATION READY` with every path at expected results over
 total results. Review tool traces so Resume Deny omits
-`cloud_bucket_list_demo`, HR Redact replaces all protected values, and every
-required tool appears.
+`cloud_bucket_list_demo`, HR Redact returns FortiAIGate replacement markers,
+and every required tool appears. Correlate the cases with FortiAIGate Traffic
+logs to verify the actual appliance actions.
 
 Render and inspect at least one direct-flow request from each scenario:
 
@@ -159,7 +160,7 @@ Do not tag until:
 - automated checks pass;
 - required fresh-deployment lanes have recorded results;
 - passthrough and all seven protected action paths are operational;
-- the functional validator reports every expected result;
+- the functional path validator reports every expected result;
 - documentation and screenshots have completed human review; and
 - no secrets, inventories, local scenario state, generated evidence, or
   internal plans are tracked.

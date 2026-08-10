@@ -1,13 +1,16 @@
 # Functional Validation
 
-Functional validation is the supported post-installation check for
+Functional validation is the supported post-installation path test for
 FortiAIGate passthrough and every installed scenario. It uses the deployed
 chatbot agent, installed scenario matrix, live MCP transport, and the expected
-results declared in each scenario's `validation.cases`.
+results declared in each scenario's `validation.cases` to confirm that each
+configured path produces its expected observable result.
 
-This is different from repository unit tests, which verify code and metadata
-without contacting the deployment, and developer load testing, which creates
-bounded dashboard traffic rather than proving installation readiness.
+This is a functional path smoke test, not an exhaustive security assertion or
+a substitute for FortiAIGate telemetry. It is different from repository unit
+tests, which verify code and metadata without contacting the deployment, and
+developer load testing, which creates bounded dashboard traffic rather than
+checking configured paths.
 
 All commands run from `<repo_root>`.
 
@@ -42,15 +45,15 @@ python3 -m functional_test validate \
   --host-alias "$FAIG_HOST_ALIAS"
 ```
 
-The validator checks:
+The validator checks the following observable path behavior:
 
 - expected completion, block, redaction, sensitive result, or synthetic tool
   pivot;
 - every required MCP tool;
 - absence of every forbidden tool;
 - Resume Deny enforcement before `cloud_bucket_list_demo` executes;
-- effective FAIG route, model alias, MCP transport, tool profile, and frontend
-  instruction profile; and
+- the declared FAIG route, model alias, MCP transport, tool profile, and
+  frontend instruction profile used by the probe; and
 - global passthrough without scenario MCP tools.
 
 Each path prints `expected results / total results`. A fully successful run
@@ -62,6 +65,32 @@ INSTALLATION READY: <expected>/<total> expected results
 
 Any unexpected result returns a nonzero exit code and prints missing tools,
 forbidden tools, disposition mismatches, or the saved agent-probe error.
+
+Passing means the declared paths are reachable and returned the response and
+tool behavior expected by the smoke-test metadata. It does not independently
+prove that an Alert event was recorded, or that response text classified as a
+Deny came from FortiAIGate rather than a model refusal. Correlate the saved UTC
+timestamp with FortiAIGate Traffic logs for that evidence.
+
+## Result Classification And Future Tuning
+
+The current path test classifies Deny and Redact from the returned response.
+Observed FortiAIGate prompt-injection Deny responses use patterns such as:
+
+```text
+This request was blocked by FortiAIGate as it detected Prompt Injection violations in the system prompt.
+This request was blocked by FortiAIGate as it triggered our safety systems.
+```
+
+The rendered product response normally makes `FortiAIGate` a link. Output-DLP
+Deny is expected to use a similar product-owned block response; confirm its
+exact wording before making that signature a strict test contract. Redact is
+identified through the returned FortiAIGate replacement markers.
+
+A future validator revision can tighten Deny classification around these
+product-owned signatures and correlate a request identifier with FortiAIGate
+telemetry. Until then, the command remains a path test and Traffic logs remain
+the authority for the appliance action.
 
 ## Troubleshooting Filters
 

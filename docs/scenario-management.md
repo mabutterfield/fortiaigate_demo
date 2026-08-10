@@ -152,8 +152,10 @@ python3 -m functional_test validate \
   --scenario-id hr-tool-dlp
 ```
 
-The live test is authoritative for frontend instructions, MCP execution,
-FortiWeb transport, tool order, denial before a forbidden tool, and redaction.
+The live path test exercises frontend instructions, MCP execution, FortiWeb
+transport, tool order, denial before a forbidden tool, and visible redaction.
+Use its timestamp to confirm the actual Alert, Deny, or Redact action in
+FortiAIGate Traffic logs.
 
 ## 8. Select A Chatbot Profile
 
@@ -200,11 +202,12 @@ Removal moves the local package into the ignored `_removed/` tree. It does not
 delete FortiAIGate GUI objects; disable or remove those flows and guards
 manually after confirming nothing references them.
 
-## Validated Scenario Runbooks
+## Scenario Catalog And Runbooks
 
-- [FortiStore Injection](../chatbot/scenarios/examples/fortistore-injection/README.md)
-- [HR Tool DLP](../chatbot/scenarios/examples/hr-tool-dlp/README.md)
-- [Resume Tool Injection](../chatbot/scenarios/examples/resume-tool-injection/README.md)
+Use the authoritative
+[Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) to find
+the current validated scenarios and their individual runbooks. Keeping that
+list with `catalog.json` avoids duplicating scenario membership here.
 
 For package schema and authoring decisions, see
 [Scenario Authoring](scenario-authoring.md). For tuning, candidate inspection,

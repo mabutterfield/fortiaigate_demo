@@ -31,7 +31,7 @@ relationships, see [Architecture](../architecture.md).
 | FortiAIGate syslog preservation | Optional, configurable | Stop-gap log preservation when FortiAnalyzer is unavailable; it is not a FortiAnalyzer replacement |
 | Open WebUI | Optional, disabled, unconfigured | Deployment capability for future or custom use; no supported scenario/provider configuration or validation is supplied |
 | FAIG re-entry chain | Available, configurable, scenario-disabled | Global topology is enabled; every built-in scenario opts out by default |
-| Functional scenario validation | Validated | `python3 -m functional_test validate` reads installed scenario metadata and verifies expected Alert, Deny, and Redact behavior |
+| Functional scenario path test | Validated | `python3 -m functional_test validate` reads installed scenario metadata and checks the observable completion, block, redaction, and tool behavior of each configured path; FortiAIGate telemetry confirms the appliance action |
 | FortiGate LLM and appliance-fronted FAIG traffic | Deferred | Configuration experiments remain available, but these are disabled and not baseline paths |
 
 ## Scenario Authority

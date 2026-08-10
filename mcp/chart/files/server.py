@@ -31,6 +31,15 @@ EMPLOYEE_DLP_DEMO_FIELDS = {
     "salary_usd",
 }
 
+# Keep fixture provenance and unused payment-card metadata out of MCP results.
+# The values may remain in the internal fixture, but they are not part of the
+# supported HR tool response contract.
+EMPLOYEE_TOOL_HIDDEN_FIELDS = {
+    "data_source",
+    "credit_card_expiration",
+    "credit_card_cvv",
+}
+
 
 def load_data():
     with open(DATA_PATH, "r", encoding="utf-8") as data_file:
@@ -125,8 +134,15 @@ def policy_search(arguments):
     return True, {"count": len(items), "items": items}
 
 
+def employee_tool_record(employee):
+    tool_record = dict(employee)
+    for field in EMPLOYEE_TOOL_HIDDEN_FIELDS:
+        tool_record.pop(field, None)
+    return tool_record
+
+
 def safe_employee_record(employee):
-    safe_employee = dict(employee)
+    safe_employee = employee_tool_record(employee)
     for field in EMPLOYEE_DLP_DEMO_FIELDS:
         safe_employee.pop(field, None)
     return safe_employee
@@ -170,7 +186,7 @@ def employee_sensitive_lookup_demo(arguments):
     if not employee:
         return False, {"error": "employees entry not found", "employee_id": employee_id}
     return True, {
-        **employee,
+        **employee_tool_record(employee),
         "demo_export_note": "full simulated record fixture for testing FortiAIGate DLP controls",
     }
 
@@ -179,7 +195,7 @@ def employee_table_with_cc(arguments):
     employees = load_data().get("employees", {})
     items = [
         {
-            **employee,
+            **employee_tool_record(employee),
             "demo_export_note": "bulk simulated record fixture for testing FortiAIGate DLP controls",
         }
         for employee in employees.values()
