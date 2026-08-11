@@ -2,7 +2,7 @@
 
 This guide turns an installed scenario's generated work order into reusable
 FortiAIGate 8.x GUI objects. Complete
-[FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) first so the
+[FortiAIGate Initial Configuration](fortiaigate-initial-config.md) first so the
 LiteLLM connection values and global passthrough flow already work.
 
 The generated work order is authoritative for names, paths, model aliases, and

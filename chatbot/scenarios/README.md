@@ -130,5 +130,5 @@ scenario has been installed.
 
 - [Operator lifecycle](../../docs/scenario-management.md)
 - [Scenario editing and deploy boundaries](../../docs/scenario-authoring.md)
-- [Scenario creation and evidence process](../../docs/scenario-documentation-process.md)
+- [Scenario creation and evidence contract](../../docs/scenario-authoring.md#authoring-workflow)
 - [Archived scenario notes](../../archived_scenarios/README.md)

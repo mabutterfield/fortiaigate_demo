@@ -18,6 +18,23 @@ full AWS demo, with public management EIPs and internal ENIs. FortiWeb currently
 fronts the generated demo NodePorts in reverse-proxy mode. Private k3s mode
 remains a planned validation path.
 
+## Trusted Source CIDRs
+
+`allowed_ingress_cidr` in `terraform/user.tfvars` accepts either one CIDR
+string or a list of CIDR strings. Prefer `/32` entries for individual public
+operator addresses:
+
+```hcl
+allowed_ingress_cidr = [
+  "203.0.113.10/32",
+  "198.51.100.25/32",
+]
+```
+
+The AWS prep module normalizes this value for the EC2 module. The k3s security
+group uses it for SSH, HTTP, HTTPS, and configured demo NodePorts. Appliance
+modules use the same trusted-source intent for their public management paths.
+
 ## VPC Network Topology
 
 ```mermaid

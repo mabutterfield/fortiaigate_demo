@@ -5,6 +5,16 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Pruned the v1.0 release documentation tree:
+  - removed compatibility-only pointer pages and linked directly to the
+    canonical quickstart, operations, scenario, container, and load-test guides
+  - consolidated canonical request-flow diagrams and generated-name rules into
+    Architecture, and moved trusted source CIDR guidance into VPC Layout
+  - removed retired experiment documents from the active release tree; Git
+    history remains the archive for that material
+  - normalized `fortiaigate-initial-config.md` and removed the final filename
+    exception from the documentation quality gate
+
 - Completed the v1.0 documentation and naming quality gate:
   - added an automated tracked-Markdown check for local links, anchors,
     lowercase kebab-case filenames, and current release vocabulary
@@ -16,8 +26,7 @@ a "what's new" guide rather than a raw commit log.
     resource addresses
   - replaced numbered document-fixture paths and validation labels with stable
     scenario terminology
-  - removed unreferenced legacy screenshots and retained concise compatibility
-    documentation pointers for established inbound URLs
+  - removed unreferenced legacy screenshots
 
 - Separated supported functional validation from developer dashboard traffic:
   - `python3 -m functional_test validate` now owns installed-scenario and
@@ -77,8 +86,8 @@ a "what's new" guide rather than a raw commit log.
   - made Demo Outputs report the effective FortiWeb MCP URL separately from
     the appliance admin URL and removed offline FortiWeb warnings from the
     FortiAIGate-only work order
-  - retained the established `FortiAIGate-initial-config.MD` path so existing
-    links and case-insensitive worktrees use one canonical initial guide
+  - consolidated case variants into one canonical initial guide; the final
+    release cleanup later normalized its filename
 
 - Consolidated deployment and operations documentation into one supported
   journey:

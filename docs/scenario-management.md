@@ -119,7 +119,7 @@ playbooks are safe to rerun after an interrupted or partial deployment.
 
 ## 6. Configure FortiAIGate
 
-Complete [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD)
+Complete [FortiAIGate Initial Configuration](fortiaigate-initial-config.md)
 once, then follow [Scenario GUI Configuration](fortiaigate-gui-config.md) for
 each row in the generated work order. Built-in paths follow:
 

@@ -19,7 +19,7 @@ changes directories.
 | Check, update, recover, or remove a deployment | [Operations](operations.md) |
 | Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
-| Complete first login and create passthrough | [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) |
+| Complete first login and create passthrough | [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) |
 | Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
 | Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
 | Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
@@ -31,8 +31,8 @@ not a second installation lane.
 
 ## Documentation Ownership Map
 
-Each current documentation page has one primary task group below. Historical
-references remain available but are not part of the current runtime contract.
+Each current documentation page has one primary task group below. Retired
+experiments are available from Git history rather than the release tree.
 
 ### Prepare
 
@@ -50,12 +50,11 @@ references remain available but are not part of the current runtime contract.
 | [Deployment Options](deployment-options.md) | Default and optional features, controls, prerequisites, validation, and impact |
 | [Architecture](architecture.md) | Deployment topologies and request paths |
 | [Current Baseline](reference/current-baseline.md) | Default, optional, configurable, and deferred runtime behavior |
-| [AWS](aws.md) | AWS service and infrastructure choices |
 | [Bedrock](bedrock.md) | Bedrock model-provider setup and IAM credentials |
 | [Ollama](ollama.md) | Local model-provider behavior |
 | [FortiGate](fortigate.md) | Optional FortiGate deployment and baseline configuration |
 | [FortiWeb](fortiweb.md) | Optional FortiWeb deployment and MCP reverse proxy |
-| [VPC Layout](vpc-layout.md) | Detailed network layout choices |
+| [VPC Layout](vpc-layout.md) | AWS topology, trusted source CIDRs, routing, and network values |
 
 ### Deploy
 
@@ -71,9 +70,8 @@ references remain available but are not part of the current runtime contract.
 
 | Document | Owns |
 |---|---|
-| [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD) | First login, per-guard LiteLLM endpoint settings, `pass-model`, and global passthrough proof |
+| [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) | First login, per-guard LiteLLM endpoint settings, `pass-model`, and global passthrough proof |
 | [Scenario GUI Configuration](fortiaigate-gui-config.md) | Reusable work-order-driven Alert, Deny, Redact, flow, test, and telemetry workflow |
-| [FortiAIGate Lab Flows](fortiaigate-lab-flows.md) | Canonical request-path diagrams and generated names |
 | [Transcript Replays](transcript-replays.md) | Preconstructed assistant/tool requests for raw FAIG/LLM diagnostics; not live functional tests |
 
 ### Manage Scenarios
@@ -113,12 +111,7 @@ references remain available but are not part of the current runtime contract.
 | [Release Validation Matrix](release-validation-matrix.md) | No-apply and live release checks |
 | [Developer Load Testing](development/load-testing.md) | Bounded dashboard traffic, statistics, GPU collection, and safe shutdown |
 | [Future Direction](../README.md#future-direction) | Directional ideas, not supported features or commitments |
-| [Historical Documentation](historical/README.md) | Retired scenario/model evidence and optional proxy experiments |
 | [Changelog](../CHANGELOG.md) | User-facing change history |
 
 Internal plans, progress notes, and experiments belong in the parent FAIG
 workspace rather than this deployment repository.
-
-The former Automated Quick Start, Deployment Runbook, and Manual Deployment
-Reference paths remain as concise compatibility pointers to the current
-quickstart, operations, and troubleshooting owners.

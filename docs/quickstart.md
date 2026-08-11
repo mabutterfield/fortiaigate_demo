@@ -214,7 +214,7 @@ general workstation or production setting.
 After quickstart completes:
 
 1. save the printed URLs without copying credentials into tickets or logs;
-2. complete [FortiAIGate Initial Configuration](FortiAIGate-initial-config.MD)
+2. complete [FortiAIGate Initial Configuration](fortiaigate-initial-config.md)
    to create and validate the minimal passthrough path;
 3. install or inspect scenarios through [Scenario Management](scenario-management.md);
 4. create the scenario GUI objects with

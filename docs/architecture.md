@@ -49,22 +49,24 @@ The custom chatbot presents named profiles generated from installed scenario
 metadata. A profile combines the model path, optional frontend instructions,
 MCP tool selection, and the scenario action.
 
-```text
-LLM Direct
-  chatbot -> LiteLLM scenario alias
-          -> inject backend scenario instructions
-          -> Bedrock or Ollama
+```mermaid
+flowchart TD
+    UI["Chatbot or operator-shaped request"]
+    DIRECT["LLM Direct"]
+    FLOW["FAIG scenario flow<br/>/v1/&lt;scenario&gt;/&lt;action&gt;/chat/completions"]
+    PASS["FAIG bypass flow<br/>/v1/passthrough/chat/completions"]
+    GUARD["Scenario AI Guard<br/>Alert, Deny, or Redact"]
+    LL["LiteLLM<br/>scenario alias or pass-model"]
+    MODEL["Bedrock or local Ollama"]
 
-FAIG protected
-  chatbot -> FortiAIGate /v1/<scenario>/<action>/*
-          -> LiteLLM scenario alias
-          -> inject backend scenario instructions
-          -> Bedrock or Ollama
-
-FAIG passthrough
-  chatbot or test client -> FortiAIGate /v1/passthrough/*
-                         -> LiteLLM pass-model
-                         -> Bedrock or Ollama
+    UI -->|"No FAIG"| DIRECT
+    UI -->|"Protected action"| FLOW
+    UI -->|"Detailed FAIG bypass"| PASS
+    DIRECT --> LL
+    FLOW --> GUARD
+    GUARD -->|"model = scenario ID"| LL
+    PASS -->|"model = pass-model"| LL
+    LL --> MODEL
 ```
 
 The passthrough path is a full bypass of project-added instruction profiles and
@@ -74,6 +76,20 @@ Simplified UI it is available when no scenarios are installed.
 Scenario guard names follow `<scenario>_<action>`. Current action names are
 `alert`, `deny`, and, for DLP scenarios, `redact`.
 
+Canonical scenario configuration uses:
+
+- path `/v1/<scenario>/<action>/*`;
+- request URL `/v1/<scenario>/<action>/chat/completions`;
+- flow name `<scenario>-<action>`;
+- guard name `<scenario>_<action>`; and
+- next-hop LiteLLM model `<scenario>`.
+
+Render the exact values for the installed scenarios from the repository root:
+
+```bash
+python3 scripts/scenario_profiles.py render-work-order
+```
+
 ## Optional FAIG Re-entry Chain
 
 The deployment includes a globally available re-entry capability so a user can
@@ -81,13 +97,12 @@ show FAIG the instructions that LiteLLM added and inspect the resulting request.
 It also provides routing flexibility for future demonstrations where a request
 must pass through FortiAIGate both before and after LiteLLM processing:
 
-```text
-chatbot
-  -> FortiAIGate scenario path
-  -> LiteLLM scenario backend alias
-  -> FortiAIGate /v1/passthrough/*
-  -> LiteLLM pass-model
-  -> provider
+```mermaid
+flowchart LR
+    FLOW["Dedicated &lt;scenario&gt;-faig-chain flow"] --> GUARD["Dedicated alert-all chain guard"]
+    GUARD --> CHAIN["LiteLLM &lt;scenario&gt;-faig-chain<br/>inject instructions"]
+    CHAIN --> PASS["FAIG /v1/passthrough/*"]
+    PASS --> MODEL["LiteLLM pass-model<br/>Bedrock or Ollama"]
 ```
 
 The downstream re-entry always uses `pass-model`; pointing it back to a chain
@@ -99,12 +114,13 @@ installed scenario package.
 
 The chatbot can call deterministic MCP tools directly or through FortiWeb:
 
-```text
-Direct MCP
-  chatbot -> MCP demo server
-
-FortiWeb MCP (preferred when available)
-  chatbot -> FortiWeb reverse proxy -> MCP demo server
+```mermaid
+flowchart LR
+    UI["Chatbot agent"] -->|"Preferred when available"| FW["FortiWeb MCP proxy"]
+    UI -->|"Explicit or automatic fallback"| DIRECT["Direct MCP"]
+    FW --> MCP["Shared MCP server"]
+    DIRECT --> MCP
+    MCP --> TOOLS["Scenario-scoped synthetic tools"]
 ```
 
 FortiWeb MCP is preferred when the appliance is installed, desired, and has a
@@ -138,3 +154,9 @@ Do not expose local NodePorts, especially the Ollama endpoint, to untrusted
 networks. Detailed ports and support states are in the
 [Current Baseline](reference/current-baseline.md). For the AWS network model,
 see [AWS k3s Foundation](aws-k3s-foundation.md).
+
+Installed local scenario metadata owns the active matrix, and the generated
+work order owns the exact FAIG paths, guards, templates, and aliases. Tracked
+scenario examples remain read-only sources. Run
+[Functional Validation](functional-validation.md) after the GUI objects exist
+to prove the deployed chatbot, MCP, and FAIG behavior.

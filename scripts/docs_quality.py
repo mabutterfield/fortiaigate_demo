@@ -17,13 +17,9 @@ REFERENCE_LINK_PATTERN = re.compile(r"^\s*\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
 LOWER_KEBAB_MARKDOWN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 CURRENT_VOCABULARY_EXCLUSIONS = (
-    "docs/historical/",
     "archived_scenarios/",
 )
 CURRENT_VOCABULARY_FILES_EXCLUDED = {"CHANGELOG.md"}
-FILENAME_EXCEPTIONS = {
-    "docs/FortiAIGate-initial-config.MD",
-}
 FORBIDDEN_CURRENT_PATTERNS = {
     "numbered development phase": re.compile(r"\bphase(?:\s*|[-_])\d+\b", re.IGNORECASE),
     "retired demo-letter slot": re.compile(r"\bdemo-[a-z]\b", re.IGNORECASE),
@@ -148,7 +144,7 @@ def validate_doc_filenames(markdown_paths: list[Path]) -> list[str]:
     for path in markdown_paths:
         if not path.parts or path.parts[0] != "docs":
             continue
-        if path.as_posix() in FILENAME_EXCEPTIONS or path.name == "README.md":
+        if path.name == "README.md":
             continue
         if not LOWER_KEBAB_MARKDOWN.fullmatch(path.name):
             errors.append(f"{path}: documentation filename must be lowercase kebab-case")
