@@ -36,7 +36,7 @@ archives, or extracted vendor charts in Git.
 
 ## 2. Prepare The Control Workstation
 
-macOS and Linux are tested control platforms. Use WSL2 Ubuntu for Windows.
+macOS and Linux are tested control platforms. Use WSL2 Ubuntu for Windows (not tested).
 
 AWS deployment requires:
 
