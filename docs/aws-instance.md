@@ -53,6 +53,30 @@ These are useful for automation, Kubernetes, and budget lab testing. The T4-base
 | `g4dn.4xlarge` | 16 | 64 GB | 1 x T4 | 16 GB | 225 GB | ~1.20/hr | Current Terraform default lab size |
 | `g4dn.8xlarge` | 32 | 128 GB | 1 x T4 | 16 GB | 900 GB | ~$2.18/hr | Strong budget T4 lab box |
 
+### Reduced Lab Resource Profile
+
+The deployment uses a reduced Triton resource profile that was tuned to make
+FortiAIGate practical on smaller lab instances such as `g4dn.2xlarge` and
+`g4dn.4xlarge`:
+
+| Resource | Request | Limit |
+|---|---:|---:|
+| CPU | `2` | `8` |
+| Memory | `16Gi` | `48Gi` |
+| NVIDIA GPU | `1` | `1` |
+
+The shared-memory volume is limited to `8Gi`. These are lab-oriented values,
+not production sizing recommendations. A 32 GB host can schedule the 16 GiB
+memory request, but the 48 GiB limit does not reserve that memory and the node
+can still encounter pressure under load. Validate the complete workload before
+using the smallest instance for a presentation.
+
+The active values are rendered by
+`ansible/roles/fortiaigate/templates/fortiaigate-values.yaml.j2` and enforced
+by `k8s-overlays/bin/post_render_fortiaigate.py`. The former standalone AWS and
+local Helm example files were not consumed by deployment and were removed to
+avoid presenting stale image, license, or node values as configuration inputs.
+
 ## Supported Validation Infrastructure
 
 Use these when validating FortiAIGate behavior on supported GPU families.
@@ -88,6 +112,8 @@ These are interesting for future or model-heavy tests, but should not be treated
 ## Notes
 
 - `g4dn` is useful for proving the Terraform, Ansible, k3s, ingress, storage, and Helm workflow.
+- Keep the reduced lab resource profile when testing smaller instances; raise
+  it when the workload and selected instance provide more headroom.
 - `g4dn` should not be used as the final supported GPU validation result.
 - Prefer `g6.8xlarge` when the goal is a stronger single-node validation pass with a supported L4 GPU.
 - Prefer `g6.12xlarge` or `g5.12xlarge` when dual/multi-GPU behavior matters.

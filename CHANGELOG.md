@@ -5,6 +5,12 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Removed disconnected pre-scenario deployment artifacts:
+  - deleted the unused FortiAIGate lite-route test playbook and orphaned
+    direct-Bedrock chatbot chart/template
+  - removed unconsumed AWS/local Helm examples while preserving their reduced
+    Triton small-instance resource profile in AWS Instance Sizing
+
 - Pruned the v1.0 release documentation tree:
   - removed compatibility-only pointer pages and linked directly to the
     canonical quickstart, operations, scenario, container, and load-test guides

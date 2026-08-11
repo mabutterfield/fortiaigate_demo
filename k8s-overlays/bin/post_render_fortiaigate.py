@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Helm post-renderer for the FortiAIGate phase 1 k3s deployment."""
+"""Helm post-renderer for the FortiAIGate k3s deployment."""
 
 import sys
 import os

@@ -79,7 +79,6 @@ themselves.
 ```text
 terraform/       AWS infrastructure modules
 ansible/         Host, appliance, deployment, status, and validation automation
-helm-values/     Example FortiAIGate Helm values
 k8s-overlays/    Helm post-render patches and notes
 chatbot/         Custom chatbot, scenarios, instructions, and demo application assets
 functional_test/ Metadata-driven scenario validation for operators
