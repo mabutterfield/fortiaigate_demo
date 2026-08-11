@@ -55,9 +55,9 @@ locals {
     "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_config_key}",
     "${aws_s3_bucket.fortiweb_cloudinit[0].arn}/${var.fortiweb_cloudinit_license_key}",
   ] : []
-  phase8_documents_bucket_name = var.phase8_documents_bucket_name != "" ? var.phase8_documents_bucket_name : "${local.fortiweb_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}-docs"
-  phase8_documents_prefix      = trim(var.phase8_documents_prefix, "/")
-  phase8_documents_object_arn  = var.phase8_documents_bucket_enabled ? "${aws_s3_bucket.phase8_documents[0].arn}/${local.phase8_documents_prefix}/*" : null
+  scenario_documents_bucket_name = var.scenario_documents_bucket_name != "" ? var.scenario_documents_bucket_name : "${local.fortiweb_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}-docs"
+  scenario_documents_prefix      = trim(var.scenario_documents_prefix, "/")
+  scenario_documents_object_arn  = var.scenario_documents_bucket_enabled ? "${aws_s3_bucket.scenario_documents[0].arn}/${local.scenario_documents_prefix}/*" : null
   fortiaigate_syslog_bucket_prefix = local.fortiweb_bucket_prefix_raw != "" ? substr(
     local.fortiweb_bucket_prefix_raw,
     0,
@@ -240,53 +240,53 @@ resource "aws_iam_role_policy_attachment" "ec2_bedrock_invoke" {
   policy_arn = aws_iam_policy.ec2_bedrock_invoke[0].arn
 }
 
-resource "aws_iam_policy" "ec2_phase8_documents_read" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_iam_policy" "ec2_scenario_documents_read" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  name        = "${var.name_prefix}-ec2-phase8-documents-read"
-  description = "Allow the FortiAIGate k3s host to read pre-staged synthetic Phase 8 document fixtures."
+  name        = "${var.name_prefix}-ec2-scenario-documents-read"
+  description = "Allow the FortiAIGate k3s host to read pre-staged synthetic scenario document fixtures."
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ListPhase8DocumentPrefix"
+        Sid    = "ListScenarioDocumentPrefix"
         Effect = "Allow"
         Action = [
           "s3:ListBucket",
         ]
-        Resource = aws_s3_bucket.phase8_documents[0].arn
+        Resource = aws_s3_bucket.scenario_documents[0].arn
         Condition = {
           StringLike = {
             "s3:prefix" = [
-              local.phase8_documents_prefix,
-              "${local.phase8_documents_prefix}/*",
+              local.scenario_documents_prefix,
+              "${local.scenario_documents_prefix}/*",
             ]
           }
         }
       },
       {
-        Sid    = "ReadPhase8DocumentObjects"
+        Sid    = "ReadScenarioDocumentObjects"
         Effect = "Allow"
         Action = [
           "s3:GetObject",
         ]
-        Resource = local.phase8_documents_object_arn
+        Resource = local.scenario_documents_object_arn
       },
     ]
   })
 
   tags = merge(local.tags, {
-    Name      = "${var.name_prefix}-ec2-phase8-documents-read"
-    Component = "Phase8Documents"
+    Name      = "${var.name_prefix}-ec2-scenario-documents-read"
+    Component = "ScenarioDocuments"
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ec2_phase8_documents_read" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_iam_role_policy_attachment" "ec2_scenario_documents_read" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
   role       = aws_iam_role.ec2.name
-  policy_arn = aws_iam_policy.ec2_phase8_documents_read[0].arn
+  policy_arn = aws_iam_policy.ec2_scenario_documents_read[0].arn
 }
 
 resource "aws_iam_policy" "ec2_fortiaigate_syslog_write" {
@@ -445,23 +445,23 @@ resource "aws_s3_bucket_policy" "fortiweb_cloudinit" {
   ]
 }
 
-resource "aws_s3_bucket" "phase8_documents" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_s3_bucket" "scenario_documents" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  bucket        = local.phase8_documents_bucket_name
-  force_destroy = var.phase8_documents_bucket_force_destroy
+  bucket        = local.scenario_documents_bucket_name
+  force_destroy = var.scenario_documents_bucket_force_destroy
 
   tags = merge(local.tags, {
-    Name      = local.phase8_documents_bucket_name
-    Component = "Phase8Documents"
-    Purpose   = "Synthetic Phase 8 document fixtures"
+    Name      = local.scenario_documents_bucket_name
+    Component = "ScenarioDocuments"
+    Purpose   = "Synthetic scenario document fixtures"
   })
 }
 
-resource "aws_s3_bucket_public_access_block" "phase8_documents" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_s3_bucket_public_access_block" "scenario_documents" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  bucket = aws_s3_bucket.phase8_documents[0].id
+  bucket = aws_s3_bucket.scenario_documents[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -469,10 +469,10 @@ resource "aws_s3_bucket_public_access_block" "phase8_documents" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "phase8_documents" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_s3_bucket_server_side_encryption_configuration" "scenario_documents" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  bucket = aws_s3_bucket.phase8_documents[0].id
+  bucket = aws_s3_bucket.scenario_documents[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -481,20 +481,20 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "phase8_documents"
   }
 }
 
-resource "aws_s3_bucket_versioning" "phase8_documents" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_s3_bucket_versioning" "scenario_documents" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  bucket = aws_s3_bucket.phase8_documents[0].id
+  bucket = aws_s3_bucket.scenario_documents[0].id
 
   versioning_configuration {
     status = "Enabled"
   }
 }
 
-resource "aws_s3_bucket_policy" "phase8_documents" {
-  count = var.phase8_documents_bucket_enabled ? 1 : 0
+resource "aws_s3_bucket_policy" "scenario_documents" {
+  count = var.scenario_documents_bucket_enabled ? 1 : 0
 
-  bucket = aws_s3_bucket.phase8_documents[0].id
+  bucket = aws_s3_bucket.scenario_documents[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -505,8 +505,8 @@ resource "aws_s3_bucket_policy" "phase8_documents" {
         Principal = "*"
         Action    = "s3:*"
         Resource = [
-          aws_s3_bucket.phase8_documents[0].arn,
-          "${aws_s3_bucket.phase8_documents[0].arn}/*",
+          aws_s3_bucket.scenario_documents[0].arn,
+          "${aws_s3_bucket.scenario_documents[0].arn}/*",
         ]
         Condition = {
           Bool = {
@@ -518,7 +518,7 @@ resource "aws_s3_bucket_policy" "phase8_documents" {
   })
 
   depends_on = [
-    aws_s3_bucket_public_access_block.phase8_documents,
+    aws_s3_bucket_public_access_block.scenario_documents,
   ]
 }
 

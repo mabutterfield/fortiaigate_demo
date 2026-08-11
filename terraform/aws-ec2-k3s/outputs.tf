@@ -149,7 +149,7 @@ output "security_group_ids" {
 }
 
 output "ingress_routing" {
-  description = "Configured ingress routing placeholders for Phase 2 application URLs."
+  description = "Configured ingress routing placeholders for application URLs."
   value = {
     strategy               = var.ingress_routing_strategy
     base_domain            = var.ingress_base_domain

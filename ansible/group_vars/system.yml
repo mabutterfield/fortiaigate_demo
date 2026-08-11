@@ -63,7 +63,7 @@ image_archive_dir: "{{ faig_workspace_root }}/images/{{ fortiaigate_version }}"
 publish_image_version: ""
 publish_image_state: active
 # Optional FortiAIGate target repo filter. Empty publishes all FAIG images.
-# CLI example: ansible-playbook playbooks/publish_images.yml -e publish_target_repos=api,webui
+# CLI example from <repo_root>: ansible-playbook ansible/playbooks/publish_images.yml -e publish_target_repos=api,webui
 publish_target_repos: []
 
 fortiaigate_update_strategy: Recreate
@@ -116,26 +116,15 @@ validate_faig_ollama_forwarding: false
 # Optional display URL for validate_faig.yml output. Defaults to fortiaigate_ingress_host or ansible_host.
 validate_faig_login_url_override: ""
 
-# Optional first external chat test after a guard/provider is configured.
-# test_fortiaigate_chat.yml reads the first allowed model from terraform/aws-prep when available.
+# Focused external connectivity test after the passthrough flow and guard are configured.
 # Leave fortiaigate_test_api_key empty unless the FortiAIGate guard requires an auth token.
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
-fortiaigate_test_endpoint_path: /v1/chat/completions
+fortiaigate_test_endpoint_path: /v1/passthrough/chat/completions
 fortiaigate_test_include_uri_in_prompt: true
-fortiaigate_test_default_model: "{{ litellm_passthrough_model_alias | default('pass-bedrock') }}"
+fortiaigate_test_default_model: pass-model
 fortiaigate_test_model: ""
 fortiaigate_test_api_key: ""
 fortiaigate_test_host_override: ""
-fortiaigate_test_poll_all_endpoints: false
-# When fortiaigate_test_poll_all_endpoints=true, the test playbook builds cases
-# from chatbot_faig_static_routes, the selected intelligent route, and the
-# default /v1 path. The default matrix is seven endpoints:
-# passthrough, demo-a, demo-b, demo-a-faig-be, demo-b-faig-be, intelligent,
-# and default. OpenWebUI paths and every intelligent profile are optional
-# diagnostic cases.
-fortiaigate_test_include_all_header_route_profiles: false
-fortiaigate_test_include_openwebui_endpoint: false
-fortiaigate_test_include_ollama_endpoint: false
 
 # === FortiAIGate syslog collector: ansible/playbooks/deploy_fortiaigate_syslog_collector.yml ===
 # The quickstart invokes this playbook automatically. AWS uses S3 output when
@@ -178,13 +167,11 @@ litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin
 litellm_ui_password: litellm-demo-change-me
-litellm_passthrough_model_alias: pass-bedrock
-litellm_demo_a_model_alias: demo-a
-litellm_demo_b_model_alias: demo-b
-litellm_demo_a_faig_be_model_alias: demo-a-faig-be
-litellm_demo_b_faig_be_model_alias: demo-b-faig-be
-litellm_ollama_model_alias: "{{ ollama_model | default('gpt-oss:20b') }}"
-litellm_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
+scenario_matrix_builder_path: "{{ faig_workspace_root }}/fortiaigate_demo/scripts/build_scenario_matrix.py"
+scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
+scenario_matrix_llm_target_overrides: {}
+faig_chain_capability_enabled: true
+litellm_passthrough_model_alias: pass-model
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
@@ -193,59 +180,10 @@ litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
 litellm_bedrock_use_terraform_output: true
 litellm_bedrock_read_from_terraform: true
-chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
-chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
-chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
-chatbot_instruction_profile_files:
-  demo_a:
-    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
-  demo_b:
-    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
-  frontend:
-    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
-litellm_instruction_profile_source_path: "{{ chatbot_instruction_profile_files.demo_a.local_path }}"
 litellm_instruction_debug: false
 litellm_default_instruction_profile: passthrough
-litellm_instruction_profile_injection_position: prepend
-litellm_instruction_profiles:
-  - name: passthrough
-    enabled: false
-    position: prepend
-    instruction: "No backend instruction injection for passthrough model aliases."
-  - name: demo-a
-    enabled: true
-    position: "{{ litellm_instruction_profile_injection_position }}"
-    source_path: "{{ litellm_instruction_profile_source_path }}"
-  - name: demo-b
-    enabled: true
-    position: "{{ litellm_instruction_profile_injection_position }}"
-    source_path: "{{ chatbot_instruction_profile_files.demo_b.local_path }}"
-litellm_models:
-  - name: "{{ litellm_passthrough_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(direct_model_bedrock_model | default(litellm_bedrock_fallback_model_id)) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: passthrough
-  - name: "{{ litellm_demo_a_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(direct_model_bedrock_model | default(litellm_bedrock_fallback_model_id)) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: demo-a
-  - name: "{{ litellm_demo_b_model_alias }}"
-    provider_model: "bedrock/{{ litellm_effective_bedrock_model_id | default(direct_model_bedrock_model | default(litellm_bedrock_fallback_model_id)) }}"
-    aws_region_name: "{{ litellm_effective_bedrock_region | default(aws_region | default('us-east-1')) }}"
-    instruction_profile: demo-b
-  - name: "{{ litellm_demo_a_faig_be_model_alias }}"
-    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-    api_base: "{{ litellm_faig_backend_base_url }}"
-    api_key: "{{ litellm_faig_backend_api_key }}"
-    instruction_profile: demo-a
-  - name: "{{ litellm_demo_b_faig_be_model_alias }}"
-    provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-    api_base: "{{ litellm_faig_backend_base_url }}"
-    api_key: "{{ litellm_faig_backend_api_key }}"
-    instruction_profile: demo-b
+litellm_instruction_profiles: []
+litellm_models: []
 # Optional explicit map override. Leave empty to use instruction_profile on each litellm_models entry.
 litellm_model_instruction_profiles: {}
 litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:4000/v1"
@@ -264,9 +202,13 @@ litellm_faig_backend_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_back
 litellm_faig_backend_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
 litellm_direct_test_poll_all_endpoints: false
 litellm_direct_test_models:
-  - "{{ litellm_passthrough_model_alias }}"
-  - "{{ litellm_demo_a_model_alias }}"
-  - "{{ litellm_demo_b_model_alias }}"
+  - pass-model
+  - fortistore-injection
+  - hr-tool-dlp
+litellm_direct_test_expected_text_by_model:
+  fortistore-injection: FORTISTORE_INJECTION_ACTIVE
+  hr-tool-dlp: HR_TOOL_DLP_VULNERABLE_ACTIVE
+litellm_direct_test_fail_on_missing_expected_text: true
 
 # === Optional Open WebUI deployment: ansible/playbooks/deploy_openwebui.yml ===
 # Open WebUI is available as an optional secondary chat UI. The default demo
@@ -301,7 +243,7 @@ chatbot_publish_enabled: true
 # the same tag can be rebuilt and pushed. Set this false if you want tag bumps
 # for every changed chatbot image.
 chatbot_publish_overwrite_existing_tag: true
-chatbot_image_tag: v0.5.1
+chatbot_image_tag: v0.5.4
 chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
 chatbot_image_pull_policy: Always
 # EC2 GPU nodes are x86_64. Keep this as linux/amd64 when publishing from
@@ -328,103 +270,25 @@ chatbot_fortigate_ollama_model_options: "{{ ollama_models | default([chatbot_for
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
 faig_model_route_header_name: X-FAIG-Model-Route
-# Lite mode narrows the visible/tested FAIG surface to the three baseline static
-# routes that are normally configured first: passthrough, demo-a, and demo-b.
-chatbot_faig_lite_mode: false
-# Static FAIG routes use different URI paths for backend/model selection.
-chatbot_faig_static_route: demo-a
-chatbot_faig_static_routes_lite:
+chatbot_faig_static_route: passthrough
+chatbot_faig_static_routes:
   - name: passthrough
-    label: Passthrough
+    label: FAIG Passthrough
     base_path: /v1/passthrough
-    model: "{{ litellm_passthrough_model_alias }}"
-  - name: demo-a
-    label: Demo A
-    base_path: /v1/demo-a
-    model: "{{ litellm_demo_a_model_alias }}"
-  - name: demo-b
-    label: Demo B
-    base_path: /v1/demo-b
-    model: "{{ litellm_demo_b_model_alias }}"
-chatbot_faig_static_routes_full:
-  - name: passthrough
-    label: Passthrough
-    base_path: /v1/passthrough
-    model: "{{ litellm_passthrough_model_alias }}"
-  - name: demo-a
-    label: Demo A
-    base_path: /v1/demo-a
-    model: "{{ litellm_demo_a_model_alias }}"
-  - name: demo-b
-    label: Demo B
-    base_path: /v1/demo-b
-    model: "{{ litellm_demo_b_model_alias }}"
-  - name: demo-a-faig-be
-    label: Demo A -> FAIG Re-entry
-    base_path: /v1/demo-a-faig-be
-    model: "{{ litellm_demo_a_faig_be_model_alias }}"
-  - name: demo-b-faig-be
-    label: Demo B -> FAIG Re-entry
-    base_path: /v1/demo-b-faig-be
-    model: "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_phase10_scenario_routes_enabled: false
-chatbot_phase10_scenario_static_routes:
-  - name: demo-c
-    label: Demo C - Output DLP
-    base_path: /v1/demo-c
-    model: demo-c
-  - name: demo-d
-    label: Demo D - Input DLP
-    base_path: /v1/demo-d
-    model: demo-d
-chatbot_faig_static_routes_base: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
-chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_base + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
-# Header routes use one URI and send the model selection in a configurable
-# header. Omit header_value to default to the model; set header_value: "" to
-# test intelligent routing without sending the header.
-chatbot_faig_header_route: passthrough
-chatbot_faig_header_routes:
-  - name: passthrough
-    label: Passthrough
-    base_path: /v1/intelligent
-    model: "{{ litellm_passthrough_model_alias }}"
-    header_value: ""
-  - name: demo-a
-    label: Demo A
-    base_path: /v1/intelligent
-    model: "{{ litellm_demo_a_model_alias }}"
-    header_value: "{{ litellm_demo_a_model_alias }}"
-  - name: demo-b
-    label: Demo B
-    base_path: /v1/intelligent
-    model: "{{ litellm_demo_b_model_alias }}"
-    header_value: "{{ litellm_demo_b_model_alias }}"
-chatbot_model: "{{ litellm_demo_a_model_alias }}"
-chatbot_model_options_lite:
-  - "{{ litellm_passthrough_model_alias }}"
-  - "{{ litellm_demo_a_model_alias }}"
-  - "{{ litellm_demo_b_model_alias }}"
-chatbot_model_options_full:
-  - "{{ litellm_passthrough_model_alias }}"
-  - "{{ litellm_demo_a_model_alias }}"
-  - "{{ litellm_demo_b_model_alias }}"
-  - "{{ litellm_demo_a_faig_be_model_alias }}"
-  - "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_phase10_scenario_model_options:
-  - demo-c
-  - demo-d
-chatbot_model_options_base: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
-chatbot_model_options: "{{ chatbot_model_options_base + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
-chatbot_frontend_system_prompt: ""
-# Optional UI-layer system prompt. The local frontend slot is packaged into the
-# chatbot when present, but the UI checkbox starts off so backend-only behavior
-# remains the default.
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-chatbot_frontend_system_prompt_enabled: false
-# MCP tools are enabled in the browser UI by default. The current default path
-# is direct chatbot -> MCP. When terraform/aws-fortiweb has generated
-# ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
-# defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
+    model: pass-model
+chatbot_faig_header_route: ""
+chatbot_faig_header_routes: []
+chatbot_fortigate_routes_desired: false
+chatbot_model: pass-model
+chatbot_model_options:
+  - pass-model
+chatbot_frontend_instruction_profile: none
+chatbot_frontend_instruction_profiles: []
+# MCP tools are enabled in the browser UI by default. FortiWeb is preferred
+# when terraform/aws-fortiweb has generated a usable endpoint; otherwise the
+# scenario matrix emits a warning and deterministically falls back to Direct
+# chatbot -> MCP. chatbot_mcp_fortiweb_base_url defaults to the FortiWeb
+# front-end port1 private IP on the MCP HTTP NodePort.
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
 fortiweb_mcp_http_base_url: >-
@@ -440,23 +304,19 @@ fortiweb_mcp_http_base_url: >-
     else ''
   }}
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
-chatbot_mcp_default_path: direct
+chatbot_mcp_default_path: fortiweb
 chatbot_mcp_timeout_seconds: 10
 chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
-chatbot_mcp_tool_profile: all-tools
+chatbot_mcp_tool_profile: ""
 chatbot_mcp_tool_profiles: []
-# Build chatbot MCP profiles from installed scenario metadata by default.
-# The generated all-tools profile means "all installed scenario tools", not
-# every tool exposed by the MCP server. Set
+# Build chatbot MCP profiles from the installed scenario matrix by default.
+# Set
 # chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
 # troubleshooting profile.
-chatbot_mcp_tool_profiles_source: installed
 chatbot_mcp_tool_profile_mode: replace
-chatbot_mcp_installed_tool_profile_slots:
-  - demo-a
-  - demo-b
 chatbot_mcp_show_debug_all_server_tools: false
+chatbot_simplified_profiles: []
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
@@ -483,8 +343,8 @@ chatbot_instances:
     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
     model_options: "{{ chatbot_model_options }}"
-    frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
-    frontend_system_prompt_source_path: "{{ chatbot_frontend_system_prompt_source_path }}"
+    frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
+    frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"
     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
@@ -499,11 +359,11 @@ chatbot_instances:
     show_context: "{{ chatbot_show_context }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct, FortiGate, FAIG Static, or FAIG Intelligent
+    provider_label: Direct LiteLLM or FAIG Static Route
     ingress_host: ""
 
 # === MCP demo tools: ansible/playbooks/deploy_mcp.yml ===
-# Phase 3B baseline tool server for the later Python agent tool loop.
+# Shared tool server for the Python chatbot agent loop.
 # Terraform opens the generated HTTP/HTTPS demo ports for direct testing.
 mcp_enabled: true
 mcp_namespace: mcp
@@ -552,7 +412,7 @@ demo_https_gateway_litellm_https_port: "{{ demo_litellm_https_port | default(304
 demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 
 # === FortiWeb reverse-proxy appliance configuration ===
-# Repo-owned Phase 6 default: build pass-through FortiWeb virtual servers,
+# Repo-owned default: build pass-through FortiWeb virtual servers,
 # VIPs, server pools, pool members, services, and server policies for the demo
 # NodePorts. Operators can set this false in ignored user.yml for direct-only
 # testing.
@@ -582,7 +442,7 @@ fortiweb_nodeport_proxy_https_paths:
     policy_use_https_service: true
     pool_member_ssl: enable
 
-# === Fortinet appliance traffic paths: Phase 6 desired-state input ===
+# === Fortinet appliance traffic paths: desired-state input ===
 # Empty by default so the direct public k3s demo path remains unchanged.
 # User-specific path selections belong in ignored ansible/group_vars/user.yml.
 fortinet_traffic_paths: []

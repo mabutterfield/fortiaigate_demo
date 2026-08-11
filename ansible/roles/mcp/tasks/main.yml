@@ -443,8 +443,8 @@
       - "The FortiGate MCP Kubernetes Secret was left unchanged; generic MCP tools still deployed."
       - "Tested URL: {{ mcp_fortigate_effective_base_url }}/api/v2/monitor/system/status?vdom={{ mcp_fortigate_vdom }}"
       - "HTTP status: {{ mcp_fortigate_token_probe.status | default('unreachable') }}"
-      - "Run: ansible-playbook -i ansible/inventory/fortigate.generated.ini ansible/playbooks/configure_fortigate_api_accounts.yml -e fortigate_readonly_api_account_rotate_token=true"
-      - "Then run: ansible-playbook ansible/playbooks/deploy_mcp.yml"
+      - "Run from <repo_root>: ansible-playbook -i {{ 'local-fortigate' if (deployment_target | default('aws')) == 'local' else 'cloud-fortigate' }} ansible/playbooks/configure_fortigate_api_accounts.yml -e fortigate_readonly_api_account_rotate_token=true"
+      - "Then run from <repo_root>: ansible-playbook -i {{ 'local' if (deployment_target | default('aws')) == 'local' else 'cloud' }} ansible/playbooks/deploy_mcp.yml"
   when:
     - mcp_enabled | bool
     - mcp_fortigate_token_validation_failed | default(false) | bool

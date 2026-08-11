@@ -16,8 +16,7 @@ service:
 
 containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 
-{% set chatbot_prompt_source_path = item.frontend_system_prompt_source_path | default(chatbot_frontend_system_prompt_source_path, true) | default('', true) %}
-{% set chatbot_prompt_inline = item.frontend_system_prompt | default(chatbot_frontend_system_prompt, true) | default('', true) %}
+{% set chatbot_frontend_profiles_value = item.frontend_instruction_profiles | default(chatbot_frontend_instruction_profiles, true) | default([], true) %}
 {% set chatbot_model_options_value = item.model_options | default(chatbot_model_options, true) | default([], true) %}
 {% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes, true) | default([], true) %}
 {% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes, true) | default([], true) %}
@@ -26,12 +25,6 @@ containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 {% set chatbot_fortigate_ollama_model_options_value = item.fortigate_ollama_model_options | default(chatbot_fortigate_ollama_model_options, true) | default([], true) %}
 {% set chatbot_ingress_host = item.ingress_host | default('', true) %}
 {% set chatbot_app_checksum_source = lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/chatbot.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/agent_probe.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/Dockerfile') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/requirements.txt') %}
-{% if (chatbot_prompt_inline | length == 0) and (chatbot_prompt_source_path | length > 0) %}
-{% set chatbot_effective_frontend_prompt = lookup('ansible.builtin.file', chatbot_prompt_source_path) %}
-{% else %}
-{% set chatbot_effective_frontend_prompt = chatbot_prompt_inline %}
-{% endif %}
-
 chatbot:
   appChecksum: "{{ chatbot_app_checksum_source | hash('sha256') }}"
   directBaseUrl: "{{ item.direct_base_url | default(chatbot_direct_base_url, true) }}"
@@ -53,8 +46,8 @@ chatbot:
   modelOptions: "{{ chatbot_model_options_value if chatbot_model_options_value is string else chatbot_model_options_value | join(',') }}"
   pageTitle: "{{ item.title | default('Demo Chatbot', true) }}"
   headerTitle: "{{ item.header_title | default('FortiAIGate Demo Chatbot', true) }}"
-  frontendSystemPrompt: {{ chatbot_effective_frontend_prompt | to_json }}
-  frontendSystemPromptEnabled: "{{ (item.frontend_system_prompt_enabled | default(chatbot_frontend_system_prompt_enabled) | bool) | ternary('true', 'false') }}"
+  frontendInstructionProfile: "{{ item.frontend_instruction_profile | default(chatbot_frontend_instruction_profile, true) }}"
+  frontendInstructionProfilesJson: {{ (chatbot_frontend_profiles_value if chatbot_frontend_profiles_value is string else chatbot_frontend_profiles_value | to_json) | to_json }}
   temperature: "{{ item.temperature | default('0.0', true) }}"
   maxTokens: "{{ item.max_tokens | default('4096', true) }}"
   streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"

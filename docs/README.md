@@ -1,109 +1,117 @@
 # FortiAIGate Demo Documentation
 
-This is the main documentation landing page for the FortiAIGate demo deployment.
-Start with one quick start, then use the topic docs for details and recovery.
+Use this page to find the shortest path from a task to its owning document.
+The [Current Baseline](reference/current-baseline.md) is the authority for what
+is supported today. The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the
+authority for validated, candidate, and archived scenario status.
 
-Status: Phase 10 documentation is transitional. The current runtime still uses
-compatibility names such as `demo-a` and `demo-b`. Phase 11 is planned as the
-v1.0 baseline and will replace that with scenario-owned paths and generated
-scenario metadata.
+All commands are run from the repository root unless a document explicitly
+changes directories.
 
-## TLDR Paths
+## Start Here
 
-| Operator path | Use when | Start |
-|---|---|---|
-| AWS quickstart | You want the default supported demo on EC2 GPU, k3s, FortiAIGate, LiteLLM to Bedrock, chatbot, MCP, and appliances | `python3 scripts/automated_quickstart.py` |
-| Local hardware quickstart | You have an existing Ubuntu 24.04 GPU host and a reachable local/LAN registry | `python3 scripts/local_setup.py`, then `python3 scripts/automated_quickstart.py --local` |
-| Manual recovery | You need to inspect or rerun one Terraform or Ansible step | [Manual Quick Start](quickstart-manual.md) |
-
-The automated AWS quickstart is the primary operator walkthrough. The manual
-quickstart is intentionally a step-by-step recovery and troubleshooting
-reference, not a competing first-run path.
-
-## Quick Starts
-
-| Goal | Document |
+| Task | Document |
 |---|---|
-| Default guided AWS setup path | [Automated Quick Start](quickstart-automated.md) |
-| Local Ubuntu GPU hardware path | [Automated Quick Start - Local Hardware Mode](quickstart-automated.md#local-hardware-mode) |
-| Step-by-step operator-run recovery path | [Manual Quick Start](quickstart-manual.md) |
-| End-to-end reference workflow | [Deployment Runbook](deployment-runbook.md) |
+| Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](first-run-preparation.md) |
+| Review defaults and optional components | [Deployment Options](deployment-options.md) |
+| Prepare and deploy the default AWS lab | [Deployment Quickstart](quickstart.md#aws-lane) |
+| Prepare and deploy a local Ubuntu GPU lab | [Deployment Quickstart](quickstart.md#local-ubuntu-lane) |
+| Check, update, recover, or remove a deployment | [Operations](operations.md) |
+| Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
+| Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
+| Complete first login and create passthrough | [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) |
+| Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
+| Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
+| Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
+| Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 
-## Core Topics
+The automated quickstart is the only normal installation journey. Detailed
+Terraform and Ansible command sequences are reference and recovery material,
+not a second installation lane.
 
-| Topic | Document |
+## Documentation Ownership Map
+
+Each current documentation page has one primary task group below. Retired
+experiments are available from Git history rather than the release tree.
+
+### Prepare
+
+| Document | Owns |
 |---|---|
-| Current working baseline | [Current Baseline](current-baseline.md) |
-| Release validation matrix | [Release Validation Matrix](release-validation-matrix.md) |
-| Architecture overview | [Architecture](architecture.md) |
-| AWS infrastructure and instance sizing | [AWS](aws.md) |
-| ECR repositories and image publishing | [ECR](ecr.md) |
-| Kubernetes, k3s, Helm, and post-rendering | [Kubernetes](kubernetes.md) |
-| MCP demo tools | [MCP](mcp.md) |
-| Scenario demo prompts and candidate set | [Scenarios](scenarios.md) |
-| Scenario creation, tuning, and evidence process | [Scenario Documentation Process](scenario-documentation-process.md) |
-| Traffic generator | [Traffic Generator](traffic-generator.md) |
-| Phase 8 scenario/model test matrix | [Phase 8 Reference Matrix](phase8-reference-matrix.md) |
-| FortiAIGate syslog preservation | [FortiAIGate Syslog Preservation](fortiaigate-syslog-preservation.md) |
-| Bedrock provider setup and IAM credentials | [Bedrock](bedrock.md) |
-| FortiGate appliance | [FortiGate](fortigate.md) |
-| FortiGate traffic demo | [FortiGate Traffic Demo](fortigate-proxy-demo.md) |
-| FortiWeb appliance | [FortiWeb](fortiweb.md) |
-| Ollama provider notes | [Ollama](ollama.md) |
-| Known issues and workarounds | [Known Issues](known-issues.md) |
-| Common failures and recovery paths | [Troubleshooting](troubleshooting.md) |
+| [First-Run Preparation](first-run-preparation.md) | Control workstation, AWS/local prerequisites, user files, licenses, generated-state warnings, and preflight |
+| [Deployment Quickstart](quickstart.md) | The single guided AWS and local first-run journey |
+| [AWS Instance Sizing](aws-instance.md) | GPU instance selection |
+| [Command And Inventory Reference](reference/command-inventory.md) | Repo-root commands, inventory aliases, Terraform user links, generated files, and recovery hints |
 
-## FortiAIGate Setup
+### Choose Options
 
-| Document | Purpose |
+| Document | Owns |
 |---|---|
-| [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) | First GUI login, AI flow, guard, deploy, and lab API-key setup |
-| [AWS k3s Foundation](aws-k3s-foundation.md) | Detailed AWS k3s architecture, host bootstrap behavior, and FortiAIGate deployment mechanics |
-| [AWS Instance Sizing](aws_instance.MD) | GPU instance sizing guidance |
-| [AWS NVIDIA Package Cache Workaround](aws-nvidia-package-cache-workaround.md) | Temporary S3 cache workaround for slow NVIDIA package downloads |
-| [Terraform Reference](terraform.md) | Terraform module usage, generated Ansible files, and import commands |
+| [Deployment Options](deployment-options.md) | Default and optional features, controls, prerequisites, validation, and impact |
+| [Architecture](architecture.md) | Deployment topologies and request paths |
+| [Current Baseline](reference/current-baseline.md) | Default, optional, configurable, and deferred runtime behavior |
+| [Bedrock](bedrock.md) | Bedrock model-provider setup and IAM credentials |
+| [Ollama](ollama.md) | Local model-provider behavior |
+| [FortiGate](fortigate.md) | Optional FortiGate deployment and baseline configuration |
+| [FortiWeb](fortiweb.md) | Optional FortiWeb deployment and MCP reverse proxy |
+| [VPC Layout](vpc-layout.md) | AWS topology, trusted source CIDRs, routing, and network values |
 
-## Playbook Intent
+### Deploy
 
-- `publish_images.yml`: publishes FortiAIGate release images to ECR.
-- `publish_chatbot_images.yml`: builds and publishes the demo chatbot image.
-- `bootstrap_gpu_k3s.yml`: configures the GPU host, k3s, NVIDIA runtime, and ingress foundation.
-- `validate_k3s.yml`: validates the Kubernetes foundation and prints `GO` or `NO GO`.
-- `deploy_fortiaigate.yml`: submits the FortiAIGate Helm release.
-- `status_fortiaigate.yml`: gives a simple FortiAIGate `READY`, `NOT READY`, or `ERROR` answer plus the login URL.
-- `validate_faig.yml`: performs deeper FortiAIGate checks after status is ready.
-- `deploy_litellm.yml`, `deploy_chatbots.yml`, and `deploy_demo_home.yml`: deploy the default demo application layer.
-- `deploy_openwebui.yml`: optionally deploys Open WebUI when `openwebui_enabled=true`.
-- `deploy_ollama.yml`, `status_ollama.yml`, and `validate_ollama.yml`: deploy,
-  inspect, and test in-cluster Ollama for local hardware mode.
-- `deploy_mcp.yml`, `status_mcp.yml`, and `validate_mcp.yml`: deploy and test the MCP demo tool server.
-- `deploy_fortiaigate_syslog_collector.yml`, `status_fortiaigate_syslog_collector.yml`, and `test_fortiaigate_syslog_collector.yml`: deploy, inspect, and send a synthetic UDP test message to the FortiAIGate syslog preservation collector.
-- `deploy_demo_https_gateway.yml`: adds self-signed HTTPS listeners for HTTP-only demo services when run and enabled.
-- `show_demo_outputs.yml`: prints the Bedrock and LiteLLM provider values needed for FortiAIGate GUI setup.
-- `test_litellm_direct.yml`: sends a direct chat completion through LiteLLM for model/profile and prompt-injection checks; set `litellm_direct_test_poll_all_endpoints=true` to test all configured LiteLLM aliases.
-- `test_fortiaigate_chat.yml`: sends a FortiAIGate chat completion test; set `fortiaigate_test_poll_all_endpoints=true` to test the configured FAIG route matrix.
-- `test_fortiaigate_lite.yml`: tests only the baseline static FAIG routes:
-  passthrough, demo-a, and demo-b.
-- `test_mcp.yml`: sends one sample tool call to the MCP demo tool server.
-- `scripts/scenario_test_harness.py`: runs repeatable Phase 8 scenario/model sweeps through the chatbot-owned MCP agent loop and saves ignored raw output under `docs/raw-output/`.
-- `scripts/traffic_generator.py`: runs a default FAIG path test, then supports
-  steady or burst chatbot/MCP traffic profiles with compact ignored metadata
-  under `docs/raw-output/traffic/`, including an optional FortiGate-to-LiteLLM
-  path when `chatbot_fortigate_litellm_base_url` is configured and optional
-  FAIG static routes through FortiGate when `chatbot_faig_base_url` points to
-  the FortiGate HTTPS listener.
-- `scripts/fortigate_ai_app_proxy_touch.py`: touches AI application endpoints
-  directly by default, or through a run-scoped FortiGate explicit proxy URL, for
-  Application Control log investigation.
-- `scripts/export_fortiaigate_syslog.py`: syncs FortiAIGate syslog S3 objects into `FAIG/backups/` and reconstructs a combined JSONL archive.
-- `scripts/local_setup.py`: generates ignored local Ubuntu inventory, registry,
-  GPU, Ollama, and optional local appliance vars for `--local` deployments.
-- `scripts/local_var_cleanup.py`: exports/imports/removes generated local vars
-  and inventories without committing them.
-- `scripts/smoke_test.py`: release-maintainer no-apply validation; operators do
-  not need it for a normal quickstart.
+| Document | Owns |
+|---|---|
+| [Operations](operations.md) | Status, repeat deployment, component reruns, updates, validation, recovery, and teardown |
+| [Terraform Reference](terraform.md) | Terraform modules, generated Ansible data, and imports |
+| [Container Repository Management](container-repository-management.md) | Docker inputs/builds, tags, ECR/local registries, publishing, verification, rollback, and future separation |
+| [AWS k3s Foundation](aws-k3s-foundation.md) | AWS host bootstrap and k3s mechanics |
+| [Kubernetes](kubernetes.md) | k3s, Helm, namespaces, and post-render behavior |
 
-Internal build notes, experiments, and progress notes should live outside this
-Git repo in the parent FAIG workspace. Phase 11 scenario-matrix planning also
-lives in the parent workspace until the implementation shape is ready for repo
-documentation.
+### Configure FortiAIGate
+
+| Document | Owns |
+|---|---|
+| [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) | First login, per-guard LiteLLM endpoint settings, `pass-model`, and global passthrough proof |
+| [Scenario GUI Configuration](fortiaigate-gui-config.md) | Reusable work-order-driven Alert, Deny, Redact, flow, test, and telemetry workflow |
+| [Transcript Replays](transcript-replays.md) | Preconstructed assistant/tool requests for raw FAIG/LLM diagnostics; not live functional tests |
+
+### Manage Scenarios
+
+| Document | Owns |
+|---|---|
+| [Scenario Management](scenario-management.md) | Install, update, remove, inspect, and validate local scenarios |
+| [Advanced Scenario Management](advanced-scenario-management.md) | Candidate/archive inspection, local tuning, matrix diagnostics, Detailed controls, and optional chaining |
+| [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Scenario lifecycle and support classification |
+| [MCP](mcp.md) | Deterministic tools, tool profiles, and MCP transports |
+| [Functional Validation](functional-validation.md) | Operator-facing metadata-driven validation, evidence, filters, and direct-flow curl rendering |
+
+### Operate
+
+| Document | Owns |
+|---|---|
+| [FortiAIGate Syslog Preservation](troubleshooting/fortiaigate-syslog-preservation.md) | Detailed syslog collection, retention, and export procedure |
+
+### Troubleshoot
+
+| Document | Owns |
+|---|---|
+| [Troubleshooting](troubleshooting.md) | Common diagnosis and recovery procedures |
+| [Known Issues](known-issues.md) | Current limitations and workarounds |
+| [AWS NVIDIA Package Cache Workaround](troubleshooting/aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
+
+### Author
+
+| Document | Owns |
+|---|---|
+| [Scenario Authoring](scenario-authoring.md) | Scenario package schema and deployment boundaries |
+
+### Maintain
+
+| Document | Owns |
+|---|---|
+| [Release Validation Matrix](release-validation-matrix.md) | No-apply and live release checks |
+| [Developer Load Testing](development/load-testing.md) | Bounded dashboard traffic, statistics, GPU collection, and safe shutdown |
+| [Future Direction](../README.md#future-direction) | Directional ideas, not supported features or commitments |
+| [Changelog](../CHANGELOG.md) | User-facing change history |
+
+Internal plans, progress notes, and experiments belong in the parent FAIG
+workspace rather than this deployment repository.

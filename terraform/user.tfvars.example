@@ -3,6 +3,8 @@
 # Copy this file to terraform/user.tfvars and personalize it for your AWS
 # account, region, trusted source IPs, and EC2 key pair. Module-specific
 # overrides belong in terraform/<module>/99-local.auto.tfvars.
+# For example, fortiaigate_syslog_bucket_enabled belongs in
+# terraform/aws-prep/99-local.auto.tfvars, not this shared file.
 
 aws_profile          = "AdministratorAccess-123456789012"
 aws_region           = "us-east-1"

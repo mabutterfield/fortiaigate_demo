@@ -261,7 +261,7 @@ variable "tags" {
   default     = {}
 }
 
-# Phase 2 routing placeholders. These variables are intentionally defined now
+# Application routing placeholders. These variables are intentionally defined
 # so AWS and local Ubuntu deployments can share the same vocabulary when app
 # ingress manifests are added. Terraform does not create DNS records yet.
 

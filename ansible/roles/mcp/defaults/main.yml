@@ -19,7 +19,7 @@ mcp_wait_for_rollout: true
 mcp_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_service_port }}"
 
 # Optional read-only FortiGate tools. The MCP server reports these tools as
-# disabled unless Ansible can build a Kubernetes Secret from the Phase 6
+# disabled unless Ansible can build a Kubernetes Secret from the appliance
 # read-only API account token.
 mcp_fortigate_tools_enabled: true
 mcp_fortigate_terraform_dir: "{{ (playbook_dir + '/../../terraform/aws-fortigate') | realpath }}"

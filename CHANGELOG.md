@@ -5,6 +5,296 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Made external demo HTTP validation tolerant of brief startup transitions:
+  - retry each failing path up to five times with a five-second delay while
+    allowing healthy paths to complete immediately
+  - report curl exit status, attempt count, and connection error alongside the
+    HTTP status and tested URL
+
+- Added an AWS k3s GPU instance-size choice to profile initialization:
+  - retained `g4dn.4xlarge` as the budget default and offered supported
+    `g6.4xlarge` and `g6.8xlarge` L4 validation choices plus a custom value
+  - stored the selection in the ignored EC2 module override so quickstart
+    reruns and profile export/import preserve it without repeated prompts
+
+- Made direct FortiAIGate-to-Bedrock static credentials opt-in:
+  - disabled the prep-owned Bedrock IAM user and access key by default while
+    retaining EC2-role Bedrock access for the normal LiteLLM path
+  - documented IAM identity scope, lifetime, teardown, existing-role import,
+    the existing-state removal plan, and the explicit direct-provider
+    enablement path
+
+- Completed the pre-release runtime residue audit:
+  - removed the remaining quickstart instruction-slot call, phase-numbered
+    installed-status compatibility, and demo-letter load-test lane; the old
+    local path remains ignored only as an inert accidental-commit quarantine
+  - made developer traffic generation use installed named scenarios and matrix
+    actions exclusively
+  - renamed the FortiGate application-touch correlation user agent and added a
+    smoke-test guard with explicit history, archive, candidate, migration, and
+    rejection-test exceptions
+
+- Normalized the focused FortiAIGate connectivity test:
+  - the playbook and Python helper now default to
+    `/v1/passthrough/chat/completions`, `pass-model`, and no client
+    authorization header
+  - removed the retired multi-endpoint, lite-mode, OpenWebUI, re-entry, and
+    Ollama case builders while retaining one explicitly selected generic
+    header-route test
+  - assigned installed-scenario path and disposition checks exclusively to
+    `python3 -m functional_test validate`
+
+- Extended portable user profiles to named installed scenarios:
+  - export includes registered local scenario packages and
+    `installed-scenarios.json` while excluding `_backups/` and `_removed/`
+  - import validates every archive path and regular file before writing,
+    merges new scenario IDs, and requires confirmation or `--yes` before a
+    colliding package is replaced
+  - added round-trip, merge, overwrite-boundary, traversal, unexpected-path,
+    and link-rejection tests
+
+- Removed the retired lettered instruction-slot toolchain:
+  - deleted the standalone instruction CLI, legacy chatbot profile builders,
+    and tracked instruction-slot example library
+  - removed slot initialization and archive entries from the user-profile
+    command; named installed-scenario archive support follows separately
+  - removed inline frontend-prompt fallback so the scenario matrix owns the
+    `none` profile and every scenario-specific frontend profile
+
+- Made the named-scenario matrix the sole LiteLLM and chatbot runtime source:
+  - removed the selectable legacy/demo-slot deployment branches and manual
+    installed/configured chatbot profile-source branches
+  - made matrix generation automatic whenever LiteLLM or the chatbot is
+    enabled, while retaining optional per-scenario FAIG re-entry metadata
+
+- Removed disconnected pre-scenario deployment artifacts:
+  - deleted the unused FortiAIGate lite-route test playbook and orphaned
+    direct-Bedrock chatbot chart/template
+  - removed unconsumed AWS/local Helm examples while preserving their reduced
+    Triton small-instance resource profile in AWS Instance Sizing
+
+- Pruned the v1.0 release documentation tree:
+  - removed compatibility-only pointer pages and linked directly to the
+    canonical quickstart, operations, scenario, container, and load-test guides
+  - consolidated canonical request-flow diagrams and generated-name rules into
+    Architecture, and moved trusted source CIDR guidance into VPC Layout
+  - removed retired experiment documents from the active release tree; Git
+    history remains the archive for that material
+  - normalized `fortiaigate-initial-config.md` and removed the final filename
+    exception from the documentation quality gate
+
+- Completed the v1.0 documentation and naming quality gate:
+  - added an automated tracked-Markdown check for local links, anchors,
+    lowercase kebab-case filenames, and current release vocabulary
+  - normalized active scenario status metadata from an internal numbered label
+    to `baseline`, while retaining read compatibility for older ignored local
+    scenario copies until the operator updates them
+  - renamed optional document-fixture S3 settings and outputs to
+    `scenario_documents_*` and added Terraform moved declarations for existing
+    resource addresses
+  - replaced numbered document-fixture paths and validation labels with stable
+    scenario terminology
+  - removed unreferenced legacy screenshots
+
+- Separated supported functional validation from developer dashboard traffic:
+  - `python3 -m functional_test validate` now owns installed-scenario and
+    passthrough readiness checks, scenario/action/case filters, effective
+    route/model/MCP/tool/frontend reporting, actionable failure details, and a
+    compact `INSTALLATION READY` result
+  - added metadata-checked `render-curl` output that inserts selected frontend
+    instructions and targets canonical FortiAIGate scenario flows without
+    misrepresenting a single request as a live MCP agent loop
+  - added scenario-owned functional request templates for all seven protected
+    action cases and semantic validation that keeps them aligned with model
+    aliases and prompts
+  - confined bounded 75/25 dashboard workload generation, approximate tokens,
+    checkpointing, safe shutdown, demonstration cost interpretation, and
+    NVIDIA metrics to developer documentation
+  - moved retained proxy/model experiments under historical documentation and
+    detailed NVIDIA/syslog procedures under troubleshooting
+
+- Rebuilt scenario management and presenter runbooks around named scenarios:
+  - centralized discover, install, local tuning, work-order, deployment, GUI,
+    validation, backup/update, and removal behavior
+  - kept the normal workflow focused on validated scenarios and moved
+    candidate/archive inspection, tuning, matrix diagnostics, expanded tools,
+    and optional chaining into Advanced Scenario Management
+  - made `render-work-order` print readable terminal entries and automatically
+    write the ignored formatted Markdown table at a stable path
+  - moved the catalog beside its machine-readable source and made installation
+    status explicitly separate from catalog lifecycle
+  - standardized FortiStore, HR, and Resume runbooks around generated objects,
+    Simplified/Detailed comparisons, prompts, actions, evidence, and simulated
+    data boundaries
+  - renamed active raw tool fixtures as transcript replays and corrected HR
+    and Resume guard boundaries without changing candidate content
+  - aligned guard recipes with FortiAIGate Alert terminology using
+    `inject_alert`, `inject_deny`, `output_dlp_alert`, `output_dlp_deny`, and
+    `output_dlp_redact`; composite `alert_all` expands to both Alert recipes,
+    while passthrough explicitly uses `no_protections`
+  - standardized generated work-order labels as Flow Name and Guard Name
+
+- Split FortiAIGate GUI setup into a minimal initial configuration and a
+  reusable scenario workflow:
+  - initial configuration now follows the four-step onboarding wizard, sets
+    OpenAI/private LiteLLM Endpoint details and display-only token pricing per
+    guard, disables wizard-added flow authentication, tests the model, and
+    validates the no-protection `/v1/passthrough/*` flow
+  - added optional FortiAIGate syslog GUI setup using the collector destination
+    printed by Ansible and the AWS Prep `99-local.auto.tfvars` ownership
+  - scenario configuration maps generated work-order variables into Alert,
+    Deny, Redact, flow, authentication, deployment, GUI test, chatbot, and
+    telemetry steps
+  - documented FortiWeb-preferred/Direct-fallback MCP independently from FAIG
+    LLM paths and documented optional loop-safe FAIG re-entry
+  - replaced obsolete GUI screenshots with inline placeholders carrying final
+    captions, exact filenames, capture instructions, and redaction rules
+  - aligned chatbot UI terminology with its actual Simplified and Detailed
+    selectors and removed the nonexistent scenario guard/flow deployment step
+  - made Demo Outputs report the effective FortiWeb MCP URL separately from
+    the appliance admin URL and removed offline FortiWeb warnings from the
+    FortiAIGate-only work order
+  - consolidated case variants into one canonical initial guide; the final
+    release cleanup later normalized its filename
+
+- Consolidated deployment and operations documentation into one supported
+  journey:
+  - added a single guided AWS/local quickstart with readiness checks,
+    appliance opt-outs and safe skips, checkpoints, expected URLs, and clear
+    handoffs to GUI and scenario validation
+  - separated repeat deployments, component reruns, status, image updates,
+    state portability, functional validation, recovery, AWS teardown, and the
+    local lifecycle into an operations guide
+  - rebuilt troubleshooting around the first failed symptom and copy-safe
+    `cloud`/`local` inventory commands
+  - reduced the former automated, manual, and runbook guides to compatibility
+    pointers so existing bookmarks remain useful without duplicating the
+    supported path
+  - centralized operational constraints in Known Issues, including manual
+    FortiAIGate GUI objects, deferred FortiWeb MCP Security policy automation,
+    unconfigured optional Open WebUI, and the current local-uninstall boundary
+  - clarified that quickstart automatically initializes or reuses the operator
+    profile, image publishing is normally an initial-deployment task, and
+    repeat Terraform/Ansible runs reconcile the configured desired state
+  - added FortiAIGate path, flow, guard, GUI test, and optional API-key
+    troubleshooting without making client authentication a normal lab
+    prerequisite
+
+- Added the v1.0 preparation and option documentation layer:
+  - centralized first-run workstation, AWS/local, profile, license, generated
+    state, and preflight requirements
+  - documented default and optional features in one cloud/local decision
+    matrix with controls, validation commands, and operational impact
+  - made container repository management the sole Docker/ECR/local-registry
+    owner, including tag increments, verification, cleanup, rollback, current
+    quickstart integration, and the future separation boundary
+  - documented all root inventory aliases, Terraform shared-user symlinks,
+    generated targets, repo-root command shapes, and recovery-hint conventions
+  - clarified AWS and local preparation as alternative lanes, made manual
+    profile initialization optional, and reserved smoke testing for maintainers
+  - made the selected inventory authoritative for local/cloud target resolution
+    in localhost utility playbooks and added local-only profile initialization
+    that does not require AWS onboarding
+
+- Established the v1.0 documentation entry points and support vocabulary:
+  - rebuilt the repository and documentation landing pages around AWS/local
+    deployment choices and operator tasks rather than numbered phases or demo
+    slots
+  - documented Direct, FAIG protected, passthrough, FortiWeb MCP, optional
+    FortiGate, and opt-in FAIG re-entry request paths in one architecture view
+  - moved the authoritative baseline into `docs/reference/` and classified
+    defaults, optional components, configurable behavior, and deferred paths
+  - made the scenario catalog the sole scenario-status authority and kept the
+    repository landing page focused on deployment choices
+  - added a concise, non-committal Future Direction section for AMI creation,
+    repository separation, FortiFlex, local scenario creation, Demo Home
+    documentation, and future scenario/appliance validation
+
+- Updated the local traffic generator for the complete scenario baseline:
+  - moved path checks, traffic generation, result aggregation, and tracked
+    high-token prompt metadata into the dedicated developer `load_test/`
+    package with `paths` and `run` commands
+  - baseline selection now includes `resume-tool-injection`
+  - configurable high-token canonical passthrough traffic supports tunable
+    bypass-to-scenario mixes
+  - scenario/action lanes receive deterministic minimum coverage
+  - summaries now record wall time, throughput, approximate response tokens,
+    and canonical provider-route counts for sequential/parallel comparison
+  - every traffic result is validated against its action expectation, with
+    Deny, Redact, sensitive-output, and resume tool-pivot checks summarized as
+    expected results over total results for each provider route
+  - added machine-readable validation cases to every baseline scenario so live
+    setup checks and background traffic share prompts, verdicts, and required or
+    forbidden tool traces
+  - added a tracked variable 24-hour dashboard workload with a 75/25 long-run
+    normal-to-suspicious baseline, bounded hourly volume, and mandatory hourly
+    Alert, Deny, and Redact requests
+  - added atomic live statistics and checkpoints, graceful signal handling,
+    approximate token totals, and isolated NVIDIA utilization, memory, power,
+    temperature, and estimated-energy sampling
+
+- Started the Phase 11 scenario-matrix v1.0 foundation:
+  - classified FortiStore Injection, HR Tool DLP, and Resume Tool Injection as
+    baseline scenarios, while retaining FortiGate Operator as a future
+    candidate
+  - added a strict scenario profile v2 schema with scenario-owned Alert, Deny,
+    and Redact actions, frontend profiles, MCP defaults, and disabled FAIG chain
+  - added ignored editable local scenario packages with safe add, status,
+    explicit backed-up update, and recoverable remove
+  - added a deterministic Phase 3 builder for LiteLLM aliases and instruction
+    profiles, chatbot simplified and advanced controls, MCP paths and scoped
+    tool profiles, scenario-owned FAIG routes, and the FAIG GUI work order;
+  - made matrix generation the default LiteLLM configuration source, resolving
+    the environment-neutral `llm-default` target to Bedrock or Ollama during
+    deployment and loading backend instructions from ignored local scenarios
+  - added direct validation for canonical `pass-model`, `fortistore-injection`,
+    and `hr-tool-dlp` aliases, including required scenario activation markers
+  - made the consolidated chatbot consume the same scenario matrix for its
+    models, FAIG static routes, simplified profiles, scenario/alternate MCP
+    tool profiles, and named frontend instruction profiles
+  - removed generated `demo-a`/`demo-b` options from the Phase 11 chatbot,
+    defaulted the UI to simplified mode, and retained the canonical FAIG
+    passthrough plus advanced controls
+  - enabled the optional advanced FortiWeb MCP path only when its proxy is
+    desired and an installed appliance endpoint is available; FortiGate LLM
+    routes remain disabled while that path is still under development
+  - published chatbot image `v0.5.2` for the new matrix-driven runtime
+  - updated the scenario harness and traffic generator to resolve installed
+    scenarios by canonical action, model alias, frontend profile, MCP path,
+    scoped tool profile, and tool-round settings from the same matrix
+  - updated the in-container agent probe to support MCP-disabled requests and
+    named frontend profiles without defaulting to `demo-a` or `all-tools`, and
+    published the result as chatbot image `v0.5.3`
+  - retained explicit Phase 10 `--paths`, `--route`, and active-slot modes for
+    old test invocations without using them as Phase 11 defaults
+  - rewrote the scenario operator, authoring, catalog, active-scenario, and
+    FortiAIGate GUI guides around generated scenario-owned paths, named
+    profiles, editable local installs, and reusable `{{variable}}` flow setup
+  - made rendered FAIG work orders show copy-safe configured URIs with the
+    required trailing `/*` instead of only the bare request prefix
+  - removed the unvalidated HR Tool DLP `input-dlp` flow and chatbot profile;
+    input DLP remains available to a future dedicated scenario or revision
+  - standardized scenario routes as `/v1/<scenario>/<action>/*` with Alert,
+    Deny, and Redact actions; aligned flow names, guard names, chatbot profiles,
+    harness/traffic options, and work orders to the same contract
+  - removed stale-FAIG-object bookkeeping and `ack-stale`; disposable lab
+    rebuilds or direct GUI changes now own appliance cleanup
+  - consolidated the five experimental resume packages into the simulated
+    `resume-tool-injection` baseline, with scenario-owned Alert and Deny paths,
+    a poisoned `RESUME-9001` fixture, and no real uploads or cloud access
+  - added per-chatbot-profile MCP tool-set selection so simplified resume
+    profiles can demonstrate the synthetic cloud-tool pivot while Detailed
+    mode retains a least-privilege comparison without the cloud tool
+  - archived the superseded resume packages, taught the scenario harness to
+    classify an executed cloud-tool pivot from the actual tool trace, and
+    published the chatbot profile cleanup as image `v0.5.4`
+  - validated the Resume Tool Injection Direct, Alert, Deny, clean, and
+    least-privilege cases on Jarvis; strengthened the synthetic `RESUME-9001`
+    injection signature so Deny reliably stops the agent after document read
+    and before the synthetic cloud tool executes
+  - added a trace-based Resume Tool Injection acceptance matrix, deterministic
+    fixture/profile regression tests, canonical curl replay paths, and updated
+    baseline, scenario, FAIG setup, and release-validation documentation
 - Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
   - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
     generated scenario metadata, and the replacement for `demo-a`/`demo-b`

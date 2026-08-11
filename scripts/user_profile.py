@@ -17,15 +17,18 @@ import time
 from pathlib import Path, PurePosixPath
 
 try:
-    import instruction_profiles
+    import scenario_local
 except ModuleNotFoundError:
-    from scripts import instruction_profiles
+    from scripts import scenario_local
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROFILE_ARCHIVE = REPO_ROOT.parent / "user_profile.tgz"
 PROFILE_VERSION = 1
 MANIFEST_PATH = ".faig-user-profile.json"
+SCENARIO_LOCAL_PATH = Path("chatbot/scenarios/local")
+SCENARIO_STATE_PATH = SCENARIO_LOCAL_PATH / "installed-scenarios.json"
+SCENARIO_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 REQUIRED_PROFILE_FILES = [
     Path("terraform/user.tfvars"),
@@ -45,9 +48,6 @@ ALLOWLIST = [
     Path("terraform/aws-fortigate/99-local.auto.tfvars"),
     Path("terraform/aws-fortiweb/99-local.auto.tfvars"),
     Path("ansible/group_vars/user.yml"),
-    Path("chatbot/instructions/local/demo-a/instructions.txt"),
-    Path("chatbot/instructions/local/demo-b/instructions.txt"),
-    Path("chatbot/instructions/local/frontend/instructions.txt"),
 ]
 
 LEGACY_LOCAL_FILES = [
@@ -64,6 +64,27 @@ SKIP_SSH_PRIVATE_KEY_NAMES = {
     "known_hosts",
     "known_hosts.old",
 }
+
+EC2_K3S_MODULE_PATH = Path("terraform/aws-ec2-k3s")
+EC2_K3S_SYSTEM_TFVARS = EC2_K3S_MODULE_PATH / "00-system.auto.tfvars"
+EC2_K3S_LOCAL_TFVARS = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars"
+EC2_K3S_LOCAL_TFVARS_EXAMPLE = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars.example"
+DEFAULT_EC2_INSTANCE_TYPE = "g4dn.4xlarge"
+EC2_INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9]+$")
+EC2_INSTANCE_CHOICES = [
+    (
+        "g4dn.4xlarge",
+        "Budget lab default; NVIDIA T4 with 16 GB VRAM, not a supported FortiAIGate GPU family",
+    ),
+    (
+        "g6.4xlarge",
+        "Lower-cost supported NVIDIA L4 with 24 GB VRAM",
+    ),
+    (
+        "g6.8xlarge",
+        "Preferred supported NVIDIA L4 validation size with additional CPU and RAM",
+    ),
+]
 
 
 def print_header(message: str) -> None:
@@ -185,6 +206,94 @@ def set_tf_map_strings(content: str, key: str, values: dict[str, str]) -> str:
     if re.search(map_pattern, content):
         return re.sub(map_pattern, replacement, content, count=1)
     return content.rstrip() + f"\n{replacement}\n"
+
+
+def configured_ec2_instance_type() -> str:
+    path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS
+    return get_tf_string(read_file(path), "instance_type") if path.is_file() else ""
+
+
+def tracked_ec2_instance_type() -> str:
+    path = REPO_ROOT / EC2_K3S_SYSTEM_TFVARS
+    if not path.is_file():
+        return DEFAULT_EC2_INSTANCE_TYPE
+    return get_tf_string(read_file(path), "instance_type", DEFAULT_EC2_INSTANCE_TYPE)
+
+
+def choose_ec2_instance_type(current: str) -> str:
+    print_header("AWS k3s GPU Instance Size")
+    print("Choose the EC2 instance that will run k3s and FortiAIGate:")
+    for index, (instance_type, description) in enumerate(EC2_INSTANCE_CHOICES, start=1):
+        marker_labels = []
+        if instance_type == current:
+            marker_labels.append("current")
+        if instance_type == DEFAULT_EC2_INSTANCE_TYPE:
+            marker_labels.append("default")
+        marker = f" ({'/'.join(marker_labels)})" if marker_labels else ""
+        print(f"{index}. {instance_type}{marker} - {description}")
+    print("4. Custom instance type")
+    print("AWS region capacity, EC2 quota, and current price are checked outside the profile.")
+    print(
+        "Changing an existing EC2 instance type can stop/restart the host; "
+        "instance-store-backed k3s data is ephemeral."
+    )
+
+    choice_by_number = {
+        str(index): instance_type
+        for index, (instance_type, _description) in enumerate(EC2_INSTANCE_CHOICES, start=1)
+    }
+    default_choice = next(
+        (
+            number
+            for number, instance_type in choice_by_number.items()
+            if instance_type == current
+        ),
+        current,
+    )
+
+    while True:
+        selected = prompt_text(
+            "EC2 instance size number, type, or 4 for custom",
+            default_choice,
+        ).strip()
+        if selected in choice_by_number:
+            return choice_by_number[selected]
+        if selected == "4":
+            selected = prompt_text("Custom EC2 instance type", current).strip()
+        if EC2_INSTANCE_TYPE_PATTERN.fullmatch(selected):
+            return selected
+        print("Enter a listed number or an EC2 instance type such as g6.8xlarge.")
+
+
+def configure_ec2_instance_type() -> str:
+    current = configured_ec2_instance_type() or tracked_ec2_instance_type()
+    selected = choose_ec2_instance_type(current)
+    path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS
+    example_path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS_EXAMPLE
+    if path.is_file():
+        content = read_file(path)
+    elif example_path.is_file():
+        content = read_file(example_path)
+    else:
+        content = "# User-owned EC2/k3s module overrides.\n"
+    write_file(path, set_tf_string(content, "instance_type", selected))
+    print(f"updated: {rel(path)}")
+    print(f"Selected AWS k3s instance type: {selected}")
+    return selected
+
+
+def ensure_ec2_instance_type(*, interactive: bool) -> str:
+    selected = configured_ec2_instance_type()
+    if selected:
+        print_header("AWS k3s GPU Instance Size")
+        print(f"Using profile instance type: {selected}")
+        return selected
+    if interactive:
+        return configure_ec2_instance_type()
+    selected = tracked_ec2_instance_type()
+    print_header("AWS k3s GPU Instance Size")
+    print(f"No profile override; using tracked default: {selected}")
+    return selected
 
 
 def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
@@ -606,33 +715,66 @@ def configure_ansible_user_profile() -> None:
     print(f"updated: {rel(path)}")
 
 
-def ensure_instruction_slots() -> list[Path]:
-    print_header("Instruction Profiles")
-    created = []
-    for slot in sorted(instruction_profiles.CATALOG.get("slots", {})):
-        path = instruction_profiles.slot_path(slot)
-        if path.exists():
-            metadata_path = instruction_profiles.ensure_slot_metadata(slot)
-            print(f"exists: {rel(path)}")
-            if metadata_path:
-                print(f"created: {rel(metadata_path)}")
-            continue
-        instruction_profiles.write_slot(slot, force=False)
-        created.append(path)
-        print(f"created: {rel(path)}")
-        instruction_profiles.print_deploy_hint(slot, slot, path)
-    return created
-
-
-def init_profile(*, force: bool) -> None:
+def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     copy_profile_examples(force=force)
-    ensure_instruction_slots()
-    configure_terraform_user_profile()
+    if configure_aws:
+        configure_terraform_user_profile()
+        configure_ec2_instance_type()
+    else:
+        print("Local profile initialization: skipped AWS/Terraform onboarding.")
     configure_ansible_user_profile()
 
 
 def existing_profile_paths() -> list[Path]:
     return [path for path in ALLOWLIST if (REPO_ROOT / path).exists()]
+
+
+def scenario_store() -> scenario_local.LocalScenarioStore:
+    return scenario_local.LocalScenarioStore(
+        repo_root=REPO_ROOT,
+        local_root=REPO_ROOT / SCENARIO_LOCAL_PATH,
+        raw_output_root=REPO_ROOT / "docs/raw-output/scenario-work-orders",
+    )
+
+
+def validate_scenario_id(scenario_id: str) -> str:
+    if not SCENARIO_ID_PATTERN.fullmatch(scenario_id):
+        raise SystemExit(f"Refusing invalid installed scenario ID: {scenario_id}")
+    return scenario_id
+
+
+def installed_scenario_profile_paths() -> tuple[list[Path], list[str]]:
+    store = scenario_store()
+    try:
+        state = store.load_state()
+    except scenario_local.LocalScenarioError as exc:
+        raise SystemExit(str(exc)) from exc
+    entries = state["installed_scenarios"]
+    if not entries:
+        return [], []
+    state_path = REPO_ROOT / SCENARIO_STATE_PATH
+    if not state_path.is_file() or state_path.is_symlink():
+        raise SystemExit(f"Installed scenario state must be a regular file: {state_path}")
+
+    paths = [SCENARIO_STATE_PATH]
+    scenario_ids: list[str] = []
+    for entry in entries:
+        scenario_id = validate_scenario_id(str(entry.get("scenario_id") or ""))
+        package_root = store.scenario_path(scenario_id)
+        try:
+            package_paths = scenario_local.package_files(package_root)
+        except scenario_local.LocalScenarioError as exc:
+            raise SystemExit(str(exc)) from exc
+        if not package_paths:
+            raise SystemExit(f"Installed scenario package is empty: {package_root}")
+        scenario_ids.append(scenario_id)
+        paths.extend(path.relative_to(REPO_ROOT.resolve()) for path in package_paths)
+    return sorted(paths), sorted(scenario_ids)
+
+
+def export_profile_paths() -> tuple[list[Path], list[str]]:
+    scenario_paths, scenario_ids = installed_scenario_profile_paths()
+    return sorted(existing_profile_paths() + scenario_paths), scenario_ids
 
 
 def export_profile(archive_path: Path) -> None:
@@ -646,12 +788,17 @@ def export_profile(archive_path: Path) -> None:
         archive_path = (REPO_ROOT / archive_path).resolve()
     archive_path.parent.mkdir(parents=True, exist_ok=True)
 
-    files = existing_profile_paths()
+    files, scenario_ids = export_profile_paths()
     manifest = {
         "profile_version": PROFILE_VERSION,
         "created_at": int(time.time()),
         "files": [path.as_posix() for path in files],
+        "installed_scenarios": scenario_ids,
     }
+    for path in files:
+        source = REPO_ROOT / path
+        if not source.is_file() or source.is_symlink():
+            raise SystemExit(f"Profile export accepts only regular files: {source}")
 
     with tarfile.open(archive_path, "w:gz") as archive:
         manifest_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
@@ -663,7 +810,8 @@ def export_profile(archive_path: Path) -> None:
             fileobj.seek(0)
             archive.addfile(manifest_info, fileobj=fileobj)
         for path in files:
-            archive.add(REPO_ROOT / path, arcname=path.as_posix(), recursive=False)
+            source = REPO_ROOT / path
+            archive.add(source, arcname=path.as_posix(), recursive=False)
 
     print(f"created: {archive_path}")
     print("included:")
@@ -674,9 +822,276 @@ def export_profile(archive_path: Path) -> None:
 
 def safe_member_path(member_name: str) -> Path:
     pure = PurePosixPath(member_name)
-    if pure.is_absolute() or ".." in pure.parts:
+    if (
+        not pure.parts
+        or pure.is_absolute()
+        or ".." in pure.parts
+        or pure.as_posix() != member_name
+    ):
         raise SystemExit(f"Refusing unsafe archive path: {member_name}")
     return Path(*pure.parts)
+
+
+def classify_profile_member(member_path: Path) -> tuple[str, str]:
+    if member_path in ALLOWLIST:
+        return "config", ""
+    if member_path == SCENARIO_STATE_PATH:
+        return "scenario-state", ""
+    parts = member_path.parts
+    scenario_prefix = SCENARIO_LOCAL_PATH.parts
+    if parts[: len(scenario_prefix)] != scenario_prefix:
+        raise SystemExit(f"Refusing unexpected profile file: {member_path.as_posix()}")
+    if len(parts) <= len(scenario_prefix) + 1:
+        raise SystemExit(f"Refusing incomplete scenario package path: {member_path.as_posix()}")
+    scenario_id = validate_scenario_id(parts[len(scenario_prefix)])
+    if scenario_id in {"_backups", "_removed"}:
+        raise SystemExit(f"Refusing archived scenario history: {member_path.as_posix()}")
+    return "scenario-file", scenario_id
+
+
+def read_profile_archive(archive_path: Path) -> tuple[dict, dict[Path, bytes]]:
+    try:
+        with tarfile.open(archive_path, "r:gz") as archive:
+            members = archive.getmembers()
+            names = [member.name for member in members]
+            if len(names) != len(set(names)):
+                raise SystemExit("Profile archive contains duplicate member names.")
+            manifest_members = [member for member in members if member.name == MANIFEST_PATH]
+            if len(manifest_members) != 1:
+                raise SystemExit(f"Profile archive must contain exactly one {MANIFEST_PATH}.")
+            manifest_member = manifest_members[0]
+            if not manifest_member.isfile() or manifest_member.issym() or manifest_member.islnk():
+                raise SystemExit(f"Profile archive has non-regular {MANIFEST_PATH}.")
+            manifest_file = archive.extractfile(manifest_member)
+            if manifest_file is None:
+                raise SystemExit(f"Profile archive has unreadable {MANIFEST_PATH}.")
+            try:
+                manifest = json.loads(manifest_file.read().decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise SystemExit(f"Profile archive has invalid {MANIFEST_PATH}: {exc}") from exc
+            if not isinstance(manifest, dict):
+                raise SystemExit(f"Profile archive {MANIFEST_PATH} must be a JSON object.")
+            if manifest.get("profile_version") != PROFILE_VERSION:
+                raise SystemExit(f"Unsupported profile version: {manifest.get('profile_version')}")
+            manifest_files = manifest.get("files")
+            if not isinstance(manifest_files, list) or not all(
+                isinstance(path, str) for path in manifest_files
+            ):
+                raise SystemExit("Profile archive manifest files must be a list of paths.")
+            if len(manifest_files) != len(set(manifest_files)):
+                raise SystemExit("Profile archive manifest contains duplicate file paths.")
+
+            file_data: dict[Path, bytes] = {}
+            archive_file_names: list[str] = []
+            for member in members:
+                if member.name == MANIFEST_PATH:
+                    continue
+                member_path = safe_member_path(member.name)
+                classify_profile_member(member_path)
+                if member.isdir() or member.issym() or member.islnk() or not member.isfile():
+                    raise SystemExit(f"Refusing non-regular profile entry: {member.name}")
+                source = archive.extractfile(member)
+                if source is None:
+                    raise SystemExit(f"Could not read profile file: {member.name}")
+                file_data[member_path] = source.read()
+                archive_file_names.append(member_path.as_posix())
+
+            if sorted(manifest_files) != sorted(archive_file_names):
+                raise SystemExit("Profile archive members do not match the manifest file list.")
+            return manifest, file_data
+    except (OSError, tarfile.TarError) as exc:
+        raise SystemExit(f"Unable to read profile archive {archive_path}: {exc}") from exc
+
+
+def validate_archived_scenarios(manifest: dict, file_data: dict[Path, bytes]) -> dict:
+    package_files: dict[str, list[Path]] = {}
+    for member_path in file_data:
+        member_type, scenario_id = classify_profile_member(member_path)
+        if member_type == "scenario-file":
+            package_files.setdefault(scenario_id, []).append(member_path)
+
+    state_bytes = file_data.get(SCENARIO_STATE_PATH)
+    if package_files and state_bytes is None:
+        raise SystemExit("Scenario package files require installed-scenarios.json.")
+    if state_bytes is None:
+        if manifest.get("installed_scenarios") not in (None, []):
+            raise SystemExit("Profile manifest lists scenarios without installed scenario state.")
+        return scenario_local.empty_state()
+
+    try:
+        state = json.loads(state_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Invalid {SCENARIO_STATE_PATH.as_posix()}: {exc}") from exc
+    if not isinstance(state, dict):
+        raise SystemExit(f"{SCENARIO_STATE_PATH.as_posix()} must contain a JSON object.")
+    try:
+        scenario_store().validate_state(state)
+    except scenario_local.LocalScenarioError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    state_ids = [
+        validate_scenario_id(str(entry.get("scenario_id") or ""))
+        for entry in state["installed_scenarios"]
+    ]
+    manifest_ids = manifest.get("installed_scenarios", state_ids)
+    if not isinstance(manifest_ids, list) or not all(
+        isinstance(scenario_id, str) for scenario_id in manifest_ids
+    ):
+        raise SystemExit("Profile archive manifest installed_scenarios must be a list of IDs.")
+    if sorted(manifest_ids) != sorted(state_ids):
+        raise SystemExit("Profile archive scenario state does not match its manifest.")
+    if set(package_files) != set(state_ids):
+        raise SystemExit("Profile archive scenario packages do not match installed scenario state.")
+
+    for scenario_id in state_ids:
+        profile_path = SCENARIO_LOCAL_PATH / scenario_id / "profile.json"
+        if profile_path not in file_data:
+            raise SystemExit(f"Scenario archive is missing {profile_path.as_posix()}.")
+        try:
+            profile = json.loads(file_data[profile_path].decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"Invalid archived scenario profile {profile_path}: {exc}") from exc
+        if not isinstance(profile, dict) or profile.get("schema_version") != 2:
+            raise SystemExit(f"Archived scenario {scenario_id} must use schema version 2.")
+        if profile.get("id") != scenario_id:
+            raise SystemExit(f"Archived scenario profile ID does not match directory {scenario_id}.")
+    return state
+
+
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(file_descriptor, "wb") as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, path)
+    except OSError as exc:
+        raise SystemExit(f"Unable to write {path}: {exc}") from exc
+    finally:
+        if temporary_path and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def import_scenario_packages(
+    file_data: dict[Path, bytes],
+    incoming_state: dict,
+    *,
+    yes: bool,
+) -> list[Path]:
+    incoming_entries = {
+        str(entry["scenario_id"]): entry
+        for entry in incoming_state["installed_scenarios"]
+    }
+    if not incoming_entries:
+        return []
+
+    store = scenario_store()
+    try:
+        current_state = store.load_state()
+    except scenario_local.LocalScenarioError as exc:
+        raise SystemExit(str(exc)) from exc
+    current_entries = {
+        str(entry["scenario_id"]): entry
+        for entry in current_state["installed_scenarios"]
+    }
+    selected_ids: list[str] = []
+    for scenario_id in sorted(incoming_entries):
+        destination = store.scenario_path(scenario_id)
+        if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+            raise SystemExit(
+                f"Refusing non-directory installed scenario destination: {destination}"
+            )
+        collision = scenario_id in current_entries or destination.exists()
+        if collision and not yes and not prompt_yes_no(
+            f"Overwrite installed scenario {scenario_id}?",
+            False,
+        ):
+            print(f"kept installed scenario: {scenario_id}")
+            continue
+        selected_ids.append(scenario_id)
+    if not selected_ids:
+        return []
+
+    if store.state_path.is_symlink():
+        raise SystemExit(f"Refusing symlinked installed scenario state: {store.state_path}")
+    scenario_parent = store.local_root.parent
+    scenario_parent.mkdir(parents=True, exist_ok=True)
+    staging_root = Path(
+        tempfile.mkdtemp(prefix=".user-profile-import-", dir=scenario_parent)
+    )
+    staged_root = staging_root / "staged"
+    backup_root = staging_root / "backup"
+    imported_paths: list[Path] = []
+    backed_up_ids: list[str] = []
+    placed_ids: list[str] = []
+    old_state_bytes = store.state_path.read_bytes() if store.state_path.is_file() else None
+    try:
+        for scenario_id in selected_ids:
+            staged_package = staged_root / scenario_id
+            for member_path, content in file_data.items():
+                member_type, member_scenario_id = classify_profile_member(member_path)
+                if member_type != "scenario-file" or member_scenario_id != scenario_id:
+                    continue
+                relative_package_path = member_path.relative_to(
+                    SCENARIO_LOCAL_PATH / scenario_id
+                )
+                staged_path = staged_package / relative_package_path
+                atomic_write_bytes(staged_path, content)
+                imported_paths.append(member_path)
+
+        store.local_root.mkdir(parents=True, exist_ok=True)
+        for scenario_id in selected_ids:
+            destination = store.scenario_path(scenario_id)
+            staged_package = staged_root / scenario_id
+            if destination.exists():
+                backup_destination = backup_root / scenario_id
+                backup_destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(destination, backup_destination)
+                backed_up_ids.append(scenario_id)
+            os.replace(staged_package, destination)
+            placed_ids.append(scenario_id)
+
+        merged_entries = [
+            entry
+            for scenario_id, entry in current_entries.items()
+            if scenario_id not in selected_ids
+        ] + [incoming_entries[scenario_id] for scenario_id in selected_ids]
+        merged_state = {
+            "schema_version": scenario_local.STATE_SCHEMA_VERSION,
+            "installed_scenarios": merged_entries,
+        }
+        store.write_state(merged_state)
+        imported_paths.append(SCENARIO_STATE_PATH)
+    except (OSError, scenario_local.LocalScenarioError, SystemExit) as exc:
+        for scenario_id in reversed(placed_ids):
+            destination = store.scenario_path(scenario_id)
+            if destination.exists():
+                shutil.rmtree(destination)
+        for scenario_id in reversed(backed_up_ids):
+            destination = store.scenario_path(scenario_id)
+            backup_destination = backup_root / scenario_id
+            if backup_destination.exists():
+                os.replace(backup_destination, destination)
+        if old_state_bytes is None:
+            if store.state_path.exists():
+                store.state_path.unlink()
+        else:
+            atomic_write_bytes(store.state_path, old_state_bytes)
+        if isinstance(exc, SystemExit):
+            raise
+        raise SystemExit(f"Unable to import scenario packages: {exc}") from exc
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
+    return imported_paths
 
 
 def import_profile(archive_path: Path, *, yes: bool) -> None:
@@ -687,41 +1102,28 @@ def import_profile(archive_path: Path, *, yes: bool) -> None:
     if not archive_path.is_file():
         raise SystemExit(f"Profile archive does not exist: {archive_path}")
 
-    allowlist = {path.as_posix(): path for path in ALLOWLIST}
     imported: list[Path] = []
+    manifest, file_data = read_profile_archive(archive_path)
+    incoming_state = validate_archived_scenarios(manifest, file_data)
 
-    with tarfile.open(archive_path, "r:gz") as archive:
-        members = archive.getmembers()
-        names = {member.name for member in members}
-        if MANIFEST_PATH not in names:
-            raise SystemExit(f"Profile archive is missing {MANIFEST_PATH}.")
-        manifest_file = archive.extractfile(MANIFEST_PATH)
-        if manifest_file is None:
-            raise SystemExit(f"Profile archive has unreadable {MANIFEST_PATH}.")
-        manifest = json.loads(manifest_file.read().decode("utf-8"))
-        if manifest.get("profile_version") != PROFILE_VERSION:
-            raise SystemExit(f"Unsupported profile version: {manifest.get('profile_version')}")
+    for member_path in sorted(file_data):
+        member_type, _scenario_id = classify_profile_member(member_path)
+        if member_type != "config":
+            continue
+        member_key = member_path.as_posix()
+        destination = REPO_ROOT / member_path
+        if destination.exists() and not yes and not prompt_yes_no(
+            f"Overwrite {member_key}?",
+            False,
+        ):
+            print(f"kept: {member_key}")
+            continue
+        atomic_write_bytes(destination, file_data[member_path])
+        imported.append(member_path)
 
-        for member in members:
-            if member.name == MANIFEST_PATH:
-                continue
-            member_path = safe_member_path(member.name)
-            member_key = member_path.as_posix()
-            if member_key not in allowlist:
-                raise SystemExit(f"Refusing unexpected profile file: {member.name}")
-            if member.isdir() or member.issym() or member.islnk() or not member.isfile():
-                raise SystemExit(f"Refusing non-regular profile entry: {member.name}")
-
-            dest = REPO_ROOT / member_path
-            if dest.exists() and not yes and not prompt_yes_no(f"Overwrite {member_key}?", False):
-                print(f"kept: {member_key}")
-                continue
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            source = archive.extractfile(member)
-            if source is None:
-                raise SystemExit(f"Could not read profile file: {member.name}")
-            dest.write_bytes(source.read())
-            imported.append(member_path)
+    imported.extend(
+        import_scenario_packages(file_data, incoming_state, yes=yes)
+    )
 
     print(f"imported from: {archive_path}")
     for path in imported:
@@ -739,6 +1141,11 @@ def check_profile() -> None:
     print("Required user profile files exist.")
     for path in existing_profile_paths():
         print(f"- {path.as_posix()}")
+    _scenario_paths, scenario_ids = installed_scenario_profile_paths()
+    if scenario_ids:
+        print("Registered installed scenarios included by export:")
+        for scenario_id in scenario_ids:
+            print(f"- {scenario_id}")
     warn_legacy_files()
 
 
@@ -770,10 +1177,19 @@ def parse_args() -> argparse.Namespace:
 
     init_parser = subparsers.add_parser("init", help="Create and configure local user profile files.")
     init_parser.add_argument("--force", action="store_true", help="Offer to overwrite existing user profile files from examples.")
+    init_parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Prepare local-deployment operator files without AWS/Terraform onboarding.",
+    )
 
     import_parser = subparsers.add_parser("import", help="Import a user profile .tgz archive.")
     import_parser.add_argument("path", nargs="?", default=str(DEFAULT_PROFILE_ARCHIVE), help="Profile archive path.")
-    import_parser.add_argument("--yes", action="store_true", help="Overwrite existing allowlisted profile files without prompting.")
+    import_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Replace existing configuration files and colliding installed scenarios without prompting.",
+    )
 
     export_parser = subparsers.add_parser("export", help="Export current user profile files to a .tgz archive.")
     export_parser.add_argument("path", nargs="?", default=str(DEFAULT_PROFILE_ARCHIVE), help="Profile archive path.")
@@ -786,7 +1202,7 @@ def main() -> None:
     os.chdir(REPO_ROOT)
     args = parse_args()
     if args.command == "init":
-        init_profile(force=args.force)
+        init_profile(force=args.force, configure_aws=not args.local)
     elif args.command == "import":
         import_profile(Path(args.path), yes=args.yes)
     elif args.command == "export":

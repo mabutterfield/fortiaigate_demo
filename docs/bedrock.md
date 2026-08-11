@@ -12,10 +12,17 @@ FortiAIGate currently asks for standard AWS SigV4 fields in the GUI:
 `terraform/aws-prep` can create two Bedrock access paths:
 
 - temporary IAM user credentials for FortiAIGate GUI provider setup when
-  `enable_bedrock_iam = true`
+  `enable_bedrock_iam = true`; this direct-test credential is disabled by
+  default
 - scoped Bedrock invoke permissions on the k3s EC2 instance role when
   `enable_ec2_bedrock_iam = true`, which is the default path used by in-cluster
   LiteLLM/direct clients
+
+For an existing `aws-prep` state that already manages the optional IAM user,
+the first plan after this default change proposes removing the user, inline
+policy, and access key. This does not affect the EC2-role LiteLLM path. To keep
+direct-provider credentials, set `enable_bedrock_iam = true` explicitly in
+ignored `terraform/aws-prep/99-local.auto.tfvars` before applying.
 
 It does not write Bedrock secrets into Ansible vars.
 
@@ -24,13 +31,12 @@ Model access must already be enabled in the AWS account and region.
 ## Create Credentials
 
 ```bash
-cd terraform/aws-prep
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
 aws sso login --profile <profile-name>
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+terraform -chdir=terraform/aws-prep init
+terraform -chdir=terraform/aws-prep fmt
+terraform -chdir=terraform/aws-prep validate
+terraform -chdir=terraform/aws-prep apply
 ```
 
 Set these values in ignored `99-local.auto.tfvars`. Use the exact Bedrock model ID, including provider suffixes such as `-1:0`; the short display name `openai.gpt-oss-20b` is not enough for the FortiAIGate provider.
@@ -84,27 +90,26 @@ Allowed invoke actions:
 Retrieve the values after apply:
 
 ```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_allowed_regions
-terraform output bedrock_model_ids
+terraform -chdir=terraform/aws-prep output bedrock_access_key_id
+terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
+terraform -chdir=terraform/aws-prep output bedrock_key_expires_at
+terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
+terraform -chdir=terraform/aws-prep output bedrock_model_ids
 ```
 
 Paste these into the FortiAIGate Bedrock provider setup:
 
 ```text
-Access Key ID:     terraform output bedrock_access_key_id
-Secret Access Key: terraform output -raw bedrock_secret_access_key
-Region Name:       one value from terraform output bedrock_allowed_regions
-Model ID:          one value from terraform output bedrock_model_ids
+Access Key ID:     terraform -chdir=terraform/aws-prep output bedrock_access_key_id
+Secret Access Key: terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
+Region Name:       one value from the bedrock_allowed_regions output
+Model ID:          one value from the bedrock_model_ids output
 ```
 
 To test Bedrock directly before configuring FortiAIGate:
 
 ```bash
-cd ansible
-ansible-playbook playbooks/test_model_direct.yml
+ansible-playbook ansible/playbooks/test_model_direct.yml
 ```
 
 The direct test uses the generic Bedrock Converse API, calls the repo-owned `scripts/bedrock_direct_test.py` signer, asks for a short response plus the model name, and summarizes the response.
@@ -128,29 +133,29 @@ without LiteLLM in the middle.
 Then run the first external chat test:
 
 ```bash
-cd ansible
-ansible-playbook playbooks/test_fortiaigate_chat.yml
+ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself and repeat the URI under test to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response. The default model is the LiteLLM pass-through alias `pass-bedrock`, which matches the recommended FortiAIGate `/v1/*` fallback provider.
+The playbook calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt
+that asks the routed model to identify itself and repeat the URI under test,
+and summarizes the response. The focused test uses
+`https://<fortiaigate-public-ip>:443/v1/passthrough/chat/completions`, model
+`pass-model`, and no client authorization header by default. Supply
+`fortiaigate_test_api_key` only when client authentication was explicitly
+enabled on that flow.
 
-To test every configured FortiAIGate demo route instead of only the default
-test route:
-
-```bash
-ansible-playbook playbooks/test_fortiaigate_chat.yml \
-  -e fortiaigate_test_poll_all_endpoints=true
-```
-
-The shared extra var `-e poll_all_endpoints=true` is accepted by both the
-FortiAIGate and LiteLLM direct test playbooks.
+Use `python3 -m functional_test validate` after scenario flows and guards are
+configured. That command owns installed-scenario path and expected-disposition
+validation. The separate LiteLLM direct test retains its optional
+`litellm_direct_test_poll_all_endpoints` alias sweep.
 
 ## Refresh Expiration
 
 Change `bedrock_credential_generation` and apply again:
 
 ```bash
-terraform apply -var="bedrock_credential_generation=$(date +%Y%m%d)"
+terraform -chdir=terraform/aws-prep apply \
+  -var="bedrock_credential_generation=$(date +%Y%m%d)"
 ```
 
 This recalculates the expiration timestamp as current time plus `bedrock_credential_valid_days`. It does not rotate the access key.

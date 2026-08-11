@@ -7,6 +7,9 @@ The service is a small Python HTTP application with deterministic demo tools.
 It exposes OpenAI-compatible function schemas at `/tools` so the custom chatbot
 can let the LLM choose tools instead of forcing the user to select one manually.
 
+All commands run from `<repo_root>`. Select `FAIG_INVENTORY=cloud` or
+`FAIG_INVENTORY=local` before running Ansible examples.
+
 Exact lookup tools:
 
 - `customer_lookup`
@@ -84,26 +87,25 @@ ConfigMap.
 ## Deploy
 
 ```bash
-cd ansible
-ansible-playbook playbooks/deploy_mcp.yml
+ansible-playbook ansible/playbooks/deploy_mcp.yml
 ```
 
 Check status:
 
 ```bash
-ansible-playbook playbooks/status_mcp.yml
+ansible-playbook ansible/playbooks/status_mcp.yml
 ```
 
 Use validation when the playbook should fail on a bad state:
 
 ```bash
-ansible-playbook playbooks/validate_mcp.yml
+ansible-playbook ansible/playbooks/validate_mcp.yml
 ```
 
 Run a single sample tool call:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_mcp.yml
 ```
 
 `test_mcp.yml` defaults to `mcp_test_target_mode=auto`. In AWS mode, auto uses
@@ -112,10 +114,10 @@ tests from the k3s host against `http://127.0.0.1:<mcp-node-port>/mcp`, which
 avoids requiring the controller workstation to reach the local NodePort
 directly.
 
-Run deterministic Phase 8 document retrieval checks:
+Run deterministic document retrieval checks:
 
 ```bash
-ansible-playbook playbooks/validate_phase8_documents.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/validate_mcp_documents.yml
 ```
 
 This calls clean document listing, poisoned resume upload simulation, poisoned
@@ -129,14 +131,14 @@ NodePort by default. It reads the k3s public IP from
 To run the same sample through SSH on the k3s host and curl the local NodePort:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_target_mode=remote_localhost
 ```
 
 To test the HTTPS gateway instead of HTTP:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_use_https=true
 ```
 
@@ -147,7 +149,7 @@ certificate.
 Override the tool call when needed:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=ticket_lookup \
   -e '{"mcp_test_arguments":{"ticket_id":"TCK-2001"}}'
 ```
@@ -155,7 +157,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test the FortiGate system-status MCP tool:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=fortigate_system_status \
   -e '{"mcp_test_arguments":{}}'
 ```
@@ -163,7 +165,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test clean document search:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_search \
   -e '{"mcp_test_arguments":{"query":"Python","document_type":"resume"}}'
 ```
@@ -171,7 +173,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Test that attack fixtures are blocked by default:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_read \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001"}}'
 ```
@@ -180,7 +182,7 @@ That call should return `ok=false` because `RESUME-9001` is an attack fixture.
 Run the explicit attack-fixture read only for a planned demo:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_read \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
 ```
@@ -188,7 +190,7 @@ ansible-playbook playbooks/test_mcp.yml \
 Check the same poisoned resume for prompt-injection indicators:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_tool=document_injection_check \
   -e '{"mcp_test_arguments":{"document_id":"RESUME-9001","include_attack":true}}'
 ```
@@ -200,7 +202,7 @@ bearer token.
 Override the target URL when testing a different endpoint:
 
 ```bash
-ansible-playbook playbooks/test_mcp.yml \
+ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_base_url_override=http://203.0.113.10:30084
 ```
 
@@ -231,7 +233,7 @@ The default demo data file is:
 fortiaigate_demo/mcp/chart/files/tools.json
 ```
 
-The Phase 8 document library is mounted from:
+The synthetic document library is mounted from:
 
 ```text
 fortiaigate_demo/mcp/chart/files/documents/
@@ -259,8 +261,9 @@ into the staged Helm chart before deployment, so data changes do not require
 rebuilding an image.
 
 FortiGate MCP secrets are not committed. The role reads the generated API token
-from ignored local Ansible secret material and writes a Kubernetes secret named
-`fortigate-readonly-api` when both the token and management URL are available.
+from local Ansible secret material excluded from Git and writes a Kubernetes
+secret named `fortigate-readonly-api` when both the token and management URL
+are available.
 Automated quickstart runs `configure_fortigate_api_accounts.yml` before
 `deploy_mcp.yml`; that API-account play regenerates the read-only token when
 the local token file is missing, rotation is requested, or the saved token was
@@ -319,7 +322,7 @@ curl -X POST http://127.0.0.1:8000/mcp \
 ```
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
-these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
+these tools today, and the optional FortiWeb path can front MCP/tool traffic.
 The FortiStore tools are deterministic and use synthetic product-advisor data
 for repeatable product-fit, prompt-injection, and token-wasting demos. They are
 not current Fortinet datasheets, pricing, or availability data. The menu tools
@@ -334,7 +337,7 @@ behavior.
 The custom chatbot UI can run an LLM-directed MCP tool loop. The browser
 sidebar exposes:
 
-- `Model`: LiteLLM model/profile alias, such as `pass-bedrock`, `demo-a`, or `demo-b`
+- `Model`: LiteLLM model/profile alias, such as `pass-model`, `hr-tool-dlp`, or `resume-tool-injection`
 - `Use MCP tools`: simple on/off toggle
 - `MCP path`: direct MCP or FortiWeb-fronted MCP
 - `Max tool rounds`: limit for model-requested tool calls
@@ -373,23 +376,16 @@ chatbot_mcp_max_tool_rounds: 3
 `fortiweb_mcp_http_base_url` is derived from the FortiWeb front-end port1 IP
 and MCP NodePort when `fortiweb_mcp_proxy_enabled=true`. If the chatbot only
 shows `Direct MCP`, confirm the FortiWeb generated vars include
-`fortiweb_public_private_ip` and redeploy the chatbot after FortiWeb is
-configured.
+non-empty `fortiweb_public_private_ip` and `fortiweb_mcp_http_base_url` values,
+then configure FortiWeb and redeploy the chatbot. An admin URL alone does not
+prove that the MCP listener endpoint was generated.
 
-Chatbot frontend instructions are available but disabled by default because
-backend demo instructions normally live in LiteLLM profiles. The default
-deployment packages the local frontend slot when present and starts with the
-`Use frontend instructions` checkbox off. To intentionally override the prompt
-source, set one of:
-
-```yaml
-chatbot_frontend_system_prompt: "Inline system prompt text"
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
-```
-
-Tracked examples live under `chatbot/instructions/examples/`. Active local
-instruction files live under ignored `chatbot/instructions/local/` and can be
-created or opened with `scripts/instruction_profiles.py`.
+Frontend instructions are owned by installed named scenarios. The scenario
+matrix always includes a `none` profile and adds any scenario-specific profiles
+declared under `matrix.frontend_instruction_profiles`. Tune instruction files
+only in the ignored installed scenario package; see [Scenario
+Management](scenario-management.md) and [Advanced Scenario
+Management](advanced-scenario-management.md).
 
 When FortiWeb Terraform has generated `fortiweb.generated.yml`,
 `chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the

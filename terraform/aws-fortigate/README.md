@@ -23,11 +23,10 @@ Run order:
 4. Apply this module.
 
 ```bash
-cd terraform/aws-fortigate
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+terraform -chdir=terraform/aws-fortigate init
+terraform -chdir=terraform/aws-fortigate fmt
+terraform -chdir=terraform/aws-fortigate validate
+terraform -chdir=terraform/aws-fortigate apply
 ```
 
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
@@ -44,7 +43,7 @@ The default admin idle timeout is 60 minutes. Override it with
 `fortigate_admin_timeout_minutes` when needed.
 
 The FortiGate security group exposes TCP `4000` from trusted public CIDRs by
-default for the optional Phase 10 LiteLLM proxy listener. Override
+default for the optional LiteLLM proxy listener. Override
 `fortigate_public_listener_tcp_ports` only when the lab listener set should
 change.
 
@@ -70,9 +69,9 @@ local tfvars so the rebuild consumes a fresh token.
 Useful outputs:
 
 ```bash
-terraform output fortigate_admin_url
-terraform output fortigate_instance_id
-terraform output -raw fortigate_api_key
+terraform -chdir=terraform/aws-fortigate output fortigate_admin_url
+terraform -chdir=terraform/aws-fortigate output fortigate_instance_id
+terraform -chdir=terraform/aws-fortigate output -raw fortigate_api_key
 ```
 
 Do not commit real `99-local.auto.tfvars`, FortiFlex tokens, license files,

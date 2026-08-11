@@ -17,10 +17,10 @@ fortiweb_cloudinit_bucket_force_destroy = false
 fortiweb_cloudinit_config_key           = "fortiweb/cloud-init/config.txt"
 fortiweb_cloudinit_license_key          = "fortiweb/cloud-init/FWB.lic"
 
-phase8_documents_bucket_enabled       = false
-phase8_documents_bucket_name          = ""
-phase8_documents_bucket_force_destroy = false
-phase8_documents_prefix               = "phase8-fixtures"
+scenario_documents_bucket_enabled       = false
+scenario_documents_bucket_name          = ""
+scenario_documents_bucket_force_destroy = false
+scenario_documents_prefix               = "scenario-fixtures"
 
 fortiaigate_syslog_bucket_enabled       = false
 fortiaigate_syslog_bucket_name          = ""
@@ -28,7 +28,7 @@ fortiaigate_syslog_bucket_force_destroy = false
 fortiaigate_syslog_prefix               = "fortiaigate/syslog"
 fortiaigate_syslog_lifecycle_days       = 30
 
-enable_bedrock_iam            = true
+enable_bedrock_iam            = false
 enable_ec2_bedrock_iam        = true
 bedrock_credential_valid_days = 7
 bedrock_credential_generation = "20260610"

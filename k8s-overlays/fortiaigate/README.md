@@ -1,6 +1,8 @@
 # FortiAIGate Post-Render Patches
 
-The phase 1 deployment uses `k8s-overlays/bin/post_render_fortiaigate.py` as a Helm post-renderer. The script patches the rendered stock chart instead of editing or vendoring `FAIG_helm`.
+The deployment uses `k8s-overlays/bin/post_render_fortiaigate.py` as a Helm
+post-renderer. The script patches the rendered stock chart instead of editing
+or vendoring `FAIG_helm`.
 
 Current patch behavior:
 

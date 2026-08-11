@@ -22,8 +22,7 @@ aws sso login --profile <profile-name>
 Set shared values once:
 
 ```bash
-cd terraform
-cp user.tfvars.example user.tfvars
+cp terraform/user.tfvars.example terraform/user.tfvars
 ```
 
 Edit `user.tfvars`:
@@ -46,9 +45,11 @@ access.
 Each Terraform module has a tracked `50-user.auto.tfvars` symlink to
 `../user.tfvars`, so the shared values are loaded automatically:
 
+Run module commands from the repository root with `-chdir`, for example:
+
 ```bash
-terraform plan
-terraform apply
+terraform -chdir=terraform/aws-prep plan
+terraform -chdir=terraform/aws-prep apply
 ```
 
 Do not commit `.terraform/`, real `.tfvars`, state, plans, or generated secrets.
@@ -60,19 +61,24 @@ the portable user profile:
 python3 scripts/user_profile.py export ../user_profile.tgz
 ```
 
-The profile includes user-owned tfvars/YAML and module-local overrides. It does
-not include Terraform state, generated inventory, license files, private keys,
-or certificates.
+The profile includes user-owned tfvars/YAML, module-local overrides, and
+registered installed scenario packages and state. It excludes scenario history,
+Terraform state, generated inventory, license files, private keys, and
+certificates.
 
 ## ECR Module
 
+Container build, tag, publish, verification, cleanup, and rollback procedures
+are owned by [Container Repository Management](container-repository-management.md).
+The Terraform module is limited to repository infrastructure and generated
+registry configuration.
+
 ```bash
-cd terraform/aws-ecr
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ecr/99-local.auto.tfvars.example terraform/aws-ecr/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ecr init
+terraform -chdir=terraform/aws-ecr fmt
+terraform -chdir=terraform/aws-ecr validate
+terraform -chdir=terraform/aws-ecr apply
 ```
 
 This module creates or imports private ECR repositories and writes non-secret registry values to:
@@ -88,26 +94,25 @@ ECR pull permissions are owned by `terraform/aws-prep`, not this module.
 If repositories were created manually, import them before `terraform apply`:
 
 ```bash
-terraform import 'aws_ecr_repository.this["api"]' fortiaigate/api
-terraform import 'aws_ecr_repository.this["core"]' fortiaigate/core
-terraform import 'aws_ecr_repository.this["webui"]' fortiaigate/webui
-terraform import 'aws_ecr_repository.this["scanner"]' fortiaigate/scanner
-terraform import 'aws_ecr_repository.this["logd"]' fortiaigate/logd
-terraform import 'aws_ecr_repository.this["license_manager"]' fortiaigate/license_manager
-terraform import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-models
-terraform import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
-terraform import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-basic
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["api"]' fortiaigate/api
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["core"]' fortiaigate/core
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["webui"]' fortiaigate/webui
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["scanner"]' fortiaigate/scanner
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["logd"]' fortiaigate/logd
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["license_manager"]' fortiaigate/license_manager
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["triton-models"]' fortiaigate/triton-models
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["custom-triton"]' fortiaigate/custom-triton
+terraform -chdir=terraform/aws-ecr import 'aws_ecr_repository.this["chatbot-basic"]' fortiaigate/chatbot-basic
 ```
 
 ## AWS Prep Module
 
 ```bash
-cd terraform/aws-prep
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-prep/99-local.auto.tfvars.example terraform/aws-prep/99-local.auto.tfvars
+terraform -chdir=terraform/aws-prep init
+terraform -chdir=terraform/aws-prep fmt
+terraform -chdir=terraform/aws-prep validate
+terraform -chdir=terraform/aws-prep apply
 ```
 
 This module creates:
@@ -119,6 +124,70 @@ This module creates:
 - trusted source CIDR outputs
 - optional FortiWeb S3 cloud-init bucket and IAM instance profile when `fortiweb_enabled = true`
 - optional Bedrock IAM user, access key, and policy
+
+### IAM identities, scope, and lifetime
+
+The default full AWS deployment creates two IAM roles. Optional capabilities
+reuse these roles by attaching scoped policies; they do not create a new role
+for every feature.
+
+| Identity | Created when | Purpose | Time limit | Removal |
+|---|---|---|---|---|
+| `<name_prefix>-ec2-role` and its instance profile | Always in `aws-prep` | Lets the k3s EC2 host pull the configured ECR images and invoke the selected Bedrock models; optional scenario-document and syslog policies attach to this same role | The role and policies have no date-based expiration. EC2 supplies rotating temporary role credentials while the profile is attached | Normal guided teardown destroys `aws-prep` after destroying the EC2 foundation |
+| `<name_prefix>-fortiweb-cloudinit-role` and its instance profile | `fortiweb_enabled = true`, which is the tracked full-demo default | Lets the FortiWeb EC2 instance list its dedicated cloud-init bucket and read only the configured command and license objects | No date-based expiration | Normal guided teardown destroys FortiWeb first and then destroys `aws-prep`; disabling FortiWeb prep and applying also removes it |
+| `<name_prefix>-bedrock` IAM user and access key | Only when `enable_bedrock_iam = true`; the tracked default is disabled | Supplies static AWS credentials only for optional direct FortiAIGate-to-Bedrock provider testing | Its inline policy explicitly denies all actions after the configured expiration, seven days by default. Expiration does not delete or deactivate the access key | Set `enable_bedrock_iam = false` and apply, or run normal guided teardown |
+
+FortiGate does not receive an IAM role. The ECR pull, EC2 Bedrock invocation,
+optional scenario-document read, and optional syslog write permissions are
+separate least-purpose policies on the shared k3s EC2 role. The tracked
+`ec2_iam_role_managed_policy_arns` list is empty, so no additional managed
+policies are attached unless the operator explicitly supplies them.
+
+The Bedrock IAM user is disabled by default because it is not required for the
+normal chatbot -> FortiAIGate -> LiteLLM -> Bedrock path. That path uses the
+k3s EC2 instance role. Enable `enable_bedrock_iam` only when direct
+FortiAIGate-to-Bedrock testing is needed. See [AWS Bedrock](bedrock.md) for
+expiration, source-IP restrictions, and key handling.
+
+The roles themselves are intentionally lifecycle-bound to Terraform rather
+than date-gated. A date condition could unexpectedly stop a running demo;
+normal teardown is the control that removes the roles and their policies. If
+`automated_teardown.py --skip-prep` is used, these identities remain until the
+prep module is applied or destroyed later.
+
+### Existing IAM roles and Terraform import
+
+`ec2_iam_role_name` and `ec2_instance_profile_name` select names for resources
+that this module creates and manages. They do not discover or reference
+existing IAM objects. If an object with either name already exists but is not
+in this Terraform state, `terraform apply` reports an already-exists conflict.
+
+Terraform can adopt a compatible existing k3s role and instance profile. Set
+their exact names in ignored `terraform/aws-prep/99-local.auto.tfvars`, then
+import both before applying:
+
+```hcl
+ec2_iam_role_name         = "existing-k3s-role"
+ec2_instance_profile_name = "existing-k3s-profile"
+```
+
+```bash
+terraform -chdir=terraform/aws-prep import aws_iam_role.ec2 existing-k3s-role
+terraform -chdir=terraform/aws-prep import aws_iam_instance_profile.ec2 existing-k3s-profile
+terraform -chdir=terraform/aws-prep plan
+```
+
+Import transfers management of the role trust policy, tags, and
+instance-profile relationship to this Terraform state. A subsequent apply also
+creates and manages the repo-owned scoped policies and attachments. Review the
+first plan carefully. Any same-named policies that already exist must be
+imported or otherwise reconciled with state rather than recreated.
+
+There is currently no reference-only mode that accepts an organization-owned
+role/profile without managing it, and the FortiWeb role/profile names are not
+independently configurable. Supporting centrally managed IAM cleanly would
+require separate create-versus-existing variables and data-source lookups for
+the k3s and FortiWeb profiles.
 
 The EC2 module reads this module's local state by default through:
 
@@ -135,11 +204,11 @@ aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
 Retrieve Bedrock GUI values from this module when `enable_bedrock_iam = true`:
 
 ```bash
-terraform output bedrock_access_key_id
-terraform output -raw bedrock_secret_access_key
-terraform output bedrock_key_expires_at
-terraform output bedrock_allowed_regions
-terraform output bedrock_model_ids
+terraform -chdir=terraform/aws-prep output bedrock_access_key_id
+terraform -chdir=terraform/aws-prep output -raw bedrock_secret_access_key
+terraform -chdir=terraform/aws-prep output bedrock_key_expires_at
+terraform -chdir=terraform/aws-prep output bedrock_allowed_regions
+terraform -chdir=terraform/aws-prep output bedrock_model_ids
 ```
 
 The secret access key is stored in Terraform state. Do not commit state or real `99-local.auto.tfvars`.
@@ -167,12 +236,11 @@ Those objects and Terraform state are sensitive.
 ## AWS EC2 k3s Module
 
 ```bash
-cd terraform/aws-ec2-k3s
-cp 99-local.auto.tfvars.example 99-local.auto.tfvars
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+cp terraform/aws-ec2-k3s/99-local.auto.tfvars.example terraform/aws-ec2-k3s/99-local.auto.tfvars
+terraform -chdir=terraform/aws-ec2-k3s init
+terraform -chdir=terraform/aws-ec2-k3s fmt
+terraform -chdir=terraform/aws-ec2-k3s validate
+terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
 See [VPC Layout](vpc-layout.md) for a diagram of the public k3s subnet, private
@@ -249,9 +317,9 @@ The EC2 module also queries AWS Price List data for the configured
 shared-tenancy compute cost:
 
 ```bash
-terraform output ec2_instance_hourly_cost_usd
-terraform output ec2_instance_monthly_cost_usd
-terraform output ec2_instance_pricing_location
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_hourly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_monthly_cost_usd
+terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_pricing_location
 ```
 
 The monthly estimate is `hourly * 30 * 24`. It excludes EBS, EIP idle charges,
@@ -277,4 +345,6 @@ The Terraform default instance type is `g4dn.4xlarge`.
 
 Use `g6.8xlarge` for a stronger production-like L4 validation target. Use `g6.4xlarge` when you want a lower-cost official L4 lab candidate.
 
-See [aws_instance.MD](aws_instance.MD) for the detailed table separating test infrastructure, supported validation infrastructure, and experimental instance families.
+See [AWS Instance Sizing](aws-instance.md) for the detailed table separating
+test infrastructure, supported validation infrastructure, and experimental
+instance families.

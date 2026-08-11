@@ -1,79 +1,98 @@
-# Scripts
+# Python Scripts
 
-Operational helper scripts used by the Ansible playbooks and manual
-troubleshooting. Release smoke tests are internal development checks and are not
-part of the end-user quickstart path.
+Run documented commands from the repository root. The files remain together in
+`scripts/` so the deployment playbooks and Python imports have one stable path,
+but they are grouped below by who normally invokes them.
 
-Current scripts:
+## User-executed workflow scripts
 
-- `user_profile.py`: initializes, imports, exports, and checks the local user
-  profile. The profile contains `terraform/user.tfvars`,
-  `ansible/group_vars/user.yml`, and any existing module
-  `99-local.auto.tfvars` overrides. It also includes local instruction profiles
-  under `chatbot/instructions/local/` when they exist. Use
-  `python3 scripts/user_profile.py init` for guided setup, `export
-  ../user_profile.tgz` to save the user profile, and `import
-  ../user_profile.tgz` to restore it in a fresh clone.
-- `instruction_profiles.py`: initializes, validates, activates examples into,
-  and opens local operator-owned instruction slots under
-  `chatbot/instructions/local/`. Examples and their metadata remain tracked
-  under `chatbot/instructions/examples/`. Run it without a subcommand to open a
-  menu-driven wizard for changing one slot at a time.
-- `scenario_profiles.py`: lists, validates, shows, and installs active or
-  candidate scenario profiles from `chatbot/scenarios/examples/` into local
-  instruction slots. Inactive archived profiles remain inspectable through the
-  catalog with `--include-inactive`. Scenario profiles package repeatable demo
-  instructions, MCP tool expectations, clean prompts, and attack prompts while
-  still leaving local instruction slots editable.
-- `scenario_test_harness.py`: runs Phase 8 scenario prompts through the
-  deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
-  and FAIG protect paths. It can optionally install a scenario profile,
-  redeploy MCP, redeploy LiteLLM per Bedrock model, and saves raw request and
-  response JSON under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
-  Use `--run-label` to name a repeatable sweep; existing non-empty output
-  directories are not overwritten unless `--overwrite-output` is supplied.
-- `traffic_generator.py`: validates FAIG paths and generates repeatable
-  chatbot/MCP traffic. With no arguments it runs a direct workstation curl
-  `path_test` against `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough`.
-  Scenario traffic uses `--mode traffic` and runs through the deployed chatbot
-  pod. Use `--use-case steady` for persistent low-rate dashboard/log population
-  and `--use-case burst` for short load or DoS-style testing. Traffic runs
-  default to FAIG `demo-a` scan traffic and read local slot metadata so sent
-  scenarios match the installed `demo-a`/`demo-b` instructions. Optional
-  FortiGate routes can send chatbot traffic through plain HTTP LiteLLM or
-  Ollama listeners when configured. It saves compact
-  metadata under ignored
-  `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
-  responses as security dispositions rather than transport failures.
-- `fortigate_ai_app_proxy_touch.py`: touches known AI application, MCP, and
-  Bedrock endpoints directly by default, or through a run-scoped FortiGate
-  explicit proxy URL when `--proxy-url` is supplied. It defaults to dry-run
-  mode and requires `--execute` before sending traffic, making it useful for
-  FortiGate Application Control log investigation without changing workstation
-  proxy environment variables. Built-in labels use FortiGuard-style GenAI
-  application names where practical, and GET mode avoids HTTP `Range` headers
-  unless `--range-request` is supplied. Use `--target-set mcp` for remote MCP
-  initialize, `tools/list`, or `tools/call` probes and `--target-set bedrock`
-  for a signed Bedrock Runtime Converse probe using AWS credential environment
-  variables.
-- `automated_quickstart.py`: guided first-phase setup from repo root; prepares
-  or imports the user profile when needed, runs Terraform through ECR, AWS prep,
-  EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the
-  Ansible deployment flow when approved. It checks FortiAIGate and enabled
-  FortiGate/FortiWeb BYOL license files before Terraform starts, prompting for
-  real appliance license files when local tfvars still use committed
-  placeholder names. Use `--init`, `--import`, or `--export` for profile
-  lifecycle actions, and `--yolo` for repeat runs where local variables are
-  already configured and images already exist in ECR.
-- `automated_teardown.py`: guided teardown for repeat lab cycles. It removes
-  appliances, EC2 k3s, and AWS prep in dependency order, then removes ECR
-  repository resources from Terraform state and destroys only the remaining
-  tracked ECR lifecycle/local output resources so repositories are not deleted.
-- `smoke_test.py`: no-apply release smoke test. It compiles Python scripts,
-  checks Terraform formatting and shared tfvars symlinks, guards against
-  tracked local/secret files, and runs Ansible syntax checks without applying
-  Terraform or running deployment tasks.
-- `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
-- `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
+These are the primary commands used to prepare, deploy, manage, and remove a
+demo environment.
 
-FortiAIGate image publishing is handled by the Ansible playbook `ansible/playbooks/publish_images.yml`.
+- `automated_quickstart.py` — guides the AWS or local deployment workflow. It
+  initializes or imports the user profile when needed, runs the applicable
+  Terraform stages, and invokes the Ansible deployment. Use
+  `python3 scripts/automated_quickstart.py` for AWS or add `--local` for an
+  existing local Ubuntu GPU host.
+- `automated_teardown.py` — guides repeat AWS teardown in dependency order. It
+  can preserve FortiAIGate syslog data and avoids deleting retained ECR image
+  repositories. Review its plan before approving destructive actions.
+- `local_setup.py` — collects local deployment settings and generates the
+  ignored local inventory and variable files. It describes existing local
+  infrastructure; it does not provision the host.
+- `user_profile.py` — initializes, checks, exports, or imports user-owned
+  configuration. The quickstart runs profile initialization automatically when
+  required. AWS initialization also records the selected k3s GPU instance size
+  in the ignored EC2 module override. Direct use is useful for pre-staging
+  configuration or transferring a profile between checkouts.
+- `scenario_profiles.py` — lists, validates, installs, updates, backs up, and
+  removes scenario packages. It also previews the installed scenario matrix and
+  renders the FortiAIGate GUI work order.
+
+The supported scenario validation commands live in the `functional_test/`
+package rather than `scripts/`:
+
+```bash
+python3 -m functional_test validate
+python3 -m functional_test render-curl --help
+```
+
+See `docs/functional-validation.md` for their expected scope and results.
+
+## Optional operator and troubleshooting scripts
+
+These commands are user-executable, but they are not part of the normal
+quickstart path.
+
+- `export_fortiaigate_syslog.py` — downloads FortiAIGate syslog objects from
+  the configured S3 archive and reconstructs a combined JSON Lines log plus a
+  manifest. The guided teardown can also preserve syslog automatically.
+- `fortigate_ai_app_proxy_touch.py` — generates controlled AI application,
+  MCP, or Bedrock traffic for FortiGate Application Control investigation. It
+  defaults to dry-run and sends traffic only with `--execute`.
+- `local_var_cleanup.py` — exports or restores ignored, generated local
+  inventory and variable files without uninstalling workloads or changing
+  Terraform state. Its archive may contain secrets and must be protected.
+
+## Supporting scripts called by automation
+
+These files are implementation details used by Ansible roles or by the
+user-facing scripts. Users normally should not invoke them directly.
+
+- `bedrock_direct_test.py` — sends a signed Bedrock Converse request for the
+  `model_direct_test` Ansible role. Direct invocation is documented only for
+  Bedrock troubleshooting.
+- `build_scenario_matrix.py` — converts installed scenario metadata into the
+  deterministic LiteLLM/chatbot/MCP matrix consumed by deployment roles. Its
+  command-line output is also useful for advanced dry-run inspection.
+- `fortiaigate_chat_test.py` — sends the canonical `pass-model` request through
+  `/v1/passthrough/chat/completions` for the `fortiaigate_chat_test` Ansible
+  role.
+- `scenario_local.py` — library for ignored, operator-owned scenario packages,
+  installed state, backups, and safe local file handling. It is imported by
+  scenario management, functional testing, and profile export/import.
+- `scenario_matrix.py` — library that validates installed metadata and builds
+  deterministic runtime objects. It is imported by the matrix builder,
+  scenario manager, functional tests, and load generator.
+
+The Helm post-renderer at `k8s-overlays/bin/post_render_fortiaigate.py` and the
+deployed chatbot probe at `chatbot/app/agent_probe.py` are also automation-only
+Python components, but live beside the artifacts that consume them.
+
+## Developer and release scripts
+
+These checks are for repository maintenance and release validation. They are
+not steps in the end-user quickstart.
+
+- `docs_quality.py` — validates current Markdown links, filenames, and release
+  vocabulary.
+- `smoke_test.py` — performs no-apply repository checks: Python compilation,
+  Terraform formatting, inventory links, tracked-secret safeguards, retired
+  runtime residue checks, unit tests, and Ansible syntax validation.
+
+Developer-only dashboard workload generation lives in `load_test/`. Its public
+entry point is `python3 -m load_test paths|run`; see
+`docs/development/load-testing.md`.
+
+FortiAIGate image publishing is handled by
+`ansible/playbooks/publish_images.yml`, not by a Python script.

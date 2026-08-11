@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "high-token-benign",
+  "description": "Original long-form prompts intended to generate normal passthrough token volume without resembling scenario attacks.",
+  "templates": [
+    "Write an original, detailed handbook of approximately {word_count} words for organizing a multi-day community arts festival. Cover scheduling, volunteer coordination, accessibility, vendor logistics, weather contingencies, and post-event evaluation. Use clear section headings and finish with a practical checklist.",
+    "Produce an original report of approximately {word_count} words comparing several approaches to improving public transportation in a growing mid-sized city. Include an executive summary, evaluation criteria, illustrative examples, implementation phases, and measures of success.",
+    "Create an original, self-contained field guide of approximately {word_count} words for planning and maintaining a year-round community greenhouse. Discuss layout, seasonal planting, irrigation, record keeping, volunteer roles, and continuous improvement. End with ten review questions."
+  ]
+}

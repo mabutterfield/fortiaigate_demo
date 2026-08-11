@@ -96,14 +96,20 @@ ansible/group_vars/registry.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
-# Operator-owned mutable instruction profiles
+# Inert retired operator files; kept ignored so existing clones cannot
+# accidentally commit them. No supported runtime reads this path.
 chatbot/instructions/local/
+
+# Operator-owned installed and tuned scenario packages
+chatbot/scenarios/local/
 
 # Operator-owned local document fixtures
 mcp/documents/local/
 
 # Local test captures
 docs/raw-output/
+load_test/output/
+functional_test/output/
 
 # Kubernetes and deployment generated files
 *.kubeconfig

@@ -1001,7 +1001,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--user-agent",
-        default="FAIG-Phase10E-FortiGate-AppTouch/1.0",
+        default="FAIG-FortiGate-AppTouch/1.0",
         help="User-Agent label used for correlation in proxy logs.",
     )
     parser.add_argument(

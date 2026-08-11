@@ -108,4 +108,4 @@ Open WebUI is optional and disabled by default; use
 
 See [AWS k3s Foundation](aws-k3s-foundation.md),
 [k8s-overlays FortiAIGate README](../k8s-overlays/fortiaigate/README.md), and
-[Deployment Runbook](deployment-runbook.md) for the full workflow.
+[Operations](operations.md) for the full workflow.

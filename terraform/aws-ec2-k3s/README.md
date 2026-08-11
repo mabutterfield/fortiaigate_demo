@@ -1,21 +1,22 @@
 # AWS EC2 k3s Terraform Module
 
-This module creates the phase 1 AWS EC2/k3s lab infrastructure and writes the generated Ansible inventory and demo port vars.
+This module creates the AWS EC2/k3s lab infrastructure and writes the generated Ansible inventory and demo port vars.
 
 Canonical documentation:
 
 - [../../docs/terraform.md](../../docs/terraform.md)
 - [../../docs/aws-k3s-foundation.md](../../docs/aws-k3s-foundation.md)
-- [../../docs/deployment-runbook.md](../../docs/deployment-runbook.md)
+- [Deployment Quickstart](../../docs/quickstart.md)
+- [Operations](../../docs/operations.md)
 
 Quick usage:
 
 ```bash
 aws sso login --profile <profile-name>
-terraform init
-terraform fmt
-terraform validate
-terraform apply
+terraform -chdir=terraform/aws-ec2-k3s init
+terraform -chdir=terraform/aws-ec2-k3s fmt
+terraform -chdir=terraform/aws-ec2-k3s validate
+terraform -chdir=terraform/aws-ec2-k3s apply
 ```
 
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
@@ -49,7 +50,7 @@ the private subnet without a public IP.
 
 For future appliance-fronted private mode, set `k3s_private_default_route_network_interface_id` to the FortiGate traffic interface that should receive the private subnet default route.
 
-Phase 2 routing placeholders are defined but do not create DNS records yet:
+Future routing placeholders are defined but do not create DNS records yet:
 
 ```hcl
 ingress_routing_strategy = "port_based"
@@ -69,14 +70,17 @@ and `../../ansible/group_vars/terraform.generated.yml` for Ansible. The default
 HTTP ports are `30080` through `30084`; the HTTPS gateway uses matching
 offsets starting at `30443`.
 
-The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger production-like L4 validation target.
+The default instance type is `g4dn.4xlarge`. AWS profile initialization asks
+for this value once and stores it in ignored `99-local.auto.tfvars`; existing
+selections are reused. Use `g6.8xlarge` for a stronger supported L4 validation
+target.
 
 After apply, validate host status and SSH:
 
 ```bash
-AWS_PROFILE="$(terraform output -raw aws_profile)"
-AWS_REGION="$(terraform output -raw aws_region)"
-INSTANCE_ID="$(terraform output -raw instance_id)"
+AWS_PROFILE="$(terraform -chdir=terraform/aws-ec2-k3s output -raw aws_profile)"
+AWS_REGION="$(terraform -chdir=terraform/aws-ec2-k3s output -raw aws_region)"
+INSTANCE_ID="$(terraform -chdir=terraform/aws-ec2-k3s output -raw instance_id)"
 
 aws ec2 describe-instance-status \
   --profile "$AWS_PROFILE" \
@@ -90,5 +94,5 @@ aws ec2 describe-instance-status \
 Get the SSH command:
 
 ```bash
-terraform output ssh_command
+terraform -chdir=terraform/aws-ec2-k3s output ssh_command
 ```

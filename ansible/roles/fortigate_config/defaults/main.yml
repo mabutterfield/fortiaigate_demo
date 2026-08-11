@@ -127,7 +127,7 @@ fortigate_service_objects_static: []
 fortigate_vip_objects_static: []
 fortigate_static_routes_static: []
 
-# Optional Phase 10 FortiGate AI proxy paths. Disabled by default.
+# Optional experimental FortiGate AI proxy paths. Disabled by default.
 # When enabled, the role generates:
 # - VIP_FAIG_LITELLM_HTTP_PROXY: port1 TCP 4000 -> k3s LiteLLM NodePort
 # - VIP_FAIG_HTTPS_PROXY: port1 TCP 443 -> k3s HTTPS ingress
@@ -170,7 +170,7 @@ fortigate_llm_proxy_paths:
     utm_status: enable
     ssl_ssh_profile: certificate-inspection
     application_list: default
-    comment: "Phase 10 FortiGate plain HTTP LiteLLM inspection path"
+    comment: "Experimental FortiGate plain HTTP LiteLLM inspection path"
   - name: faig_https
     service_name: FAIG_HTTPS_LISTENER_443
     vip_name: VIP_FAIG_HTTPS_PROXY
@@ -181,9 +181,9 @@ fortigate_llm_proxy_paths:
     utm_status: enable
     ssl_ssh_profile: custom-deep-inspection
     application_list: default
-    comment: "Phase 10 FortiGate HTTPS FortiAIGate inspection path"
+    comment: "Experimental FortiGate HTTPS FortiAIGate inspection path"
 
-# Optional route used by the Phase 10 proxy path to reach k3s through the
+# Optional route used by the experimental proxy path to reach k3s through the
 # FortiGate internal interface in AWS. Connected subnet routes remain more
 # specific than this VPC route.
 fortigate_static_route_vpc_enabled: "{{ fortigate_llm_proxy_enabled | bool }}"

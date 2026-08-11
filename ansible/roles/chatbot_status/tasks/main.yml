@@ -18,6 +18,7 @@
       - --kubeconfig
       - /etc/rancher/k3s/k3s.yaml
   loop: "{{ chatbot_instances }}"
+  no_log: true
   changed_when: false
   failed_when: false
   register: chatbot_status_helm
@@ -39,6 +40,7 @@
       - -o
       - json
   loop: "{{ chatbot_instances }}"
+  no_log: true
   changed_when: false
   failed_when: false
   register: chatbot_status_deployments
@@ -61,6 +63,7 @@
       - -o
       - json
   loop: "{{ chatbot_instances }}"
+  no_log: true
   changed_when: false
   failed_when: false
   register: chatbot_status_pods
@@ -82,6 +85,7 @@
       - "app.kubernetes.io/instance={{ item.release_name }}"
       - --no-headers
   loop: "{{ chatbot_instances }}"
+  no_log: true
   changed_when: false
   failed_when: false
   register: chatbot_status_pod_tables
@@ -100,6 +104,7 @@
       - "%{http_code}"
       - "http://127.0.0.1:{{ item.node_port }}{{ chatbot_status_health_path }}"
   loop: "{{ chatbot_instances }}"
+  no_log: true
   changed_when: false
   failed_when: false
   register: chatbot_status_health
@@ -169,6 +174,7 @@
           + (['Pods not running: ' ~ (pod_problems | join(', '))] if pod_problems | length > 0 else [])
         }}
   loop: "{{ chatbot_instances }}"
+  no_log: true
   loop_control:
     index_var: index
   when: chatbots_enabled | bool
@@ -233,7 +239,7 @@
           'Chatbot status: ' ~ chatbot_status_state,
           'Instruction sets: ' ~ (chatbot_status_instruction_sets | length | string),
           'Instances ready: ' ~ (chatbot_status_ready_count | string) ~ '/' ~ (chatbot_status_total_count | string),
-          'Backend paths: Direct LiteLLM, optional FortiGate-to-LiteLLM, and FortiAIGate',
+          'Backend paths: Direct LiteLLM and scenario-owned FortiAIGate static routes',
           'URLs:'
         ]
         + chatbot_status_url_lines

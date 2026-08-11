@@ -345,6 +345,15 @@
         )
         else ''
       }}
+    demo_outputs_fortiweb_mcp_base_url: >-
+      {{
+        fortiweb_mcp_http_base_url | default('')
+        if (
+          fortiweb_mcp_proxy_enabled | default(false) | bool
+          and fortiweb_mcp_http_base_url | default('', true) | string | length > 0
+        )
+        else ''
+      }}
   no_log: "{{ demo_outputs_show_secrets | bool }}"
   # - ansible.builtin.debug:
   #     var: demo_outputs_bedrock_model_display
@@ -426,6 +435,17 @@
           ['FortiWeb Instance ID: ' ~ demo_outputs_fortiweb_instance_id]
           if demo_outputs_fortiweb_instance_id | default('', true) | length > 0
           else []
+        )
+        + (
+          ['FortiWeb MCP: ' ~ demo_outputs_fortiweb_mcp_base_url]
+          if demo_outputs_fortiweb_mcp_base_url | default('', true) | length > 0
+          else (
+            [
+              'FortiWeb MCP: unavailable (check ansible/group_vars/fortiweb.generated.yml, then configure FortiWeb and redeploy the chatbot)'
+            ]
+            if fortiweb_mcp_proxy_enabled | default(false) | bool
+            else ['FortiWeb MCP: disabled (fortiweb_mcp_proxy_enabled=false)']
+          )
         )
       }}
   when:
@@ -552,7 +572,7 @@
         else (
           'disabled (set fortiaigate_syslog_collector_enabled=true and fortiaigate_syslog_output=file)'
           if (deployment_target | default('aws')) == 'local'
-          else 'disabled (enable fortiaigate_syslog_bucket_enabled=true in terraform/aws-prep)'
+          else 'disabled (enable fortiaigate_syslog_bucket_enabled=true in terraform/aws-prep/99-local.auto.tfvars)'
         )
       }}
     demo_outputs_syslog_ip_target: >-

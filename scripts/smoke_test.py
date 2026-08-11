@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import py_compile
+import re
 import shutil
 import subprocess
 import sys
@@ -20,15 +21,29 @@ TERRAFORM_MODULES = [
     "terraform/aws-fortigate",
     "terraform/aws-fortiweb",
 ]
+INVENTORY_ALIASES = {
+    "local": "ansible/inventory/local.generated.ini",
+    "cloud": "ansible/inventory/aws.generated.ini",
+    "local-fortigate": "ansible/inventory/fortigate.local.generated.ini",
+    "local-fortiweb": "ansible/inventory/fortiweb.local.generated.ini",
+    "cloud-fortigate": "ansible/inventory/fortigate.generated.ini",
+    "cloud-fortiweb": "ansible/inventory/fortiweb.generated.ini",
+}
 REQUIRED_PATHS = [
     "CHANGELOG.md",
     "README.md",
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
-    "scripts/instruction_profiles.py",
+    "scripts/docs_quality.py",
     "scripts/fortigate_ai_app_proxy_touch.py",
+    "scripts/build_scenario_matrix.py",
+    "scripts/scenario_matrix.py",
     "scripts/scenario_profiles.py",
-    "scripts/traffic_generator.py",
+    "functional_test/__main__.py",
+    "functional_test/curl_renderer.py",
+    "functional_test/validation.py",
+    "load_test/__main__.py",
+    "load_test/traffic_generator.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -44,10 +59,42 @@ FORBIDDEN_TRACKED_PATTERNS = [
     "ansible/group_vars/all.yml",
     "ansible/group_vars/env.yml",
     "ansible/group_vars/images.yml",
-    "chatbot/instructions/local/*",
     "*.lic",
     ".env",
 ]
+RETIRED_RUNTIME_PATTERNS = {
+    "lettered scenario slot": re.compile(r"\bdemo[-_](?:a|b)\b", re.IGNORECASE),
+    "retired passthrough alias": re.compile(r"\bpass-bedrock\b", re.IGNORECASE),
+    "retired configuration selector": re.compile(
+        r"\bdemo_configuration_source\b", re.IGNORECASE
+    ),
+    "retired instruction path": re.compile(
+        r"\bchatbot/instructions(?:/local)?/?", re.IGNORECASE
+    ),
+    "retired detection action": re.compile(
+        r"\b(?:detect[_ -]?(?:only|all)|output[_ -]?dlp[_ -]?detect)\b",
+        re.IGNORECASE,
+    ),
+    "retired protection action": re.compile(
+        r"\bprotect[_ -]?(?:input|output)(?:[_ -]?dlp)?\b", re.IGNORECASE
+    ),
+    "numbered development phase": re.compile(
+        r"\bphase(?:\s*|[-_])\d+\b", re.IGNORECASE
+    ),
+}
+RETIRED_RUNTIME_ALLOWED_FILES = {
+    ".gitignore",
+    "CHANGELOG.md",
+    "scripts/docs_quality.py",
+    "scripts/smoke_test.py",
+    "terraform/aws-prep/moved.tf",
+    "tests/test_scenario_local.py",
+    "tests/test_scenario_matrix.py",
+}
+RETIRED_RUNTIME_ALLOWED_PREFIXES = (
+    "archived_scenarios/",
+    "chatbot/scenarios/examples/fortigate-operator/",
+)
 
 
 class SmokeFailure(RuntimeError):
@@ -85,21 +132,35 @@ def check_required_paths() -> None:
 def check_python_compile() -> None:
     for path in sorted((REPO_ROOT / "scripts").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
+    for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
+        py_compile.compile(str(path), doraise=True)
+    for path in sorted((REPO_ROOT / "functional_test").glob("*.py")):
+        py_compile.compile(str(path), doraise=True)
     print("ok python compile")
 
 
 def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
-        "scripts/instruction_profiles.py",
         "scripts/fortigate_ai_app_proxy_touch.py",
+        "scripts/build_scenario_matrix.py",
         "scripts/scenario_profiles.py",
-        "scripts/traffic_generator.py",
         "scripts/automated_quickstart.py",
         "scripts/automated_teardown.py",
+        "scripts/docs_quality.py",
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
+    for command in ["validate", "render-curl"]:
+        run(
+            [sys.executable, "-m", "functional_test", command, "--help"],
+            show_stdout=False,
+        )
+    for command in ["paths", "run"]:
+        run(
+            [sys.executable, "-m", "load_test", command, "--help"],
+            show_stdout=False,
+        )
 
 
 def check_tracked_secrets() -> None:
@@ -116,6 +177,43 @@ def check_tracked_secrets() -> None:
     print("ok tracked file guard")
 
 
+def check_retired_runtime_residue() -> None:
+    result = run(["git", "ls-files"], check=True, show_stdout=False)
+    findings: list[str] = []
+    for relative_path in result.stdout.splitlines():
+        relative_path = relative_path.strip()
+        if not relative_path:
+            continue
+        if relative_path in RETIRED_RUNTIME_ALLOWED_FILES:
+            continue
+        if relative_path.startswith(RETIRED_RUNTIME_ALLOWED_PREFIXES):
+            continue
+        path = REPO_ROOT / relative_path
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError:
+            continue
+        for line_number, line in enumerate(lines, start=1):
+            for label, pattern in RETIRED_RUNTIME_PATTERNS.items():
+                if pattern.search(line):
+                    findings.append(
+                        f"{relative_path}:{line_number}: {label}: {line.strip()}"
+                    )
+    if findings:
+        raise SmokeFailure(
+            "Retired runtime configuration found outside explicit historical, "
+            "candidate, migration, or rejection-test exceptions:\n- "
+            + "\n- ".join(findings)
+        )
+    print("ok retired runtime residue guard")
+
+
+def check_documentation_quality() -> None:
+    run([sys.executable, "scripts/docs_quality.py"])
+
+
 def check_user_tfvars_symlinks() -> None:
     problems: list[str] = []
     for module in TERRAFORM_MODULES:
@@ -128,6 +226,21 @@ def check_user_tfvars_symlinks() -> None:
     if problems:
         raise SmokeFailure("; ".join(problems))
     print("ok terraform user tfvars symlinks")
+
+
+def check_inventory_aliases() -> None:
+    problems: list[str] = []
+    for alias, expected_target in INVENTORY_ALIASES.items():
+        path = REPO_ROOT / alias
+        if not path.is_symlink():
+            problems.append(f"{alias} is not a symlink")
+            continue
+        actual_target = str(path.readlink())
+        if actual_target != expected_target:
+            problems.append(f"{alias} points to {actual_target}; expected {expected_target}")
+    if problems:
+        raise SmokeFailure("; ".join(problems))
+    print("ok inventory aliases (generated targets may be absent before setup)")
 
 
 def check_terraform_fmt(strict_tools: bool) -> None:
@@ -201,8 +314,11 @@ def main() -> int:
         check_required_paths()
         check_python_compile()
         check_script_help()
+        check_documentation_quality()
         check_tracked_secrets()
+        check_retired_runtime_residue()
         check_user_tfvars_symlinks()
+        check_inventory_aliases()
         if not args.skip_terraform:
             check_terraform_fmt(args.strict_tools)
         if not args.skip_ansible:

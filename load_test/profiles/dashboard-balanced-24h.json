@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "dashboard-balanced-24h",
+  "duration_hours": 24,
+  "seed": 42,
+  "volume": {
+    "minimum_requests_per_hour": 12,
+    "maximum_requests_per_hour": 30,
+    "hourly_step_limit": 6
+  },
+  "mix": {
+    "normal_ratio_baseline": 0.75,
+    "hourly_ratio_variance": 0.08,
+    "normal_ratio_minimum": 0.6,
+    "normal_ratio_maximum": 0.9,
+    "hourly_action_floor": {
+      "alert": 1,
+      "deny": 1,
+      "redact": 1
+    }
+  },
+  "normal_traffic": {
+    "prompt_set": "high-token-benign",
+    "minimum_output_words": 800,
+    "maximum_output_words": 1600,
+    "max_tokens": 4096
+  },
+  "execution": {
+    "concurrency": 4,
+    "request_timeout_seconds": 180,
+    "shutdown_grace_seconds": 90,
+    "initial_request_within_seconds": 5
+  },
+  "statistics": {
+    "update_interval_seconds": 30,
+    "checkpoint_interval_seconds": 60
+  },
+  "gpu": {
+    "enabled": true,
+    "sample_interval_seconds": 5
+  }
+}

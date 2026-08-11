@@ -10,15 +10,18 @@
 # }
 #
 # fortiweb_enabled = true
-# phase8_documents_bucket_enabled = false
-# phase8_documents_bucket_name = ""
-# phase8_documents_bucket_force_destroy = false
-# phase8_documents_prefix = "phase8-fixtures"
+# scenario_documents_bucket_enabled = false
+# scenario_documents_bucket_name = ""
+# scenario_documents_bucket_force_destroy = false
+# scenario_documents_prefix = "scenario-fixtures"
 # fortiaigate_syslog_bucket_enabled = false
 # fortiaigate_syslog_bucket_name = ""
 # fortiaigate_syslog_bucket_force_destroy = false
 # fortiaigate_syslog_prefix = "fortiaigate/syslog"
 # fortiaigate_syslog_lifecycle_days = 30
+# enable_bedrock_iam = true
+# bedrock_credential_valid_days = 7
+# bedrock_credential_generation = "YYYYMMDD"
 # bedrock_model_ids = [
 #   "openai.gpt-oss-20b-1:0",
 #   "openai.gpt-oss-120b-1:0",

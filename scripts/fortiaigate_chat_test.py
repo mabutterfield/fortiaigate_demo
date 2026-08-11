@@ -14,12 +14,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-DEFAULT_ENDPOINT_PATH = "/v1/chat/completions"
-DEFAULT_MODEL_ID = "openai.gpt-oss-20b-1:0"
+DEFAULT_ENDPOINT_PATH = "/v1/passthrough/chat/completions"
+DEFAULT_MODEL_ID = "pass-model"
 DEFAULT_PROMPT = "hello, this is a test. Reply in one short sentence and include the name of the model answering."
-DEFAULT_TERRAFORM_PREP_PATH = (
-    Path(__file__).resolve().parents[1] / "terraform" / "aws-prep"
-)
 DEFAULT_TERRAFORM_EC2_PATH = (
     Path(__file__).resolve().parents[1] / "terraform" / "aws-ec2-k3s"
 )
@@ -52,9 +49,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("FORTIAIGATE_MODEL")
-        or os.environ.get("BEDROCK_MODEL")
-        or os.environ.get("BEDROCK_MODEL_ID"),
+        default=os.environ.get("FORTIAIGATE_MODEL", DEFAULT_MODEL_ID),
         help="Model name to send in the OpenAI-compatible request.",
     )
     parser.add_argument(
@@ -105,15 +100,6 @@ def parse_args() -> argparse.Namespace:
         help="curl timeout in seconds.",
     )
     parser.add_argument(
-        "--terraform-bedrock-path",
-        "--terraform-prep-path",
-        default=os.environ.get(
-            "AWS_PREP_TERRAFORM_PATH",
-            os.environ.get("BEDROCK_TERRAFORM_PATH", str(DEFAULT_TERRAFORM_PREP_PATH)),
-        ),
-        help="Path to terraform/aws-prep for permitted model output.",
-    )
-    parser.add_argument(
         "--terraform-ec2-path",
         default=os.environ.get(
             "FAIG_EC2_TERRAFORM_PATH",
@@ -158,54 +144,6 @@ def terraform_output(terraform_path: str, output_name: str, json_output: bool = 
     return result.stdout.strip()
 
 
-def read_permitted_models(terraform_bedrock_path: str) -> list[str]:
-    output = terraform_output(terraform_bedrock_path, "bedrock_model_ids", json_output=True)
-    if not output:
-        return []
-    try:
-        model_ids = json.loads(output)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(model_ids, list):
-        return []
-    return [str(model_id).strip() for model_id in model_ids if str(model_id).strip()]
-
-
-def model_label(model_id: str) -> str:
-    match = re.search(r"gpt[-_.]?oss[-_.]?(\d+)b", model_id, re.IGNORECASE)
-    if match:
-        return f"gpt-oss:{match.group(1)}b ({model_id})"
-    return model_id
-
-
-def select_model(model_id: str | None, terraform_bedrock_path: str) -> str:
-    if model_id and model_id.strip():
-        return model_id.strip()
-
-    permitted_models = read_permitted_models(terraform_bedrock_path)
-    if permitted_models and sys.stdin.isatty():
-        print("Select a FortiAIGate model:")
-        for index, permitted_model in enumerate(permitted_models, start=1):
-            print(f"{index}. {model_label(permitted_model)}")
-
-        while True:
-            selection = input("Model number: ").strip()
-            if selection.isdigit():
-                selected_index = int(selection)
-                if 1 <= selected_index <= len(permitted_models):
-                    return permitted_models[selected_index - 1]
-            print(f"Enter a number from 1 to {len(permitted_models)}.")
-
-    if permitted_models:
-        return permitted_models[0]
-
-    if sys.stdin.isatty():
-        entered_model = input(f"FORTIAIGATE_MODEL [{DEFAULT_MODEL_ID}]: ").strip()
-        return entered_model or DEFAULT_MODEL_ID
-
-    return DEFAULT_MODEL_ID
-
-
 def resolve_host(host: str, terraform_ec2_path: str) -> str:
     if host.strip():
         return host.strip()
@@ -224,7 +162,10 @@ def build_url(args: argparse.Namespace, host: str) -> str:
     if args.url.strip():
         parsed = urlparse(args.url.strip())
         if not parsed.scheme or not parsed.netloc:
-            raise ValueError("--url must be a full URL such as https://1.2.3.4:443/v1/chat/completions")
+            raise ValueError(
+                "--url must be a full URL such as "
+                "https://1.2.3.4:443/v1/passthrough/chat/completions"
+            )
         return args.url.strip()
 
     if not host:
@@ -399,7 +340,7 @@ def summarize_response(body: str) -> str:
 
 def main() -> int:
     args = parse_args()
-    model = select_model(args.model, args.terraform_bedrock_path)
+    model = args.model.strip() or DEFAULT_MODEL_ID
     host = resolve_host(args.host, args.terraform_ec2_path)
 
     try:

@@ -1,6 +1,6 @@
 # Archived Scenarios
 
-Status: archived for the Phase 10 documentation cleanup.
+Status: archived reference material.
 
 These scenario profiles are preserved for reference, but they are no longer in
 the active or candidate scenario working set. The active/candidate scenario
@@ -23,5 +23,7 @@ To revive an archived scenario:
    python3 scripts/scenario_profiles.py validate
    ```
 
-Phase 11 is expected to replace the current `demo-a`/`demo-b` scenario install
-model with generated scenario metadata and scenario-owned FAIG paths.
+The five earlier resume candidates were consolidated into the active
+`resume-tool-injection` scenario. Their archived packages preserve the clean,
+prompt-injection, explicit pivot, least-privilege, and vulnerable comparison
+iterations for reference.
