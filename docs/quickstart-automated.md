@@ -3,10 +3,31 @@
 The automated quick start is the intended guided setup path for operators who do
 not want to run every Terraform and Ansible step manually.
 
+Use this document for normal first-run deployments. Use
+[Manual Quick Start](quickstart-manual.md) when you need a step-by-step
+recovery path after a partial run.
+
+## TLDR
+
+Default AWS quickstart:
+
+```bash
+python3 scripts/automated_quickstart.py
+```
+
+Local Ubuntu hardware quickstart:
+
+```bash
+python3 scripts/local_setup.py
+python3 scripts/automated_quickstart.py --local
+```
+
 Status: the repo includes a guided setup script that prepares local
 configuration, runs Terraform through ECR, AWS prep, EC2 k3s foundation, and
 FortiGate/FortiWeb appliance modules when enabled, then runs the Ansible
-deployment flow, including appliance configuration, when approved.
+deployment flow, including appliance configuration, when approved. In local
+mode, it skips Terraform and uses generated local inventory and vars from
+`local_setup.py`.
 
 Run from the repository root:
 
@@ -86,6 +107,9 @@ bootstrap password is not stored in inventory or committed files.
 The generated local appliance inventories contain host, port, and connection
 metadata only. They do not contain appliance passwords or API tokens.
 
+Do not commit generated local inventory, generated local vars, generated local
+secrets, local-var export archives, kubeconfigs, certificates, or license files.
+
 In local appliance mode, the AWS-shaped `*_public_private_ip` variables map to
 the appliance port1/operator-side address, while `*_internal_ip` maps to the
 port2/backend address on the k3s LAN. `local_setup.py` prompts for both when an
@@ -111,8 +135,12 @@ vars and local generated vars do not leak into each other. If you run local
 playbooks manually, pass the same target explicitly:
 
 ```bash
-FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i ansible/inventory/local.generated.ini ansible/playbooks/status_demo_home.yml
+FAIG_DEPLOYMENT_TARGET=local ansible-playbook -i local ansible/playbooks/status_demo_home.yml
 ```
+
+The repo root `local` and `cloud` entries are tracked symlinks to the ignored
+generated inventories under `ansible/inventory/`. They shorten manual commands
+without committing generated inventory contents.
 
 To reset only the local generated vars and inventories in this checkout without
 touching the deployed lab, export them. Export creates a backup archive and then
@@ -223,8 +251,8 @@ The current setup script:
   and prompt when a placeholder or missing file is configured
 - offer to keep or change the current LiteLLM API key, admin username, and
   admin password in `ansible/group_vars/user.yml`
-- leave direct provider, Bedrock model override, Ollama, chatbot prompt source,
-  and TLS certificate path tuning to manual advanced configuration
+- leave AWS direct provider, Bedrock model override, chatbot prompt source, and
+  TLS certificate path tuning to manual advanced configuration
 - collect required Terraform values using existing local files as prompt defaults
 - generate Terraform-owned Ansible values into
   `ansible/group_vars/terraform.generated.yml`
@@ -265,10 +293,11 @@ The script should collect or confirm:
 - LiteLLM API key and Admin UI credentials; press Enter to keep current values
 - instance type, reviewed in `terraform/aws-ec2-k3s/99-local.auto.tfvars`
 
-The default direct model path remains Bedrock through the Terraform-created IAM
-profile. Direct provider/model overrides, Ollama endpoints, chatbot prompt
-source paths, and TLS certificate paths are advanced manual settings and are
-not prompted during quickstart.
+The default AWS direct model path remains Bedrock through the Terraform-created
+IAM profile. Direct provider/model overrides, chatbot prompt source paths, and
+TLS certificate paths are advanced manual settings and are not prompted during
+AWS quickstart. Local quickstart uses in-cluster Ollama through LiteLLM by
+default after `local_setup.py` generates the local mode variables.
 
 For AWS deployments, Terraform writes shared Ansible values such as
 `aws_profile`, `aws_region`, SSH key details, CIDRs, and k3s host facts into
@@ -479,6 +508,10 @@ After automated deployment completes, use
 [FortiAIGate Initial Config](FortiAIGate-initial-config.MD) to complete the
 FortiAIGate GUI setup, create the required AI guards and flows, and run the
 route validation tests.
+
+For known release caveats and workarounds, including slow AWS NVIDIA driver
+downloads and the trusted-lab-only local Ollama NodePort, see
+[Known Issues And Workarounds](known-issues.md).
 
 ## Troubleshooting
 

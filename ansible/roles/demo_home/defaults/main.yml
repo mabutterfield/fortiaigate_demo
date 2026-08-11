@@ -12,6 +12,16 @@ demo_home_image_repository: nginx
 demo_home_image_tag: alpine
 demo_home_image_pull_policy: IfNotPresent
 demo_home_page_title: FortiAIGate Demo Home
+demo_home_subtitle: Direct model paths and FortiAIGate-inspected paths for this lab.
+demo_home_section_titles:
+  admin: Fortinet Admin
+  litellm: LiteLLM
+  mcp: MCP Tools
+  mcp_fortiweb: MCP Tools (FortiWeb)
+  demo_home: Demo Home
+  openwebui: Open WebUI
+  chatbot: FortiAIGate Demo Chatbot
+demo_home_extra_css: ""
 demo_home_ingress_class: nginx
 demo_home_ingress_host: ""
 demo_home_ingress_tls_enabled: false

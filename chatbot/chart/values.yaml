@@ -17,6 +17,12 @@ chatbot:
   appChecksum: ""
   directBaseUrl: ""
   directApiKey: not-used
+  fortigateLitellmBaseUrl: ""
+  fortigateLitellmApiKey: ""
+  fortigateOllamaBaseUrl: ""
+  fortigateOllamaApiKey: not-used
+  fortigateOllamaModel: gpt-oss:20b
+  fortigateOllamaModelOptions: ""
   faigBaseUrl: ""
   faigApiKey: not-used
   faigStaticRoute: demo-a
@@ -29,6 +35,7 @@ chatbot:
   pageTitle: AI Chatbot
   headerTitle: AI Chatbot
   frontendSystemPrompt: ""
+  frontendSystemPromptEnabled: "false"
   temperature: "0.0"
   maxTokens: "4096"
   streaming: "false"
@@ -41,7 +48,10 @@ chatbot:
   mcpVerifyTls: "false"
   mcpMaxToolRounds: "3"
   mcpToolProfile: all-tools
+  mcpToolProfileMode: merge
   mcpToolProfilesJson: ""
+  uiMode: detailed
+  simplifiedProfilesJson: ""
   contextMode: recent
   contextWindow: "8"
   contextSummaryMaxChars: "1500"

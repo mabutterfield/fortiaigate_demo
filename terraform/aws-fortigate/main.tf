@@ -61,11 +61,14 @@ locals {
   fortigate_management_tcp_ports = {
     for port in distinct(concat(
       [var.fortigate_admin_port, 443],
+      var.fortigate_public_listener_tcp_ports,
       var.fortigate_enable_ssh ? [22] : []
       )) : tostring(port) => {
       port = port
       description = port == var.fortigate_admin_port ? "HTTPS management" : (
-        port == 443 ? "Default HTTPS during bootstrap" : "SSH"
+        port == 443 ? "Default HTTPS / FortiAIGate listener" : (
+          contains(var.fortigate_public_listener_tcp_ports, port) ? "FortiGate public listener ${port}" : "SSH"
+        )
       )
     }
   }

@@ -138,14 +138,17 @@ fortiaigate_test_include_openwebui_endpoint: false
 fortiaigate_test_include_ollama_endpoint: false
 
 # === FortiAIGate syslog collector: ansible/playbooks/deploy_fortiaigate_syslog_collector.yml ===
-# The quickstart invokes this playbook automatically. The role no-ops unless
-# terraform/aws-prep has created fortiaigate_syslog_bucket_name and
-# terraform/aws-ec2-k3s has regenerated ansible/group_vars/terraform.generated.yml.
+# The quickstart invokes this playbook automatically. AWS uses S3 output when
+# terraform/aws-prep creates fortiaigate_syslog_bucket_name. Local deployments
+# can enable file output inside the collector container without AWS prep.
 fortiaigate_syslog_namespace: fortiaigate-logging
 fortiaigate_syslog_release_name: fortiaigate-syslog
+fortiaigate_syslog_output: "{{ 's3' if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0 else 'file' }}"
 fortiaigate_syslog_service_port: 514
 fortiaigate_syslog_service_cluster_ip: ""
 fortiaigate_syslog_container_port: 5514
+fortiaigate_syslog_file_path: /logs
+fortiaigate_syslog_file_name: fortiaigate-syslog.jsonl
 fortiaigate_syslog_image_repository: fluent/fluent-bit
 fortiaigate_syslog_image_tag: "3.2"
 fortiaigate_syslog_s3_prefix: "{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) }}"
@@ -316,6 +319,12 @@ chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
 chatbot_direct_base_url: "{{ litellm_internal_base_url }}"
 chatbot_direct_api_key: "{{ litellm_master_key }}"
+chatbot_fortigate_litellm_base_url: ""
+chatbot_fortigate_litellm_api_key: "{{ chatbot_direct_api_key }}"
+chatbot_fortigate_ollama_base_url: ""
+chatbot_fortigate_ollama_api_key: not-used
+chatbot_fortigate_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
+chatbot_fortigate_ollama_model_options: "{{ ollama_models | default([chatbot_fortigate_ollama_model]) }}"
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
 faig_model_route_header_name: X-FAIG-Model-Route
@@ -358,7 +367,18 @@ chatbot_faig_static_routes_full:
     label: Demo B -> FAIG Re-entry
     base_path: /v1/demo-b-faig-be
     model: "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
+chatbot_phase10_scenario_routes_enabled: false
+chatbot_phase10_scenario_static_routes:
+  - name: demo-c
+    label: Demo C - Output DLP
+    base_path: /v1/demo-c
+    model: demo-c
+  - name: demo-d
+    label: Demo D - Input DLP
+    base_path: /v1/demo-d
+    model: demo-d
+chatbot_faig_static_routes_base: "{{ chatbot_faig_static_routes_lite if chatbot_faig_lite_mode | bool else chatbot_faig_static_routes_full }}"
+chatbot_faig_static_routes: "{{ chatbot_faig_static_routes_base + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 # Header routes use one URI and send the model selection in a configurable
 # header. Omit header_value to default to the model; set header_value: "" to
 # test intelligent routing without sending the header.
@@ -390,18 +410,35 @@ chatbot_model_options_full:
   - "{{ litellm_demo_b_model_alias }}"
   - "{{ litellm_demo_a_faig_be_model_alias }}"
   - "{{ litellm_demo_b_faig_be_model_alias }}"
-chatbot_model_options: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
+chatbot_phase10_scenario_model_options:
+  - demo-c
+  - demo-d
+chatbot_model_options_base: "{{ chatbot_model_options_lite if chatbot_faig_lite_mode | bool else chatbot_model_options_full }}"
+chatbot_model_options: "{{ chatbot_model_options_base + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
-# Optional UI-layer system prompt. Leave empty for the default architecture
-# where backend demo instructions are injected by LiteLLM instead.
-chatbot_frontend_system_prompt_source_path: ""
-# chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
+# Optional UI-layer system prompt. The local frontend slot is packaged into the
+# chatbot when present, but the UI checkbox starts off so backend-only behavior
+# remains the default.
+chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
+chatbot_frontend_system_prompt_enabled: false
 # MCP tools are enabled in the browser UI by default. The current default path
 # is direct chatbot -> MCP. When terraform/aws-fortiweb has generated
 # ansible/group_vars/fortiweb.generated.yml, chatbot_mcp_fortiweb_base_url
 # defaults to FortiWeb front-end port1 private IP on the MCP HTTP NodePort.
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url }}"
+fortiweb_mcp_http_base_url: >-
+  {{
+    (
+      'http://' ~ fortiweb_public_private_ip ~ ':' ~
+      (fortiweb_mcp_proxy_listen_port | default(demo_mcp_http_port | default(30084)) | string)
+    )
+    if (
+      fortiweb_mcp_proxy_enabled | default(false) | bool
+      and fortiweb_public_private_ip | default('') | string | length > 0
+    )
+    else ''
+  }}
 chatbot_mcp_fortiweb_base_url: "{{ fortiweb_mcp_http_base_url | default('') }}"
 chatbot_mcp_default_path: direct
 chatbot_mcp_timeout_seconds: 10
@@ -409,6 +446,17 @@ chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
 chatbot_mcp_tool_profile: all-tools
 chatbot_mcp_tool_profiles: []
+# Build chatbot MCP profiles from installed scenario metadata by default.
+# The generated all-tools profile means "all installed scenario tools", not
+# every tool exposed by the MCP server. Set
+# chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
+# troubleshooting profile.
+chatbot_mcp_tool_profiles_source: installed
+chatbot_mcp_tool_profile_mode: replace
+chatbot_mcp_installed_tool_profile_slots:
+  - demo-a
+  - demo-b
+chatbot_mcp_show_debug_all_server_tools: false
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
@@ -422,6 +470,12 @@ chatbot_instances:
     node_port: "{{ demo_chatbot_http_port | default(30081) }}"
     direct_base_url: "{{ chatbot_direct_base_url }}"
     direct_api_key: "{{ chatbot_direct_api_key }}"
+    fortigate_litellm_base_url: "{{ chatbot_fortigate_litellm_base_url }}"
+    fortigate_litellm_api_key: "{{ chatbot_fortigate_litellm_api_key }}"
+    fortigate_ollama_base_url: "{{ chatbot_fortigate_ollama_base_url }}"
+    fortigate_ollama_api_key: "{{ chatbot_fortigate_ollama_api_key }}"
+    fortigate_ollama_model: "{{ chatbot_fortigate_ollama_model }}"
+    fortigate_ollama_model_options: "{{ chatbot_fortigate_ollama_model_options }}"
     faig_base_url: "{{ chatbot_faig_base_url }}"
     faig_api_key: "{{ chatbot_faig_api_key }}"
     faig_static_route: "{{ chatbot_faig_static_route }}"
@@ -445,7 +499,7 @@ chatbot_instances:
     show_context: "{{ chatbot_show_context }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct, FAIG Static, or FAIG Intelligent
+    provider_label: Direct, FortiGate, FAIG Static, or FAIG Intelligent
     ingress_host: ""
 
 # === MCP demo tools: ansible/playbooks/deploy_mcp.yml ===
@@ -503,6 +557,30 @@ demo_https_gateway_mcp_https_port: "{{ demo_mcp_https_port | default(30447) }}"
 # NodePorts. Operators can set this false in ignored user.yml for direct-only
 # testing.
 fortiweb_mcp_proxy_enabled: true
+# Keep the repo default FortiWeb proxy build narrow so appliance deploy/config
+# time stays reasonable. The role still supports OpenWebUI, chatbot, demo home,
+# LiteLLM, and HTTPS gateway proxies; opt those back in from ignored user vars
+# when a recording specifically needs them.
+fortiweb_nodeport_proxy_enabled: "{{ fortiweb_mcp_proxy_enabled | bool }}"
+fortiweb_nodeport_proxy_http_paths:
+  - object_suffix: MCP_HTTP
+    service_name: "{{ fortiweb_mcp_proxy_service_name }}"
+    virtual_server_name: "{{ fortiweb_mcp_proxy_virtual_server_name }}"
+    server_pool_name: "{{ fortiweb_mcp_proxy_server_pool_name }}"
+    policy_name: "{{ fortiweb_mcp_proxy_policy_name }}"
+    listen_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    backend_port: "{{ demo_mcp_http_port | default(30084) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: disable
+    pool_member_ssl: disable
+fortiweb_nodeport_proxy_https_paths:
+  - object_suffix: MCP_HTTPS
+    listen_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    backend_port: "{{ demo_mcp_https_port | default(30447) | int }}"
+    policy_protocol: HTTP
+    policy_ssl: enable
+    policy_use_https_service: true
+    pool_member_ssl: enable
 
 # === Fortinet appliance traffic paths: Phase 6 desired-state input ===
 # Empty by default so the direct public k3s demo path remains unchanged.

@@ -171,13 +171,31 @@ Publish only the demo chatbot image:
 ansible-playbook playbooks/publish_chatbot_images.yml
 ```
 
+For branch-version releases, review and intentionally set `chatbot_image_tag`
+before publishing the chatbot image. Development rebuilds may reuse the same
+mutable tag, but release branches should not accidentally ship a stale chatbot
+tag after chatbot UI or agent changes.
+
 For local registry publishing:
 
 ```bash
 ansible-playbook playbooks/publish_images.yml \
   -e registry_type=local \
-  -e local_registry=localhost:5000
+  -e local_registry=docker_repo_host:5000
 ```
+
+When the local registry uses plain HTTP, configure Docker on the publishing
+workstation to allow that exact host:port as an insecure registry. For Docker
+Desktop, add it under Docker Engine settings:
+
+```json
+{
+  "insecure-registries": ["docker_repo_host:5000"]
+}
+```
+
+Restart Docker after changing this setting. The value must match the generated
+`local_registry` host exactly, including FQDN versus short hostname.
 
 ## Immutable ECR Tag Behavior
 
@@ -194,6 +212,10 @@ and pushed with the same `chatbot_image_tag`. The chatbot publisher controls
 that behavior with `chatbot_publish_overwrite_existing_tag`. The chatbot
 deployment uses `chatbot_image_pull_policy: Always` so a redeploy pulls the
 updated same-tag image instead of using a cached node image.
+
+For branch-version releases, bump or explicitly confirm `chatbot_image_tag` as
+part of the release checklist even if day-to-day development reuses the
+mutable tag.
 
 ## Image Tags
 

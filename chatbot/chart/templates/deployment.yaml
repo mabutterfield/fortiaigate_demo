@@ -40,6 +40,24 @@ spec:
                 secretKeyRef:
                   name: {{ include "chatbot-demo.name" . }}
                   key: chatbot-direct-api-key
+            - name: CHATBOT_FORTIGATE_LITELLM_BASE_URL
+              value: {{ .Values.chatbot.fortigateLitellmBaseUrl | quote }}
+            - name: CHATBOT_FORTIGATE_LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-fortigate-litellm-api-key
+            - name: CHATBOT_FORTIGATE_OLLAMA_BASE_URL
+              value: {{ .Values.chatbot.fortigateOllamaBaseUrl | quote }}
+            - name: CHATBOT_FORTIGATE_OLLAMA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chatbot-demo.name" . }}
+                  key: chatbot-fortigate-ollama-api-key
+            - name: CHATBOT_FORTIGATE_OLLAMA_MODEL
+              value: {{ .Values.chatbot.fortigateOllamaModel | quote }}
+            - name: CHATBOT_FORTIGATE_OLLAMA_MODEL_OPTIONS
+              value: {{ .Values.chatbot.fortigateOllamaModelOptions | quote }}
             - name: CHATBOT_FAIG_BASE_URL
               value: {{ .Values.chatbot.faigBaseUrl | quote }}
             - name: CHATBOT_FAIG_API_KEY
@@ -67,6 +85,8 @@ spec:
               value: {{ .Values.chatbot.headerTitle | quote }}
             - name: CHATBOT_FRONTEND_SYSTEM_PROMPT
               value: {{ .Values.chatbot.frontendSystemPrompt | quote }}
+            - name: CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED
+              value: {{ .Values.chatbot.frontendSystemPromptEnabled | quote }}
             - name: CHATBOT_TEMPERATURE
               value: {{ .Values.chatbot.temperature | quote }}
             - name: CHATBOT_MAX_TOKENS
@@ -91,8 +111,14 @@ spec:
               value: {{ .Values.chatbot.mcpMaxToolRounds | quote }}
             - name: CHATBOT_MCP_TOOL_PROFILE
               value: {{ .Values.chatbot.mcpToolProfile | quote }}
+            - name: CHATBOT_MCP_TOOL_PROFILE_MODE
+              value: {{ .Values.chatbot.mcpToolProfileMode | quote }}
             - name: CHATBOT_MCP_TOOL_PROFILES_JSON
               value: {{ .Values.chatbot.mcpToolProfilesJson | quote }}
+            - name: CHATBOT_UI_MODE
+              value: {{ .Values.chatbot.uiMode | quote }}
+            - name: CHATBOT_SIMPLIFIED_PROFILES_JSON
+              value: {{ .Values.chatbot.simplifiedProfilesJson | quote }}
             - name: CHATBOT_CONTEXT_MODE
               value: {{ .Values.chatbot.contextMode | quote }}
             - name: CHATBOT_CONTEXT_WINDOW

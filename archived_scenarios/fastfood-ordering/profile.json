@@ -2,6 +2,8 @@
   "id": "fastfood-ordering",
   "display_name": "Fast Food Ordering Agent",
   "description": "Consumer ordering assistant demo based on realistic attempts to push a food-service agent into unrelated tasks.",
+  "status": "archived-unused",
+  "archive_note": "Retained for historical testing only. FortiStore Injection replaced this for Phase 10 prompt-injection and token-wasting experiments.",
   "instruction_file": "instructions.txt",
   "mcp": {
     "tool_profile": "fastfood-ordering",

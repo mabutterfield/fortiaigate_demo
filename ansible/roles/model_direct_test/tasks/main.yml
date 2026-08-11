@@ -2,7 +2,7 @@
 - name: Validate direct model provider selection
   ansible.builtin.assert:
     that:
-      - direct_model_provider in ["bedrock", "ollama"]
+      - direct_model_effective_provider in ["bedrock", "ollama"]
     fail_msg: "Set direct_model_provider to either 'bedrock' or 'ollama'."
 
 - name: Set direct Ollama execution host
@@ -11,13 +11,13 @@
       {{
         direct_model_ollama_k3s_host
         if (
-          direct_model_provider == 'ollama'
+          direct_model_effective_provider == 'ollama'
           and direct_model_ollama_execute_on_k3s_host | bool
           and direct_model_ollama_k3s_host | default('', true) | length > 0
         )
         else 'localhost'
       }}
-  when: direct_model_provider == "ollama"
+  when: direct_model_effective_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_delegate_host
 
@@ -39,7 +39,7 @@
   delegate_to: "{{ direct_model_ollama_delegate_host | default('localhost') }}"
   become: true
   when:
-    - direct_model_provider == "ollama"
+    - direct_model_effective_provider == "ollama"
     - direct_model_ollama_delegate_host != "localhost"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_service_cluster_ip.stdout
@@ -56,7 +56,7 @@
   failed_when: false
   register: direct_model_bedrock_models_raw
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_bedrock_use_terraform_output | bool
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_models_raw.stdout_lines
@@ -73,7 +73,7 @@
   failed_when: false
   register: direct_model_bedrock_regions_raw
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_bedrock_use_terraform_output | bool
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_regions_raw.stdout_lines
@@ -90,7 +90,7 @@
   failed_when: false
   register: direct_model_bedrock_region_raw
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_bedrock_use_terraform_output | bool
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_region_raw.stdout_lines
@@ -108,7 +108,7 @@
   no_log: true
   register: direct_model_bedrock_access_key_raw
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_bedrock_read_credentials_from_terraform | bool
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_access_key_raw.stdout_lines
@@ -126,7 +126,7 @@
   no_log: true
   register: direct_model_bedrock_secret_key_raw
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_bedrock_read_credentials_from_terraform | bool
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_secret_key_raw.stdout_lines
@@ -163,7 +163,7 @@
         )
         else ""
       }}
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_models
 
@@ -196,7 +196,7 @@
         )
       }}
   no_log: true
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_effective_aws_access_key_id
 
@@ -226,7 +226,7 @@
           else direct_model_bedrock_fallback_model | default('openai.gpt-oss-20b-1:0', true)
         )
       }}
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_effective_model
 
@@ -240,7 +240,7 @@
       direct_model_bedrock_read_credentials_from_terraform=true, or set
       direct_model_aws_access_key_id/direct_model_aws_secret_access_key, or export
       AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
 
 - name: Check local curl is available
   ansible.builtin.shell: |
@@ -250,7 +250,7 @@
     executable: /bin/bash
   changed_when: false
   register: direct_model_curl_check
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_curl_check.rc
 
@@ -258,7 +258,7 @@
   ansible.builtin.fail:
     msg: "The local curl binary is required for the direct Bedrock curl test."
   when:
-    - direct_model_provider == "bedrock"
+    - direct_model_effective_provider == "bedrock"
     - direct_model_curl_check.rc != 0
 
 - name: Set Bedrock Converse URL and payload
@@ -272,7 +272,7 @@
       inferenceConfig:
         maxTokens: "{{ direct_model_max_tokens }}"
         temperature: 0.2
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_payload
 
@@ -289,7 +289,7 @@
         )
         else direct_model_ollama_base_url
       }}
-  when: direct_model_provider == "ollama"
+  when: direct_model_effective_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_effective_base_url
 
@@ -301,7 +301,7 @@
       messages:
         - role: user
           content: "{{ direct_model_message }}"
-  when: direct_model_provider == "ollama"
+  when: direct_model_effective_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_payload
 
@@ -314,7 +314,7 @@
         -H 'Content-Type: application/json'
         -d '{{ direct_model_payload | to_json }}'
       - "If your Ollama endpoint requires a token, add: -H 'Authorization: Bearer <token>'"
-  when: direct_model_provider == "ollama"
+  when: direct_model_effective_provider == "ollama"
 
 - name: Send direct Bedrock model test
   # Change note: Bedrock SigV4 signing moved to a repo-owned test script to avoid
@@ -341,7 +341,7 @@
     AWS_ACCESS_KEY_ID: "{{ direct_model_effective_aws_access_key_id }}"
     AWS_SECRET_ACCESS_KEY: "{{ direct_model_effective_aws_secret_access_key }}"
     AWS_SESSION_TOKEN: "{{ direct_model_aws_session_token }}"
-  when: direct_model_provider == "bedrock"
+  when: direct_model_effective_provider == "bedrock"
   # - ansible.builtin.debug:
   #     var: direct_model_bedrock_response_raw.stdout_lines
 
@@ -370,16 +370,52 @@
   environment:
     DIRECT_MODEL_OLLAMA_API_KEY: "{{ direct_model_ollama_api_key }}"
   delegate_to: "{{ direct_model_ollama_delegate_host | default('localhost') }}"
-  when: direct_model_provider == "ollama"
+  when: direct_model_effective_provider == "ollama"
   # - ansible.builtin.debug:
   #     var: direct_model_ollama_response_raw.stdout_lines
+
+- name: Capture Ollama loaded model process table
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ssh_args=(-o StrictHostKeyChecking=no)
+    ssh_key="${DIRECT_MODEL_OLLAMA_PS_KEY}"
+    if [[ "${ssh_key}" == "~/"* ]]; then
+      ssh_key="${HOME}/${ssh_key#~/}"
+    fi
+    if [ -n "${ssh_key}" ]; then
+      ssh_args+=(-i "${ssh_key}")
+    fi
+    ssh_target="${DIRECT_MODEL_OLLAMA_PS_HOST}"
+    if [ -n "${DIRECT_MODEL_OLLAMA_PS_USER}" ]; then
+      ssh_target="${DIRECT_MODEL_OLLAMA_PS_USER}@${ssh_target}"
+    fi
+    ssh "${ssh_args[@]}" "${ssh_target}" \
+      sudo -n /usr/local/bin/kubectl \
+      --kubeconfig /etc/rancher/k3s/k3s.yaml \
+      -n {{ direct_model_ollama_namespace | quote }} \
+      exec deployment/{{ direct_model_ollama_release_name | quote }} \
+      -- ollama ps
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+  register: direct_model_ollama_ps
+  environment:
+    DIRECT_MODEL_OLLAMA_PS_HOST: "{{ hostvars[direct_model_ollama_k3s_host].ansible_host | default(direct_model_ollama_k3s_host, true) }}"
+    DIRECT_MODEL_OLLAMA_PS_USER: "{{ hostvars[direct_model_ollama_k3s_host].ansible_user | default(ansible_user | default('', true), true) }}"
+    DIRECT_MODEL_OLLAMA_PS_KEY: "{{ hostvars[direct_model_ollama_k3s_host].ansible_ssh_private_key_file | default(ansible_ssh_private_key_file | default('', true), true) }}"
+  when:
+    - direct_model_effective_provider == "ollama"
+    - direct_model_ollama_k3s_host | default('', true) | length > 0
+  # - ansible.builtin.debug:
+  #     var: direct_model_ollama_ps.stdout_lines
 
 - name: Set direct model provider response fact
   ansible.builtin.set_fact:
     direct_model_response_raw: >-
       {{
         direct_model_bedrock_response_raw
-        if direct_model_provider == "bedrock"
+        if direct_model_effective_provider == "bedrock"
         else direct_model_ollama_response_raw
       }}
   # - ansible.builtin.debug:
@@ -438,7 +474,7 @@
   changed_when: false
   register: direct_model_response_summary
   environment:
-    DIRECT_MODEL_PROVIDER: "{{ direct_model_provider }}"
+    DIRECT_MODEL_PROVIDER: "{{ direct_model_effective_provider }}"
     DIRECT_MODEL_RESPONSE_BODY: "{{ direct_model_response_body }}"
   # - ansible.builtin.debug:
   #     var: direct_model_response_summary.stdout_lines
@@ -446,7 +482,7 @@
 - name: Show direct model test result
   ansible.builtin.debug:
     msg:
-      - "Direct model provider: {{ direct_model_provider }}"
+      - "Direct model provider: {{ direct_model_effective_provider }}"
       - "Model: {{ direct_model_effective_model }}"
       - "URL: {{ direct_model_url }}"
       - "HTTP status: {{ direct_model_http_status }}"
@@ -455,10 +491,33 @@
       - "Response:"
       - "{{ direct_model_response_summary.stdout }}"
 
+- name: Show Ollama loaded model process table
+  ansible.builtin.debug:
+    msg: "{{ ['Ollama ps:'] + (direct_model_ollama_ps.stdout_lines | default(['<empty>'], true)) }}"
+  when:
+    - direct_model_effective_provider == "ollama"
+    - direct_model_ollama_ps is defined
+    - direct_model_ollama_ps.rc | default(1) == 0
+
+- name: Show Ollama ps warning
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        ['Ollama ps unavailable.']
+        + (
+          direct_model_ollama_ps.stderr_lines
+          if direct_model_ollama_ps is defined and direct_model_ollama_ps.stderr_lines | default([], true) | length > 0
+          else ['No k3s host was available for kubectl exec.']
+        )
+      }}
+  when:
+    - direct_model_effective_provider == "ollama"
+    - direct_model_ollama_ps is not defined or direct_model_ollama_ps.rc | default(1) != 0
+
 - name: Fail when direct model test did not return HTTP 2xx
   ansible.builtin.fail:
     msg: >-
-      Direct {{ direct_model_provider }} model test failed with HTTP {{ direct_model_http_status }}.
+      Direct {{ direct_model_effective_provider }} model test failed with HTTP {{ direct_model_http_status }}.
       curl exit code={{ direct_model_curl_rc }}.
       stderr={{ direct_model_curl_stderr if direct_model_curl_stderr | length > 0 else 'none' }}.
       body={{ direct_model_response_body if direct_model_response_body | length > 0 else '<empty>' }}

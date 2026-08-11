@@ -5,6 +5,124 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Re-scoped Phase 10 documentation as the final pre-Phase-11 cleanup:
+  - Phase 11 is now planned as the v1.0 baseline for scenario-owned paths,
+    generated scenario metadata, and the replacement for `demo-a`/`demo-b`
+    terminology
+  - active scenario examples now keep FortiStore Injection and HR Tool DLP,
+    while FortiGate Operator and the HR Resume family are marked as Phase 11
+    candidates
+  - legacy or paused scenarios were moved to `archived_scenarios/` while
+    remaining inspectable through inactive catalog entries
+- Added and archived an MCP-backed FortiStore Product Advisor scenario used
+  during Phase 10 prompt-injection and token-wasting tuning:
+  - uses deterministic synthetic product catalog data through narrow MCP tools
+    instead of external product docs or RAG
+  - documents Direct, Demo A detect-only, and Demo B input-protection behavior
+    with route, flow, guard, and model expectations
+  - marks the older fast-food ordering and MCP-backed FortiStore scenarios as
+    archived/unused for the Phase 10 active set
+- Added FortiStore Injection as the active Phase 10 product-advisor injection lane:
+  - keeps normal backend-only behavior product-focused
+  - adds a toggleable chatbot frontend/system-prompt fixture for demonstrating
+    compromised UI-layer instruction injection
+  - packages the local frontend instruction slot by default when present, with
+    the chatbot UI checkbox starting off for backend-only behavior
+  - supports headless validation with frontend instructions enabled or disabled
+- Added Phase 10E FortiGate traffic-demo preparation:
+  - documented outbound AI application detection from a VM behind FortiGate and
+    inbound inspection through `http://<fgt-ip>:4000/v1` for LiteLLM and
+    `https://<fgt-ip>/v1/...` for FortiAIGate
+  - added a dry-run-by-default app-touch helper that sends direct/no-proxy
+    traffic by default, can use a run-scoped explicit proxy URL when requested,
+    uses FortiGuard-style GenAI target labels, avoids GET range requests by
+    default, and does not alter workstation proxy settings
+  - added an opt-in chatbot and traffic-generator path for
+    `chatbot -> FortiGate :4000 -> LiteLLM` plain HTTP inspection
+  - added disabled-by-default FortiGate role variables that can generate the
+    listener custom services, VIP objects, and inbound firewall policies for
+    the LiteLLM and FortiAIGate inspection paths
+  - added FortiGate static-route management and default SNAT for the optional
+    AI inspection VIP policies so the path is more suitable for AWS k3s
+    NodePort forwarding
+- Started Phase 10 release hardening:
+  - aligned README and documentation entry points around the v1.0 support
+    contract
+  - documented AWS quickstart as the primary supported path and local Ubuntu
+    Ollama mode as a supported lab path
+  - centralized known issues and workarounds for slow NVIDIA downloads,
+    FortiAIGate GUI setup, FortiWeb MCP Security automation, and local Ollama
+    NodePort exposure
+  - marked the Phase 10 scenario set for validation and demo rehearsal while
+    deferring final v1.0 scenario naming to Phase 11
+- Added the Phase 10 release validation matrix covering no-apply checks, AWS
+  fresh deployment, AWS teardown, local fresh deployment, scenario baseline
+  validation, and an optional FortiGate Application Control traffic-generation
+  investigation.
+- Improved release smoke-test ergonomics:
+  - quickstart now defaults to continuing into Ansible image publishing and
+    deployment after Terraform confirmation
+  - image publishing prompts now warn that FortiAIGate/all publishing can take
+    significant time and show a best-effort ECR tag preflight
+  - release validation docs now remind maintainers to bump or explicitly
+    confirm `chatbot_image_tag` for branch-version releases
+- Added `scripts/traffic_generator.py` for Phase 10 local-safe traffic:
+  - default `path_test` mode that prints the inferred FAIG target and curls
+    `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough` once from the workstation
+  - `steady` mode for persistent low-rate log/dashboard population
+  - `burst` mode for short high-rate load or DoS-style testing
+  - `--mode traffic` FAIG scan routing and active-slot scenario selection so sent
+    prompts match the scenario installed into `demo-a`/`demo-b`
+  - FAIG protect traffic now uses the `demo-b` entry point while keeping the
+    active scenario and backend LiteLLM model aligned to `demo-a`
+  - fixed-seed scenario traffic plans, compact ignored metadata, and
+    cloud/long-run safeguards
+  - blocked/redacted protected responses are counted as security dispositions
+    rather than request failures
+- Fixed `test_mcp.yml` local mode by adding an auto target mode that tests the
+  MCP NodePort from the local k3s host instead of requiring AWS Terraform
+  public-IP output.
+- Hardened local Ollama model validation:
+  - local direct model tests now force Ollama and skip all Bedrock Terraform
+    output and credential checks when the local inventory or
+    `FAIG_DEPLOYMENT_TARGET=local` is used
+  - local Ollama defaults now prefer `gpt-oss:20b`, keep the loaded model warm
+    for 60 minutes, and set a 32768-token context length
+  - direct local model tests print the loaded `ollama ps` table after the
+    request so operators can confirm model, GPU placement, context, and unload
+    timing
+- Enabled local FortiAIGate syslog collection without AWS prep:
+  - AWS deployments keep the existing Fluent Bit S3 archive output
+  - local deployments can use file output inside the collector pod at
+    `/logs/fortiaigate-syslog.jsonl`
+  - status and test playbooks now show/tail the local syslog file and validate
+    that synthetic UDP syslog messages are captured
+- Aligned Phase 10 scenario routing around stable FAIG flows:
+  - the default chatbot route surface remains passthrough, demo-a, and demo-b
+    for the supported quickstart path
+  - demo-c and demo-d are now documented as opt-in Phase 10 scenario routes
+    that can be exposed with `chatbot_phase10_scenario_routes_enabled: true`;
+    any shared backend mapping stays in the FAIG guard configuration
+  - FortiWeb MCP path selection now has a derived local/AWS base URL when the
+    FortiWeb proxy and front-end IP are present
+  - scenario docs now use `detect_all`, `protect_input`,
+    `protect_output_dlp`, and `protect_input_dlp`
+  - the HR Tool DLP profile now exposes safe employee search/lookup tools plus
+    the individual sensitive lookup tool for context-dependent output-DLP tests
+  - the HR Tool DLP scenario now documents the full demo-a through demo-d
+    walkthrough, including safe table, single sensitive record, and
+    multi-record context prompts with expected DLP behavior
+  - added a scenario-local detailed walkthrough for HR Tool DLP and linked it
+    from the base scenario runbook; the latest demo-c single-employee rerun
+    documents successful DOB/card placeholder redaction
+  - added the `employee_table_with_cc` MCP tool for a one-call bulk HR DLP
+    comparison against the earlier five-tool-loop table that redacted DOB but
+    missed multiple credit card numbers in Demo C
+
+## v0.9.0 - Local Deployment Support
+
+Release date: 2026-07-29
+
 - Added Phase 9 local hardware deployment foundations:
   - `scripts/local_setup.py` generates ignored local inventory, registry, host,
     appliance, GPU, and Ollama variables without changing the default AWS path

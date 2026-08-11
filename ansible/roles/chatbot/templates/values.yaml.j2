@@ -21,9 +21,11 @@ containerPort: {{ item.container_port | default(chatbot_container_port, true) }}
 {% set chatbot_model_options_value = item.model_options | default(chatbot_model_options, true) | default([], true) %}
 {% set chatbot_faig_static_routes_value = item.faig_static_routes | default(chatbot_faig_static_routes, true) | default([], true) %}
 {% set chatbot_faig_header_routes_value = item.faig_header_routes | default(chatbot_faig_header_routes, true) | default([], true) %}
-{% set chatbot_mcp_tool_profiles_value = item.mcp_tool_profiles | default(chatbot_mcp_tool_profiles, true) | default([], true) %}
+{% set chatbot_mcp_tool_profiles_value = item.mcp_tool_profiles | default(chatbot_mcp_tool_profiles_effective, true) | default([], true) %}
+{% set chatbot_simplified_profiles_value = item.simplified_profiles | default(chatbot_simplified_profiles_effective | default(chatbot_simplified_profiles), true) | default([], true) %}
+{% set chatbot_fortigate_ollama_model_options_value = item.fortigate_ollama_model_options | default(chatbot_fortigate_ollama_model_options, true) | default([], true) %}
 {% set chatbot_ingress_host = item.ingress_host | default('', true) %}
-{% set chatbot_app_checksum_source = lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/chatbot.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/Dockerfile') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/requirements.txt') %}
+{% set chatbot_app_checksum_source = lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/chatbot.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/agent_probe.py') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/Dockerfile') ~ lookup('ansible.builtin.file', playbook_dir ~ '/../../chatbot/app/requirements.txt') %}
 {% if (chatbot_prompt_inline | length == 0) and (chatbot_prompt_source_path | length > 0) %}
 {% set chatbot_effective_frontend_prompt = lookup('ansible.builtin.file', chatbot_prompt_source_path) %}
 {% else %}
@@ -34,6 +36,12 @@ chatbot:
   appChecksum: "{{ chatbot_app_checksum_source | hash('sha256') }}"
   directBaseUrl: "{{ item.direct_base_url | default(chatbot_direct_base_url, true) }}"
   directApiKey: "{{ item.direct_api_key | default(chatbot_direct_api_key, true) }}"
+  fortigateLitellmBaseUrl: "{{ item.fortigate_litellm_base_url | default(chatbot_fortigate_litellm_base_url, true) }}"
+  fortigateLitellmApiKey: "{{ item.fortigate_litellm_api_key | default(chatbot_fortigate_litellm_api_key, true) }}"
+  fortigateOllamaBaseUrl: "{{ item.fortigate_ollama_base_url | default(chatbot_fortigate_ollama_base_url, true) }}"
+  fortigateOllamaApiKey: "{{ item.fortigate_ollama_api_key | default(chatbot_fortigate_ollama_api_key, true) }}"
+  fortigateOllamaModel: "{{ item.fortigate_ollama_model | default(chatbot_fortigate_ollama_model, true) }}"
+  fortigateOllamaModelOptions: "{{ chatbot_fortigate_ollama_model_options_value if chatbot_fortigate_ollama_model_options_value is string else chatbot_fortigate_ollama_model_options_value | join(',') }}"
   faigBaseUrl: "{{ item.faig_base_url | default(chatbot_faig_base_url, true) }}"
   faigApiKey: "{{ item.faig_api_key | default(chatbot_faig_api_key, true) }}"
   faigStaticRoute: "{{ item.faig_static_route | default(chatbot_faig_static_route, true) }}"
@@ -46,6 +54,7 @@ chatbot:
   pageTitle: "{{ item.title | default('Demo Chatbot', true) }}"
   headerTitle: "{{ item.header_title | default('FortiAIGate Demo Chatbot', true) }}"
   frontendSystemPrompt: {{ chatbot_effective_frontend_prompt | to_json }}
+  frontendSystemPromptEnabled: "{{ (item.frontend_system_prompt_enabled | default(chatbot_frontend_system_prompt_enabled) | bool) | ternary('true', 'false') }}"
   temperature: "{{ item.temperature | default('0.0', true) }}"
   maxTokens: "{{ item.max_tokens | default('4096', true) }}"
   streaming: "{{ (item.streaming | default(false) | bool) | ternary('true', 'false') }}"
@@ -57,8 +66,11 @@ chatbot:
   mcpTimeoutSeconds: "{{ item.mcp_timeout_seconds | default(chatbot_mcp_timeout_seconds, true) }}"
   mcpVerifyTls: "{{ (item.mcp_verify_tls | default(chatbot_mcp_verify_tls) | bool) | ternary('true', 'false') }}"
   mcpMaxToolRounds: "{{ item.mcp_max_tool_rounds | default(chatbot_mcp_max_tool_rounds, true) }}"
-  mcpToolProfile: "{{ item.mcp_tool_profile | default(chatbot_mcp_tool_profile, true) }}"
+  mcpToolProfile: "{{ item.mcp_tool_profile | default(chatbot_mcp_tool_profile_effective | default(chatbot_mcp_tool_profile), true) }}"
+  mcpToolProfileMode: "{{ item.mcp_tool_profile_mode | default(chatbot_mcp_tool_profile_mode, true) }}"
   mcpToolProfilesJson: {{ (chatbot_mcp_tool_profiles_value if chatbot_mcp_tool_profiles_value is string else chatbot_mcp_tool_profiles_value | to_json) | to_json }}
+  uiMode: "{{ item.ui_mode | default(chatbot_ui_mode, true) }}"
+  simplifiedProfilesJson: {{ (chatbot_simplified_profiles_value if chatbot_simplified_profiles_value is string else chatbot_simplified_profiles_value | to_json) | to_json }}
   contextMode: "{{ item.context_mode | default(chatbot_context_mode, true) }}"
   contextWindow: "{{ item.context_window | default(chatbot_context_window, true) }}"
   contextSummaryMaxChars: "{{ item.context_summary_max_chars | default(chatbot_context_summary_max_chars, true) }}"

@@ -19,11 +19,12 @@ Current scripts:
   `chatbot/instructions/local/`. Examples and their metadata remain tracked
   under `chatbot/instructions/examples/`. Run it without a subcommand to open a
   menu-driven wizard for changing one slot at a time.
-- `scenario_profiles.py`: lists, validates, shows, and installs tracked demo
-  scenario profiles from `chatbot/scenarios/examples/` into local instruction
-  slots. Scenario profiles package repeatable demo instructions, MCP tool
-  expectations, clean prompts, and attack prompts while still leaving local
-  instruction slots editable.
+- `scenario_profiles.py`: lists, validates, shows, and installs active or
+  candidate scenario profiles from `chatbot/scenarios/examples/` into local
+  instruction slots. Inactive archived profiles remain inspectable through the
+  catalog with `--include-inactive`. Scenario profiles package repeatable demo
+  instructions, MCP tool expectations, clean prompts, and attack prompts while
+  still leaving local instruction slots editable.
 - `scenario_test_harness.py`: runs Phase 8 scenario prompts through the
   deployed chatbot pod, including MCP tool calls, Direct LiteLLM, FAIG scan,
   and FAIG protect paths. It can optionally install a scenario profile,
@@ -31,6 +32,30 @@ Current scripts:
   response JSON under ignored `docs/raw-output/phase8/<scenario>/<run-label>/`.
   Use `--run-label` to name a repeatable sweep; existing non-empty output
   directories are not overwritten unless `--overwrite-output` is supplied.
+- `traffic_generator.py`: validates FAIG paths and generates repeatable
+  chatbot/MCP traffic. With no arguments it runs a direct workstation curl
+  `path_test` against `/v1/demo-a`, `/v1/demo-b`, and `/v1/passthrough`.
+  Scenario traffic uses `--mode traffic` and runs through the deployed chatbot
+  pod. Use `--use-case steady` for persistent low-rate dashboard/log population
+  and `--use-case burst` for short load or DoS-style testing. Traffic runs
+  default to FAIG `demo-a` scan traffic and read local slot metadata so sent
+  scenarios match the installed `demo-a`/`demo-b` instructions. Optional
+  FortiGate routes can send chatbot traffic through plain HTTP LiteLLM or
+  Ollama listeners when configured. It saves compact
+  metadata under ignored
+  `docs/raw-output/traffic/<run-label>/` and treats blocked/redacted protected
+  responses as security dispositions rather than transport failures.
+- `fortigate_ai_app_proxy_touch.py`: touches known AI application, MCP, and
+  Bedrock endpoints directly by default, or through a run-scoped FortiGate
+  explicit proxy URL when `--proxy-url` is supplied. It defaults to dry-run
+  mode and requires `--execute` before sending traffic, making it useful for
+  FortiGate Application Control log investigation without changing workstation
+  proxy environment variables. Built-in labels use FortiGuard-style GenAI
+  application names where practical, and GET mode avoids HTTP `Range` headers
+  unless `--range-request` is supplied. Use `--target-set mcp` for remote MCP
+  initialize, `tools/list`, or `tools/call` probes and `--target-set bedrock`
+  for a signed Bedrock Runtime Converse probe using AWS credential environment
+  variables.
 - `automated_quickstart.py`: guided first-phase setup from repo root; prepares
   or imports the user profile when needed, runs Terraform through ECR, AWS prep,
   EC2 k3s foundation, and enabled FortiGate/FortiWeb modules, then runs the

@@ -197,13 +197,30 @@
     msg: "{{ fortiaigate_status_problems | join(' | ') }}"
   when: fortiaigate_status_state == "ERROR"
 
+- name: Build FortiAIGate status display lines
+  ansible.builtin.set_fact:
+    fortiaigate_status_display_lines: >-
+      {{
+        [
+          'FortiAIGate status: ' ~ fortiaigate_status_state,
+          'Helm release: ' ~ ('present' if fortiaigate_status_helm.rc == 0 else 'error/not found'),
+          'Pods ready: ' ~ (fortiaigate_status_pod_summary.ready_count | string) ~ '/' ~ (fortiaigate_status_pod_summary.total_count | string),
+          'Pods (NAME READY STATUS RESTARTS AGE):'
+        ]
+        + (
+          fortiaigate_status_pod_table.stdout_lines | default([]) | map('regex_replace', '^(.*)$', '  \1') | list
+          if fortiaigate_status_pod_table.stdout_lines | default([]) | length > 0
+          else ['  none']
+        )
+        + [
+          'NVIDIA GPU: ' ~ (fortiaigate_status_gpu_summary | join(' | ')),
+          'Login URL: ' ~ fortiaigate_status_login_url,
+          'Problems: ' ~ (fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none')
+        ]
+      }}
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_status_display_lines
+
 - name: Show FortiAIGate status summary
   ansible.builtin.debug:
-    msg:
-      - "FortiAIGate status: {{ fortiaigate_status_state }}"
-      - "Helm release: {{ 'present' if fortiaigate_status_helm.rc == 0 else 'error/not found' }}"
-      - "Pods ready: {{ fortiaigate_status_pod_summary.ready_count }}/{{ fortiaigate_status_pod_summary.total_count }}"
-      - "Pods (NAME READY STATUS RESTARTS AGE): {{ fortiaigate_status_pod_table.stdout_lines | default([]) | join('; ') if fortiaigate_status_pod_table.stdout_lines | default([]) | length > 0 else 'none' }}"
-      - "NVIDIA GPU: {{ fortiaigate_status_gpu_summary | join(' | ') }}"
-      - "Login URL: {{ fortiaigate_status_login_url }}"
-      - "Problems: {{ fortiaigate_status_problems | join(' | ') if fortiaigate_status_problems | length > 0 else 'none' }}"
+    msg: "{{ fortiaigate_status_display_lines }}"

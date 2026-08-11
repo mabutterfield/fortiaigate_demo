@@ -1,5 +1,7 @@
 ---
 direct_model_provider: bedrock
+direct_model_deployment_target: "{{ deployment_target | default(lookup('ansible.builtin.env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true), true) }}"
+direct_model_effective_provider: "{{ 'ollama' if direct_model_deployment_target == 'local' else direct_model_provider }}"
 direct_model_message: "Hello, is this thing on? Reply in one short sentence and include the name of the model answering."
 direct_model_max_tokens: 512
 direct_model_timeout_seconds: 60
@@ -18,7 +20,7 @@ direct_model_aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') | default
 direct_model_ollama_base_url: "{{ ollama_base_url | default('', true) }}"
 direct_model_ollama_model: "{{ ollama_model | default('', true) }}"
 direct_model_ollama_api_key: ""
-direct_model_ollama_execute_on_k3s_host: "{{ deployment_target | default('aws') == 'local' }}"
+direct_model_ollama_execute_on_k3s_host: "{{ direct_model_deployment_target == 'local' }}"
 direct_model_ollama_k3s_host: "{{ (groups.get('fortiaigate', []) | first) | default('', true) }}"
 direct_model_ollama_namespace: "{{ ollama_namespace | default('ollama') }}"
 direct_model_ollama_release_name: "{{ ollama_release_name | default('ollama') }}"

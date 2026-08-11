@@ -25,6 +25,8 @@ Synthetic HR demo tools:
 
 - `employee_lookup`
 - `employee_search`
+- `employee_sensitive_lookup_demo`
+- `employee_table_with_cc`
 - `hr_policy_lookup`
 - `redaction_check`
 
@@ -38,6 +40,11 @@ Document and resume retrieval demo tools:
 - `document_injection_check`
 - `document_upload_simulation`
 - `cloud_bucket_list_demo`
+
+FortiStore product-advisor demo tools:
+
+- `fortistore_product_search`
+- `fortistore_product_lookup`
 
 Fast food ordering demo tools:
 
@@ -98,6 +105,12 @@ Run a single sample tool call:
 ```bash
 ansible-playbook playbooks/test_mcp.yml
 ```
+
+`test_mcp.yml` defaults to `mcp_test_target_mode=auto`. In AWS mode, auto uses
+the public k3s NodePort discovered from Terraform output. In local mode, auto
+tests from the k3s host against `http://127.0.0.1:<mcp-node-port>/mcp`, which
+avoids requiring the controller workstation to reach the local NodePort
+directly.
 
 Run deterministic Phase 8 document retrieval checks:
 
@@ -307,11 +320,14 @@ curl -X POST http://127.0.0.1:8000/mcp \
 
 This baseline is intentionally simple. The Python chatbot agent loop can use
 these tools today, and the Phase 6 FortiWeb path can front MCP/tool traffic.
-The menu tools are deterministic and meant to show an ordering assistant flow
-without placing a real order. The FortiGate tools are read-only and intended to
-show the model using a real infrastructure data source. The HR tools use
-synthetic data and are intended to demonstrate safe lookup, redaction, and
-policy-boundary behavior.
+The FortiStore tools are deterministic and use synthetic product-advisor data
+for repeatable product-fit, prompt-injection, and token-wasting demos. They are
+not current Fortinet datasheets, pricing, or availability data. The menu tools
+are deterministic and meant to show an ordering assistant flow without placing
+a real order. The FortiGate tools are read-only and intended to show the model
+using a real infrastructure data source. The HR tools use synthetic data and
+are intended to demonstrate safe lookup, redaction, and policy-boundary
+behavior.
 
 ## Chatbot Tool Toggle
 
@@ -354,9 +370,17 @@ chatbot_mcp_default_path: direct
 chatbot_mcp_max_tool_rounds: 3
 ```
 
-Chatbot frontend instructions are disabled by default because backend demo
-instructions normally live in LiteLLM profiles. To intentionally add a
-browser/UI-layer system prompt, set one of:
+`fortiweb_mcp_http_base_url` is derived from the FortiWeb front-end port1 IP
+and MCP NodePort when `fortiweb_mcp_proxy_enabled=true`. If the chatbot only
+shows `Direct MCP`, confirm the FortiWeb generated vars include
+`fortiweb_public_private_ip` and redeploy the chatbot after FortiWeb is
+configured.
+
+Chatbot frontend instructions are available but disabled by default because
+backend demo instructions normally live in LiteLLM profiles. The default
+deployment packages the local frontend slot when present and starts with the
+`Use frontend instructions` checkbox off. To intentionally override the prompt
+source, set one of:
 
 ```yaml
 chatbot_frontend_system_prompt: "Inline system prompt text"

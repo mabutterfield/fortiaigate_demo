@@ -1,7 +1,7 @@
 ---
 - name: Skip FortiAIGate syslog collector test when disabled
   ansible.builtin.debug:
-    msg: "fortiaigate_syslog_collector_enabled=false or no fortiaigate_syslog_bucket_name is available; skipping syslog collector test."
+    msg: "fortiaigate_syslog_collector_enabled=false; skipping syslog collector test."
   when: not fortiaigate_syslog_collector_enabled | bool
 
 - name: Read FortiAIGate syslog collector service
@@ -46,10 +46,35 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_syslog_test_send.stdout_lines
 
-- name: Wait for Fluent Bit S3 upload interval
+- name: Wait for Fluent Bit output flush interval
   ansible.builtin.pause:
     seconds: "{{ fortiaigate_syslog_test_wait_seconds | int }}"
   when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Tail local FortiAIGate syslog file
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - exec
+      - "deployment/{{ fortiaigate_syslog_release_name }}"
+      - -n
+      - "{{ fortiaigate_syslog_namespace }}"
+      - -c
+      - syslog-tail
+      - --
+      - /bin/sh
+      - -c
+      - "test -f {{ (fortiaigate_syslog_file_path ~ '/' ~ fortiaigate_syslog_file_name) | quote }} && tail -n {{ fortiaigate_syslog_tail_lines | int }} {{ (fortiaigate_syslog_file_path ~ '/' ~ fortiaigate_syslog_file_name) | quote }}"
+  changed_when: false
+  failed_when: false
+  register: fortiaigate_syslog_test_file_tail
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_output == "file"
+  # - ansible.builtin.debug:
+  #     var: fortiaigate_syslog_test_file_tail.stdout_lines
 
 - name: Check FortiAIGate syslog collector pod logs
   ansible.builtin.command:
@@ -92,8 +117,20 @@
     msg:
       - "Sent UDP payload: {{ fortiaigate_syslog_test_send.stdout | default('not sent') }}"
       - "Collector service: {{ fortiaigate_syslog_release_name }}.{{ fortiaigate_syslog_namespace }}.svc.cluster.local:{{ fortiaigate_syslog_service_port }}/udp"
-      - "S3 target: s3://{{ fortiaigate_syslog_bucket_name | default('unavailable') }}/{{ fortiaigate_syslog_prefix | default('fortiaigate/syslog') }}/"
+      - "Output: {{ fortiaigate_syslog_output }}"
+      - "Local file: {{ fortiaigate_syslog_file_path ~ '/' ~ fortiaigate_syslog_file_name if fortiaigate_syslog_output == 'file' else 'disabled' }}"
+      - "Local file contains payload: {{ 'yes' if fortiaigate_syslog_output == 'file' and fortiaigate_syslog_test_send.stdout | default('') in fortiaigate_syslog_test_file_tail.stdout | default('') else 'not checked' }}"
+      - "S3 target: {{ 's3://' ~ fortiaigate_syslog_bucket_name ~ '/' ~ (fortiaigate_syslog_prefix | default('fortiaigate/syslog') | regex_replace('^/+|/+$', '')) ~ '/' if fortiaigate_syslog_output == 's3' else 'disabled' }}"
       - "S3 check rc: {{ fortiaigate_syslog_test_s3.rc | default('skipped') }}"
       - "S3 summary: {{ (fortiaigate_syslog_test_s3.stdout_lines | default([]))[-3:] | join('; ') if (fortiaigate_syslog_test_s3.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
+      - "Recent local file lines: {{ (fortiaigate_syslog_test_file_tail.stdout_lines | default([]))[-5:] | join('; ') if fortiaigate_syslog_output == 'file' and (fortiaigate_syslog_test_file_tail.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
       - "Recent collector log lines: {{ (fortiaigate_syslog_test_logs.stdout_lines | default([]))[-5:] | join('; ') if (fortiaigate_syslog_test_logs.stdout_lines | default([])) | length > 0 else 'unavailable' }}"
   when: fortiaigate_syslog_collector_enabled | bool
+
+- name: Fail when local syslog file did not capture the test payload
+  ansible.builtin.fail:
+    msg: "Local syslog file {{ fortiaigate_syslog_file_path }}/{{ fortiaigate_syslog_file_name }} did not contain the sent test payload."
+  when:
+    - fortiaigate_syslog_collector_enabled | bool
+    - fortiaigate_syslog_output == "file"
+    - fortiaigate_syslog_test_send.stdout | default('') not in fortiaigate_syslog_test_file_tail.stdout | default('')

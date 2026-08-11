@@ -104,6 +104,7 @@
   when:
     - demo_http_paths_test_include_fortiweb | bool
     - item.enabled | default(true) | bool
+    - item.fortiweb_enabled | default(item.enabled | default(true)) | bool
 
 - name: Add FortiWeb HTTPS test targets
   ansible.builtin.set_fact:
@@ -123,6 +124,7 @@
     - demo_http_paths_test_include_fortiweb | bool
     - demo_http_paths_test_include_https | bool
     - item.enabled | default(true) | bool
+    - item.fortiweb_enabled | default(item.enabled | default(true)) | bool
 
 - name: Show demo HTTP path test plan
   ansible.builtin.debug:

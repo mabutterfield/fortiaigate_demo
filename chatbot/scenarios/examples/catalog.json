@@ -1,52 +1,88 @@
 {
   "scenarios": {
     "fastfood-ordering": {
-      "path": "fastfood-ordering/profile.json",
-      "display_name": "Fast Food Ordering Agent"
+      "path": "../../../archived_scenarios/fastfood-ordering/profile.json",
+      "display_name": "Fast Food Ordering Agent",
+      "status": "legacy-archived",
+      "active": false
+    },
+    "fortistore-product-advisor": {
+      "path": "../../../archived_scenarios/fortistore-product-advisor/profile.json",
+      "display_name": "FortiStore Product Advisor",
+      "status": "legacy-archived",
+      "active": false
+    },
+    "fortistore-injection": {
+      "path": "fortistore-injection/profile.json",
+      "display_name": "FortiStore Injection Product Advisor",
+      "status": "phase10-active",
+      "active": true
     },
     "fortigate-operator": {
       "path": "fortigate-operator/profile.json",
-      "display_name": "FortiGate Operator Assistant"
+      "display_name": "FortiGate Operator Assistant",
+      "status": "phase11-candidate",
+      "active": true
     },
     "support-ticket-triage": {
-      "path": "support-ticket-triage/profile.json",
-      "display_name": "Support Ticket Triage Assistant"
+      "path": "../../../archived_scenarios/support-ticket-triage/profile.json",
+      "display_name": "Support Ticket Triage Assistant",
+      "status": "legacy-archived",
+      "active": false
     },
     "hr-policy-risk": {
-      "path": "hr-policy-risk/profile.json",
-      "display_name": "HR Policy Risk Assistant"
+      "path": "../../../archived_scenarios/hr-policy-risk/profile.json",
+      "display_name": "HR Policy Risk Assistant",
+      "status": "legacy-archived",
+      "active": false
     },
-    "hr-tool-dlp-vulnerable": {
-      "path": "hr-tool-dlp-vulnerable/profile.json",
-      "display_name": "HR Tool DLP Vulnerable"
+    "hr-tool-dlp": {
+      "path": "hr-tool-dlp/profile.json",
+      "display_name": "HR Tool DLP Vulnerable",
+      "status": "phase10-active",
+      "active": true
     },
     "resume-screening-clean": {
       "path": "resume-screening-clean/profile.json",
-      "display_name": "Resume Screening Clean Retrieval"
+      "display_name": "Resume Screening Clean Retrieval",
+      "status": "phase11-candidate",
+      "active": true
     },
     "resume-prompt-injection": {
       "path": "resume-prompt-injection/profile.json",
-      "display_name": "Resume Prompt Injection"
+      "display_name": "Resume Prompt Injection",
+      "status": "phase11-candidate",
+      "active": true
     },
     "resume-cloud-tool-pivot": {
       "path": "resume-cloud-tool-pivot/profile.json",
-      "display_name": "Resume Cloud Tool Pivot"
+      "display_name": "Resume Cloud Tool Pivot",
+      "status": "phase11-candidate",
+      "active": true
     },
     "resume-cloud-tool-pivot-safe": {
       "path": "resume-cloud-tool-pivot-safe/profile.json",
-      "display_name": "Resume Cloud Tool Pivot Safe"
+      "display_name": "Resume Cloud Tool Pivot Safe",
+      "status": "phase11-candidate",
+      "active": true
     },
     "resume-cloud-tool-pivot-vulnerable": {
       "path": "resume-cloud-tool-pivot-vulnerable/profile.json",
-      "display_name": "Resume Cloud Tool Pivot Vulnerable"
+      "display_name": "Resume Cloud Tool Pivot Vulnerable",
+      "status": "phase11-candidate",
+      "active": true
     },
     "hr-policy-rag-risk": {
-      "path": "hr-policy-rag-risk/profile.json",
-      "display_name": "HR Policy RAG Risk"
+      "path": "../../../archived_scenarios/hr-policy-rag-risk/profile.json",
+      "display_name": "HR Policy RAG Risk",
+      "status": "legacy-archived",
+      "active": false
     },
     "menu-poisoning": {
-      "path": "menu-poisoning/profile.json",
-      "display_name": "Menu Document Poisoning"
+      "path": "../../../archived_scenarios/menu-poisoning/profile.json",
+      "display_name": "Menu Document Poisoning",
+      "status": "legacy-archived",
+      "active": false
     }
   }
 }

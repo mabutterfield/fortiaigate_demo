@@ -88,6 +88,17 @@
   # - ansible.builtin.debug:
   #     var: fortigate_policy_current_raw
 
+- name: Gather current FortiGate static routes
+  fortinet.fortios.fortios_configuration_fact:
+    vdom: "{{ fortigate_config_vdom }}"
+    selector: router_static
+  register: fortigate_static_route_current_raw
+  check_mode: false
+  when: fortigate_config_enable_static_routes | bool
+  tags: [fortigate_config, fortigate_routes]
+  # - ansible.builtin.debug:
+  #     var: fortigate_static_route_current_raw
+
 - name: Set current FortiGate maps
   ansible.builtin.set_fact:
     fortigate_address_current_by_name: >-
@@ -124,6 +135,15 @@
         )
       }}
     fortigate_policy_current_ids: "{{ (fortigate_policy_current_raw.meta.results | default([])) | map(attribute='policyid') | map('string') | list }}"
+    fortigate_static_route_current_by_seq: >-
+      {{
+        dict(
+          (fortigate_static_route_current_raw.meta.results | default([]))
+          | map(attribute='seq-num')
+          | map('string')
+          | zip(fortigate_static_route_current_raw.meta.results | default([]))
+        )
+      }}
   tags: [fortigate_config]
   # - ansible.builtin.debug:
   #     msg:
@@ -131,6 +151,45 @@
   #       - "Service objects discovered: {{ fortigate_service_current_by_name | length }}"
   #       - "VIP objects discovered: {{ fortigate_vip_current_by_name | length }}"
   #       - "Policies discovered: {{ fortigate_policy_current_by_id | length }}"
+
+- name: Validate unmanaged FortiGate LLM proxy VIP references
+  ansible.builtin.fail:
+    msg: >-
+      FortiGate LLM proxy path {{ item.name }} references VIP {{ item.vip_name }},
+      but fortigate_llm_proxy_manage_vips=false and that VIP was not found.
+      Override fortigate_llm_proxy_paths[].vip_name to an existing VIP or enable
+      fortigate_llm_proxy_manage_vips.
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_policies | bool
+    - not (fortigate_llm_proxy_manage_vips | bool)
+    - item.vip_name | default('') | string | length > 0
+    - item.vip_name not in fortigate_vip_current_by_name
+  tags: [fortigate_config, fortigate_vips, fortigate_policies, fortigate_llm_proxy]
+
+- name: Validate unmanaged FortiGate LLM proxy service references
+  ansible.builtin.fail:
+    msg: >-
+      FortiGate LLM proxy path {{ item.name }} references service
+      {{ item.service_name }}, but fortigate_llm_proxy_manage_services=false and
+      that custom service was not found. Override service_name to an existing
+      service or enable fortigate_llm_proxy_manage_services.
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_policies | bool
+    - not (fortigate_llm_proxy_manage_services | bool)
+    - item.service_name | default('') | string | length > 0
+    - item.service_name not in fortigate_llm_proxy_builtin_services
+    - item.service_name not in fortigate_service_current_by_name
+  tags: [fortigate_config, fortigate_services, fortigate_policies, fortigate_llm_proxy]
 
 - name: Build generated FortiGate address objects
   ansible.builtin.set_fact:
@@ -172,11 +231,144 @@
   # - ansible.builtin.debug:
   #     var: fortigate_generated_service_objects
 
+- name: Build generated FortiGate LLM proxy custom services
+  ansible.builtin.set_fact:
+    fortigate_generated_service_objects: "{{ (fortigate_generated_service_objects | default([])) + [fortigate_generated_service_object] }}"
+  vars:
+    fortigate_generated_service_object:
+      name: "{{ item.service_name }}"
+      tcp_portrange: "{{ item.extport | string }}"
+      comment: "{{ item.comment }} listener"
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.service_name }}"
+  when:
+    - fortigate_config_enable_services | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_services | bool
+    - item.service_name | default('') | string | length > 0
+    - item.extport | default('') | string | length > 0
+  tags: [fortigate_config, fortigate_services, fortigate_llm_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_service_objects
+
+- name: Build generated FortiGate LLM proxy policy services
+  ansible.builtin.set_fact:
+    fortigate_generated_service_objects: "{{ (fortigate_generated_service_objects | default([])) + [fortigate_generated_policy_service_object] }}"
+  vars:
+    fortigate_generated_policy_service_object:
+      name: "{{ item.policy_service_name }}"
+      tcp_portrange: "{{ (item.policy_service_ports | default([item.policy_service_port | default('')])) | reject('equalto', '') | map('string') | unique | join(' ') }}"
+      comment: "{{ item.comment }} translated destination"
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.policy_service_name | default(item.service_name) }}"
+  when:
+    - fortigate_config_enable_services | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_services | bool
+    - item.policy_service_name | default('') | string | length > 0
+    - item.policy_service_name | string != item.service_name | string
+    - (item.policy_service_ports | default([item.policy_service_port | default('')])) | reject('equalto', '') | list | length > 0
+  tags: [fortigate_config, fortigate_services, fortigate_llm_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_service_objects
+
+- name: Build generated FortiGate LLM proxy VIP objects
+  ansible.builtin.set_fact:
+    fortigate_generated_vip_objects: "{{ (fortigate_generated_vip_objects | default([])) + [fortigate_generated_vip_object] }}"
+  vars:
+    fortigate_generated_vip_object:
+      name: "{{ item.vip_name }}"
+      extintf: "{{ fortigate_llm_proxy_public_interface }}"
+      extip: "{{ fortigate_llm_proxy_extip }}"
+      mappedip:
+        - range: "{{ fortigate_llm_proxy_mappedip }}"
+      portforward: enable
+      protocol: tcp
+      extport: "{{ item.extport | string }}"
+      mappedport: "{{ item.mappedport | string }}"
+      comment: "{{ item.comment }}"
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.vip_name }}"
+  when:
+    - fortigate_config_enable_vips | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_vips | bool
+    - fortigate_llm_proxy_extip | default('') | string | length > 0
+    - fortigate_llm_proxy_extip | string != 'None'
+    - fortigate_llm_proxy_mappedip | default('') | string | length > 0
+    - fortigate_llm_proxy_mappedip | string != 'None'
+    - item.vip_name | default('') | string | length > 0
+    - item.extport | default('') | string | length > 0
+    - item.mappedport | default('') | string | length > 0
+  tags: [fortigate_config, fortigate_vips, fortigate_llm_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_vip_objects
+
+- name: Build generated FortiGate LLM proxy firewall policies
+  ansible.builtin.set_fact:
+    fortigate_generated_firewall_policies: >-
+      {{
+        (fortigate_generated_firewall_policies | default([]))
+        + [
+          fortigate_generated_firewall_policy
+          | combine(fortigate_llm_proxy_policy_common, recursive=True)
+          | combine(fortigate_generated_firewall_policy_security_profiles, recursive=True)
+          | combine(item.policy_overrides | default({}), recursive=True)
+        ]
+      }}
+  vars:
+    fortigate_generated_firewall_policy_security_profiles: >-
+      {{
+        {}
+        | combine(({'utm_status': item.utm_status} if item.utm_status is defined else {}), recursive=True)
+        | combine(({'ssl_ssh_profile': item.ssl_ssh_profile} if item.ssl_ssh_profile is defined else {}), recursive=True)
+        | combine(({'application_list': item.application_list} if item.application_list is defined else {}), recursive=True)
+      }}
+    fortigate_generated_firewall_policy:
+      policyid: "{{ item.policyid | int }}"
+      name: "{{ item.policy_name }}"
+      srcintf:
+        - name: "{{ fortigate_llm_proxy_public_interface }}"
+      dstintf:
+        - name: "{{ fortigate_llm_proxy_backend_interface }}"
+      srcaddr:
+        - name: "{{ fortigate_llm_proxy_source_address }}"
+      dstaddr:
+        - name: "{{ item.vip_name }}"
+      action: "{{ fortigate_llm_proxy_action }}"
+      schedule: "{{ fortigate_llm_proxy_schedule }}"
+      service:
+        - name: "{{ item.policy_service_name | default(item.service_name) }}"
+      logtraffic: "{{ fortigate_llm_proxy_logtraffic }}"
+      logtraffic_start: "{{ fortigate_llm_proxy_logtraffic_start }}"
+      nat: "{{ fortigate_llm_proxy_nat }}"
+      status: "{{ fortigate_llm_proxy_status }}"
+      comments: "{{ item.comment }}"
+  loop: "{{ fortigate_llm_proxy_paths }}"
+  loop_control:
+    label: "{{ item.policy_name }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - fortigate_llm_proxy_enabled | bool
+    - fortigate_llm_proxy_manage_policies | bool
+    - item.policyid is defined
+    - item.policy_name | default('') | string | length > 0
+    - item.vip_name | default('') | string | length > 0
+    - item.service_name | default('') | string | length > 0
+  tags: [fortigate_config, fortigate_policies, fortigate_llm_proxy]
+  # - ansible.builtin.debug:
+  #     var: fortigate_generated_firewall_policies
+
 - name: Initialize FortiGate desired object maps
   ansible.builtin.set_fact:
     fortigate_address_objects_by_name: {}
     fortigate_service_objects_by_name: {}
     fortigate_vip_objects_by_name: {}
+    fortigate_policy_objects_by_id: {}
+    fortigate_static_routes_desired: []
   tags: [fortigate_config]
 
 - name: Merge generated FortiGate address objects
@@ -215,6 +407,15 @@
   when: fortigate_config_enable_services | bool
   tags: [fortigate_config, fortigate_services]
 
+- name: Merge generated FortiGate VIP objects
+  ansible.builtin.set_fact:
+    fortigate_vip_objects_by_name: "{{ fortigate_vip_objects_by_name | combine({item.name: item}) }}"
+  loop: "{{ fortigate_generated_vip_objects | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: fortigate_config_enable_vips | bool
+  tags: [fortigate_config, fortigate_vips]
+
 - name: Merge static FortiGate VIP objects
   ansible.builtin.set_fact:
     fortigate_vip_objects_by_name: "{{ fortigate_vip_objects_by_name | combine({item.name: item}) }}"
@@ -224,17 +425,43 @@
   when: fortigate_config_enable_vips | bool
   tags: [fortigate_config, fortigate_vips]
 
+- name: Merge generated FortiGate firewall policies
+  ansible.builtin.set_fact:
+    fortigate_policy_objects_by_id: "{{ fortigate_policy_objects_by_id | combine({(item.policyid | string): item}) }}"
+  loop: "{{ fortigate_generated_firewall_policies | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - item.policyid is defined
+  tags: [fortigate_config, fortigate_policies]
+
+- name: Merge static FortiGate firewall policies
+  ansible.builtin.set_fact:
+    fortigate_policy_objects_by_id: "{{ fortigate_policy_objects_by_id | combine({(item.policyid | string): item}) }}"
+  loop: "{{ fortigate_firewall_policies }}"
+  loop_control:
+    label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
+  when:
+    - fortigate_config_enable_policies | bool
+    - item.policyid is defined
+  tags: [fortigate_config, fortigate_policies]
+
 - name: Set desired FortiGate object lists
   ansible.builtin.set_fact:
     fortigate_address_objects_desired: "{{ fortigate_address_objects_by_name | dict2items | map(attribute='value') | list }}"
     fortigate_service_objects_desired: "{{ fortigate_service_objects_by_name | dict2items | map(attribute='value') | list }}"
     fortigate_vip_objects_desired: "{{ fortigate_vip_objects_by_name | dict2items | map(attribute='value') | list }}"
+    fortigate_firewall_policies_desired: "{{ fortigate_policy_objects_by_id | dict2items | map(attribute='value') | list }}"
+    fortigate_static_routes_desired: "{{ fortigate_static_routes | default([]) }}"
   tags: [fortigate_config]
   # - ansible.builtin.debug:
   #     msg:
   #       - "Desired address objects: {{ fortigate_address_objects_desired | map(attribute='name') | list }}"
   #       - "Desired service objects: {{ fortigate_service_objects_desired | map(attribute='name') | list }}"
   #       - "Desired VIP objects: {{ fortigate_vip_objects_desired | map(attribute='name') | list }}"
+  #       - "Desired policies: {{ fortigate_firewall_policies_desired | map(attribute='name') | list }}"
+  #       - "Desired static routes: {{ fortigate_static_routes_desired | map(attribute='seq_num') | list }}"
 
 - name: Configure FortiGate global settings
   fortinet.fortios.fortios_system_global:
@@ -275,6 +502,38 @@
   tags: [fortigate_config, fortigate_system]
   # - ansible.builtin.debug:
   #     var: fortigate_system_fortiguard_apply
+
+- name: Configure FortiGate static routes when different
+  fortinet.fortios.fortios_router_static:
+    vdom: "{{ fortigate_config_vdom }}"
+    state: present
+    router_static: "{{ item }}"
+  vars:
+    fortigate_static_route_key: "{{ item.seq_num | string }}"
+    fortigate_static_route_current: "{{ fortigate_static_route_current_by_seq[fortigate_static_route_key] | default({}) }}"
+    fortigate_static_route_needs_update: >-
+      {{
+        fortigate_config_force_apply | bool
+        or fortigate_static_route_key not in fortigate_static_route_current_by_seq
+        or fortigate_static_route_current.dst | default('') | string != item.dst | string
+        or fortigate_static_route_current.gateway | default('') | string != item.gateway | string
+        or fortigate_static_route_current.device | default('') | string != item.device | string
+        or fortigate_static_route_current.status | default('enable') | string != item.status | default('enable') | string
+      }}
+  loop: "{{ fortigate_static_routes_desired }}"
+  loop_control:
+    label: "{{ item.seq_num }} {{ item.dst }} via {{ item.gateway }} {{ item.device }}"
+  when:
+    - fortigate_config_enable_static_routes | bool
+    - item.seq_num is defined
+    - item.dst | default('') | string | length > 0
+    - item.gateway | default('') | string | length > 0
+    - item.device | default('') | string | length > 0
+    - fortigate_static_route_needs_update | bool
+  register: fortigate_static_route_apply
+  tags: [fortigate_config, fortigate_routes]
+  # - ansible.builtin.debug:
+  #     var: fortigate_static_route_apply
 
 - name: Configure FortiGate address objects when different
   fortinet.fortios.fortios_firewall_address:
@@ -345,7 +604,7 @@
     fortigate_policy_key: "{{ item.policyid | string }}"
     fortigate_policy_desired_compare: "{{ item | dict2items | rejectattr('key', 'in', fortigate_config_compare_ignored_keys + ['move_after', 'move_before']) | list | items2dict }}"
     fortigate_policy_current_compare: "{{ (fortigate_policy_current_by_id[fortigate_policy_key] | default({})) | dict2items | selectattr('key', 'in', item.keys() | list) | rejectattr('key', 'in', fortigate_config_compare_ignored_keys + ['move_after', 'move_before']) | list | items2dict }}"
-  loop: "{{ fortigate_firewall_policies }}"
+  loop: "{{ fortigate_firewall_policies_desired }}"
   loop_control:
     label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
   when:
@@ -398,7 +657,7 @@
   vars:
     fortigate_policy_current_index: "{{ fortigate_policy_current_ids.index(item.policyid | string) if (item.policyid | string) in fortigate_policy_current_ids else -1 }}"
     fortigate_policy_after_index: "{{ fortigate_policy_current_ids.index(item.move_after | string) if (item.move_after | string) in fortigate_policy_current_ids else -1 }}"
-  loop: "{{ fortigate_firewall_policies }}"
+  loop: "{{ fortigate_firewall_policies_desired }}"
   loop_control:
     label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
   when:
@@ -423,7 +682,7 @@
   vars:
     fortigate_policy_current_index: "{{ fortigate_policy_current_ids.index(item.policyid | string) if (item.policyid | string) in fortigate_policy_current_ids else -1 }}"
     fortigate_policy_before_index: "{{ fortigate_policy_current_ids.index(item.move_before | string) if (item.move_before | string) in fortigate_policy_current_ids else -1 }}"
-  loop: "{{ fortigate_firewall_policies }}"
+  loop: "{{ fortigate_firewall_policies_desired }}"
   loop_control:
     label: "{{ item.name | default(item.policyid | default('unnamed')) }}"
   when:
@@ -446,7 +705,8 @@
       - "Desired address objects: {{ fortigate_address_objects_desired | length }}"
       - "Desired custom services: {{ fortigate_service_objects_desired | length }}"
       - "Desired VIP objects: {{ fortigate_vip_objects_desired | length }}"
-      - "Desired firewall policies: {{ fortigate_firewall_policies | length }}"
+      - "Desired firewall policies: {{ fortigate_firewall_policies_desired | length }}"
+      - "Desired static routes: {{ fortigate_static_routes_desired | length }}"
       - "System global managed: {{ fortigate_config_enable_system_global | bool }}"
       - "System settings managed: {{ fortigate_config_enable_system_settings | bool }}"
       - "Password policy managed: {{ fortigate_config_enable_password_policy | bool }}"

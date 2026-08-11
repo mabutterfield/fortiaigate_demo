@@ -38,6 +38,7 @@ data:
         Record        source_product FortiAIGate
 
     [OUTPUT]
+{% if fortiaigate_syslog_output == "s3" %}
         Name                  s3
         Match                 fortiaigate.syslog
         bucket                ${SYSLOG_S3_BUCKET}
@@ -48,6 +49,14 @@ data:
         s3_key_format         /${SYSLOG_S3_PREFIX}/%Y/%m/%d/%H/%M/%S-$UUID.gz
         compression           gzip
         use_put_object        On
+{% else %}
+        Name                  file
+        Match                 fortiaigate.syslog
+        Path                  ${SYSLOG_FILE_PATH}
+        File                  ${SYSLOG_FILE_NAME}
+        Format                plain
+        Mkdir                 true
+{% endif %}
   parsers.conf: |
     [PARSER]
         Name        raw-syslog-line
@@ -83,10 +92,13 @@ spec:
             - -c
             - /fluent-bit/etc/fluent-bit.conf
           env:
+{% if fortiaigate_syslog_output == "s3" %}
             - name: AWS_REGION
               value: {{ aws_region | quote }}
+{% endif %}
             - name: SYSLOG_DEPLOYMENT_ID
               value: {{ fortiaigate_syslog_deployment_id | quote }}
+{% if fortiaigate_syslog_output == "s3" %}
             - name: SYSLOG_S3_BUCKET
               value: {{ fortiaigate_syslog_s3_bucket | quote }}
             - name: SYSLOG_S3_PREFIX
@@ -95,6 +107,12 @@ spec:
               value: {{ fortiaigate_syslog_s3_total_file_size | quote }}
             - name: SYSLOG_S3_UPLOAD_TIMEOUT
               value: {{ fortiaigate_syslog_s3_upload_timeout | quote }}
+{% else %}
+            - name: SYSLOG_FILE_PATH
+              value: {{ fortiaigate_syslog_file_path | quote }}
+            - name: SYSLOG_FILE_NAME
+              value: {{ fortiaigate_syslog_file_name | quote }}
+{% endif %}
           ports:
             - name: syslog-udp
               containerPort: {{ fortiaigate_syslog_container_port }}
@@ -108,14 +126,36 @@ spec:
               mountPath: /fluent-bit/etc/parsers.conf
               subPath: parsers.conf
               readOnly: true
+{% if fortiaigate_syslog_output == "s3" %}
             - name: s3-buffer
               mountPath: /buffers/s3
+{% else %}
+            - name: local-syslog
+              mountPath: {{ fortiaigate_syslog_file_path | quote }}
+{% endif %}
+{% if fortiaigate_syslog_output == "file" %}
+        - name: syslog-tail
+          image: "{{ fortiaigate_syslog_tail_image_repository }}:{{ fortiaigate_syslog_tail_image_tag }}"
+          imagePullPolicy: {{ fortiaigate_syslog_tail_image_pull_policy }}
+          command:
+            - /bin/sh
+            - -c
+            - "touch {{ fortiaigate_syslog_file_path }}/{{ fortiaigate_syslog_file_name }} && tail -F {{ fortiaigate_syslog_file_path }}/{{ fortiaigate_syslog_file_name }}"
+          volumeMounts:
+            - name: local-syslog
+              mountPath: {{ fortiaigate_syslog_file_path | quote }}
+{% endif %}
       volumes:
         - name: config
           configMap:
             name: {{ fortiaigate_syslog_release_name }}-config
+{% if fortiaigate_syslog_output == "s3" %}
         - name: s3-buffer
           emptyDir: {}
+{% else %}
+        - name: local-syslog
+          emptyDir: {}
+{% endif %}
 ---
 apiVersion: v1
 kind: Service

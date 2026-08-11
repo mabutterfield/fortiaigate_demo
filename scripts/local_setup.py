@@ -29,7 +29,8 @@ FORTIWEB_LOCAL_INVENTORY = REPO_ROOT / "ansible/inventory/fortiweb.local.generat
 DEFAULT_K3S_CLUSTER_CIDR = "10.60.0.0/16"
 DEFAULT_K3S_SERVICE_CIDR = "10.70.0.0/16"
 DEFAULT_K3S_CLUSTER_DNS = "10.70.0.10"
-DEFAULT_REGISTRY = "jarvis:5000"
+DEFAULT_LOCAL_HOST = "linux_host"
+DEFAULT_REGISTRY = "docker_repo_host:5000"
 DEFAULT_LOCAL_APPLIANCE_ADMIN = "apiadmin"
 T4_COMPUTE_CAPABILITY = 7.5
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -918,6 +919,8 @@ ollama_node_port_allowed_cidrs: "{{{{ local_access_cidrs }}}}"
 ollama_models:
   - gpt-oss:20b
 ollama_model: "{{{{ ollama_models[0] }}}}"
+ollama_keep_alive: 60m
+ollama_context_length: 32768
 ollama_internal_base_url: http://ollama.ollama.svc.cluster.local:11434/v1
 ollama_public_base_url: "http://{{{{ k3s_public_ip }}}}:{{{{ ollama_node_port }}}}/v1"
 ollama_base_url: "{{{{ ollama_internal_base_url }}}}"
@@ -932,6 +935,13 @@ litellm_use_ollama_model_list: true
 litellm_ollama_base_url: "{{{{ ollama_internal_base_url | regex_replace('/v1/?$', '') }}}}"
 litellm_passthrough_model_alias: pass-ollama
 litellm_faig_backend_downstream_model: "{{{{ litellm_passthrough_model_alias }}}}"
+
+# Local syslog keeps FortiAIGate log collection in-cluster and writes to a file
+# inside the collector pod instead of requiring an AWS S3 archive bucket.
+fortiaigate_syslog_collector_enabled: true
+fortiaigate_syslog_output: file
+fortiaigate_syslog_test_check_s3: false
+fortiaigate_syslog_test_wait_seconds: 8
 """
 
 
@@ -1217,8 +1227,8 @@ def persist_appliance_result(result: ApplianceBootstrapResult) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate local FortiAIGate deployment inventory and vars.")
     parser.add_argument("--non-interactive", action="store_true", help="Use defaults where possible and do not prompt for optional appliances.")
-    parser.add_argument("--host", default="jarvis", help="Ubuntu host IP or DNS name. Default: jarvis.")
-    parser.add_argument("--alias", default="jarvis", help="Ansible host alias. Default: jarvis.")
+    parser.add_argument("--host", default=DEFAULT_LOCAL_HOST, help=f"Ubuntu host IP or DNS name. Default: {DEFAULT_LOCAL_HOST}.")
+    parser.add_argument("--alias", default=DEFAULT_LOCAL_HOST, help=f"Ansible host alias. Default: {DEFAULT_LOCAL_HOST}.")
     parser.add_argument("--user", default="ubuntu", help="Ubuntu SSH user. Default: ubuntu.")
     parser.add_argument("--ssh-key", default="", help="SSH private key path. Empty uses ssh-agent/default SSH config.")
     parser.add_argument("--lab-cidr", default="", help="Local routed CIDR, for example 192.168.50.0/24.")

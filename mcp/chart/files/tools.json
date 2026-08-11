@@ -195,6 +195,106 @@
       "safe_summary": "Regional account manager supporting enterprise customer renewals."
     }
   },
+  "fortistore": {
+    "products": {
+      "FSTORE-1001": {
+        "product_id": "FSTORE-1001",
+        "name": "FortiGate Secure Branch Bundle",
+        "family": "network security",
+        "headline": "High-performance firewall, SD-WAN, and threat protection for branch and campus networks.",
+        "positioning": "Use FortiGate when the customer needs a security-first network edge with firewalling, VPN, segmentation, application control, and unified management hooks in one appliance family.",
+        "best_for": "Branch offices, distributed enterprises, and mid-market teams that want consolidated routing and security at the edge.",
+        "audiences": ["mid-market", "enterprise", "service-provider"],
+        "use_cases": ["branch-security", "sd-wan", "vpn", "application-control"],
+        "key_points": [
+          "Consolidates next-generation firewall, secure SD-WAN, IPS, VPN, and application visibility.",
+          "Pairs naturally with FortiManager and FortiAnalyzer for centralized operations.",
+          "Good anchor product when the buyer asks for perimeter, branch, or segmentation guidance."
+        ],
+        "cross_sell": ["FSTORE-1002", "FSTORE-1004", "FSTORE-1006"]
+      },
+      "FSTORE-1002": {
+        "product_id": "FSTORE-1002",
+        "name": "FortiSASE Remote Workforce Package",
+        "family": "SASE",
+        "headline": "Cloud-delivered secure access for remote users, SaaS applications, and internet-bound traffic.",
+        "positioning": "Use FortiSASE when users are everywhere and the customer wants consistent security inspection without forcing every session through a physical branch.",
+        "best_for": "Hybrid workforces, contractor access, and organizations modernizing from VPN-only remote access.",
+        "audiences": ["mid-market", "enterprise"],
+        "use_cases": ["remote-access", "zero-trust", "saas-security", "web-security"],
+        "key_points": [
+          "Combines secure web gateway, zero-trust access, cloud access security controls, and centralized policy.",
+          "Complements FortiGate for customers that want the same security intent at branches and for roaming users.",
+          "Good answer when the buyer asks about remote employees, ZTNA, SaaS, or reducing VPN dependence."
+        ],
+        "cross_sell": ["FSTORE-1001", "FSTORE-1003", "FSTORE-1006"]
+      },
+      "FSTORE-1003": {
+        "product_id": "FSTORE-1003",
+        "name": "FortiClient Endpoint Protection",
+        "family": "endpoint",
+        "headline": "Endpoint visibility, posture, VPN/ZTNA client access, and response controls.",
+        "positioning": "Use FortiClient when endpoint posture and secure user access need to feed network and cloud access decisions.",
+        "best_for": "Security teams that need endpoint compliance, remote-access enforcement, and tighter user-device context.",
+        "audiences": ["smb", "mid-market", "enterprise"],
+        "use_cases": ["endpoint-protection", "remote-access", "zero-trust", "incident-response"],
+        "key_points": [
+          "Helps connect device posture to access decisions.",
+          "Works well with FortiGate and FortiSASE stories where identity and endpoint state matter.",
+          "Useful for demos that need a user/device security conversation instead of only network-edge controls."
+        ],
+        "cross_sell": ["FSTORE-1001", "FSTORE-1002", "FSTORE-1006"]
+      },
+      "FSTORE-1004": {
+        "product_id": "FSTORE-1004",
+        "name": "FortiWeb Application Security",
+        "family": "application security",
+        "headline": "Web application and API protection for public-facing apps, portals, and AI-adjacent services.",
+        "positioning": "Use FortiWeb when the customer needs layer-7 application protection, API security, bot controls, and inspection in front of web workloads.",
+        "best_for": "Teams exposing web applications, APIs, partner portals, and application gateways.",
+        "audiences": ["mid-market", "enterprise", "service-provider"],
+        "use_cases": ["application-security", "api-security", "bot-mitigation", "web-protection"],
+        "key_points": [
+          "Protects application-layer traffic that a network firewall alone may not understand deeply.",
+          "Pairs with FortiGate at the network edge and FortiAnalyzer for operational visibility.",
+          "Good fit when buyers mention OWASP, API risk, bot traffic, or application-layer attacks."
+        ],
+        "cross_sell": ["FSTORE-1001", "FSTORE-1006"]
+      },
+      "FSTORE-1005": {
+        "product_id": "FSTORE-1005",
+        "name": "FortiCNAPP Cloud Security Starter",
+        "family": "cloud security",
+        "headline": "Cloud posture, workload, and risk visibility for teams moving quickly in public cloud.",
+        "positioning": "Use FortiCNAPP when cloud teams need unified visibility across configuration risk, workload posture, and application security signals.",
+        "best_for": "Cloud platform teams, DevSecOps teams, and enterprises building multi-cloud guardrails.",
+        "audiences": ["mid-market", "enterprise"],
+        "use_cases": ["cloud-security", "posture-management", "workload-protection", "devsecops"],
+        "key_points": [
+          "Frames cloud security around posture, workload, and runtime risk instead of only perimeter controls.",
+          "Useful when the buyer asks about AWS, Azure, containers, pipelines, or cloud-native security.",
+          "Complements FortiGate and FortiWeb where cloud apps also need network and application protection."
+        ],
+        "cross_sell": ["FSTORE-1001", "FSTORE-1004", "FSTORE-1006"]
+      },
+      "FSTORE-1006": {
+        "product_id": "FSTORE-1006",
+        "name": "FortiAnalyzer Operations Visibility",
+        "family": "security operations",
+        "headline": "Centralized logging, reporting, analytics, and investigation workflows for Fortinet environments.",
+        "positioning": "Use FortiAnalyzer when the customer needs to turn Fortinet security events into operational evidence, dashboards, reports, and investigations.",
+        "best_for": "SOC teams, compliance teams, managed service providers, and operators responsible for distributed Fortinet deployments.",
+        "audiences": ["mid-market", "enterprise", "service-provider"],
+        "use_cases": ["operations", "logging", "reporting", "compliance", "incident-response"],
+        "key_points": [
+          "Centralizes event visibility across Fortinet controls.",
+          "Supports reporting and investigation workflows for security and operations teams.",
+          "Good recommendation whenever the buyer asks how to prove value, monitor outcomes, or track policy impact."
+        ],
+        "cross_sell": ["FSTORE-1001", "FSTORE-1002", "FSTORE-1004"]
+      }
+    }
+  },
   "menu": {
     "items": {
       "MENU-1001": {

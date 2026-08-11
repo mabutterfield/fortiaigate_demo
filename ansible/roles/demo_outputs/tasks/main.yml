@@ -488,7 +488,7 @@
   delegate_to: "{{ groups.get('fortiaigate', [])[0] }}"
   register: demo_outputs_syslog_cluster_ip_raw
   when:
-    - fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+    - (fortiaigate_syslog_collector_enabled | default(false) | bool) or (fortiaigate_syslog_bucket_name | default('', true) | string | length > 0)
     - groups.get('fortiaigate', []) | length > 0
   # - ansible.builtin.debug:
   #     var: demo_outputs_syslog_cluster_ip_raw.stdout
@@ -509,7 +509,7 @@
           else 'unavailable'
         )
       }}
-  when: fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+  when: (fortiaigate_syslog_collector_enabled | default(false) | bool) or (fortiaigate_syslog_bucket_name | default('', true) | string | length > 0)
   # - ansible.builtin.debug:
   #     var: demo_outputs_syslog_cluster_ip
 
@@ -548,27 +548,31 @@
     demo_outputs_syslog_target: >-
       {{
         (fortiaigate_syslog_release_name | default('fortiaigate-syslog')) ~ '.' ~ (fortiaigate_syslog_namespace | default('fortiaigate-logging')) ~ '.svc.cluster.local:' ~ (fortiaigate_syslog_service_port | default(514) | string) ~ '/udp'
-        if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
-        else 'disabled (enable fortiaigate_syslog_bucket_enabled=true in terraform/aws-prep)'
+        if ((fortiaigate_syslog_collector_enabled | default(false) | bool) or (fortiaigate_syslog_bucket_name | default('', true) | string | length > 0))
+        else (
+          'disabled (set fortiaigate_syslog_collector_enabled=true and fortiaigate_syslog_output=file)'
+          if (deployment_target | default('aws')) == 'local'
+          else 'disabled (enable fortiaigate_syslog_bucket_enabled=true in terraform/aws-prep)'
+        )
       }}
     demo_outputs_syslog_ip_target: >-
       {{
         demo_outputs_syslog_cluster_ip ~ ':' ~ (fortiaigate_syslog_service_port | default(514) | string) ~ '/udp'
         if (
-          fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+          ((fortiaigate_syslog_collector_enabled | default(false) | bool) or (fortiaigate_syslog_bucket_name | default('', true) | string | length > 0))
           and demo_outputs_syslog_cluster_ip | default('unavailable') != 'unavailable'
         )
         else (
           'unavailable (run status_fortiaigate_syslog_collector.yml)'
-          if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+          if ((fortiaigate_syslog_collector_enabled | default(false) | bool) or (fortiaigate_syslog_bucket_name | default('', true) | string | length > 0))
           else 'disabled'
         )
       }}
     demo_outputs_syslog_s3_target: >-
       {{
         's3://' ~ fortiaigate_syslog_bucket_name ~ '/' ~ (fortiaigate_syslog_prefix | default('fortiaigate/syslog', true) | regex_replace('^/+|/+$', '')) ~ '/'
-        if fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
-        else 'disabled'
+        if (fortiaigate_syslog_output | default('s3')) == 's3' and fortiaigate_syslog_bucket_name | default('', true) | string | length > 0
+        else 'disabled; use local collector file for file mode'
       }}
   # - ansible.builtin.debug:
   #     msg:

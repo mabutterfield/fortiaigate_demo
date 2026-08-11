@@ -153,8 +153,12 @@ the admin object and sends a full-object update back to FortiWeb. On first-boot
 default-admin accounts this can disturb the default instance-ID password even
 when the playbook does not explicitly set a password.
 
-The generated FortiWeb NodePort proxy chain is enabled in repo system defaults
-with `fortiweb_mcp_proxy_enabled: true`. Override it in ignored
+The generated FortiWeb MCP proxy chain is enabled in repo system defaults
+with `fortiweb_mcp_proxy_enabled: true`. The default generated proxy set is
+intentionally narrow: MCP HTTP and MCP HTTPS only. This keeps FortiWeb
+configuration time reasonable for normal Phase 10 demos while preserving the
+role's wider OpenWebUI, chatbot, demo home, and LiteLLM proxy definitions for
+opt-in overrides. Override it in ignored
 `ansible/group_vars/user.yml` only when you want to skip FortiWeb listener and
 server-policy creation:
 
@@ -163,10 +167,10 @@ fortiweb_mcp_proxy_enabled: false
 ```
 
 This creates no-inspection reverse proxies using the FortiWeb collection's
-existing server-policy resources. HTTP listeners use the generated HTTP
-NodePorts. HTTPS listeners use FortiWeb reverse-proxy SSL on the front end and
-SSL-enabled server-pool members on the back end. Listener and backend ports
-match by default.
+existing server-policy resources. The MCP HTTP listener uses the generated MCP
+HTTP NodePort. The MCP HTTPS listener uses FortiWeb reverse-proxy SSL on the
+front end and an SSL-enabled server-pool member on the back end. Listener and
+backend ports match by default.
 
 FortiWeb 8.0.3+ MCP Security appears to use
 `/api/v2.0/cmdb/waf/mcp-security.policy`, but the pinned collection does not

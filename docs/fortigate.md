@@ -100,8 +100,12 @@ Ansible vars.
 - FortiGuard automatic patch firmware upgrade setting
 - static FortiGate address objects generated from repo-owned public/private IPs
 - generated custom service objects for the demo k3s NodePort listeners
+- optional generated LiteLLM/FortiAIGate inspection services, VIP objects, and
+  firewall policies when `fortigate_llm_proxy_enabled=true`
+- optional static route for the FortiGate AI-inspection path so AWS FortiGate
+  can reach k3s NodePorts through port2
 - optional static address objects, static service objects, VIP objects, and
-  firewall policies
+  firewall policies for lab-specific additions or overrides
 
 System maps are pushed as one map. Address objects, service objects, VIP
 objects, and firewall policies are gathered from FortiGate first and only
@@ -110,6 +114,39 @@ applied when the desired object differs. Static object variables in ignored
 so a static object can add a new object or override a generated one. Inbound
 NAT policies should define the VIP in `fortigate_vip_objects_static`, then
 reference that VIP name in the firewall policy `dstaddr`.
+
+## Phase 10 Traffic And Application-Control Testing
+
+Phase 10E adds an opt-in FortiGate traffic demo path. It has two manual-first
+tracks:
+
+- outbound AI application detection from a VM behind FortiGate using
+  `scripts/fortigate_ai_app_proxy_touch.py`
+- inbound plain HTTP LLM inspection through
+  `http://<fgt-ip>:4000/v1`, forwarded to LiteLLM
+- inbound HTTPS FortiAIGate inspection through
+  `https://<fgt-ip>/v1/...`, forwarded to the k3s HTTPS ingress
+
+When `fortigate_llm_proxy_enabled=true`, Ansible generates the listener VIPs
+and policies with full traffic logging, Application Control profile `default`,
+and SSL/SSH inspection profiles selected for the path:
+
+| Path | Listener | Backend | SSL/SSH profile | Application Control |
+|---|---|---|---|---|
+| LiteLLM HTTP | `TCP/4000` | k3s LiteLLM NodePort, default `30083` | `certificate-inspection` | `default` |
+| FAIG HTTPS | `TCP/443` | k3s HTTPS ingress `443` | `custom-deep-inspection` | `default` |
+
+The LiteLLM policy service includes both `4000` and the translated backend
+NodePort so policy matching remains useful while testing FortiGate VIP/NAT
+behavior. The FAIG HTTPS path may present an untrusted certificate to test
+clients; use explicit TLS verification disablement, such as `curl -k`, only for
+this lab path.
+
+The goal is to generate traffic that FortiGate classifies, inspects, and logs.
+Do not insert or falsify appliance log records. This path does not alter the
+default AWS quickstart, local quickstart, or FAIG scenario routing.
+
+See [FortiGate Traffic Demo](fortigate-proxy-demo.md) for the current runbook.
 
 `configure_fortigate_api_accounts.yml` creates a managed read-only profile
 named `FAIG_READ_ONLY` and a read-only API admin named `faig-readonly-api` by
@@ -140,6 +177,11 @@ The default HTTPS admin port is `8443`. Set `fortigate_admin_port = 443` in
 ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes through
 `fortigate_admin_timeout_minutes`.
+
+The FortiGate AWS security group also exposes TCP `4000` from trusted public
+CIDRs by default for the optional Phase 10 LiteLLM proxy listener. Override
+`fortigate_public_listener_tcp_ports` in ignored FortiGate tfvars only when the
+lab needs a different public listener set.
 
 Set `fortigate_license_mode = "fortiflex_token"` and
 `fortigate_fortiflex_token` in ignored `terraform/aws-fortigate/99-local.auto.tfvars`

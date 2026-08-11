@@ -39,6 +39,12 @@ chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 
 chatbot_direct_base_url: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
 chatbot_direct_api_key: "{{ litellm_master_key | default('sk-litellm-demo-change-me') }}"
+chatbot_fortigate_litellm_base_url: ""
+chatbot_fortigate_litellm_api_key: "{{ chatbot_direct_api_key }}"
+chatbot_fortigate_ollama_base_url: ""
+chatbot_fortigate_ollama_api_key: not-used
+chatbot_fortigate_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
+chatbot_fortigate_ollama_model_options: "{{ ollama_models | default([chatbot_fortigate_ollama_model]) }}"
 faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 chatbot_faig_base_url: "{{ faig_internal_base_url }}"
 chatbot_faig_api_key: "{{ fortiaigate_test_api_key | default('') }}"
@@ -65,6 +71,17 @@ chatbot_faig_static_routes:
     label: Demo B -> FAIG Re-entry
     base_path: /v1/demo-b-faig-be
     model: "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
+chatbot_phase10_scenario_routes_enabled: false
+chatbot_phase10_scenario_static_routes:
+  - name: demo-c
+    label: Demo C - Output DLP
+    base_path: /v1/demo-c
+    model: demo-c
+  - name: demo-d
+    label: Demo D - Input DLP
+    base_path: /v1/demo-d
+    model: demo-d
+chatbot_faig_static_routes_effective: "{{ chatbot_faig_static_routes + (chatbot_phase10_scenario_static_routes if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_faig_header_route: passthrough
 chatbot_faig_header_routes:
   - name: passthrough
@@ -90,8 +107,13 @@ chatbot_model_options:
   - "{{ litellm_demo_a_faig_be_model_alias | default('demo-a-faig-be') }}"
   - "{{ litellm_demo_b_faig_be_model_alias | default('demo-b-faig-be') }}"
   - "{{ litellm_ollama_model_alias | default('llama3.2:1b') }}"
+chatbot_phase10_scenario_model_options:
+  - demo-c
+  - demo-d
+chatbot_model_options_effective: "{{ chatbot_model_options + (chatbot_phase10_scenario_model_options if chatbot_phase10_scenario_routes_enabled | bool else []) }}"
 chatbot_frontend_system_prompt: ""
-chatbot_frontend_system_prompt_source_path: ""
+chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
+chatbot_frontend_system_prompt_enabled: false
 chatbot_mcp_enabled: true
 chatbot_mcp_direct_base_url: "{{ mcp_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8000') }}"
 chatbot_mcp_fortiweb_base_url: >-
@@ -112,6 +134,19 @@ chatbot_mcp_verify_tls: false
 chatbot_mcp_max_tool_rounds: 3
 chatbot_mcp_tool_profile: all-tools
 chatbot_mcp_tool_profiles: []
+chatbot_mcp_tool_profiles_source: installed
+chatbot_mcp_tool_profile_mode: replace
+chatbot_mcp_installed_tool_profile_slots:
+  - demo-a
+  - demo-b
+chatbot_mcp_show_debug_all_server_tools: false
+chatbot_ui_mode: detailed
+chatbot_simplified_profiles: []
+chatbot_simplified_profiles_source: installed
+chatbot_simplified_profile_slots:
+  - demo-a
+  - demo-b
+  - frontend
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
@@ -126,14 +161,22 @@ chatbot_instances:
     node_port: "{{ demo_chatbot_http_port | default(30081) }}"
     direct_base_url: "{{ chatbot_direct_base_url }}"
     direct_api_key: "{{ chatbot_direct_api_key }}"
+    fortigate_litellm_base_url: "{{ chatbot_fortigate_litellm_base_url }}"
+    fortigate_litellm_api_key: "{{ chatbot_fortigate_litellm_api_key }}"
+    fortigate_ollama_base_url: "{{ chatbot_fortigate_ollama_base_url }}"
+    fortigate_ollama_api_key: "{{ chatbot_fortigate_ollama_api_key }}"
+    fortigate_ollama_model: "{{ chatbot_fortigate_ollama_model }}"
+    fortigate_ollama_model_options: "{{ chatbot_fortigate_ollama_model_options }}"
     faig_base_url: "{{ chatbot_faig_base_url }}"
     faig_api_key: "{{ chatbot_faig_api_key }}"
     faig_static_route: "{{ chatbot_faig_static_route }}"
+    faig_static_routes: "{{ chatbot_faig_static_routes_effective }}"
     faig_header_route: "{{ chatbot_faig_header_route }}"
     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
-    model_options: "{{ chatbot_model_options }}"
+    model_options: "{{ chatbot_model_options_effective }}"
     frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
+    frontend_system_prompt_enabled: "{{ chatbot_frontend_system_prompt_enabled }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"
     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
@@ -141,6 +184,9 @@ chatbot_instances:
     mcp_max_tool_rounds: "{{ chatbot_mcp_max_tool_rounds }}"
     mcp_tool_profile: "{{ chatbot_mcp_tool_profile }}"
     mcp_tool_profiles: "{{ chatbot_mcp_tool_profiles }}"
+    mcp_tool_profile_mode: "{{ chatbot_mcp_tool_profile_mode }}"
+    ui_mode: "{{ chatbot_ui_mode }}"
+    simplified_profiles: "{{ chatbot_simplified_profiles_effective | default(chatbot_simplified_profiles) }}"
     context_mode: "{{ chatbot_context_mode }}"
     context_window: "{{ chatbot_context_window }}"
     context_summary_max_chars: "{{ chatbot_context_summary_max_chars }}"
@@ -148,5 +194,5 @@ chatbot_instances:
     show_context: "{{ chatbot_show_context }}"
     title: "Demo Chatbot"
     header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct, FAIG Static, or FAIG Intelligent
+    provider_label: Direct, FortiGate, FAIG Static, or FAIG Intelligent
     ingress_host: ""

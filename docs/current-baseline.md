@@ -3,6 +3,11 @@
 This page is the compact status reference for current defaults. For the design
 and request paths, see [Architecture](architecture.md).
 
+Status: Phase 10 pre-Phase-11 baseline candidate. Current profile and route
+names such as `demo-a`, `demo-b`, `demo-c`, and `demo-d` are compatibility
+names, not the planned v1.0 naming model. Phase 11 is expected to become the
+v1.0 baseline with scenario-owned paths and generated scenario metadata.
+
 ## Component Inventory
 
 | Component | Status | Namespace | Default public access |
@@ -17,11 +22,26 @@ and request paths, see [Architecture](architecture.md).
 | Open WebUI | optional, disabled by default | `openwebui` | `http://<k3s-ip>:30080` when enabled |
 | FortiGate appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiGate EIP |
 | FortiWeb appliance | Terraform and Ansible baseline, enabled by default | n/a | FortiWeb EIP and FortiWeb-fronted NodePorts |
+| Ollama | supported for local mode, disabled for AWS defaults | `ollama` | local trusted-lab HTTP NodePort `30085` when deployed |
+
+## Phase 10 Supported Paths
+
+| Path | Provider | Infrastructure | Notes |
+|---|---|---|---|
+| AWS quickstart | Bedrock through LiteLLM | Terraform-created EC2 GPU/k3s, ECR, AWS prep, FortiGate, FortiWeb | Primary supported path. FortiGate and FortiWeb are enabled by default for the full AWS demo and can be disabled with ignored local overrides. |
+| Local Ubuntu quickstart | Ollama through LiteLLM | Existing Ubuntu 24.04 GPU host, generated local inventory/vars, local or LAN registry | Supported lab path. Local appliances are optional and are onboarded by `scripts/local_setup.py` when present. |
+| Manual quickstart | Same as selected AWS/local path | Operator-run Terraform and Ansible commands | Troubleshooting and recovery path. Automated quickstart remains the normal first-run walkthrough. |
+
+Local mode writes ignored generated files such as
+`ansible/inventory/local.generated.ini`,
+`ansible/group_vars/local.generated.yml`,
+`ansible/group_vars/local.secrets.yml`, and local registry/appliance inventory
+files. Do not commit those files or exported local-var archives.
 
 ## Default Port Map
 
-Terraform generates these values into
-`ansible/group_vars/ports.generated.yml`.
+Terraform generates these values into `ansible/group_vars/ports.generated.yml`
+for AWS. Local setup generates compatible values for local mode when needed.
 
 | Service | HTTP | HTTPS gateway |
 |---|---:|---:|
@@ -30,6 +50,7 @@ Terraform generates these values into
 | demo home | `30082` | `30445` |
 | LiteLLM Admin/API | `30083` | `30446` |
 | MCP demo tools | `30084` | `30447` |
+| Ollama, local mode only | `30085` | n/a |
 
 The HTTPS gateway terminates a self-signed certificate and proxies to the HTTP
 services. It is enabled in repo system defaults, but interactive quickstart
@@ -37,7 +58,7 @@ still asks before running the HTTPS gateway playbook.
 
 ## Deploy Order
 
-Automated quickstart and manual deployment use this order:
+Automated AWS quickstart and manual AWS deployment use this order:
 
 1. Terraform shared config
 2. Terraform ECR
@@ -62,6 +83,23 @@ Automated quickstart and manual deployment use this order:
 21. FortiWeb/direct HTTP path validation when FortiWeb is enabled
 22. final FortiAIGate status check and consolidated output display
 
+Local quickstart skips Terraform and starts from generated local inventory and
+vars:
+
+1. `scripts/local_setup.py` captures the local Ubuntu SSH target, local/LAN
+   registry, GPU assignment, Ollama defaults, and optional local appliance
+   onboarding.
+2. `automated_quickstart.py --local` uses
+   `ansible/inventory/local.generated.ini`.
+3. k3s bootstrap validates local GPU/runtime visibility.
+4. FortiAIGate deploy/status runs against the local host.
+5. Ollama deploy/status/validate runs in k3s and LiteLLM points at the
+   in-cluster Ollama service.
+6. MCP, chatbot, demo home, optional Open WebUI, and optional HTTPS gateway use
+   the same application roles as the AWS path.
+7. Local FortiGate/FortiWeb status and configuration playbooks run only when
+   local appliance inventory exists.
+
 Automated quickstart checks FortiAIGate once after Helm deploy, continues with
 the remaining app deployments, then checks FortiAIGate status again at the end.
 Use `--faig-status-mode wait` when a run should block until FortiAIGate reports
@@ -76,6 +114,7 @@ READY before deploying the remaining demo apps.
 | FortiGate | `status_fortigate.yml` | `configure_fortigate.yml` gathers and compares managed objects before applying |
 | FortiWeb | `status_fortiweb.yml` | `validate_demo_http_paths.yml` checks direct and FortiWeb paths |
 | LiteLLM | `status_litellm.yml` | `validate_litellm.yml` |
+| Ollama, local mode | `status_ollama.yml` | `validate_ollama.yml` |
 | MCP demo tools | `status_mcp.yml` | `validate_mcp.yml` |
 | FortiAIGate syslog collector | `status_fortiaigate_syslog_collector.yml` | `test_fortiaigate_syslog_collector.yml` |
 | Open WebUI, when enabled | `status_openwebui.yml` | `validate_openwebui.yml` |
@@ -92,8 +131,16 @@ Smoke-test playbooks:
 ## Remaining Caveats
 
 - FortiAIGate GUI provider/guard/route setup is still manual.
+- Current scenario routing uses transitional `demo-a`/`demo-b` compatibility
+  names. Phase 11 will replace those with generated scenario-owned paths and
+  profile metadata.
 - FortiWeb MCP Security policy is not automated because the FortiWeb collection
   does not expose the FortiWeb 8.0.3+ MCP Security object yet.
-- FortiWeb default admin password reset behavior must be validated on a clean
-  rebuild where no prior GUI login changed the state.
-- private k3s subnet mode still needs a full appliance-fronted validation pass.
+- Long-running traffic generation exists for local-safe demo capture but should
+  be treated as optional, operator-controlled traffic.
+- The local path is supported for trusted labs. Local Ollama's NodePort is
+  plain HTTP and must not be exposed to untrusted networks.
+- Some local Phase 9/10 flows were validated in the lab and still need final
+  Phase 10 fresh-run validation before the Phase 11 baseline work starts.
+- private k3s subnet mode and full appliance-fronted-only access remain future
+  validation items.

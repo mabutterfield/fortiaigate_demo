@@ -43,6 +43,11 @@ ignored `99-local.auto.tfvars` when you want the standard HTTPS management port.
 The default admin idle timeout is 60 minutes. Override it with
 `fortigate_admin_timeout_minutes` when needed.
 
+The FortiGate security group exposes TCP `4000` from trusted public CIDRs by
+default for the optional Phase 10 LiteLLM proxy listener. Override
+`fortigate_public_listener_tcp_ports` only when the lab listener set should
+change.
+
 For BYOL file testing, set `fortigate_license_source_dir` and
 `fortigate_license_file_name` in ignored `99-local.auto.tfvars` to a real FortiGate
 license under the parent workspace `licenses/` directory. The committed
