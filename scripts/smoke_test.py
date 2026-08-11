@@ -43,7 +43,6 @@ REQUIRED_PATHS = [
     "functional_test/curl_renderer.py",
     "functional_test/validation.py",
     "load_test/__main__.py",
-    "load_test/scenario_validation.py",
     "load_test/traffic_generator.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
