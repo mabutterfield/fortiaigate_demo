@@ -49,18 +49,14 @@
   register: chatbot_scenario_matrix_result
   delegate_to: localhost
   become: false
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_scenario_matrix_result.stdout_lines
 
 - name: Set chatbot scenario matrix fact
   ansible.builtin.set_fact:
     chatbot_scenario_matrix: "{{ chatbot_scenario_matrix_result.stdout | from_json }}"
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_scenario_matrix
 
@@ -69,7 +65,6 @@
     msg: "{{ chatbot_scenario_matrix.warnings }}"
   when:
     - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
     - chatbot_scenario_matrix.warnings | length > 0
 
 - name: Report selected scenario matrix defaults
@@ -79,16 +74,12 @@
       fortiweb_mcp_enabled: "{{ chatbot_scenario_matrix.capabilities.fortiweb_mcp_enabled }}"
       faig_chain_available: "{{ chatbot_scenario_matrix.capabilities.faig_chain_available }}"
       enabled_faig_chains: "{{ chatbot_scenario_matrix.faig_chains | map(attribute='scenario_id') | list }}"
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
 
 - name: Reset effective chatbot frontend instruction profiles
   ansible.builtin.set_fact:
     chatbot_frontend_instruction_profiles: []
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_frontend_instruction_profiles
 
@@ -119,9 +110,7 @@
   loop: "{{ chatbot_scenario_matrix.chatbot_frontend_instruction_profiles }}"
   loop_control:
     label: "{{ item.id }}"
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_frontend_instruction_profiles
 
@@ -159,9 +148,7 @@
     chatbot_frontend_instruction_profile: none
     chatbot_context_summary_model: "{{ chatbot_scenario_matrix.global.passthrough_model_alias }}"
     chatbot_ui_mode: simplified
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     msg:
   #       models: "{{ chatbot_model_options_effective }}"
@@ -179,9 +166,7 @@
         | list
         | length == 0
     fail_msg: "Scenario matrix chatbot output must include canonical passthrough and cannot generate demo-letter options."
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: chatbots_enabled | bool
 
 - name: Validate chatbot instance definitions
   ansible.builtin.assert:
@@ -205,39 +190,6 @@
   loop: "{{ chatbot_instances }}"
   no_log: true
   when: chatbots_enabled | bool
-
-- name: Ensure local chatbot instruction profile directories exist
-  ansible.builtin.file:
-    path: "{{ item.value.local_path | dirname }}"
-    state: directory
-    mode: "0755"
-  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-  delegate_to: localhost
-  become: false
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'legacy'
-    - item.value.example_path is file
-
-- name: Initialize local chatbot instruction profile files from examples
-  ansible.builtin.copy:
-    src: "{{ item.value.example_path }}"
-    dest: "{{ item.value.local_path }}"
-    mode: "0644"
-    force: false
-  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-  delegate_to: localhost
-  become: false
-  when:
-    - chatbots_enabled | bool
-    - demo_configuration_source == 'legacy'
-    - item.value.example_path is file
-  # - ansible.builtin.debug:
-  #     msg: "Initialized local chatbot instruction profile {{ item.key }} at {{ item.value.local_path }}"
 
 - name: Install Helm when missing
   ansible.builtin.shell: |
@@ -341,78 +293,6 @@
     - chatbot_image_pull_secrets | default([], true) | length > 0
   # - ansible.builtin.debug:
   #     var: chatbot_ecr_pull_token_result.rc
-
-- name: Build chatbot MCP tool profiles from installed scenarios
-  ansible.builtin.command:
-    argv: "{{ ['python3', playbook_dir ~ '/../../scripts/build_chatbot_mcp_profiles.py', '--slots'] + (chatbot_mcp_installed_tool_profile_slots | default(['demo-a', 'demo-b'], true) | list) + (['--include-debug-all-server-tools'] if chatbot_mcp_show_debug_all_server_tools | default(false) | bool else []) }}"
-  delegate_to: localhost
-  become: false
-  changed_when: false
-  register: chatbot_mcp_installed_tool_profiles_raw
-  when:
-    - chatbots_enabled | bool
-    - chatbot_mcp_tool_profiles_source | default('installed') == 'installed'
-  tags: [chatbot, chatbot_mcp_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_mcp_installed_tool_profiles_raw.stdout
-
-- name: Set effective chatbot MCP tool profile facts
-  ansible.builtin.set_fact:
-    chatbot_mcp_installed_tool_profiles_data: "{{ chatbot_mcp_installed_tool_profiles_raw.stdout | from_json }}"
-    chatbot_mcp_tool_profiles_effective: "{{ (chatbot_mcp_installed_tool_profiles_raw.stdout | from_json).profiles }}"
-    chatbot_mcp_tool_profile_effective: "{{ (chatbot_mcp_installed_tool_profiles_raw.stdout | from_json).default_profile }}"
-  when:
-    - chatbots_enabled | bool
-    - chatbot_mcp_tool_profiles_source | default('installed') == 'installed'
-  tags: [chatbot, chatbot_mcp_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_mcp_tool_profiles_effective
-
-- name: Use configured chatbot MCP tool profiles
-  ansible.builtin.set_fact:
-    chatbot_mcp_tool_profiles_effective: "{{ chatbot_mcp_tool_profiles }}"
-    chatbot_mcp_tool_profile_effective: "{{ chatbot_mcp_tool_profile }}"
-  when:
-    - chatbots_enabled | bool
-    - chatbot_mcp_tool_profiles_source | default('installed') == 'configured'
-  tags: [chatbot, chatbot_mcp_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_mcp_tool_profiles_effective
-
-- name: Build simplified chatbot demo profiles from installed scenarios
-  ansible.builtin.command:
-    argv: "{{ ['python3', playbook_dir ~ '/../../scripts/build_chatbot_demo_profiles.py', '--slots'] + (chatbot_simplified_profile_slots | default(['demo-a', 'demo-b', 'frontend'], true) | list) }}"
-  delegate_to: localhost
-  become: false
-  changed_when: false
-  register: chatbot_simplified_installed_profiles_raw
-  when:
-    - chatbots_enabled | bool
-    - chatbot_simplified_profiles_source | default('installed') == 'installed'
-  tags: [chatbot, chatbot_simplified_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_simplified_installed_profiles_raw.stdout
-
-- name: Set effective simplified chatbot demo profile facts
-  ansible.builtin.set_fact:
-    chatbot_simplified_installed_profiles_data: "{{ chatbot_simplified_installed_profiles_raw.stdout | from_json }}"
-    chatbot_simplified_profiles_effective: "{{ (chatbot_simplified_installed_profiles_raw.stdout | from_json).profiles }}"
-  when:
-    - chatbots_enabled | bool
-    - chatbot_simplified_profiles_source | default('installed') == 'installed'
-  tags: [chatbot, chatbot_simplified_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_simplified_profiles_effective
-
-- name: Use configured simplified chatbot demo profiles
-  ansible.builtin.set_fact:
-    chatbot_simplified_profiles_effective: "{{ chatbot_simplified_profiles }}"
-  when:
-    - chatbots_enabled | bool
-    - chatbot_simplified_profiles_source | default('installed') == 'configured'
-  tags: [chatbot, chatbot_simplified_profiles]
-  # - ansible.builtin.debug:
-  #     var: chatbot_simplified_profiles_effective
 
 - name: Fail when chatbot ECR pull token retrieval failed
   ansible.builtin.fail:

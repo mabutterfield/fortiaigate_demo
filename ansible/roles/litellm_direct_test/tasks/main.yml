@@ -8,7 +8,6 @@
   register: litellm_direct_test_matrix_result
   delegate_to: localhost
   become: false
-  when: demo_configuration_source == 'scenario_matrix'
   # - ansible.builtin.debug:
   #     var: litellm_direct_test_matrix_result.stdout_lines
 
@@ -30,7 +29,6 @@
         )
         | first
       }}
-  when: demo_configuration_source == 'scenario_matrix'
   # - ansible.builtin.debug:
   #     var: litellm_direct_test_models
 

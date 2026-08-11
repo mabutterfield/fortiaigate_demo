@@ -4,13 +4,6 @@
     msg: "litellm_enabled=false; skipping LiteLLM deployment."
   when: not litellm_enabled | bool
 
-- name: Validate demo configuration source
-  ansible.builtin.assert:
-    that:
-      - demo_configuration_source in ['scenario_matrix', 'legacy']
-    fail_msg: "demo_configuration_source must be scenario_matrix or legacy."
-  when: litellm_enabled | bool
-
 - name: Build installed scenario matrix on the controller
   ansible.builtin.command:
     argv: >-
@@ -32,96 +25,25 @@
   register: scenario_matrix_builder_result
   delegate_to: localhost
   become: false
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: scenario_matrix_builder_result.stdout_lines
 
 - name: Set installed scenario matrix fact
   ansible.builtin.set_fact:
     scenario_matrix_runtime: "{{ scenario_matrix_builder_result.stdout | from_json }}"
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: scenario_matrix_runtime
 
-- name: Set LiteLLM Ollama model list facts
+- name: Set LiteLLM primary Ollama model fact
   ansible.builtin.set_fact:
     litellm_primary_ollama_model: "{{ ollama_model | default((ollama_models | first), true) }}"
-    litellm_configured_ollama_models: "{{ ollama_models | default([ollama_model], true) }}"
   when:
     - litellm_enabled | bool
     - litellm_use_ollama_model_list | bool
   # - ansible.builtin.debug:
-  #     msg:
-  #       primary: "{{ litellm_primary_ollama_model }}"
-  #       models: "{{ litellm_configured_ollama_models }}"
-
-- name: Build LiteLLM Ollama demo aliases
-  ansible.builtin.set_fact:
-    litellm_ollama_model_entries:
-      - name: "{{ litellm_passthrough_model_alias }}"
-        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
-        api_base: "{{ litellm_ollama_base_url }}"
-        instruction_profile: passthrough
-      - name: "{{ litellm_demo_a_model_alias }}"
-        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
-        api_base: "{{ litellm_ollama_base_url }}"
-        instruction_profile: demo-a
-      - name: "{{ litellm_demo_b_model_alias }}"
-        provider_model: "ollama_chat/{{ litellm_primary_ollama_model }}"
-        api_base: "{{ litellm_ollama_base_url }}"
-        instruction_profile: demo-b
-      - name: "{{ litellm_demo_a_faig_be_model_alias }}"
-        provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-        api_base: "{{ litellm_faig_backend_base_url }}"
-        api_key: "{{ litellm_faig_backend_api_key }}"
-        instruction_profile: demo-a
-      - name: "{{ litellm_demo_b_faig_be_model_alias }}"
-        provider_model: "openai/{{ litellm_faig_backend_downstream_model }}"
-        api_base: "{{ litellm_faig_backend_base_url }}"
-        api_key: "{{ litellm_faig_backend_api_key }}"
-        instruction_profile: demo-b
-  when:
-    - litellm_enabled | bool
-    - litellm_use_ollama_model_list | bool
-    - demo_configuration_source == 'legacy'
-  # - ansible.builtin.debug:
-  #     var: litellm_ollama_model_entries
-
-- name: Add configured Ollama models to LiteLLM model list
-  ansible.builtin.set_fact:
-    litellm_ollama_model_entries: >-
-      {{
-        litellm_ollama_model_entries
-        + [
-          {
-            'name': item,
-            'provider_model': 'ollama_chat/' ~ item,
-            'api_base': litellm_ollama_base_url,
-            'instruction_profile': 'passthrough'
-          }
-        ]
-      }}
-  loop: "{{ litellm_configured_ollama_models }}"
-  when:
-    - litellm_enabled | bool
-    - litellm_use_ollama_model_list | bool
-    - demo_configuration_source == 'legacy'
-  # - ansible.builtin.debug:
-  #     var: litellm_ollama_model_entries
-
-- name: Use generated LiteLLM Ollama model list
-  ansible.builtin.set_fact:
-    litellm_models: "{{ litellm_ollama_model_entries }}"
-  when:
-    - litellm_enabled | bool
-    - litellm_use_ollama_model_list | bool
-    - demo_configuration_source == 'legacy'
-  # - ansible.builtin.debug:
-  #     var: litellm_models
+  #     var: litellm_primary_ollama_model
 
 - name: Validate LiteLLM deployment settings
   ansible.builtin.assert:
@@ -248,7 +170,6 @@
     fail_msg: "Scenario matrix llm-default requires either the Ollama or Bedrock LiteLLM provider."
   when:
     - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
 
 - name: Set scenario matrix default LLM target
   ansible.builtin.set_fact:
@@ -264,9 +185,7 @@
           'aws_region_name': litellm_effective_bedrock_region
         }
       }}
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: scenario_matrix_default_llm_target
 
@@ -285,9 +204,7 @@
         | combine(scenario_matrix_llm_target_overrides, recursive=true)
       }}
   no_log: true
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: scenario_matrix_effective_llm_targets
 
@@ -302,14 +219,11 @@
     label: "{{ item.name }}"
   when:
     - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
 
 - name: Reset scenario matrix LiteLLM models
   ansible.builtin.set_fact:
     litellm_models: []
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_models
 
@@ -332,16 +246,13 @@
     label: "{{ item.name }}"
   when:
     - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
   # - ansible.builtin.debug:
   #     var: litellm_models
 
 - name: Reset scenario matrix LiteLLM instruction profiles
   ansible.builtin.set_fact:
     litellm_instruction_profiles: []
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_instruction_profiles
 
@@ -367,16 +278,13 @@
     label: "{{ item.name }}"
   when:
     - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
   # - ansible.builtin.debug:
   #     var: litellm_instruction_profiles
 
 - name: Set scenario matrix LiteLLM instruction map
   ansible.builtin.set_fact:
     litellm_model_instruction_profiles: "{{ scenario_matrix_runtime.litellm_model_instruction_profiles }}"
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_model_instruction_profiles
 
@@ -403,61 +311,14 @@
         | list
         | length == 0
     fail_msg: "Scenario matrix LiteLLM output must include canonical passthrough and cannot generate demo-letter aliases."
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'scenario_matrix'
+  when: litellm_enabled | bool
 
 - name: Set configured LiteLLM instruction profile specs
   ansible.builtin.set_fact:
-    litellm_configured_instruction_profiles: >-
-      {{
-        litellm_instruction_profiles
-        if litellm_instruction_profiles | length > 0
-        else [
-          {
-            'name': litellm_default_instruction_profile,
-            'enabled': true,
-            'position': litellm_instruction_profile_injection_position,
-            'source_path': litellm_instruction_profile_source_path
-          }
-        ]
-      }}
+    litellm_configured_instruction_profiles: "{{ litellm_instruction_profiles }}"
   when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: litellm_configured_instruction_profiles
-
-- name: Ensure local instruction profile directories exist
-  ansible.builtin.file:
-    path: "{{ item.value.local_path | dirname }}"
-    state: directory
-    mode: "0755"
-  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-  delegate_to: localhost
-  become: false
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'legacy'
-    - item.value.example_path is file
-
-- name: Initialize local instruction profile files from examples
-  ansible.builtin.copy:
-    src: "{{ item.value.example_path }}"
-    dest: "{{ item.value.local_path }}"
-    mode: "0644"
-    force: false
-  loop: "{{ chatbot_instruction_profile_files | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-  delegate_to: localhost
-  become: false
-  when:
-    - litellm_enabled | bool
-    - demo_configuration_source == 'legacy'
-    - item.value.example_path is file
-  # - ansible.builtin.debug:
-  #     msg: "Initialized local instruction profile {{ item.key }} at {{ item.value.local_path }}"
 
 - name: Validate configured LiteLLM instruction profile specs
   ansible.builtin.assert:

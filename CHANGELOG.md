@@ -5,6 +5,12 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Made the named-scenario matrix the sole LiteLLM and chatbot runtime source:
+  - removed the selectable legacy/demo-slot deployment branches and manual
+    installed/configured chatbot profile-source branches
+  - made matrix generation automatic whenever LiteLLM or the chatbot is
+    enabled, while retaining optional per-scenario FAIG re-entry metadata
+
 - Removed disconnected pre-scenario deployment artifacts:
   - deleted the unused FortiAIGate lite-route test playbook and orphaned
     direct-Bedrock chatbot chart/template

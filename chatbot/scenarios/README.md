@@ -92,9 +92,9 @@ objects after removal; rebuild or adjust the GUI separately when needed.
 The matrix builder deterministically expands installed scenarios into the
 LiteLLM aliases, backend instruction profiles, chatbot simplified and advanced
 controls, MCP paths and tool profiles, scenario-owned FAIG routes, and the FAIG
-GUI work order. LiteLLM and the chatbot consume their matrix slices when
-`demo_configuration_source: scenario_matrix` (the default). FAIG GUI objects
-remain a generated manual work order. Use `--debug-all-server-tools` only when
+GUI work order. The scenario matrix is the sole LiteLLM and chatbot
+configuration source. FAIG GUI objects remain a generated manual work order.
+Use `--debug-all-server-tools` only when
 intentionally exposing every tool reported by the MCP server for
 troubleshooting.
 

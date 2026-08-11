@@ -16,9 +16,7 @@
 # faig_workspace_root: /path/to/FAIG
 
 # Installed local scenarios are the single LiteLLM/chatbot configuration
-# source. Keep this at the repo-owned default unless debugging a legacy
-# deployment.
-# demo_configuration_source: scenario_matrix
+# source.
 #
 # Advanced provider mapping: add or replace an abstract matrix LLM target. Do
 # not put provider secrets in this tracked example; keep them only in ignored

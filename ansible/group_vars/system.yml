@@ -178,7 +178,6 @@ litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin
 litellm_ui_password: litellm-demo-change-me
-demo_configuration_source: scenario_matrix
 scenario_matrix_builder_path: "{{ faig_workspace_root }}/fortiaigate_demo/scripts/build_scenario_matrix.py"
 scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
 scenario_matrix_llm_target_overrides: {}
@@ -313,7 +312,6 @@ chatbot_faig_static_routes:
     model: pass-model
 chatbot_faig_header_route: ""
 chatbot_faig_header_routes: []
-chatbot_routes_source: scenario_matrix
 chatbot_fortigate_routes_desired: false
 chatbot_model: pass-model
 chatbot_model_options:
@@ -356,14 +354,12 @@ chatbot_mcp_tool_profiles: []
 # Set
 # chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
 # troubleshooting profile.
-chatbot_mcp_tool_profiles_source: scenario_matrix
 chatbot_mcp_tool_profile_mode: replace
 chatbot_mcp_installed_tool_profile_slots:
   - demo-a
   - demo-b
 chatbot_mcp_show_debug_all_server_tools: false
 chatbot_simplified_profiles: []
-chatbot_simplified_profiles_source: scenario_matrix
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
