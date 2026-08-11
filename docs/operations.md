@@ -203,9 +203,12 @@ python3 scripts/user_profile.py export ../user_profile.tgz
 python3 scripts/user_profile.py import ../user_profile.tgz
 ```
 
-The profile excludes licenses, private keys, certificates, Terraform state,
-generated inventories, and generated Ansible variables. Those inputs must be
-preserved separately and securely.
+The profile includes registered installed scenario packages and their state,
+but excludes scenario `_backups/` and `_removed/` history. Import merges new
+scenario IDs and prompts before replacing an existing package unless `--yes`
+is supplied. The profile excludes licenses, private keys, certificates,
+Terraform state, generated inventories, and generated Ansible variables. Those
+inputs must be preserved separately and securely.
 
 For local generated inventory/variables, export is a move operation: it creates
 a sensitive archive and removes the generated files from the current checkout.

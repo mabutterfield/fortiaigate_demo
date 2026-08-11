@@ -199,10 +199,17 @@ cp -n terraform/aws-fortiweb/99-local.auto.tfvars.example \
   terraform/aws-fortiweb/99-local.auto.tfvars
 ```
 
-Profile archives can contain operator configuration and must also be treated as
-sensitive. Unlike profile initialization, `local_setup.py` remains a required
-preparation step for the local lane because quickstart consumes its generated
-inventory and variables.
+Profile archives contain the operator tfvars/YAML files, existing module-local
+overrides, and every registered package under
+`chatbot/scenarios/local/<scenario-id>/` plus its installed-state file. They do
+not include scenario `_backups/` or `_removed/` history. Treat the archive as
+sensitive. Import merges scenarios that are not already installed and requires
+confirmation before replacing each colliding installed package; `--yes`
+explicitly accepts all configuration and scenario replacements.
+
+Unlike profile initialization, `local_setup.py` remains a required preparation
+step for the local lane because quickstart consumes its generated inventory and
+variables.
 
 ## 5. Place Licenses And Optional Tokens
 

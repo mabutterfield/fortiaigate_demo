@@ -61,9 +61,10 @@ the portable user profile:
 python3 scripts/user_profile.py export ../user_profile.tgz
 ```
 
-The profile includes user-owned tfvars/YAML and module-local overrides. It does
-not include Terraform state, generated inventory, license files, private keys,
-or certificates.
+The profile includes user-owned tfvars/YAML, module-local overrides, and
+registered installed scenario packages and state. It excludes scenario history,
+Terraform state, generated inventory, license files, private keys, and
+certificates.
 
 ## ECR Module
 

@@ -190,6 +190,20 @@ The forced operation first copies the installed package into the ignored
 that backup, redeploy the affected consumers, update manual FortiAIGate
 objects when the work order changed, and rerun functional validation.
 
+To move registered installed scenarios and operator configuration to another
+checkout, use the user-profile archive:
+
+```bash
+python3 scripts/user_profile.py export ../user_profile.tgz
+python3 scripts/user_profile.py import ../user_profile.tgz
+```
+
+Export includes each registered package and `installed-scenarios.json`, but
+excludes `_backups/` and `_removed/`. Import merges new scenario IDs with the
+destination. An existing package is never replaced without an individual
+confirmation or the explicit `--yes` option. After import, render the work
+order, deploy LiteLLM and the chatbot, and validate the configured paths.
+
 ## 10. Remove An Installed Scenario
 
 ```bash

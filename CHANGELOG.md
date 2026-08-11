@@ -5,6 +5,15 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Extended portable user profiles to named installed scenarios:
+  - export includes registered local scenario packages and
+    `installed-scenarios.json` while excluding `_backups/` and `_removed/`
+  - import validates every archive path and regular file before writing,
+    merges new scenario IDs, and requires confirmation or `--yes` before a
+    colliding package is replaced
+  - added round-trip, merge, overwrite-boundary, traversal, unexpected-path,
+    and link-rejection tests
+
 - Removed the retired lettered instruction-slot toolchain:
   - deleted the standalone instruction CLI, legacy chatbot profile builders,
     and tracked instruction-slot example library

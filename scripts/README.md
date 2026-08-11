@@ -9,8 +9,11 @@ Current scripts:
 - `user_profile.py`: initializes, imports, exports, and checks the local user
   profile. The profile contains `terraform/user.tfvars`,
   `ansible/group_vars/user.yml`, and any existing module
-  `99-local.auto.tfvars` overrides. Interactive quickstart invokes this
-  workflow when required files are missing. Use `python3
+  `99-local.auto.tfvars` overrides. Export also includes registered installed
+  scenario packages and their state, excluding `_backups/` and `_removed/`.
+  Import merges new scenarios and requires confirmation or `--yes` before an
+  existing package is replaced. Interactive quickstart invokes this workflow
+  when required files are missing. Use `python3
   scripts/user_profile.py init` for standalone AWS pre-staging, add `--local`
   to skip AWS/Terraform onboarding, use `export ../user_profile.tgz` to save
   the user profile, and use `import ../user_profile.tgz` to restore it in a

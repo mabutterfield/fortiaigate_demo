@@ -114,7 +114,16 @@ python3 scripts/user_profile.py init
 python3 scripts/user_profile.py init --local
 
 python3 scripts/user_profile.py check
+
+# Portable operator configuration plus registered installed scenarios
+python3 scripts/user_profile.py export ../user_profile.tgz
+python3 scripts/user_profile.py import ../user_profile.tgz
 ```
+
+The archive excludes licenses, keys, generated inventory, Terraform state, and
+scenario `_backups/`/`_removed/` history. Import merges new scenario IDs and
+prompts before replacing configuration files or an existing installed
+scenario; add `--yes` only when every replacement is intentional.
 
 Create a `99-local.auto.tfvars` only for a deliberate module override. Never
 put AWS access keys, license contents, or unrelated module values in these
