@@ -5,6 +5,16 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Normalized the focused FortiAIGate connectivity test:
+  - the playbook and Python helper now default to
+    `/v1/passthrough/chat/completions`, `pass-model`, and no client
+    authorization header
+  - removed the retired multi-endpoint, lite-mode, OpenWebUI, re-entry, and
+    Ollama case builders while retaining one explicitly selected generic
+    header-route test
+  - assigned installed-scenario path and disposition checks exclusively to
+    `python3 -m functional_test validate`
+
 - Extended portable user profiles to named installed scenarios:
   - export includes registered local scenario packages and
     `installed-scenarios.json` while excluding `_backups/` and `_removed/`

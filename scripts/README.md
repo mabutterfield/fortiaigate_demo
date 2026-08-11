@@ -58,6 +58,8 @@ Current scripts:
   tracked local/secret files, and runs Ansible syntax checks without applying
   Terraform or running deployment tasks.
 - `bedrock_direct_test.py`: sends a direct signed Bedrock Converse request
-- `fortiaigate_chat_test.py`: sends an OpenAI-compatible chat request through FortiAIGate
+- `fortiaigate_chat_test.py`: sends the canonical `pass-model` connectivity
+  request through FortiAIGate `/v1/passthrough/chat/completions`; it omits
+  client authorization unless a key is explicitly supplied
 
 FortiAIGate image publishing is handled by the Ansible playbook `ansible/playbooks/publish_images.yml`.

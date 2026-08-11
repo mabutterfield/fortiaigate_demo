@@ -266,7 +266,17 @@ ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_fortiaigate_chat.ym
 ```
 
 The model test uses Bedrock for `cloud` and Ollama for `local`. The local
-inventory supplies the deployment target automatically.
+inventory supplies the deployment target automatically. The FortiAIGate chat
+test is a focused controller-to-appliance connectivity probe: it sends
+`pass-model` to `/v1/passthrough/chat/completions` without client authorization
+by default. It does not sweep scenario paths; use
+`python3 -m functional_test validate` for installed-scenario validation.
+
+The dormant header-routing foundation can still be tested explicitly. Define
+`chatbot_faig_header_routes`, select exactly one entry with
+`chatbot_faig_header_route`, and rerun `test_fortiaigate_chat.yml`; the selected
+header route is tested in addition to canonical passthrough. The current
+scenario matrix leaves both values empty.
 
 ## Logs And Kubernetes Inspection
 

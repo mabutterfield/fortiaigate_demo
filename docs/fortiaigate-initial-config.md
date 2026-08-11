@@ -177,10 +177,12 @@ controller-side test against the exact flow:
 
 ```bash
 ansible-playbook -i "$FAIG_INVENTORY" \
-  ansible/playbooks/test_fortiaigate_chat.yml \
-  -e fortiaigate_test_endpoint_path=/v1/passthrough/chat/completions \
-  -e fortiaigate_test_model=pass-model
+  ansible/playbooks/test_fortiaigate_chat.yml
 ```
+
+The playbook defaults to `/v1/passthrough/chat/completions`, `pass-model`, and
+no client authorization header. Overrides are needed only when deliberately
+testing a different flow contract.
 
 Expected result:
 

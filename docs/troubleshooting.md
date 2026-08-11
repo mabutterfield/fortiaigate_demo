@@ -200,6 +200,17 @@ The `-k` option is only for this self-signed lab endpoint. Omit the
 tests of an explicitly protected flow, store `fortiaigate_test_api_key` only
 in ignored `ansible/group_vars/user.yml`; never place it in tracked files.
 
+The focused controller-side equivalent defaults to the same passthrough path,
+`pass-model`, and no client authorization header:
+
+```bash
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/test_fortiaigate_chat.yml
+```
+
+It verifies connectivity, not every installed scenario. After correcting
+scenario flows and guards, run `python3 -m functional_test validate` to verify
+their paths and expected observable dispositions.
+
 ## LiteLLM Or Direct Model Calls Fail
 
 Isolate the model provider from the rest of the chain:

@@ -129,18 +129,18 @@ Then run the first external chat test:
 ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml
 ```
 
-The playbook calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt that asks the routed model to identify itself and repeat the URI under test to `https://<fortiaigate-public-ip>:443/v1/chat/completions`, and summarizes the response. The default model is the LiteLLM pass-through alias `pass-bedrock`, which matches the recommended FortiAIGate `/v1/*` fallback provider.
+The playbook calls `scripts/fortiaigate_chat_test.py`, sends a short test prompt
+that asks the routed model to identify itself and repeat the URI under test,
+and summarizes the response. The focused test uses
+`https://<fortiaigate-public-ip>:443/v1/passthrough/chat/completions`, model
+`pass-model`, and no client authorization header by default. Supply
+`fortiaigate_test_api_key` only when client authentication was explicitly
+enabled on that flow.
 
-To test every configured FortiAIGate demo route instead of only the default
-test route:
-
-```bash
-ansible-playbook ansible/playbooks/test_fortiaigate_chat.yml \
-  -e fortiaigate_test_poll_all_endpoints=true
-```
-
-The shared extra var `-e poll_all_endpoints=true` is accepted by both the
-FortiAIGate and LiteLLM direct test playbooks.
+Use `python3 -m functional_test validate` after scenario flows and guards are
+configured. That command owns installed-scenario path and expected-disposition
+validation. The separate LiteLLM direct test retains its optional
+`litellm_direct_test_poll_all_endpoints` alias sweep.
 
 ## Refresh Expiration
 

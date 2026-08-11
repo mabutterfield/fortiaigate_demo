@@ -130,6 +130,30 @@ class ChatbotConfigurationTests(unittest.TestCase):
     def test_empty_header_route_configuration_stays_empty(self) -> None:
         self.assertEqual(chatbot.build_faig_routes("", [], "/v1/intelligent"), [])
 
+    def test_named_header_route_uses_configured_uri_and_header(self) -> None:
+        routes = chatbot.build_faig_routes(
+            "resume-tool-injection",
+            [
+                {
+                    "name": "resume-tool-injection",
+                    "base_path": "/v1/intelligent",
+                    "model": "resume-tool-injection_alert",
+                    "header_value": "resume-tool-injection",
+                }
+            ],
+            "/v1/intelligent",
+        )
+
+        base_url, model, headers = chatbot.apply_faig_header_route(
+            "https://faig.example.test",
+            routes[0],
+            "X-FAIG-Model-Route",
+        )
+
+        self.assertEqual(base_url, "https://faig.example.test/v1/intelligent")
+        self.assertEqual(model, "resume-tool-injection_alert")
+        self.assertEqual(headers, {"X-FAIG-Model-Route": "resume-tool-injection"})
+
 
 if __name__ == "__main__":
     unittest.main()
