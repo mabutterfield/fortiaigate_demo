@@ -137,12 +137,18 @@ class ScenarioMatrixTests(unittest.TestCase):
             "installed_scenarios": [
                 scenario_preview("fortistore-injection", mcp_enabled=False),
                 scenario_preview("hr-tool-dlp", mcp_enabled=True),
+                scenario_preview("resume-tool-injection", mcp_enabled=True),
             ],
         }
         matrix = scenario_matrix.build_scenario_matrix(preview)
         self.assertEqual(
             [model["name"] for model in matrix["litellm_models"]],
-            ["fortistore-injection", "hr-tool-dlp", "pass-model"],
+            [
+                "fortistore-injection",
+                "hr-tool-dlp",
+                "pass-model",
+                "resume-tool-injection",
+            ],
         )
         self.assertEqual(
             matrix["litellm_model_instruction_profiles"]["pass-model"],
@@ -166,12 +172,13 @@ class ScenarioMatrixTests(unittest.TestCase):
         route_names = [route["name"] for route in matrix["chatbot_faig_static_routes"]]
         self.assertIn("fortistore-injection-alert", route_names)
         self.assertIn("hr-tool-dlp-alert", route_names)
+        self.assertIn("resume-tool-injection-alert", route_names)
         simplified_ids = [
             profile["id"] for profile in matrix["chatbot_simplified_profiles"]
         ]
         self.assertNotIn("direct-passthrough", simplified_ids)
         self.assertNotIn("faig-passthrough", simplified_ids)
-        self.assertEqual(len(matrix["faig_work_order"]), 2)
+        self.assertEqual(len(matrix["faig_work_order"]), 3)
         self.assertNotIn("demo-a", json.dumps(matrix))
 
     def test_mcp_profiles_distinguish_scenario_extended_and_debug_sets(self) -> None:

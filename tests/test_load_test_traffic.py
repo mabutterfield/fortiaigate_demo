@@ -25,7 +25,6 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
 
     def test_path_test_cases_are_derived_from_matrix(self) -> None:
         args = types.SimpleNamespace(
-            legacy_routes=False,
             path_test_path=["alert", "passthrough"],
             path_test_passthrough_model="",
             path_test_base_url="https://faig.example",

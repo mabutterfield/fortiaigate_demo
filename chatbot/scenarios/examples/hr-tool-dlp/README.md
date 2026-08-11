@@ -62,7 +62,7 @@ with this variable resolution:
 For Redact, tune the PII scan list to protect DOB and payment-card values while
 excluding `first_name`, `last_name`, `city`, and `state` so ordinary employee
 context remains readable. The existing
-[output DLP reference image](images/protect_output_dlp.jpg) is scenario-specific;
+[output DLP reference image](images/output-dlp-reference.jpg) is scenario-specific;
 the generated work order and current GUI settings remain authoritative.
 
 ## Simplified Demo

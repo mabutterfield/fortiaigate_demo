@@ -28,7 +28,6 @@ from load_test import statistics as run_statistics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCENARIO_CATALOG = REPO_ROOT / "chatbot" / "scenarios" / "examples" / "catalog.json"
 HIGH_TOKEN_PROMPTS = REPO_ROOT / "load_test" / "prompts" / "high-token-benign.json"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "load_test" / "output" / "traffic"
 LOCAL_GENERATED_VARS = REPO_ROOT / "ansible" / "group_vars" / "local.generated.yml"
@@ -70,56 +69,6 @@ except Exception as error:
 print(json.dumps(result, sort_keys=True))
 """
 
-ROUTE_CONFIGS = {
-    "direct": {
-        "provider": "direct",
-        "route": "demo-a",
-        "mcp_path": None,
-        "description": "Direct LiteLLM with selected MCP path",
-    },
-    "faig-scan": {
-        "provider": "faig-static",
-        "route": "demo-a",
-        "mcp_path": None,
-        "description": "FortiAIGate detect/scan route with selected MCP path",
-    },
-    "faig-protect": {
-        "provider": "faig-static",
-        "route": "demo-b",
-        "mcp_path": None,
-        "description": "FortiAIGate protect route with selected MCP path",
-    },
-    "fortiweb-mcp": {
-        "provider": "direct",
-        "route": "demo-a",
-        "mcp_path": "fortiweb",
-        "description": "Direct LiteLLM with FortiWeb-fronted MCP path",
-    },
-    "fortigate-litellm": {
-        "provider": "fortigate-litellm",
-        "route": "demo-a",
-        "mcp_path": None,
-        "description": "Chatbot to FortiGate HTTP listener forwarding to LiteLLM",
-    },
-    "fortigate-ollama": {
-        "provider": "fortigate-ollama",
-        "route": "demo-a",
-        "mcp_path": None,
-        "model": "gpt-oss:20b",
-        "description": "Chatbot to FortiGate HTTP listener forwarding to Ollama",
-    },
-}
-
-SLOT_METADATA_ROOT = REPO_ROOT / "chatbot" / "instructions" / "local"
-ROUTE_SLOT_DEFAULTS = {
-    "direct": "",
-    "fortiweb-mcp": "",
-    "fortigate-litellm": "",
-    "fortigate-ollama": "demo-a",
-    "faig-scan": "demo-a",
-    "faig-protect": "demo-a",
-}
-
 BASELINE_SCENARIOS = [
     "fortistore-injection",
     "hr-tool-dlp",
@@ -128,35 +77,11 @@ BASELINE_SCENARIOS = [
 
 SCENARIO_FAMILIES = {
     "baseline": BASELINE_SCENARIOS,
-    "demo-recording": BASELINE_SCENARIOS,
     "documents": ["resume-tool-injection"],
     "hr": ["hr-tool-dlp"],
-    "fastfood": ["fastfood-ordering", "menu-poisoning"],
-    "support": [],
     "fortinet": ["fortistore-injection"],
     "all": [],
 }
-
-LEGACY_PATH_TEST_CASES = [
-    {
-        "name": "demo-a",
-        "path": "/v1/demo-a",
-        "model": "demo-a",
-        "prompt": "Path test for /v1/demo-a. Reply with only: ok demo-a",
-    },
-    {
-        "name": "demo-b",
-        "path": "/v1/demo-b",
-        "model": "demo-a",
-        "prompt": "Path test for /v1/demo-b. Reply with only: ok demo-b",
-    },
-    {
-        "name": "passthrough",
-        "path": "/v1/passthrough",
-        "model": "",
-        "prompt": "Path test for /v1/passthrough. Reply with only: ok passthrough",
-    },
-]
 
 
 def now_iso() -> str:
@@ -278,26 +203,6 @@ def append_jsonl(path: Path, data: Any) -> None:
         handle.write("\n")
 
 
-def catalog_entries() -> dict[str, dict[str, Any]]:
-    catalog = load_json(SCENARIO_CATALOG)
-    scenarios = catalog.get("scenarios", {})
-    if not isinstance(scenarios, dict):
-        raise SystemExit("Scenario catalog is missing a scenarios object")
-    return {
-        scenario_id: entry
-        for scenario_id, entry in scenarios.items()
-        if entry.get("active", True) is not False
-    }
-
-
-def load_profile(scenario_id: str, entries: dict[str, dict[str, Any]]) -> tuple[Path, dict[str, Any]]:
-    if scenario_id not in entries:
-        available = ", ".join(sorted(entries))
-        raise SystemExit(f"Unknown scenario '{scenario_id}'. Available: {available}")
-    profile_path = REPO_ROOT / "chatbot" / "scenarios" / "examples" / str(entries[scenario_id]["path"])
-    return profile_path, load_json(profile_path)
-
-
 def parse_csv_values(values: list[str] | None) -> list[str]:
     result: list[str] = []
     for value in values or []:
@@ -306,69 +211,6 @@ def parse_csv_values(values: list[str] | None) -> list[str]:
             if item:
                 result.append(item)
     return result
-
-
-def selected_family_scenarios(args: argparse.Namespace, entries: dict[str, dict[str, Any]]) -> list[str]:
-    explicit = parse_csv_values(args.scenario)
-    if explicit:
-        unknown = [scenario for scenario in explicit if scenario not in entries]
-        if unknown:
-            raise SystemExit(f"Unknown scenario(s): {', '.join(unknown)}")
-        return explicit
-    family = args.scenario_family
-    if family == "all":
-        selected = sorted(entries)
-    else:
-        scenarios = SCENARIO_FAMILIES[family]
-        selected = [scenario for scenario in scenarios if scenario in entries]
-    if not selected:
-        raise SystemExit(
-            f"Scenario family '{family}' has no active scenarios. "
-            "Reactivate a catalog entry or pass an active --scenario."
-        )
-    return selected
-
-
-def slot_metadata(slot: str) -> dict[str, Any]:
-    path = SLOT_METADATA_ROOT / slot / "metadata.json"
-    if not path.exists():
-        raise SystemExit(
-            f"Missing local instruction metadata for slot {slot}: {path}. "
-            "Install a scenario into that slot or pass --scenario explicitly."
-        )
-    data = load_json(path)
-    scenario_id = str(data.get("scenario_id", "")).strip()
-    if not scenario_id:
-        raise SystemExit(
-            f"Slot {slot} does not declare scenario_id in {path}. "
-            "Install a scenario profile or pass --scenario explicitly."
-        )
-    return data
-
-
-def slot_for_route(args: argparse.Namespace, route: str) -> str:
-    configured = ROUTE_SLOT_DEFAULTS[route]
-    if configured:
-        return configured
-    compatibility_model = args.model or "demo-a"
-    if compatibility_model in {"demo-a", "demo-b"}:
-        return compatibility_model
-    raise SystemExit(
-        f"Route {route} uses model/profile {args.model}, which is not a local scenario slot. "
-        "Pass --scenario explicitly or use --model demo-a/demo-b."
-    )
-
-
-def active_slot_scenarios(args: argparse.Namespace, routes: list[str], entries: dict[str, dict[str, Any]]) -> dict[str, str]:
-    route_scenarios: dict[str, str] = {}
-    for route in routes:
-        slot = slot_for_route(args, route)
-        metadata = slot_metadata(slot)
-        scenario_id = str(metadata["scenario_id"])
-        if scenario_id not in entries:
-            raise SystemExit(f"Slot {slot} references unknown scenario: {scenario_id}")
-        route_scenarios[route] = scenario_id
-    return route_scenarios
 
 
 def prompt_choices(profile: dict[str, Any], traffic_profile: str) -> list[dict[str, Any]]:
@@ -424,24 +266,13 @@ def apply_use_case_defaults(args: argparse.Namespace) -> None:
         raise SystemExit(f"Unknown --use-case {args.use_case}")
 
 
-def selected_routes(args: argparse.Namespace) -> list[str]:
-    routes = parse_csv_values(args.route) or ["faig-scan"]
-    unknown_routes = [route for route in routes if route not in ROUTE_CONFIGS]
-    if unknown_routes:
-        raise SystemExit(f"Unknown route(s): {', '.join(unknown_routes)}")
-    return routes
-
-
 def build_plan(
     args: argparse.Namespace,
     profiles: dict[str, dict[str, Any]],
-    route_scenarios: dict[str, str] | None = None,
-    path_configs_by_scenario: dict[str, list[dict[str, Any]]] | None = None,
+    path_configs_by_scenario: dict[str, list[dict[str, Any]]],
     passthrough_config: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     rng = random.Random(args.seed)
-    scenarios = list(profiles)
-    routes = selected_routes(args) if path_configs_by_scenario is None else []
     choices_by_scenario = {
         scenario: prompt_choices(profile, args.traffic_profile)
         for scenario, profile in profiles.items()
@@ -449,7 +280,7 @@ def build_plan(
     total = request_count(args.duration, args.rate)
     lanes = [
         (scenario_id, path_config)
-        for scenario_id, path_configs in (path_configs_by_scenario or {}).items()
+        for scenario_id, path_configs in path_configs_by_scenario.items()
         for path_config in path_configs
     ]
     passthrough_percent = float(getattr(args, "passthrough_percent", 0.0))
@@ -460,6 +291,8 @@ def build_plan(
             "--passthrough-percent is supported only by the installed scenario matrix"
         )
     scenario_count = total - passthrough_count
+    if scenario_count and not lanes:
+        raise SystemExit("No installed scenario/action lanes were selected.")
     if lanes and scenario_count < len(lanes):
         raise SystemExit(
             f"The requested mix leaves {scenario_count} scenario requests for {len(lanes)} "
@@ -501,25 +334,10 @@ def build_plan(
                 }
             )
             continue
-        if selected_lane is not None:
-            scenario_id, path_config = selected_lane
-            route = path_config["action"]
-        else:
-            route = rng.choice(routes)
-            scenario_id = route_scenarios[route] if route_scenarios else rng.choice(scenarios)
-            legacy_route = ROUTE_CONFIGS[route]
-            path_config = {
-                "action": route,
-                "provider": legacy_route["provider"],
-                "route": legacy_route["route"],
-                "model": str(legacy_route.get("model") or args.model or "demo-a"),
-                "mcp_enabled": True,
-                "mcp_path": legacy_route["mcp_path"] or args.mcp_path or "direct",
-                "tool_profile": "",
-                "max_tool_rounds": args.max_tool_rounds or 3,
-                "frontend_instruction_profile": args.frontend_profile,
-                "description": legacy_route["description"],
-            }
+        if selected_lane is None:
+            raise SystemExit("Scenario request is missing a matrix action lane.")
+        scenario_id, path_config = selected_lane
+        route = path_config["action"]
         prompt_choice = weighted_choice(rng, choices_by_scenario[scenario_id])
         profile = profiles[scenario_id]
         tool_profile = (
@@ -844,7 +662,7 @@ def print_plan(args: argparse.Namespace, plan: list[dict[str, Any]], profiles: d
         print(f"passthrough_output_words: {args.passthrough_output_words}")
     print(f"estimated_requests: {len(plan)}")
     print(f"output: {display_path(args.output_dir)}")
-    print(f"scenario_source: {args.scenario_source}")
+    print("scenario_source: installed")
     by_scenario = Counter(item["scenario"] for item in plan)
     by_route = Counter(item["route"] for item in plan)
     by_provider_route = Counter(
@@ -1150,22 +968,19 @@ def path_test_cases(
     args: argparse.Namespace,
     matrix: dict[str, Any],
 ) -> list[dict[str, str]]:
-    if args.legacy_routes:
-        base_cases = LEGACY_PATH_TEST_CASES
-    else:
-        base_cases = [
-            {
-                "name": str(route["name"]),
-                "path": str(route["base_path"]),
-                "action": str(route.get("action") or route["name"]),
-                "model": str(route.get("model") or "pass-model"),
-                "prompt": (
-                    f"Path test for {route['base_path']}. "
-                    f"Reply with only: ok {route['name']}"
-                ),
-            }
-            for route in matrix.get("chatbot_faig_static_routes", [])
-        ]
+    base_cases = [
+        {
+            "name": str(route["name"]),
+            "path": str(route["base_path"]),
+            "action": str(route.get("action") or route["name"]),
+            "model": str(route.get("model") or "pass-model"),
+            "prompt": (
+                f"Path test for {route['base_path']}. "
+                f"Reply with only: ok {route['name']}"
+            ),
+        }
+        for route in matrix.get("chatbot_faig_static_routes", [])
+    ]
     requested = parse_csv_values(args.path_test_path)
     cases = base_cases
     if requested:
@@ -1395,16 +1210,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--concurrency", type=int, default=None, help="Concurrent agent probes. Defaults by --use-case.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--scenario", action="append", help="Scenario ID. Can be repeated or comma-separated.")
-    parser.add_argument(
-        "--scenario-source",
-        choices=["installed", "active-slot", "family", "explicit"],
-        default="installed",
-        help="Scenario selection source. installed uses ignored local packages; active-slot is legacy compatibility.",
-    )
     parser.add_argument("--scenario-family", choices=sorted(SCENARIO_FAMILIES), default="baseline")
     parser.add_argument("--traffic-profile", choices=["clean", "attack", "mixed"], default="mixed")
     parser.add_argument("--action", action="append", help="Scenario action. Can be repeated or comma-separated; defaults to direct and alert.")
-    parser.add_argument("--route", action="append", help="Legacy compatibility route label. Use --action for installed scenarios.")
     parser.add_argument("--model", default="", help="Override the matrix-derived chatbot model alias.")
     parser.add_argument("--mcp-path", choices=["direct", "fortiweb"], default="", help="Override the matrix-derived MCP path.")
     parser.add_argument("--tool-profile", default="", help="Override the matrix-derived MCP tool profile for every request.")
@@ -1431,7 +1239,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-test-base-url", default="", help="Base URL for path_test. Defaults to the target's inferred external FAIG HTTPS endpoint.")
     parser.add_argument("--path-test-execution", choices=["direct", "chatbot-pod"], default="direct")
     parser.add_argument("--path-test-path", action="append", help="Path to test. Can be repeated or comma-separated.")
-    parser.add_argument("--legacy-routes", action="store_true", help="Use legacy demo-letter path-test cases.")
     parser.add_argument("--path-test-timeout", type=int, default=60)
     parser.add_argument("--path-test-passthrough-model", default="", help="Override passthrough model for path_test.")
     parser.add_argument("--path-test-verify-tls", action="store_true", help="Verify TLS certificates for direct path_test curl requests.")
@@ -1444,12 +1251,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overwrite-output", action="store_true")
     args = parser.parse_args()
     apply_use_case_defaults(args)
-    if args.scenario:
-        args.scenario_source = "explicit"
-    if args.action and args.route:
-        raise SystemExit("Use --action or legacy --route, not both")
-    if args.route and args.scenario_source != "active-slot":
-        raise SystemExit("Legacy --route requires --scenario-source active-slot")
     if args.concurrency < 1:
         raise SystemExit("--concurrency must be at least 1")
     if args.concurrency > 4:
@@ -1473,45 +1274,30 @@ def main() -> int:
     args = parse_args()
     if args.mode == "path_test":
         return run_path_tests(args)
-    if args.scenario_source == "active-slot":
-        entries = catalog_entries()
-        routes = selected_routes(args)
-        route_scenarios: dict[str, str] | None = active_slot_scenarios(
-            args,
-            routes,
-            entries,
-        )
-        scenario_ids = sorted(set(route_scenarios.values()))
-        profiles: dict[str, dict[str, Any]] = {}
-        for scenario_id in scenario_ids:
-            _path, profile = load_profile(scenario_id, entries)
-            profiles[scenario_id] = profile
-        plan = build_plan(args, profiles, route_scenarios)
-    else:
-        matrix, installed_profiles = installed_runtime()
-        scenario_ids = selected_installed_scenarios(args, installed_profiles)
-        profiles = {
-            scenario_id: installed_profiles[scenario_id]
-            for scenario_id in scenario_ids
-        }
-        path_configs_by_scenario = matrix_action_configs(
-            args,
+    matrix, installed_profiles = installed_runtime()
+    scenario_ids = selected_installed_scenarios(args, installed_profiles)
+    profiles = {
+        scenario_id: installed_profiles[scenario_id]
+        for scenario_id in scenario_ids
+    }
+    path_configs_by_scenario = matrix_action_configs(
+        args,
+        matrix,
+        scenario_ids,
+    )
+    passthrough_config = None
+    if args.passthrough_percent:
+        passthrough_config = scenario_validation.scenario_action_configs(
             matrix,
-            scenario_ids,
-        )
-        passthrough_config = None
-        if args.passthrough_percent:
-            passthrough_config = scenario_validation.scenario_action_configs(
-                matrix,
-                scenario_ids[0],
-                ["passthrough"],
-            )[0]
-        plan = build_plan(
-            args,
-            profiles,
-            path_configs_by_scenario=path_configs_by_scenario,
-            passthrough_config=passthrough_config,
-        )
+            scenario_ids[0],
+            ["passthrough"],
+        )[0]
+    plan = build_plan(
+        args,
+        profiles,
+        path_configs_by_scenario=path_configs_by_scenario,
+        passthrough_config=passthrough_config,
+    )
     if not profiles:
         raise SystemExit("No scenarios selected")
     cloud_guard(args, plan)

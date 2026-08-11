@@ -96,7 +96,8 @@ ansible/group_vars/registry.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
-# Retired operator-owned instruction files may remain in existing clones
+# Inert retired operator files; kept ignored so existing clones cannot
+# accidentally commit them. No supported runtime reads this path.
 chatbot/instructions/local/
 
 # Operator-owned installed and tuned scenario packages

@@ -454,7 +454,6 @@ def baseline_profile_validation(
     available_tools: set[str],
     *,
     validate_functional_requests: bool = True,
-    allow_legacy_installed_status: bool = False,
 ) -> tuple[list[str], dict[str, list[str]]]:
     errors: list[str] = []
     symbols: dict[str, list[str]] = {
@@ -495,10 +494,7 @@ def baseline_profile_validation(
         errors.append("profile id must equal the catalog scenario ID")
     if not SCENARIO_ID_PATTERN.fullmatch(str(profile.get("id") or "")):
         errors.append("profile id must be lowercase kebab-case")
-    allowed_statuses = {"baseline"}
-    if allow_legacy_installed_status:
-        allowed_statuses.add("phase11-baseline")
-    if profile.get("status") not in allowed_statuses:
+    if profile.get("status") != "baseline":
         errors.append("status must be baseline")
     for field_name in ("display_name", "description"):
         if not isinstance(profile.get(field_name), str) or not profile[field_name].strip():
@@ -976,7 +972,6 @@ def validate_local_matrix(store: scenario_local.LocalScenarioStore) -> None:
                 profile,
                 available_tools,
                 validate_functional_requests=False,
-                allow_legacy_installed_status=True,
             )
             errors.extend(f"{scenario_id}: {error}" for error in profile_errors)
             errors.extend(

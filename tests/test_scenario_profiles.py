@@ -68,6 +68,14 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
                 profile_path, profile = self.load_baseline(scenario_id)
                 self.assertEqual(self.validate(scenario_id, profile_path, profile), [])
 
+    def test_phase_numbered_status_is_rejected(self) -> None:
+        profile_path, profile = self.load_baseline("fortistore-injection")
+        profile["status"] = "phase" + "11-baseline"
+        self.assertIn(
+            "status must be baseline",
+            self.validate("fortistore-injection", profile_path, profile),
+        )
+
     def test_builtin_profile_names_follow_the_chatbot_display_convention(self) -> None:
         expected = {
             "fortistore-injection": [

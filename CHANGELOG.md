@@ -5,6 +5,16 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Completed the pre-release runtime residue audit:
+  - removed the remaining quickstart instruction-slot call, phase-numbered
+    installed-status compatibility, and demo-letter load-test lane; the old
+    local path remains ignored only as an inert accidental-commit quarantine
+  - made developer traffic generation use installed named scenarios and matrix
+    actions exclusively
+  - renamed the FortiGate application-touch correlation user agent and added a
+    smoke-test guard with explicit history, archive, candidate, migration, and
+    rejection-test exceptions
+
 - Normalized the focused FortiAIGate connectivity test:
   - the playbook and Python helper now default to
     `/v1/passthrough/chat/completions`, `pass-model`, and no client

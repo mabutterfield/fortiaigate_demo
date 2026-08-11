@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import py_compile
+import re
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,39 @@ FORBIDDEN_TRACKED_PATTERNS = [
     "*.lic",
     ".env",
 ]
+RETIRED_RUNTIME_PATTERNS = {
+    "lettered scenario slot": re.compile(r"\bdemo[-_](?:a|b)\b", re.IGNORECASE),
+    "retired passthrough alias": re.compile(r"\bpass-bedrock\b", re.IGNORECASE),
+    "retired configuration selector": re.compile(
+        r"\bdemo_configuration_source\b", re.IGNORECASE
+    ),
+    "retired instruction path": re.compile(
+        r"\bchatbot/instructions(?:/local)?/?", re.IGNORECASE
+    ),
+    "retired detection action": re.compile(
+        r"\b(?:detect[_ -]?(?:only|all)|output[_ -]?dlp[_ -]?detect)\b",
+        re.IGNORECASE,
+    ),
+    "retired protection action": re.compile(
+        r"\bprotect[_ -]?(?:input|output)(?:[_ -]?dlp)?\b", re.IGNORECASE
+    ),
+    "numbered development phase": re.compile(
+        r"\bphase(?:\s*|[-_])\d+\b", re.IGNORECASE
+    ),
+}
+RETIRED_RUNTIME_ALLOWED_FILES = {
+    ".gitignore",
+    "CHANGELOG.md",
+    "scripts/docs_quality.py",
+    "scripts/smoke_test.py",
+    "terraform/aws-prep/moved.tf",
+    "tests/test_scenario_local.py",
+    "tests/test_scenario_matrix.py",
+}
+RETIRED_RUNTIME_ALLOWED_PREFIXES = (
+    "archived_scenarios/",
+    "chatbot/scenarios/examples/fortigate-operator/",
+)
 
 
 class SmokeFailure(RuntimeError):
@@ -142,6 +176,39 @@ def check_tracked_secrets() -> None:
     if matches:
         raise SmokeFailure("Forbidden tracked local/secret files: " + ", ".join(matches))
     print("ok tracked file guard")
+
+
+def check_retired_runtime_residue() -> None:
+    result = run(["git", "ls-files"], check=True, show_stdout=False)
+    findings: list[str] = []
+    for relative_path in result.stdout.splitlines():
+        relative_path = relative_path.strip()
+        if not relative_path:
+            continue
+        if relative_path in RETIRED_RUNTIME_ALLOWED_FILES:
+            continue
+        if relative_path.startswith(RETIRED_RUNTIME_ALLOWED_PREFIXES):
+            continue
+        path = REPO_ROOT / relative_path
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError:
+            continue
+        for line_number, line in enumerate(lines, start=1):
+            for label, pattern in RETIRED_RUNTIME_PATTERNS.items():
+                if pattern.search(line):
+                    findings.append(
+                        f"{relative_path}:{line_number}: {label}: {line.strip()}"
+                    )
+    if findings:
+        raise SmokeFailure(
+            "Retired runtime configuration found outside explicit historical, "
+            "candidate, migration, or rejection-test exceptions:\n- "
+            + "\n- ".join(findings)
+        )
+    print("ok retired runtime residue guard")
 
 
 def check_documentation_quality() -> None:
@@ -250,6 +317,7 @@ def main() -> int:
         check_script_help()
         check_documentation_quality()
         check_tracked_secrets()
+        check_retired_runtime_residue()
         check_user_tfvars_symlinks()
         check_inventory_aliases()
         if not args.skip_terraform:
