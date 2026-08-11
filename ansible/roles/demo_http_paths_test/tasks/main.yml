@@ -152,6 +152,12 @@
   changed_when: false
   failed_when: false
   register: demo_http_paths_test_curl
+  until:
+    - (demo_http_paths_test_curl.rc | int) == 0
+    - (demo_http_paths_test_curl.stdout | default('000') | int) >= (item.expected_min | int)
+    - (demo_http_paths_test_curl.stdout | default('000') | int) <= (item.expected_max | int)
+  retries: "{{ demo_http_paths_test_retries | int }}"
+  delay: "{{ demo_http_paths_test_retry_delay_seconds | int }}"
   loop: "{{ demo_http_paths_test_targets }}"
   loop_control:
     label: "{{ item.route }} {{ item.display_name }}"
@@ -169,7 +175,19 @@
         and (demo_http_paths_test_status | int) >= (item.item.expected_min | int)
         and (demo_http_paths_test_status | int) <= (item.item.expected_max | int)
       }}
-    demo_http_paths_test_result: "{{ item.item | combine({'status': demo_http_paths_test_status, 'rc': item.rc, 'ok': demo_http_paths_test_ok}) }}"
+    demo_http_paths_test_result: >-
+      {{
+        item.item
+        | combine(
+            {
+              'status': demo_http_paths_test_status,
+              'rc': item.rc,
+              'attempts': item.attempts | default(1),
+              'error': item.stderr | default('') | trim,
+              'ok': demo_http_paths_test_ok
+            }
+          )
+      }}
   loop: "{{ demo_http_paths_test_curl.results | default([]) }}"
   loop_control:
     label: "{{ item.item.route }} {{ item.item.display_name }}"
@@ -178,7 +196,13 @@
 
 - name: Show demo HTTP path results
   ansible.builtin.debug:
-    msg: "{{ 'OK' if item.ok | bool else 'FAIL' }} {{ item.route }} {{ item.display_name }} status={{ item.status }} url={{ item.url }}"
+    msg: >-
+      {{ 'OK' if item.ok | bool else 'FAIL' }}
+      {{ item.route }} {{ item.display_name }}
+      status={{ item.status }} rc={{ item.rc }} attempts={{ item.attempts }}{{
+        (' error=' ~ item.error) if item.error | length > 0 else ''
+      }}
+      url={{ item.url }}
   loop: "{{ demo_http_paths_test_results | default([]) }}"
   loop_control:
     label: "{{ item.route }} {{ item.display_name }}"

@@ -5,6 +5,12 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Made external demo HTTP validation tolerant of brief startup transitions:
+  - retry each failing path up to five times with a five-second delay while
+    allowing healthy paths to complete immediately
+  - report curl exit status, attempt count, and connection error alongside the
+    HTTP status and tested URL
+
 - Added an AWS k3s GPU instance-size choice to profile initialization:
   - retained `g4dn.4xlarge` as the budget default and offered supported
     `g6.4xlarge` and `g6.8xlarge` L4 validation choices plus a custom value

@@ -2,6 +2,8 @@
 demo_http_paths_test_fail_on_error: true
 demo_http_paths_test_timeout_seconds: 10
 demo_http_paths_test_connect_timeout_seconds: 5
+demo_http_paths_test_retries: 5
+demo_http_paths_test_retry_delay_seconds: 5
 demo_http_paths_test_include_direct: true
 demo_http_paths_test_include_fortiweb: true
 demo_http_paths_test_include_https: "{{ demo_https_gateway_enabled | default(false) | bool }}"
