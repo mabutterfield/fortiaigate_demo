@@ -181,6 +181,7 @@ control by `.gitignore`:
 
 ```text
 terraform/user.tfvars
+terraform/aws-ec2-k3s/99-local.auto.tfvars
 ansible/group_vars/user.yml
 ```
 
@@ -188,6 +189,13 @@ ansible/group_vars/user.yml
 trusted CIDRs, and tags to every Terraform module through tracked
 `50-user.auto.tfvars` symlinks. `ansible/group_vars/user.yml` contains only
 operator overrides layered after repo and generated defaults.
+
+For AWS initialization, the profile tool also asks for the k3s GPU instance
+size and writes it to the module-local file above. Enter accepts
+`g4dn.4xlarge`; choose `g6.4xlarge` or `g6.8xlarge` for a supported NVIDIA L4
+validation target. Existing explicit selections are reused without prompting.
+Changing the type of an existing instance can stop/restart it, and its
+instance-store-backed k3s data is ephemeral.
 
 Create a module-local override only when that module needs a value different
 from the shared profile and the file does not already exist:

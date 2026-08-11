@@ -70,7 +70,10 @@ and `../../ansible/group_vars/terraform.generated.yml` for Ansible. The default
 HTTP ports are `30080` through `30084`; the HTTPS gateway uses matching
 offsets starting at `30443`.
 
-The default instance type is `g4dn.4xlarge`. Use `g6.8xlarge` for a stronger production-like L4 validation target.
+The default instance type is `g4dn.4xlarge`. AWS profile initialization asks
+for this value once and stores it in ignored `99-local.auto.tfvars`; existing
+selections are reused. Use `g6.8xlarge` for a stronger supported L4 validation
+target.
 
 After apply, validate host status and SSH:
 

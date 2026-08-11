@@ -12,10 +12,17 @@ FortiAIGate currently asks for standard AWS SigV4 fields in the GUI:
 `terraform/aws-prep` can create two Bedrock access paths:
 
 - temporary IAM user credentials for FortiAIGate GUI provider setup when
-  `enable_bedrock_iam = true`
+  `enable_bedrock_iam = true`; this direct-test credential is disabled by
+  default
 - scoped Bedrock invoke permissions on the k3s EC2 instance role when
   `enable_ec2_bedrock_iam = true`, which is the default path used by in-cluster
   LiteLLM/direct clients
+
+For an existing `aws-prep` state that already manages the optional IAM user,
+the first plan after this default change proposes removing the user, inline
+policy, and access key. This does not affect the EC2-role LiteLLM path. To keep
+direct-provider credentials, set `enable_bedrock_iam = true` explicitly in
+ignored `terraform/aws-prep/99-local.auto.tfvars` before applying.
 
 It does not write Bedrock secrets into Ansible vars.
 

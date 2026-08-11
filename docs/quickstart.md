@@ -17,6 +17,13 @@ operator-owned files do not exist, quickstart launches profile initialization
 or import before it starts the deployment. On later runs, existing values are
 shown as the defaults so they can be accepted or changed.
 
+AWS profile initialization also asks for the k3s GPU instance size. The default
+remains the cost-conscious `g4dn.4xlarge`; supported L4 choices include
+`g6.4xlarge` and `g6.8xlarge`. The selection is stored in ignored
+`terraform/aws-ec2-k3s/99-local.auto.tfvars`, reused without another prompt,
+and included in profile export/import. See [AWS Instance
+Sizing](aws-instance.md) before selecting a higher-cost validation target.
+
 Running `python3 scripts/user_profile.py init` separately is useful only when
 you want to configure and review those values before beginning the longer
 Terraform and Ansible workflow.
@@ -79,7 +86,7 @@ trigger initialization or import; existing values pre-populate the prompts.
 It then guides the following sequence:
 
 1. verify Terraform, AWS CLI, Ansible, and the repository root;
-2. verify the AWS session and shared profile values;
+2. verify the AWS session, shared profile values, and selected k3s GPU instance size;
 3. record desired or disabled appliance intent;
 4. check FortiAIGate and selected appliance licenses;
 5. create/import ECR repositories and apply AWS prep, EC2/k3s, and selected

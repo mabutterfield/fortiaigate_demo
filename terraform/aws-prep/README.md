@@ -25,6 +25,15 @@ This module reads `terraform/aws-ecr` local state by default when
 `registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
 state by default.
 
+The default full AWS deployment creates one shared k3s EC2 role and, when
+FortiWeb is enabled, one FortiWeb cloud-init role. Optional ECR, Bedrock,
+scenario-document, and syslog permissions do not create additional roles; they
+attach scoped policies to the shared k3s role. The roles are removed by normal
+Terraform teardown and are not date-gated. The separate optional Bedrock IAM
+user has a policy expiration. See [IAM identities, scope, and
+lifetime](../../docs/terraform.md#iam-identities-scope-and-lifetime) for the
+complete inventory, teardown behavior, and existing-role import limitations.
+
 Appliance prep is enabled by default for the full demo. Override these
 values in `99-local.auto.tfvars` only when disabling appliance prep:
 

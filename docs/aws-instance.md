@@ -28,6 +28,26 @@ Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do 
 | Production-like supported validation | `g6.8xlarge` | L4 GPU with stronger CPU/RAM headroom |
 | Multi-GPU validation | `g6.12xlarge` | Four L4 GPUs, meets/exceeds the dual-GPU recommendation |
 
+## Quickstart Selection
+
+AWS profile initialization offers these choices before Terraform runs:
+
+1. `g4dn.4xlarge` — default budget lab size;
+2. `g6.4xlarge` — lower-cost supported L4 size;
+3. `g6.8xlarge` — preferred supported L4 validation size; or
+4. a custom EC2 instance type.
+
+The selected value is written to ignored
+`terraform/aws-ec2-k3s/99-local.auto.tfvars`. Quickstart asks only when an AWS
+profile has no explicit instance selection; normal reruns and imported profiles
+reuse the stored value. `--yolo` never prompts and uses the stored selection or
+the tracked `g4dn.4xlarge` default.
+
+Terraform checks whether the selected type is offered in the target region,
+but the operator remains responsible for current price and EC2 quota. Changing
+an existing instance type can stop/restart the host and lose ephemeral
+instance-store-backed k3s data.
+
 ## FortiGate And FortiWeb Appliances
 
 FortiGate and FortiWeb do not need GPU instances for the appliance baseline.
@@ -57,7 +77,9 @@ These are useful for automation, Kubernetes, and budget lab testing. The T4-base
 
 The deployment uses a reduced Triton resource profile that was tuned to make
 FortiAIGate practical on smaller lab instances such as `g4dn.2xlarge` and
-`g4dn.4xlarge`:
+`g4dn.4xlarge`. This same profile is currently rendered for every AWS instance
+size, including `g6.8xlarge`; instance selection does not dynamically change
+the Helm resources:
 
 | Resource | Request | Limit |
 |---|---:|---:|

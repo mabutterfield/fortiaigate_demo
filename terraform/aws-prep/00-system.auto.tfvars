@@ -28,7 +28,7 @@ fortiaigate_syslog_bucket_force_destroy = false
 fortiaigate_syslog_prefix               = "fortiaigate/syslog"
 fortiaigate_syslog_lifecycle_days       = 30
 
-enable_bedrock_iam            = true
+enable_bedrock_iam            = false
 enable_ec2_bedrock_iam        = true
 bedrock_credential_valid_days = 7
 bedrock_credential_generation = "20260610"

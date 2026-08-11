@@ -65,6 +65,27 @@ SKIP_SSH_PRIVATE_KEY_NAMES = {
     "known_hosts.old",
 }
 
+EC2_K3S_MODULE_PATH = Path("terraform/aws-ec2-k3s")
+EC2_K3S_SYSTEM_TFVARS = EC2_K3S_MODULE_PATH / "00-system.auto.tfvars"
+EC2_K3S_LOCAL_TFVARS = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars"
+EC2_K3S_LOCAL_TFVARS_EXAMPLE = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars.example"
+DEFAULT_EC2_INSTANCE_TYPE = "g4dn.4xlarge"
+EC2_INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9]+$")
+EC2_INSTANCE_CHOICES = [
+    (
+        "g4dn.4xlarge",
+        "Budget lab default; NVIDIA T4 with 16 GB VRAM, not a supported FortiAIGate GPU family",
+    ),
+    (
+        "g6.4xlarge",
+        "Lower-cost supported NVIDIA L4 with 24 GB VRAM",
+    ),
+    (
+        "g6.8xlarge",
+        "Preferred supported NVIDIA L4 validation size with additional CPU and RAM",
+    ),
+]
+
 
 def print_header(message: str) -> None:
     print(f"\n== {message} ==")
@@ -185,6 +206,94 @@ def set_tf_map_strings(content: str, key: str, values: dict[str, str]) -> str:
     if re.search(map_pattern, content):
         return re.sub(map_pattern, replacement, content, count=1)
     return content.rstrip() + f"\n{replacement}\n"
+
+
+def configured_ec2_instance_type() -> str:
+    path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS
+    return get_tf_string(read_file(path), "instance_type") if path.is_file() else ""
+
+
+def tracked_ec2_instance_type() -> str:
+    path = REPO_ROOT / EC2_K3S_SYSTEM_TFVARS
+    if not path.is_file():
+        return DEFAULT_EC2_INSTANCE_TYPE
+    return get_tf_string(read_file(path), "instance_type", DEFAULT_EC2_INSTANCE_TYPE)
+
+
+def choose_ec2_instance_type(current: str) -> str:
+    print_header("AWS k3s GPU Instance Size")
+    print("Choose the EC2 instance that will run k3s and FortiAIGate:")
+    for index, (instance_type, description) in enumerate(EC2_INSTANCE_CHOICES, start=1):
+        marker_labels = []
+        if instance_type == current:
+            marker_labels.append("current")
+        if instance_type == DEFAULT_EC2_INSTANCE_TYPE:
+            marker_labels.append("default")
+        marker = f" ({'/'.join(marker_labels)})" if marker_labels else ""
+        print(f"{index}. {instance_type}{marker} - {description}")
+    print("4. Custom instance type")
+    print("AWS region capacity, EC2 quota, and current price are checked outside the profile.")
+    print(
+        "Changing an existing EC2 instance type can stop/restart the host; "
+        "instance-store-backed k3s data is ephemeral."
+    )
+
+    choice_by_number = {
+        str(index): instance_type
+        for index, (instance_type, _description) in enumerate(EC2_INSTANCE_CHOICES, start=1)
+    }
+    default_choice = next(
+        (
+            number
+            for number, instance_type in choice_by_number.items()
+            if instance_type == current
+        ),
+        current,
+    )
+
+    while True:
+        selected = prompt_text(
+            "EC2 instance size number, type, or 4 for custom",
+            default_choice,
+        ).strip()
+        if selected in choice_by_number:
+            return choice_by_number[selected]
+        if selected == "4":
+            selected = prompt_text("Custom EC2 instance type", current).strip()
+        if EC2_INSTANCE_TYPE_PATTERN.fullmatch(selected):
+            return selected
+        print("Enter a listed number or an EC2 instance type such as g6.8xlarge.")
+
+
+def configure_ec2_instance_type() -> str:
+    current = configured_ec2_instance_type() or tracked_ec2_instance_type()
+    selected = choose_ec2_instance_type(current)
+    path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS
+    example_path = REPO_ROOT / EC2_K3S_LOCAL_TFVARS_EXAMPLE
+    if path.is_file():
+        content = read_file(path)
+    elif example_path.is_file():
+        content = read_file(example_path)
+    else:
+        content = "# User-owned EC2/k3s module overrides.\n"
+    write_file(path, set_tf_string(content, "instance_type", selected))
+    print(f"updated: {rel(path)}")
+    print(f"Selected AWS k3s instance type: {selected}")
+    return selected
+
+
+def ensure_ec2_instance_type(*, interactive: bool) -> str:
+    selected = configured_ec2_instance_type()
+    if selected:
+        print_header("AWS k3s GPU Instance Size")
+        print(f"Using profile instance type: {selected}")
+        return selected
+    if interactive:
+        return configure_ec2_instance_type()
+    selected = tracked_ec2_instance_type()
+    print_header("AWS k3s GPU Instance Size")
+    print(f"No profile override; using tracked default: {selected}")
+    return selected
 
 
 def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
@@ -610,6 +719,7 @@ def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     copy_profile_examples(force=force)
     if configure_aws:
         configure_terraform_user_profile()
+        configure_ec2_instance_type()
     else:
         print("Local profile initialization: skipped AWS/Terraform onboarding.")
     configure_ansible_user_profile()

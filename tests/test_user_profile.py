@@ -18,6 +18,50 @@ if str(SCRIPTS_ROOT) not in sys.path:
 import user_profile  # noqa: E402
 
 
+class UserProfileInstanceTypeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.test_root = Path(self.temporary_directory.name)
+        self.original_repo_root = user_profile.REPO_ROOT
+        user_profile.REPO_ROOT = self.test_root
+
+        system_path = self.test_root / user_profile.EC2_K3S_SYSTEM_TFVARS
+        system_path.parent.mkdir(parents=True, exist_ok=True)
+        system_path.write_text('instance_type = "g4dn.4xlarge"\n', encoding="utf-8")
+        example_path = self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS_EXAMPLE
+        example_path.write_text(
+            "# Optional EC2/k3s local overrides.\n# instance_type = \"g6.8xlarge\"\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        user_profile.REPO_ROOT = self.original_repo_root
+        self.temporary_directory.cleanup()
+
+    def test_instance_choice_keeps_budget_default_and_writes_profile_override(self) -> None:
+        with mock.patch.object(user_profile, "prompt_text", return_value="1"):
+            selected = user_profile.configure_ec2_instance_type()
+
+        self.assertEqual(selected, "g4dn.4xlarge")
+        local_content = (
+            self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            user_profile.get_tf_string(local_content, "instance_type"),
+            "g4dn.4xlarge",
+        )
+
+    def test_existing_profile_selection_is_reused_without_prompting(self) -> None:
+        local_path = self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
+        local_path.write_text('instance_type = "g6.8xlarge"\n', encoding="utf-8")
+
+        with mock.patch.object(user_profile, "prompt_text") as prompt:
+            selected = user_profile.ensure_ec2_instance_type(interactive=True)
+
+        self.assertEqual(selected, "g6.8xlarge")
+        prompt.assert_not_called()
+
+
 class UserProfileScenarioArchiveTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -34,6 +78,7 @@ class UserProfileScenarioArchiveTests(unittest.TestCase):
     def prepare_config(self, root: Path, marker: str) -> None:
         files = {
             "terraform/user.tfvars": f'name_prefix = "{marker}"\n',
+            "terraform/aws-ec2-k3s/99-local.auto.tfvars": 'instance_type = "g4dn.4xlarge"\n',
             "ansible/group_vars/user.yml": f"profile_marker: {marker}\n",
         }
         for relative_path, content in files.items():
@@ -114,6 +159,10 @@ class UserProfileScenarioArchiveTests(unittest.TestCase):
         self.assertIn("chatbot/scenarios/local/installed-scenarios.json", names)
         self.assertIn(
             "chatbot/scenarios/local/fortistore-injection/instructions.txt",
+            names,
+        )
+        self.assertIn(
+            "terraform/aws-ec2-k3s/99-local.auto.tfvars",
             names,
         )
         self.assertFalse(any("/_backups/" in name for name in names))

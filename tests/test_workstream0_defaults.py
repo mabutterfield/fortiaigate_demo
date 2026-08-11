@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from argparse import Namespace
@@ -32,6 +33,24 @@ def appliance_args(**overrides: bool) -> Namespace:
 
 
 class ApplianceDefaultTests(unittest.TestCase):
+    def test_static_bedrock_user_is_opt_in_but_ec2_bedrock_access_remains_enabled(self) -> None:
+        system_defaults = (
+            REPO_ROOT / "terraform/aws-prep/00-system.auto.tfvars"
+        ).read_text(encoding="utf-8")
+        variable_definitions = (
+            REPO_ROOT / "terraform/aws-prep/variables.tf"
+        ).read_text(encoding="utf-8")
+
+        self.assertRegex(system_defaults, r"(?m)^enable_bedrock_iam\s*=\s*false$")
+        self.assertRegex(system_defaults, r"(?m)^enable_ec2_bedrock_iam\s*=\s*true$")
+        self.assertRegex(
+            variable_definitions,
+            re.compile(
+                r'variable "enable_bedrock_iam"\s*\{.*?default\s*=\s*false',
+                re.DOTALL,
+            ),
+        )
+
     def test_both_appliances_are_desired_by_default(self) -> None:
         self.assertEqual(
             automated_quickstart.requested_appliance_keys(appliance_args()),

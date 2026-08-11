@@ -22,8 +22,9 @@ demo environment.
   infrastructure; it does not provision the host.
 - `user_profile.py` — initializes, checks, exports, or imports user-owned
   configuration. The quickstart runs profile initialization automatically when
-  required; direct use is useful for pre-staging configuration or transferring
-  a profile between checkouts.
+  required. AWS initialization also records the selected k3s GPU instance size
+  in the ignored EC2 module override. Direct use is useful for pre-staging
+  configuration or transferring a profile between checkouts.
 - `scenario_profiles.py` — lists, validates, installs, updates, backs up, and
   removes scenario packages. It also previews the installed scenario matrix and
   renders the FortiAIGate GUI work order.

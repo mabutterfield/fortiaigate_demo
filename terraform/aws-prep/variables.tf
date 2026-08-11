@@ -218,7 +218,7 @@ variable "fortiaigate_syslog_lifecycle_days" {
 variable "enable_bedrock_iam" {
   type        = bool
   description = "Create temporary IAM user credentials for FortiAIGate Bedrock provider setup."
-  default     = true
+  default     = false
 }
 
 variable "enable_ec2_bedrock_iam" {

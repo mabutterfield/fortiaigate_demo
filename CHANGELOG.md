@@ -5,6 +5,19 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added an AWS k3s GPU instance-size choice to profile initialization:
+  - retained `g4dn.4xlarge` as the budget default and offered supported
+    `g6.4xlarge` and `g6.8xlarge` L4 validation choices plus a custom value
+  - stored the selection in the ignored EC2 module override so quickstart
+    reruns and profile export/import preserve it without repeated prompts
+
+- Made direct FortiAIGate-to-Bedrock static credentials opt-in:
+  - disabled the prep-owned Bedrock IAM user and access key by default while
+    retaining EC2-role Bedrock access for the normal LiteLLM path
+  - documented IAM identity scope, lifetime, teardown, existing-role import,
+    the existing-state removal plan, and the explicit direct-provider
+    enablement path
+
 - Completed the pre-release runtime residue audit:
   - removed the remaining quickstart instruction-slot call, phase-numbered
     installed-status compatibility, and demo-letter load-test lane; the old

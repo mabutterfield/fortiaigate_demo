@@ -2409,6 +2409,9 @@ def main() -> None:
         print("  python3 -m functional_test validate")
         return
 
+    if profile_action != "init":
+        profile_tool.ensure_ec2_instance_type(interactive=not args.yolo)
+
     current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
     default_profile = get_tf_string(current_user_tfvars, "aws_profile")
     profile_is_fresh = profile_action in {"init", "import"}
