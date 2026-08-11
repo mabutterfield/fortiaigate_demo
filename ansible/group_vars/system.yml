@@ -183,14 +183,6 @@ scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
 scenario_matrix_llm_target_overrides: {}
 faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
-# Legacy compatibility aliases remain temporarily for old local overrides.
-# The scenario_matrix source does not consume or generate these aliases.
-litellm_demo_a_model_alias: demo-a
-litellm_demo_b_model_alias: demo-b
-litellm_demo_a_faig_be_model_alias: demo-a-faig-be
-litellm_demo_b_faig_be_model_alias: demo-b-faig-be
-litellm_ollama_model_alias: "{{ ollama_model | default('gpt-oss:20b') }}"
-litellm_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
@@ -199,23 +191,8 @@ litellm_bedrock_model_id: "{{ direct_model_bedrock_model }}"
 litellm_bedrock_region: "{{ direct_model_bedrock_region }}"
 litellm_bedrock_use_terraform_output: true
 litellm_bedrock_read_from_terraform: true
-chatbot_instruction_root: "{{ faig_workspace_root }}/fortiaigate_demo/chatbot/instructions"
-chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
-chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
-chatbot_instruction_profile_files:
-  demo_a:
-    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
-  demo_b:
-    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
-  frontend:
-    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
-litellm_instruction_profile_source_path: "{{ chatbot_instruction_profile_files.demo_a.local_path }}"
 litellm_instruction_debug: false
 litellm_default_instruction_profile: passthrough
-litellm_instruction_profile_injection_position: prepend
 litellm_instruction_profiles: []
 litellm_models: []
 # Optional explicit map override. Leave empty to use instruction_profile on each litellm_models entry.
@@ -316,12 +293,6 @@ chatbot_fortigate_routes_desired: false
 chatbot_model: pass-model
 chatbot_model_options:
   - pass-model
-chatbot_frontend_system_prompt: ""
-# Optional UI-layer system prompt. The local frontend slot is packaged into the
-# chatbot when present, but the UI checkbox starts off so backend-only behavior
-# remains the default.
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-chatbot_frontend_system_prompt_enabled: false
 chatbot_frontend_instruction_profile: none
 chatbot_frontend_instruction_profiles: []
 # MCP tools are enabled in the browser UI by default. FortiWeb is preferred
@@ -355,9 +326,6 @@ chatbot_mcp_tool_profiles: []
 # chatbot_mcp_show_debug_all_server_tools=true for the explicit full-server
 # troubleshooting profile.
 chatbot_mcp_tool_profile_mode: replace
-chatbot_mcp_installed_tool_profile_slots:
-  - demo-a
-  - demo-b
 chatbot_mcp_show_debug_all_server_tools: false
 chatbot_simplified_profiles: []
 chatbot_context_mode: recent
@@ -386,8 +354,6 @@ chatbot_instances:
     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
     model_options: "{{ chatbot_model_options }}"
-    frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
-    frontend_system_prompt_source_path: "{{ chatbot_frontend_system_prompt_source_path }}"
     frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
     frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"

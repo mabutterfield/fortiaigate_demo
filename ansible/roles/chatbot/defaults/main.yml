@@ -25,19 +25,6 @@ chatbot_ingress_class: nginx
 chatbot_ingress_tls_enabled: false
 chatbot_ingress_tls_secret_name: ""
 
-chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
-chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
-chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
-chatbot_instruction_profile_files:
-  demo_a:
-    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
-  demo_b:
-    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
-  frontend:
-    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
 chatbot_namespace: chatbot
 chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
 
@@ -66,9 +53,6 @@ chatbot_model: pass-model
 chatbot_model_options:
   - pass-model
 chatbot_model_options_effective: "{{ chatbot_model_options }}"
-chatbot_frontend_system_prompt: ""
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_profile_files.frontend.local_path }}"
-chatbot_frontend_system_prompt_enabled: false
 chatbot_frontend_instruction_profile: none
 chatbot_frontend_instruction_profiles: []
 chatbot_mcp_enabled: true
@@ -92,16 +76,9 @@ chatbot_mcp_max_tool_rounds: 3
 chatbot_mcp_tool_profile: ""
 chatbot_mcp_tool_profiles: []
 chatbot_mcp_tool_profile_mode: replace
-chatbot_mcp_installed_tool_profile_slots:
-  - demo-a
-  - demo-b
 chatbot_mcp_show_debug_all_server_tools: false
 chatbot_ui_mode: detailed
 chatbot_simplified_profiles: []
-chatbot_simplified_profile_slots:
-  - demo-a
-  - demo-b
-  - frontend
 chatbot_context_mode: recent
 chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
@@ -130,8 +107,6 @@ chatbot_instances:
     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
     model: "{{ chatbot_model }}"
     model_options: "{{ chatbot_model_options_effective }}"
-    frontend_system_prompt: "{{ chatbot_frontend_system_prompt }}"
-    frontend_system_prompt_enabled: "{{ chatbot_frontend_system_prompt_enabled }}"
     frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
     frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
     mcp_enabled: "{{ chatbot_mcp_enabled }}"

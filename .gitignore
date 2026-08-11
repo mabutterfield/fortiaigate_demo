@@ -96,7 +96,7 @@ ansible/group_vars/registry.generated.yml
 ansible/group_vars/terraform.generated.yml
 ansible/group_vars/images.yml
 
-# Operator-owned mutable instruction profiles
+# Retired operator-owned instruction files may remain in existing clones
 chatbot/instructions/local/
 
 # Operator-owned installed and tuned scenario packages

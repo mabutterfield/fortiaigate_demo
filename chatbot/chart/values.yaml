@@ -34,8 +34,6 @@ chatbot:
   modelOptions: ""
   pageTitle: AI Chatbot
   headerTitle: AI Chatbot
-  frontendSystemPrompt: ""
-  frontendSystemPromptEnabled: "false"
   frontendInstructionProfile: none
   frontendInstructionProfilesJson: ""
   temperature: "0.0"

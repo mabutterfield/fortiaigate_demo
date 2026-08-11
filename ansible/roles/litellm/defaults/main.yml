@@ -42,14 +42,6 @@ scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname 
 scenario_matrix_llm_target_overrides: {}
 faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
-# Legacy compatibility aliases remain temporarily for old local overrides.
-# The scenario_matrix source does not consume or generate these aliases.
-litellm_demo_a_model_alias: demo-a
-litellm_demo_b_model_alias: demo-b
-litellm_demo_a_faig_be_model_alias: demo-a-faig-be
-litellm_demo_b_faig_be_model_alias: demo-b-faig-be
-litellm_ollama_model_alias: "{{ ollama_model | default('gpt-oss:20b') }}"
-litellm_ollama_model: "{{ ollama_model | default('gpt-oss:20b') }}"
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false
 litellm_faig_backend_downstream_model: "{{ litellm_passthrough_model_alias }}"
@@ -60,23 +52,7 @@ litellm_faig_backend_api_key: "{{ fortiaigate_test_api_key | default('not-used',
 litellm_instruction_debug: false
 litellm_models: []
 
-chatbot_instruction_root: "{{ playbook_dir }}/../../chatbot/instructions"
-chatbot_instruction_examples_root: "{{ chatbot_instruction_root }}/examples"
-chatbot_instruction_local_root: "{{ chatbot_instruction_root }}/local"
-chatbot_instruction_profile_files:
-  demo_a:
-    example_path: "{{ chatbot_instruction_examples_root }}/HR-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-a/instructions.txt"
-  demo_b:
-    example_path: "{{ chatbot_instruction_examples_root }}/fastfood-bot.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/demo-b/instructions.txt"
-  frontend:
-    example_path: "{{ chatbot_instruction_examples_root }}/chatbot-frontend.instructions.txt"
-    local_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
-
-litellm_instruction_profile_source_path: "{{ chatbot_instruction_profile_files.demo_a.local_path }}"
 litellm_default_instruction_profile: passthrough
-litellm_instruction_profile_injection_position: prepend
 litellm_model_instruction_profiles: {}
 litellm_instruction_profiles: []
 

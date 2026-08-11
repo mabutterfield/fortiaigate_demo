@@ -123,8 +123,7 @@ Inactive archived scenarios can still be inspected for reference:
 python3 scripts/scenario_profiles.py show fastfood-ordering --include-inactive
 ```
 
-Instruction profiles remain the place to fine-tune local wording after a
-scenario has been installed.
+Tune instruction files only inside the ignored installed scenario package.
 
 ## Related Documentation
 

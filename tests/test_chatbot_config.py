@@ -77,9 +77,22 @@ class ChatbotConfigurationTests(unittest.TestCase):
             "",
         )
 
-    def test_frontend_profiles_add_none_and_preserve_legacy_fallback(self) -> None:
-        profiles = chatbot.build_frontend_instruction_profiles([], "legacy fixture")
-        self.assertEqual([profile["id"] for profile in profiles], ["none", "legacy"])
+    def test_frontend_profiles_add_none_to_scenario_owned_profiles(self) -> None:
+        profiles = chatbot.build_frontend_instruction_profiles(
+            [
+                {
+                    "id": "resume-tool-injection-simulated-upload",
+                    "label": "Resume Simulated Upload",
+                    "instruction": "scenario-owned frontend fixture",
+                    "source_type": "file",
+                    "scenario_id": "resume-tool-injection",
+                }
+            ]
+        )
+        self.assertEqual(
+            [profile["id"] for profile in profiles],
+            ["none", "resume-tool-injection-simulated-upload"],
+        )
 
     def test_duplicate_frontend_profile_ids_are_rejected(self) -> None:
         value = json.dumps(

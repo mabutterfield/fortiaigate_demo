@@ -142,9 +142,6 @@
     chatbot_mcp_enabled: "{{ chatbot_scenario_matrix.chatbot_mcp_tool_profiles | length > 0 }}"
     chatbot_simplified_profiles: "{{ chatbot_scenario_matrix.chatbot_simplified_profiles }}"
     chatbot_simplified_profiles_effective: "{{ chatbot_scenario_matrix.chatbot_simplified_profiles }}"
-    chatbot_frontend_system_prompt: ""
-    chatbot_frontend_system_prompt_source_path: ""
-    chatbot_frontend_system_prompt_enabled: false
     chatbot_frontend_instruction_profile: none
     chatbot_context_summary_model: "{{ chatbot_scenario_matrix.global.passthrough_model_alias }}"
     chatbot_ui_mode: simplified

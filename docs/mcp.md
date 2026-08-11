@@ -380,20 +380,12 @@ non-empty `fortiweb_public_private_ip` and `fortiweb_mcp_http_base_url` values,
 then configure FortiWeb and redeploy the chatbot. An admin URL alone does not
 prove that the MCP listener endpoint was generated.
 
-Chatbot frontend instructions are available but disabled by default because
-backend demo instructions normally live in LiteLLM profiles. The default
-deployment packages the local frontend slot when present and starts with the
-`Use frontend instructions` checkbox off. To intentionally override the prompt
-source, set one of:
-
-```yaml
-chatbot_frontend_system_prompt: "Inline system prompt text"
-chatbot_frontend_system_prompt_source_path: "{{ chatbot_instruction_local_root }}/frontend/instructions.txt"
-```
-
-Tracked examples live under `chatbot/instructions/examples/`. Active local
-instruction files live under ignored `chatbot/instructions/local/` and can be
-created or opened with `scripts/instruction_profiles.py`.
+Frontend instructions are owned by installed named scenarios. The scenario
+matrix always includes a `none` profile and adds any scenario-specific profiles
+declared under `matrix.frontend_instruction_profiles`. Tune instruction files
+only in the ignored installed scenario package; see [Scenario
+Management](scenario-management.md) and [Advanced Scenario
+Management](advanced-scenario-management.md).
 
 When FortiWeb Terraform has generated `fortiweb.generated.yml`,
 `chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the

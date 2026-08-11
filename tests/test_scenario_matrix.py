@@ -124,6 +124,13 @@ class ScenarioMatrixTests(unittest.TestCase):
             [model["name"] for model in matrix["litellm_models"]],
             ["pass-model"],
         )
+        self.assertEqual(
+            [
+                profile["id"]
+                for profile in matrix["chatbot_frontend_instruction_profiles"]
+            ],
+            ["none"],
+        )
 
     def test_installed_scenarios_generate_litellm_chatbot_and_faig_objects(self) -> None:
         preview = {

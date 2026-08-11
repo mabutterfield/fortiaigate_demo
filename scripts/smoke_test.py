@@ -34,7 +34,6 @@ REQUIRED_PATHS = [
     "scripts/automated_quickstart.py",
     "scripts/automated_teardown.py",
     "scripts/docs_quality.py",
-    "scripts/instruction_profiles.py",
     "scripts/fortigate_ai_app_proxy_touch.py",
     "scripts/build_scenario_matrix.py",
     "scripts/scenario_matrix.py",
@@ -60,7 +59,6 @@ FORBIDDEN_TRACKED_PATTERNS = [
     "ansible/group_vars/all.yml",
     "ansible/group_vars/env.yml",
     "ansible/group_vars/images.yml",
-    "chatbot/instructions/local/*",
     "*.lic",
     ".env",
 ]
@@ -111,7 +109,6 @@ def check_python_compile() -> None:
 def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
-        "scripts/instruction_profiles.py",
         "scripts/fortigate_ai_app_proxy_touch.py",
         "scripts/build_scenario_matrix.py",
         "scripts/scenario_profiles.py",

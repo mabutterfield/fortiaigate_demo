@@ -9,18 +9,12 @@ Current scripts:
 - `user_profile.py`: initializes, imports, exports, and checks the local user
   profile. The profile contains `terraform/user.tfvars`,
   `ansible/group_vars/user.yml`, and any existing module
-  `99-local.auto.tfvars` overrides. It also includes local instruction profiles
-  under `chatbot/instructions/local/` when they exist. Interactive quickstart
-  invokes this workflow when required files are missing. Use `python3
+  `99-local.auto.tfvars` overrides. Interactive quickstart invokes this
+  workflow when required files are missing. Use `python3
   scripts/user_profile.py init` for standalone AWS pre-staging, add `--local`
   to skip AWS/Terraform onboarding, use `export ../user_profile.tgz` to save
   the user profile, and use `import ../user_profile.tgz` to restore it in a
   fresh clone.
-- `instruction_profiles.py`: initializes, validates, activates examples into,
-  and opens local operator-owned instruction slots under
-  `chatbot/instructions/local/`. Examples and their metadata remain tracked
-  under `chatbot/instructions/examples/`. Run it without a subcommand to open a
-  menu-driven wizard for changing one slot at a time.
 - `scenario_profiles.py`: lists and validates tracked scenarios; installs,
   updates with an explicit backup/overwrite boundary, removes, and reports
   Git-ignored operator-owned packages; previews the installed matrix; and

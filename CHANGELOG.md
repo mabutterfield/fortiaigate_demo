@@ -5,6 +5,14 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Removed the retired lettered instruction-slot toolchain:
+  - deleted the standalone instruction CLI, legacy chatbot profile builders,
+    and tracked instruction-slot example library
+  - removed slot initialization and archive entries from the user-profile
+    command; named installed-scenario archive support follows separately
+  - removed inline frontend-prompt fallback so the scenario matrix owns the
+    `none` profile and every scenario-specific frontend profile
+
 - Made the named-scenario matrix the sole LiteLLM and chatbot runtime source:
   - removed the selectable legacy/demo-slot deployment branches and manual
     installed/configured chatbot profile-source branches

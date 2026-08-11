@@ -7,7 +7,7 @@ demo_outputs_show_secrets: false
 
 demo_outputs_litellm_api_endpoint: "{{ litellm_internal_base_url | default('http://litellm.litellm.svc.cluster.local:4000/v1') }}"
 demo_outputs_litellm_api_key: "{{ litellm_master_key | default('') }}"
-demo_outputs_litellm_model_name: "{{ litellm_demo_a_model_alias | default('demo-a') }}"
+demo_outputs_litellm_model_name: pass-model
 demo_outputs_litellm_ui_username: "{{ litellm_ui_username | default('admin') }}"
 demo_outputs_litellm_ui_password: "{{ litellm_ui_password | default('') }}"
 

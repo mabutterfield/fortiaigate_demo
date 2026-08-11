@@ -319,7 +319,6 @@ def env_json_frontend_profiles(name: str) -> list[dict[str, Any]]:
 
 def build_frontend_instruction_profiles(
     configured_profiles: list[dict[str, Any]],
-    legacy_instruction: str = "",
 ) -> list[dict[str, Any]]:
     profiles = [dict(profile) for profile in configured_profiles]
     if not any(profile.get("id") == "none" for profile in profiles):
@@ -332,18 +331,6 @@ def build_frontend_instruction_profiles(
                 "source_type": "none",
                 "scenario_id": "",
             },
-        )
-    if legacy_instruction.strip() and not any(
-        profile.get("id") == "legacy" for profile in profiles
-    ):
-        profiles.append(
-            {
-                "id": "legacy",
-                "label": "Legacy Frontend Instructions",
-                "instruction": legacy_instruction.strip(),
-                "source_type": "inline",
-                "scenario_id": "",
-            }
         )
     return profiles
 
@@ -1183,12 +1170,8 @@ def main() -> None:
         model_options.insert(0, model)
     page_title = os.getenv("CHATBOT_PAGE_TITLE", "AI Chatbot")
     header_title = os.getenv("CHATBOT_HEADER_TITLE", page_title)
-    legacy_frontend_system_prompt = os.getenv(
-        "CHATBOT_FRONTEND_SYSTEM_PROMPT", ""
-    ).strip()
     frontend_instruction_profiles = build_frontend_instruction_profiles(
         env_json_frontend_profiles("CHATBOT_FRONTEND_INSTRUCTION_PROFILES_JSON"),
-        legacy_frontend_system_prompt,
     )
     frontend_profile_ids = [profile["id"] for profile in frontend_instruction_profiles]
     frontend_default_profile = os.getenv(

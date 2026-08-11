@@ -161,14 +161,10 @@ def main() -> int:
     if not args.no_mcp and not mcp_base_url:
         raise RuntimeError(f"{args.mcp_path} MCP base URL is not configured")
 
-    legacy_frontend_system_prompt = os.getenv(
-        "CHATBOT_FRONTEND_SYSTEM_PROMPT", ""
-    ).strip()
     frontend_profiles = chatbot.build_frontend_instruction_profiles(
         chatbot.env_json_frontend_profiles(
             "CHATBOT_FRONTEND_INSTRUCTION_PROFILES_JSON"
         ),
-        legacy_frontend_system_prompt,
     )
     frontend_profile_name = args.frontend_profile.strip()
     if not frontend_profile_name:
@@ -176,12 +172,7 @@ def main() -> int:
             "CHATBOT_FRONTEND_INSTRUCTION_PROFILE", ""
         ).strip()
     if not frontend_profile_name:
-        frontend_profile_name = (
-            "legacy"
-            if legacy_frontend_system_prompt
-            and chatbot.env_bool("CHATBOT_FRONTEND_SYSTEM_PROMPT_ENABLED", True)
-            else "none"
-        )
+        frontend_profile_name = "none"
     if args.no_frontend_system_prompt:
         frontend_profile_name = "none"
     frontend_profile = chatbot.frontend_profile_by_id(

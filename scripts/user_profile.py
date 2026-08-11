@@ -16,11 +16,6 @@ import tempfile
 import time
 from pathlib import Path, PurePosixPath
 
-try:
-    import instruction_profiles
-except ModuleNotFoundError:
-    from scripts import instruction_profiles
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROFILE_ARCHIVE = REPO_ROOT.parent / "user_profile.tgz"
@@ -45,9 +40,6 @@ ALLOWLIST = [
     Path("terraform/aws-fortigate/99-local.auto.tfvars"),
     Path("terraform/aws-fortiweb/99-local.auto.tfvars"),
     Path("ansible/group_vars/user.yml"),
-    Path("chatbot/instructions/local/demo-a/instructions.txt"),
-    Path("chatbot/instructions/local/demo-b/instructions.txt"),
-    Path("chatbot/instructions/local/frontend/instructions.txt"),
 ]
 
 LEGACY_LOCAL_FILES = [
@@ -606,27 +598,8 @@ def configure_ansible_user_profile() -> None:
     print(f"updated: {rel(path)}")
 
 
-def ensure_instruction_slots() -> list[Path]:
-    print_header("Instruction Profiles")
-    created = []
-    for slot in sorted(instruction_profiles.CATALOG.get("slots", {})):
-        path = instruction_profiles.slot_path(slot)
-        if path.exists():
-            metadata_path = instruction_profiles.ensure_slot_metadata(slot)
-            print(f"exists: {rel(path)}")
-            if metadata_path:
-                print(f"created: {rel(metadata_path)}")
-            continue
-        instruction_profiles.write_slot(slot, force=False)
-        created.append(path)
-        print(f"created: {rel(path)}")
-        instruction_profiles.print_deploy_hint(slot, slot, path)
-    return created
-
-
 def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     copy_profile_examples(force=force)
-    ensure_instruction_slots()
     if configure_aws:
         configure_terraform_user_profile()
     else:
