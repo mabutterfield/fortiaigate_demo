@@ -1058,7 +1058,7 @@ def prompt_fortigate_appliance(
     existing_internal_ip = inventory_defaults.get("fortigate_internal_ip") or generated_scalar(generated_defaults, "fortigate_internal_ip")
     if existing_internal_ip == host:
         existing_internal_ip = ""
-    internal_ip_default = existing_internal_ip or suggested_local_backend_ip(lab_cidr, host, 120)
+    internal_ip_default = existing_internal_ip
     internal_ip = prompt_optional_ip("FortiGate port2/backend IP on local routed network, empty if unknown", internal_ip_default)
     host_controller_cidr = discover_controller_cidr(host, port)
     trusthost_cidrs = list(dict.fromkeys(current_access_cidrs + ([host_controller_cidr] if host_controller_cidr else [])))
@@ -1153,7 +1153,7 @@ def prompt_fortiweb_appliance(
     existing_internal_ip = inventory_defaults.get("fortiweb_internal_ip") or generated_scalar(generated_defaults, "fortiweb_internal_ip")
     if existing_internal_ip == host:
         existing_internal_ip = ""
-    internal_ip_default = existing_internal_ip or suggested_local_backend_ip(lab_cidr, host, 130)
+    internal_ip_default = existing_internal_ip
     internal_ip = prompt_optional_ip("FortiWeb port2/backend IP on local routed network, empty to skip port2 config", internal_ip_default)
     managed_password = generate_password()
     host_controller_cidr = discover_controller_cidr(host, port)
