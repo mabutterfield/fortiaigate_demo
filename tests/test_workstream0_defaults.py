@@ -151,6 +151,51 @@ class ApplianceDefaultTests(unittest.TestCase):
             local_setup.render_appliance_local_vars([result]),
         )
 
+    def test_local_appliance_backend_ips_have_no_generated_default(self) -> None:
+        with mock.patch.object(
+            local_setup, "prompt_yes_no", side_effect=[True, False]
+        ), mock.patch.object(
+            local_setup, "prompt_ip_or_host", return_value="192.168.249.20"
+        ), mock.patch.object(
+            local_setup, "prompt_text", side_effect=["443", "apiadmin"]
+        ), mock.patch.object(
+            local_setup, "prompt_optional_ip", return_value=""
+        ) as fortigate_ip_prompt, mock.patch.object(
+            local_setup, "discover_controller_cidr", return_value=""
+        ), mock.patch.object(local_setup, "write_text"):
+            local_setup.prompt_fortigate_appliance(
+                inventory_defaults={},
+                generated_defaults={},
+                secret_defaults={},
+                current_access_cidrs=[],
+                lab_cidr="192.168.248.0/24",
+            )
+
+        self.assertEqual(fortigate_ip_prompt.call_args.args[1], "")
+
+        with mock.patch.object(
+            local_setup, "prompt_yes_no", side_effect=[True, False]
+        ), mock.patch.object(
+            local_setup, "prompt_ip_or_host", return_value="192.168.249.30"
+        ), mock.patch.object(
+            local_setup,
+            "prompt_text",
+            side_effect=["443", "apiadmin", "prof_admin"],
+        ), mock.patch.object(
+            local_setup, "prompt_optional_ip", return_value=""
+        ) as fortiweb_ip_prompt, mock.patch.object(
+            local_setup, "discover_controller_cidr", return_value=""
+        ), mock.patch.object(local_setup, "write_text"):
+            local_setup.prompt_fortiweb_appliance(
+                inventory_defaults={},
+                generated_defaults={},
+                secret_defaults={},
+                current_access_cidrs=[],
+                lab_cidr="192.168.248.0/24",
+            )
+
+        self.assertEqual(fortiweb_ip_prompt.call_args.args[1], "")
+
 
 if __name__ == "__main__":
     unittest.main()
