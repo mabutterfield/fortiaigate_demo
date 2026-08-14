@@ -1607,7 +1607,7 @@ def main() -> None:
     with chat_col:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                st.markdown(message["content"], unsafe_allow_html=True)
+                st.markdown(message["content"])
 
         if st.button("Clear"):
             st.session_state.messages = []
@@ -1634,7 +1634,7 @@ def main() -> None:
     )
     with chat_col:
         with st.chat_message("user"):
-            st.markdown(user_input, unsafe_allow_html=True)
+            st.markdown(user_input)
 
         with st.chat_message("assistant"):
             try:
@@ -1677,7 +1677,7 @@ def main() -> None:
                         "missing_tool_names": missing_tool_names,
                         "tool_events": tool_events,
                     }
-                    st.markdown(reply, unsafe_allow_html=True)
+                    st.markdown(reply)
                 elif streaming:
                     reply = st.write_stream(
                         stream_response(
@@ -1704,7 +1704,7 @@ def main() -> None:
                         route_headers,
                     )
                     st.session_state.mcp_tool_trace = {}
-                    st.markdown(reply, unsafe_allow_html=True)
+                    st.markdown(reply)
             except Exception as error:
                 reply = f"Request failed: {error}"
                 if mcp_enabled:
