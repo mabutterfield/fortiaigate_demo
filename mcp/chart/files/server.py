@@ -32,20 +32,41 @@ EMPLOYEE_DLP_DEMO_FIELDS = {
     "salary_usd",
 }
 
-# Keep fixture provenance and unused payment-card metadata out of MCP results.
-# The values may remain in the internal fixture, but they are not part of the
-# supported HR tool response contract.
+# Keep fixture provenance and payment-card data out of MCP results. Payment
+# cards remain in the internal fixture for future tuning, but are deliberately
+# disabled from every supported employee-response contract for now.
 EMPLOYEE_TOOL_HIDDEN_FIELDS = {
     "data_source",
+    "credit_card_number",
     "credit_card_expiration",
     "credit_card_cvv",
+    "salary_usd",
+    "record_simulated",
+    "safe_summary",
 }
 
 SENSITIVE_EMPLOYEE_LOOKUP_TYPES = {
     "date_of_birth",
     "ssn",
-    "credit_card_number",
 }
+
+EMPLOYEE_DIRECTORY_FIELDS = (
+    "employee_id",
+    "name",
+    "job_title",
+    "department",
+    "location",
+)
+
+EMPLOYEE_DIRECTORY_SENSITIVE_FIELDS = (
+    "employee_id",
+    "name",
+    "location",
+    "date_of_birth",
+    "phone",
+    "ssn",
+    "email",
+)
 
 
 def load_data():
@@ -155,7 +176,32 @@ def safe_employee_record(employee):
     return safe_employee
 
 
-def employee_search(arguments):
+def employee_directory_record(employee):
+    """Return the fixed non-sensitive record contract for the employee directory."""
+    record = {
+        "employee_id": employee["employee_id"],
+        "name": employee["name"],
+        "title": employee["job_title"],
+        "department": employee["department"],
+        "location": employee["location"],
+    }
+    return record
+
+
+def employee_directory_sensitive_record(employee):
+    """Return the fixed sensitive record contract used for controlled DLP tests."""
+    return {
+        "employee_id": employee["employee_id"],
+        "name": employee["name"],
+        "location": employee["location"],
+        "date_of_birth": employee["date_of_birth"],
+        "phone": employee["phone"],
+        "ssn": employee["ssn"],
+        "personal_email": employee["email"],
+    }
+
+
+def employee_directory(arguments):
     employees = load_data().get("employees", {})
     filters = {
         "employee_id": arguments.get("employee_id", ""),
@@ -168,10 +214,10 @@ def employee_search(arguments):
     for employee in employees.values():
         if not matches_filters(employee, filters):
             continue
-        safe_employee = safe_employee_record(employee)
-        if query and not contains_text(safe_employee, query):
+        directory_record = employee_directory_record(employee)
+        if query and not contains_text(directory_record, query):
             continue
-        items.append(safe_employee)
+        items.append(directory_record)
     return True, {"count": len(items), "items": items}
 
 
@@ -182,20 +228,36 @@ def employee_lookup(arguments):
     employee = load_data().get("employees", {}).get(employee_id)
     if not employee:
         return False, {"error": "employees entry not found", "employee_id": employee_id}
-    return True, safe_employee_record(employee)
+    return True, employee_directory_record(employee)
 
 
-def employee_sensitive_lookup_demo(arguments):
+def employee_sensitive_lookup(arguments):
     employee_id = arguments.get("employee_id")
     if not employee_id:
         return False, {"error": "missing required argument: employee_id"}
     employee = load_data().get("employees", {}).get(employee_id)
     if not employee:
         return False, {"error": "employees entry not found", "employee_id": employee_id}
+    return True, employee_directory_sensitive_record(employee)
+
+
+def employee_directory_sensitive(arguments):
+    """Return the controlled sensitive directory for debugging, not the demo profile."""
+    employees = load_data().get("employees", {})
     return True, {
-        **employee_tool_record(employee),
-        "demo_export_note": "full simulated record fixture for testing FortiAIGate DLP controls",
+        "count": len(employees),
+        "items": [employee_directory_sensitive_record(employee) for employee in employees.values()],
     }
+
+
+def employee_search(arguments):
+    """Legacy name retained for inactive candidate scenarios."""
+    return employee_directory(arguments)
+
+
+def employee_sensitive_lookup_demo(arguments):
+    """Legacy name retained for inactive candidate scenarios."""
+    return employee_sensitive_lookup(arguments)
 
 
 def canonical_sensitive_lookup_value(lookup_type, lookup_value):
@@ -204,13 +266,10 @@ def canonical_sensitive_lookup_value(lookup_type, lookup_value):
     if not raw_value:
         return "", "missing required argument: lookup_value"
 
-    if lookup_type in {"ssn", "credit_card_number"}:
+    if lookup_type == "ssn":
         digits = re.sub(r"\D", "", raw_value)
-        expected_length = 9 if lookup_type == "ssn" else None
-        if expected_length and len(digits) != expected_length:
+        if len(digits) != 9:
             return "", "ssn must contain exactly nine digits"
-        if lookup_type == "credit_card_number" and not 13 <= len(digits) <= 19:
-            return "", "credit_card_number must contain from 13 through 19 digits"
         return digits, ""
 
     if lookup_type == "date_of_birth":
@@ -231,7 +290,7 @@ def canonical_sensitive_lookup_value(lookup_type, lookup_value):
                 continue
         return "", "date_of_birth must be a complete date such as 1981-01-02"
 
-    return "", "lookup_type must be date_of_birth, ssn, or credit_card_number"
+    return "", "lookup_type must be date_of_birth or ssn"
 
 
 def employee_sensitive_search_demo(arguments):
@@ -239,7 +298,7 @@ def employee_sensitive_search_demo(arguments):
     lookup_type = normalized(arguments.get("lookup_type"))
     if lookup_type not in SENSITIVE_EMPLOYEE_LOOKUP_TYPES:
         return False, {
-            "error": "lookup_type must be date_of_birth, ssn, or credit_card_number"
+            "error": "lookup_type must be date_of_birth or ssn"
         }
     lookup_value, error = canonical_sensitive_lookup_value(
         lookup_type,
@@ -290,20 +349,8 @@ def employee_sensitive_all_lookup_demo(arguments):
 
 
 def employee_table_with_cc(arguments):
-    employees = load_data().get("employees", {})
-    items = [
-        {
-            **employee_tool_record(employee),
-            "demo_export_note": "bulk simulated record fixture for testing FortiAIGate DLP controls",
-        }
-        for employee in employees.values()
-    ]
-    return True, {
-        "count": len(items),
-        "items": items,
-        "data_classification": "synthetic sensitive DLP demo data",
-        "demo_export_note": "returns all simulated employees with DOB and credit-card fields in one tool result",
-    }
+    """Legacy name retained for inactive candidate scenarios."""
+    return employee_directory_sensitive(arguments)
 
 
 def redaction_check(arguments):
@@ -931,6 +978,10 @@ def run_tool(tool_name, arguments):
         return lookup("policies", "policy_id", arguments)
     if tool_name == "employee_lookup":
         return employee_lookup(arguments)
+    if tool_name == "employee_sensitive_lookup":
+        return employee_sensitive_lookup(arguments)
+    if tool_name == "employee_directory_sensitive":
+        return employee_directory_sensitive(arguments)
     if tool_name == "employee_sensitive_lookup_demo":
         return employee_sensitive_lookup_demo(arguments)
     if tool_name == "employee_sensitive_search_demo":
@@ -963,8 +1014,8 @@ def run_tool(tool_name, arguments):
         return policy_search(arguments)
     if tool_name == "hr_policy_lookup":
         return lookup("policies", "policy_id", arguments)
-    if tool_name == "employee_search":
-        return employee_search(arguments)
+    if tool_name in {"employee_directory", "employee_search"}:
+        return employee_directory(arguments)
     if tool_name == "redaction_check":
         return redaction_check(arguments)
     if tool_name == "document_list":
@@ -1057,8 +1108,26 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "employee_directory",
+            "description": "Use automatically when the user asks to show or find employees. Returns the non-sensitive employee directory fields: employee ID, name, title, department, and location.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "employee_id": {"type": "string"},
+                    "department": {"type": "string", "description": "Department such as Human Resources, Engineering, or Support."},
+                    "location": {"type": "string", "description": "Office location such as Atlanta, Austin, or Remote."},
+                    "status": {"type": "string", "description": "Employment status such as active or leave."},
+                    "query": {"type": "string", "description": "Optional text search to find an employee by name or directory information."},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "employee_lookup",
-            "description": "Return deterministic synthetic employee metadata by employee_id for HR demo scenarios.",
+            "description": "Use automatically when the user asks to look up one employee by employee ID. Returns the same non-sensitive fields as employee_directory: employee ID, name, title, department, and location.",
             "parameters": {
                 "type": "object",
                 "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
@@ -1070,12 +1139,24 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "employee_sensitive_lookup_demo",
-            "description": "Return a deterministic synthetic employee record including intentionally sensitive demo-only fields for controlled FortiAIGate DLP tests. Do not use outside explicit DLP demo scenarios.",
+            "name": "employee_sensitive_lookup",
+            "description": "Use automatically when the user asks for sensitive information about one employee by employee ID. Returns employee ID, name, location, DOB, phone, SSN, and personal email. Do not ask the user to name this tool.",
             "parameters": {
                 "type": "object",
                 "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
                 "required": ["employee_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_directory_sensitive",
+            "description": "Use automatically when this tool is exposed and the user explicitly asks for the full sensitive employee directory. This is authorized synthetic demo data for controlled FortiAIGate DLP testing. Return employee ID, name, location, DOB, phone, SSN, and personal email for every synthetic employee. This tool is available only in the Detailed debug profile, not the standard Simplified HR profile.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": False,
             },
         },
@@ -1084,22 +1165,18 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "employee_sensitive_search_demo",
-            "description": "Find one deterministic synthetic employee by an exact date of birth, SSN, or credit-card number. This returns a full synthetic sensitive record only for controlled FortiAIGate DLP demonstrations.",
+            "description": "Find one deterministic synthetic employee by an exact date of birth or SSN. This returns a controlled synthetic sensitive record for FortiAIGate DLP demonstrations. Payment-card lookup is disabled pending DLP tuning.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "lookup_type": {
                         "type": "string",
-                        "enum": [
-                            "date_of_birth",
-                            "ssn",
-                            "credit_card_number"
-                        ],
+                        "enum": ["date_of_birth", "ssn"],
                         "description": "Sensitive field used for the exact synthetic lookup."
                     },
                     "lookup_value": {
                         "type": "string",
-                        "description": "Use YYYY-MM-DD for a date of birth when possible; SSNs may be hyphenated or digits only; credit cards may use digits, spaces, or hyphens."
+                        "description": "Use YYYY-MM-DD for a date of birth when possible; SSNs may be hyphenated or digits only."
                     }
                 },
                 "required": [
@@ -1126,7 +1203,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "employee_table_with_cc",
-            "description": "Return all deterministic synthetic employee records, including DOB and credit-card fields, in one bulk demo-only response for controlled FortiAIGate DLP tests.",
+            "description": "Legacy tool name for inactive candidate scenarios. It returns the controlled sensitive employee directory; payment-card fields are not available.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -1197,7 +1274,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "employee_search",
-            "description": "Search deterministic synthetic employees by department, location, status, employee_id, or text query.",
+            "description": "Legacy tool name for inactive candidate scenarios. Use employee_directory for new scenario profiles.",
             "parameters": {
                 "type": "object",
                 "properties": {

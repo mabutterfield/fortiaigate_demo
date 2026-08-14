@@ -5,10 +5,10 @@
       "request": "sensitive-record-request.json"
     },
     "deny-attack": {
-      "request": "bulk-sensitive-table-request.json"
+      "request": "sensitive-record-request.json"
     },
     "redact-attack": {
-      "request": "bulk-sensitive-table-request.json"
+      "request": "sensitive-record-request.json"
     }
   }
 }
