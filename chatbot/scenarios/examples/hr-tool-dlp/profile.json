@@ -17,7 +17,7 @@
       "employee_table_with_cc"
     ],
     "extended_tool_sets": [],
-    "max_tool_rounds": 5,
+    "max_tool_rounds": 8,
     "data_sources": [
       "mcp/chart/files/tools.json employees"
     ]
@@ -159,7 +159,7 @@
       "mcp_path": "FortiWeb MCP with Direct MCP fallback",
       "tool_profile": "hr-tool-dlp",
       "context_mode": "consolidated",
-      "max_tool_rounds": 5
+      "max_tool_rounds": 8
     },
     "questions": [
       {
