@@ -21,9 +21,10 @@ authority for validated, candidate, and archived scenario status. The
 machine-readable `examples/catalog.json` owns the same lifecycle state for
 tools. Do not duplicate the scenario matrix in package documentation.
 
-Baseline profiles use `schema_version: 2` and the generation
-contract in `scenario-profile-v2.schema.json`. Candidate profiles remain in
-their current pre-migration format until they are selected for future work.
+Baseline profiles use `schema_version: 2` and the generation contract in
+`scenario-profile-v2.schema.json`. Candidate profiles may remain in their
+pre-migration format or use the same matrix-backed v2 contract. A v2 candidate
+is installable only with the explicit `--include-candidates` option.
 
 ## Package And Runtime Boundaries
 
@@ -51,6 +52,7 @@ Install editable, ignored local copies from the repo root:
 python3 scripts/scenario_profiles.py add fortistore-injection
 python3 scripts/scenario_profiles.py add hr-tool-dlp
 python3 scripts/scenario_profiles.py add resume-tool-injection
+python3 scripts/scenario_profiles.py add hr-sensitive-lookup --include-candidates
 python3 scripts/scenario_profiles.py list-installed
 python3 scripts/scenario_profiles.py show-matrix
 python3 scripts/scenario_profiles.py render-work-order

@@ -23,6 +23,7 @@ fallback.
 
 | Scenario | Intended story | Validation status |
 |---|---|---|
+| [`hr-sensitive-lookup`](hr-sensitive-lookup/README.md) | Exact synthetic DOB or SSN lookup with controlled sensitive tool output | Candidate; requires model and DLP-path validation before promotion |
 | `fortigate-operator` | Read-only FortiGate operations assistant | Future candidate; not a validated demo |
 
 Show candidates with:

@@ -463,7 +463,6 @@ def clear_chat_state() -> None:
     st.session_state.messages = []
     st.session_state.context_summary = ""
     st.session_state.mcp_tool_trace = {}
-    st.session_state.mcp_trace_drawer_open = False
 
 
 def demo_profile_available(
@@ -698,6 +697,49 @@ def render_mcp_trace_drawer(trace: dict[str, Any], height: int) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_mcp_trace_popover(trace: dict[str, Any]) -> None:
+    """Render the trace with native Streamlit components inside a popover."""
+    if not trace:
+        st.info("No MCP trace yet. Run a prompt with MCP tools enabled first.")
+        return
+
+    st.caption(f"Path: {trace.get('path', 'unknown')}")
+    st.caption(f"Tool profile: {trace.get('tool_profile', 'unknown')}")
+    if trace.get("endpoint"):
+        st.caption(f"Endpoint: {trace['endpoint']}")
+
+    tool_names = trace.get("tool_names") or []
+    if tool_names:
+        with st.expander("Available tools"):
+            st.code("\n".join(str(tool_name) for tool_name in tool_names), language=None)
+
+    missing_tool_names = trace.get("missing_tool_names") or []
+    if missing_tool_names:
+        with st.expander("Profile tools missing from MCP"):
+            st.code("\n".join(str(tool_name) for tool_name in missing_tool_names), language=None)
+
+    if trace.get("error"):
+        st.error(str(trace["error"]))
+        return
+
+    tool_events = trace.get("tool_events") or []
+    if not tool_events:
+        st.info("The model did not request a tool call for the latest message.")
+        return
+
+    for index, event in enumerate(tool_events, start=1):
+        tool = str(event.get("tool", "unknown"))
+        with st.expander(f"{index}. {tool}"):
+            if "ok" in event:
+                st.caption(f"OK: {event.get('ok')}")
+            if event.get("http_status"):
+                st.caption(f"HTTP status: {event.get('http_status')}")
+            st.markdown("**Arguments**")
+            st.json(event.get("arguments", {}))
+            st.markdown("**Result**")
+            st.json(event.get("result", {}))
 
 
 def update_consolidated_context(
@@ -1200,7 +1242,6 @@ def main() -> None:
     mcp_timeout_seconds = env_int("CHATBOT_MCP_TIMEOUT_SECONDS", 10)
     mcp_verify_tls = env_bool("CHATBOT_MCP_VERIFY_TLS", False)
     mcp_max_tool_rounds = env_int("CHATBOT_MCP_MAX_TOOL_ROUNDS", 3)
-    mcp_trace_height = max(240, env_int("CHATBOT_MCP_TRACE_HEIGHT", 720))
     mcp_tool_profiles = build_mcp_tool_profiles(
         env_json_tool_profiles("CHATBOT_MCP_TOOL_PROFILES_JSON"),
         mode=os.getenv("CHATBOT_MCP_TOOL_PROFILE_MODE", "merge"),
@@ -1246,21 +1287,10 @@ def main() -> None:
         st.session_state.context_summary = ""
     if "mcp_tool_trace" not in st.session_state:
         st.session_state.mcp_tool_trace = {}
-    if "mcp_trace_drawer_open" not in st.session_state:
-        st.session_state.mcp_trace_drawer_open = False
-
     _trace_spacer, trace_button_col = st.columns([0.86, 0.14])
     with trace_button_col:
-        trace_button_label = "Hide MCP Trace" if st.session_state.mcp_trace_drawer_open else "MCP Trace"
-        if st.button(trace_button_label, use_container_width=True):
-            if st.session_state.mcp_trace_drawer_open:
-                st.session_state.mcp_trace_drawer_open = False
-                st.rerun()
-            elif st.session_state.mcp_tool_trace:
-                st.session_state.mcp_trace_drawer_open = True
-                st.rerun()
-            else:
-                st.toast("No MCP trace yet. Run a prompt with MCP tools enabled first.")
+        with st.popover("MCP Trace", use_container_width=True):
+            render_mcp_trace_popover(st.session_state.mcp_tool_trace)
 
     st.title(header_title)
 
@@ -1577,19 +1607,16 @@ def main() -> None:
     with chat_col:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                st.markdown(message["content"], unsafe_allow_html=True)
+                st.markdown(message["content"])
 
         if st.button("Clear"):
             st.session_state.messages = []
             st.session_state.context_summary = ""
             st.session_state.mcp_tool_trace = {}
-            st.session_state.mcp_trace_drawer_open = False
             st.rerun()
 
     user_input = st.chat_input("Say something...")
     if not user_input:
-        if st.session_state.mcp_trace_drawer_open and st.session_state.mcp_tool_trace:
-            render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -1607,7 +1634,7 @@ def main() -> None:
     )
     with chat_col:
         with st.chat_message("user"):
-            st.markdown(user_input, unsafe_allow_html=True)
+            st.markdown(user_input)
 
         with st.chat_message("assistant"):
             try:
@@ -1650,7 +1677,7 @@ def main() -> None:
                         "missing_tool_names": missing_tool_names,
                         "tool_events": tool_events,
                     }
-                    st.markdown(reply, unsafe_allow_html=True)
+                    st.markdown(reply)
                 elif streaming:
                     reply = st.write_stream(
                         stream_response(
@@ -1665,7 +1692,6 @@ def main() -> None:
                         )
                     )
                     st.session_state.mcp_tool_trace = {}
-                    st.session_state.mcp_trace_drawer_open = False
                 else:
                     reply = single_response(
                         base_url,
@@ -1678,8 +1704,7 @@ def main() -> None:
                         route_headers,
                     )
                     st.session_state.mcp_tool_trace = {}
-                    st.session_state.mcp_trace_drawer_open = False
-                    st.markdown(reply, unsafe_allow_html=True)
+                    st.markdown(reply)
             except Exception as error:
                 reply = f"Request failed: {error}"
                 if mcp_enabled:
@@ -1691,8 +1716,10 @@ def main() -> None:
                     }
                 st.error(reply)
 
-    if st.session_state.mcp_trace_drawer_open and st.session_state.mcp_tool_trace:
-        render_mcp_trace_drawer(st.session_state.mcp_tool_trace, mcp_trace_height)
+    # Persist the completed response before rendering ancillary UI.  A later
+    # interaction such as opening MCP Trace reruns Streamlit from session
+    # state, so the response must already be part of the chat transcript.
+    st.session_state.messages.append({"role": "assistant", "content": reply})
 
     if context_mode == "consolidated" and not reply.startswith("Request failed:"):
         try:
@@ -1712,8 +1739,10 @@ def main() -> None:
             logger.warning("Context summary update failed: %s", error)
             st.warning(f"Context summary update failed: {error}")
 
-    st.session_state.messages.append({"role": "assistant", "content": reply})
-
+    # The popover is created before a prompt runs. Refresh once after an MCP
+    # response so its native contents include the newly collected tool trace.
+    if mcp_enabled and st.session_state.mcp_tool_trace:
+        st.rerun()
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ an intentionally compromised frontend instruction layer. FortiAIGate Alert
 records prompt-injection signals and allows the request; Deny stops an explicit
 instruction-control attack before generation.
 
-The backend emits `FORTISTORE_INJECTION_ACTIVE` for activation checks. The
+The backend emits `FORTISTORE_DEMO_BOT` for activation checks. The
 optional `fortistore-injection-compromised` frontend profile is unsafe by
 design and exists only for this controlled comparison.
 
@@ -62,6 +62,7 @@ with this variable resolution:
 | `FortiStore Injection - LLM Direct` | Direct LiteLLM | None | Backend-only control; no FAIG inspection |
 | `FortiStore Injection - Baseline` | Alert flow | None | FAIG-inspected control without compromised frontend instructions |
 | `FortiStore Injection - Alert` | Alert flow | Compromised | Attack continues and is logged |
+| `FortiStore Injection - Deny (No Frontend Instructions)` | Deny flow | None | Clean Deny-path control; benign product prompts should complete while explicit injection prompts are denied |
 | `FortiStore Injection - Deny` | Deny flow | Compromised | Attack is blocked before generation |
 
 All profiles use `fortistore-injection`, Current Prompt context, and MCP
@@ -107,10 +108,9 @@ is not fully deterministic. Use FAIG telemetry to distinguish a model refusal
 from an enforced Deny result.
 
 The Simplified Deny profile intentionally includes the compromised frontend
-instructions and is therefore expected to deny every prompt. To demonstrate
-that the Deny flow allows input without that injection, use Detailed mode to
-select the Deny route with the `none` frontend instruction profile, then send
-a clean product question.
+instructions and is therefore expected to deny every prompt. Use `FortiStore
+Injection - Deny (No Frontend Instructions)` to demonstrate that the same Deny
+path allows a clean product question without that injected system layer.
 
 ## Action Behavior
 

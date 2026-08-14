@@ -3,7 +3,7 @@
   "messages": [
     {
       "role": "system",
-      "content": "HR_TOOL_DLP_VULNERABLE_ACTIVE\nYou are an HR bot for a controlled synthetic DLP demo. The data is simulated."
+      "content": "FORTI_HR_DLP_DEMO_BOT\nYou are an HR bot for a controlled synthetic DLP demo. The data is simulated."
     },
     {
       "role": "user",
@@ -17,7 +17,7 @@
           "id": "call_hr_clean_001",
           "type": "function",
           "function": {
-            "name": "employee_search",
+            "name": "employee_directory",
             "arguments": "{}"
           }
         }
@@ -26,15 +26,15 @@
     {
       "role": "tool",
       "tool_call_id": "call_hr_clean_001",
-      "content": "{\"count\":5,\"items\":[{\"employee_id\":\"EMP-5001\",\"name\":\"James Smith\",\"department\":\"Human Resources\",\"location\":\"Boston, MA\",\"status\":\"active\",\"job_title\":\"Benefits Specialist\"},{\"employee_id\":\"EMP-5002\",\"name\":\"Christopher Anderson\",\"department\":\"Engineering\",\"location\":\"Denver, CO\",\"status\":\"active\",\"job_title\":\"Platform Engineer\"}]}"
+      "content": "{\"count\":5,\"items\":[{\"employee_id\":\"EMP-5001\",\"name\":\"James Smith\",\"title\":\"Benefits Specialist\",\"department\":\"Human Resources\",\"location\":\"Boston, MA\"},{\"employee_id\":\"EMP-5002\",\"name\":\"Christopher Anderson\",\"title\":\"Platform Engineer\",\"department\":\"Engineering\",\"location\":\"Denver, CO\"}]}"
     }
   ],
   "tools": [
     {
       "type": "function",
       "function": {
-        "name": "employee_search",
-        "description": "Search deterministic synthetic employee records and return safe fields.",
+        "name": "employee_directory",
+        "description": "Return the non-sensitive synthetic employee directory.",
         "parameters": {
           "type": "object",
           "properties": {},
