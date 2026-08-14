@@ -65,12 +65,11 @@ From current documentation only:
 
 ## 5. Scenario Installation And GUI Objects
 
-Install the four validated scenarios, deploy matrix consumers, render the
+Install the three validated scenarios, deploy matrix consumers, render the
 work order, and create every required FAIG object:
 
 ```bash
 python3 scripts/scenario_profiles.py add fortistore-injection
-python3 scripts/scenario_profiles.py add hr-sensitive-lookup
 python3 scripts/scenario_profiles.py add hr-tool-dlp
 python3 scripts/scenario_profiles.py add resume-tool-injection
 python3 scripts/scenario_profiles.py render-work-order
@@ -81,7 +80,6 @@ Required protected paths:
 | Scenario | Actions |
 |---|---|
 | `fortistore-injection` | Alert, Deny |
-| `hr-sensitive-lookup` | Alert, Redact, Deny |
 | `hr-tool-dlp` | Alert, Redact, Deny |
 | `resume-tool-injection` | Alert, Deny |
 

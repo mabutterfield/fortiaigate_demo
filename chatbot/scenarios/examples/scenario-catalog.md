@@ -11,7 +11,6 @@ does not report what is installed. Use
 | Scenario | Security story | Actions | LiteLLM alias | MCP profile |
 |---|---|---|---|---|
 | [`fortistore-injection`](fortistore-injection/README.md) | User and compromised-frontend prompt injection against a product advisor | Alert, Deny | `fortistore-injection` | Disabled |
-| [`hr-sensitive-lookup`](hr-sensitive-lookup/README.md) | Exact synthetic DOB, SSN, or card lookup with sensitive tool output | Alert, Redact, Deny | `hr-sensitive-lookup` | Base `hr-sensitive-lookup` |
 | [`hr-tool-dlp`](hr-tool-dlp/README.md) | Synthetic sensitive HR records returned by a tool | Alert, Redact, Deny | `hr-tool-dlp` | Base `hr-tool-dlp` |
 | [`resume-tool-injection`](resume-tool-injection/README.md) | Indirect injection from a simulated uploaded resume and excessive tool access | Alert, Deny | `resume-tool-injection` | Base `resume-tool-injection`; extended `resume-tool-injection-cloud-pivot` |
 
@@ -24,6 +23,7 @@ fallback.
 
 | Scenario | Intended story | Validation status |
 |---|---|---|
+| [`hr-sensitive-lookup`](hr-sensitive-lookup/README.md) | Exact synthetic DOB or SSN lookup with controlled sensitive tool output | Candidate; requires model and DLP-path validation before promotion |
 | `fortigate-operator` | Read-only FortiGate operations assistant | Future candidate; not a validated demo |
 
 Show candidates with:

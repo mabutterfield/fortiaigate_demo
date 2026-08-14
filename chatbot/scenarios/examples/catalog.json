@@ -53,9 +53,9 @@
     "hr-sensitive-lookup": {
       "path": "hr-sensitive-lookup/profile.json",
       "display_name": "HR Sensitive Lookup",
-      "status": "baseline",
-      "lifecycle": "baseline",
-      "active": true
+      "status": "candidate",
+      "lifecycle": "candidate",
+      "active": false
     },
     "resume-screening-clean": {
       "path": "../../../archived_scenarios/resume-screening-clean/profile.json",

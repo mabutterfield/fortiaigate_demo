@@ -15,9 +15,10 @@ if str(SCRIPTS_ROOT) not in sys.path:
 import scenario_profiles  # noqa: E402
 
 
-BASELINE_IDS = ["fortistore-injection", "hr-sensitive-lookup", "hr-tool-dlp", "resume-tool-injection"]
+BASELINE_IDS = ["fortistore-injection", "hr-tool-dlp", "resume-tool-injection"]
 CANDIDATE_IDS = [
     "fortigate-operator",
+    "hr-sensitive-lookup",
 ]
 
 
@@ -46,6 +47,9 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
 
     def load_baseline(self, scenario_id: str) -> tuple[Path, dict]:
         return scenario_profiles.load_scenario(scenario_id)
+
+    def load_candidate(self, scenario_id: str) -> tuple[Path, dict]:
+        return scenario_profiles.load_scenario(scenario_id, include_candidates=True)
 
     def validate(self, scenario_id: str, profile_path: Path, profile: dict) -> list[str]:
         errors, _symbols = scenario_profiles.baseline_profile_validation(
@@ -76,8 +80,8 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
             self.validate("fortistore-injection", profile_path, profile),
         )
 
-    def test_hr_sensitive_lookup_satisfies_semantic_validation(self) -> None:
-        profile_path, profile = self.load_baseline("hr-sensitive-lookup")
+    def test_hr_sensitive_lookup_candidate_satisfies_semantic_validation(self) -> None:
+        profile_path, profile = self.load_candidate("hr-sensitive-lookup")
         self.assertEqual(
             self.validate("hr-sensitive-lookup", profile_path, profile),
             [],
@@ -86,6 +90,7 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
             profile["mcp"]["required_tools"],
             ["employee_sensitive_search_demo", "employee_sensitive_all_lookup_demo"],
         )
+        self.assertEqual(profile["status"], "candidate")
         self.assertTrue(
             all(
                 item["context_mode"] == "consolidated" and item["context_window"] == 8
@@ -121,7 +126,12 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
             ],
         }
         for scenario_id, labels in expected.items():
-            _profile_path, profile = self.load_baseline(scenario_id)
+            loader = (
+                self.load_candidate
+                if scenario_id in CANDIDATE_IDS
+                else self.load_baseline
+            )
+            _profile_path, profile = loader(scenario_id)
             self.assertEqual(
                 [item["display_name"] for item in profile["matrix"]["chatbot_profiles"]],
                 labels,

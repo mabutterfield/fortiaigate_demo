@@ -51,8 +51,8 @@ class FunctionalCurlRendererTests(unittest.TestCase):
             "fortistore-injection": {"alert-attack", "deny-attack"},
             "hr-tool-dlp": {"alert-attack", "deny-attack", "redact-attack"},
             "hr-sensitive-lookup": {
-                "alert-ssn",
-                "deny-credit-card",
+                "alert-date-of-birth",
+                "deny-ssn",
                 "redact-all-records",
             },
             "resume-tool-injection": {"alert-attack", "deny-attack"},
