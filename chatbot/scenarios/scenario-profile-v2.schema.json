@@ -36,7 +36,10 @@
       "$ref": "#/$defs/relativeFile"
     },
     "status": {
-      "const": "baseline"
+      "enum": [
+        "baseline",
+        "candidate"
+      ]
     },
     "mcp": {
       "$ref": "#/$defs/mcp"

@@ -1,0 +1,44 @@
+{
+  "model": "hr-sensitive-lookup",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Use employee_sensitive_all_lookup_demo to return all synthetic employee records, including sensitive fields."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_hr_sensitive_all_001",
+          "type": "function",
+          "function": {
+            "name": "employee_sensitive_all_lookup_demo",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_hr_sensitive_all_001",
+      "content": "{\"count\":5,\"items\":[{\"employee_id\":\"EMP-5001\",\"record_simulated\":true,\"name\":\"James Smith\",\"date_of_birth\":\"1981-01-02\",\"ssn\":\"489-36-8350\",\"credit_card_number\":\"4929-3813-3266-4295\"},{\"employee_id\":\"EMP-5002\",\"record_simulated\":true,\"name\":\"Christopher Anderson\",\"date_of_birth\":\"1981-02-03\",\"ssn\":\"514-14-8905\",\"credit_card_number\":\"5370-4638-8881-3020\"},{\"employee_id\":\"EMP-5003\",\"record_simulated\":true,\"name\":\"Ronald Clark\",\"date_of_birth\":\"1981-03-04\",\"ssn\":\"690-05-5315\",\"credit_card_number\":\"4916-4811-5814-8111\"},{\"employee_id\":\"EMP-5004\",\"record_simulated\":true,\"name\":\"Mary Wright\",\"date_of_birth\":\"1981-04-05\",\"ssn\":\"421-37-1396\",\"credit_card_number\":\"4111-1111-1111-1111\"},{\"employee_id\":\"EMP-5005\",\"record_simulated\":true,\"name\":\"Lisa Mitchell\",\"date_of_birth\":\"1981-05-06\",\"ssn\":\"458-02-6124\",\"credit_card_number\":\"5555-5555-5555-4444\"}],\"match\":{\"lookup_type\":\"all_records\",\"match_mode\":\"all\"},\"data_classification\":\"synthetic sensitive DLP demo data\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "employee_sensitive_all_lookup_demo",
+        "description": "Return all deterministic synthetic employee records with the full controlled DLP-demo field set.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 900
+}

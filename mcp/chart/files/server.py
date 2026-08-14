@@ -2,6 +2,7 @@ import json
 import os
 import re
 import ssl
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -38,6 +39,12 @@ EMPLOYEE_TOOL_HIDDEN_FIELDS = {
     "data_source",
     "credit_card_expiration",
     "credit_card_cvv",
+}
+
+SENSITIVE_EMPLOYEE_LOOKUP_TYPES = {
+    "date_of_birth",
+    "ssn",
+    "credit_card_number",
 }
 
 
@@ -188,6 +195,97 @@ def employee_sensitive_lookup_demo(arguments):
     return True, {
         **employee_tool_record(employee),
         "demo_export_note": "full simulated record fixture for testing FortiAIGate DLP controls",
+    }
+
+
+def canonical_sensitive_lookup_value(lookup_type, lookup_value):
+    """Normalize accepted demo lookup formats without weakening exact matching."""
+    raw_value = str(lookup_value or "").strip()
+    if not raw_value:
+        return "", "missing required argument: lookup_value"
+
+    if lookup_type in {"ssn", "credit_card_number"}:
+        digits = re.sub(r"\D", "", raw_value)
+        expected_length = 9 if lookup_type == "ssn" else None
+        if expected_length and len(digits) != expected_length:
+            return "", "ssn must contain exactly nine digits"
+        if lookup_type == "credit_card_number" and not 13 <= len(digits) <= 19:
+            return "", "credit_card_number must contain from 13 through 19 digits"
+        return digits, ""
+
+    if lookup_type == "date_of_birth":
+        date_value = re.sub(r"(\d)(st|nd|rd|th)\b", r"\1", raw_value, flags=re.IGNORECASE)
+        formats = (
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%m-%d-%Y",
+            "%B %d, %Y",
+            "%b %d, %Y",
+            "%B %d %Y",
+            "%b %d %Y",
+        )
+        for date_format in formats:
+            try:
+                return datetime.strptime(date_value, date_format).date().isoformat(), ""
+            except ValueError:
+                continue
+        return "", "date_of_birth must be a complete date such as 1981-01-02"
+
+    return "", "lookup_type must be date_of_birth, ssn, or credit_card_number"
+
+
+def employee_sensitive_search_demo(arguments):
+    """Find one synthetic employee by an exact sensitive identifier or DOB."""
+    lookup_type = normalized(arguments.get("lookup_type"))
+    if lookup_type not in SENSITIVE_EMPLOYEE_LOOKUP_TYPES:
+        return False, {
+            "error": "lookup_type must be date_of_birth, ssn, or credit_card_number"
+        }
+    lookup_value, error = canonical_sensitive_lookup_value(
+        lookup_type,
+        arguments.get("lookup_value"),
+    )
+    if error:
+        return False, {"error": error}
+
+    for employee in load_data().get("employees", {}).values():
+        employee_value, employee_error = canonical_sensitive_lookup_value(
+            lookup_type,
+            employee.get(lookup_type),
+        )
+        if not employee_error and employee_value == lookup_value:
+            return True, {
+                "count": 1,
+                "items": [employee_tool_record(employee)],
+                "match": {
+                    "lookup_type": lookup_type,
+                    "match_mode": "exact",
+                },
+                "data_classification": "synthetic sensitive DLP demo data",
+            }
+    return True, {
+        "count": 0,
+        "items": [],
+        "message": "No employee found",
+        "match": {
+            "lookup_type": lookup_type,
+            "match_mode": "exact",
+        },
+        "data_classification": "synthetic sensitive DLP demo data",
+    }
+
+
+def employee_sensitive_all_lookup_demo(arguments):
+    """Return every full synthetic employee record for an explicit DLP demo."""
+    employees = load_data().get("employees", {})
+    return True, {
+        "count": len(employees),
+        "items": [employee_tool_record(employee) for employee in employees.values()],
+        "match": {
+            "lookup_type": "all_records",
+            "match_mode": "all",
+        },
+        "data_classification": "synthetic sensitive DLP demo data",
     }
 
 
@@ -835,6 +933,10 @@ def run_tool(tool_name, arguments):
         return employee_lookup(arguments)
     if tool_name == "employee_sensitive_lookup_demo":
         return employee_sensitive_lookup_demo(arguments)
+    if tool_name == "employee_sensitive_search_demo":
+        return employee_sensitive_search_demo(arguments)
+    if tool_name == "employee_sensitive_all_lookup_demo":
+        return employee_sensitive_all_lookup_demo(arguments)
     if tool_name == "employee_table_with_cc":
         return employee_table_with_cc(arguments)
     if tool_name == "customer_search":
@@ -974,6 +1076,48 @@ TOOLS = [
                 "type": "object",
                 "properties": {"employee_id": {"type": "string", "description": "Employee ID such as EMP-5001."}},
                 "required": ["employee_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_sensitive_search_demo",
+            "description": "Find one deterministic synthetic employee by an exact date of birth, SSN, or credit-card number. This returns a full synthetic sensitive record only for controlled FortiAIGate DLP demonstrations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lookup_type": {
+                        "type": "string",
+                        "enum": [
+                            "date_of_birth",
+                            "ssn",
+                            "credit_card_number"
+                        ],
+                        "description": "Sensitive field used for the exact synthetic lookup."
+                    },
+                    "lookup_value": {
+                        "type": "string",
+                        "description": "Use YYYY-MM-DD for a date of birth when possible; SSNs may be hyphenated or digits only; credit cards may use digits, spaces, or hyphens."
+                    }
+                },
+                "required": [
+                    "lookup_type",
+                    "lookup_value"
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "employee_sensitive_all_lookup_demo",
+            "description": "Return all deterministic synthetic employee records with the full controlled DLP-demo field set.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": False,
             },
         },

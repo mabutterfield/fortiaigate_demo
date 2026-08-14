@@ -50,6 +50,13 @@
       "lifecycle": "baseline",
       "active": true
     },
+    "hr-sensitive-lookup": {
+      "path": "hr-sensitive-lookup/profile.json",
+      "display_name": "HR Sensitive Lookup",
+      "status": "baseline",
+      "lifecycle": "baseline",
+      "active": true
+    },
     "resume-screening-clean": {
       "path": "../../../archived_scenarios/resume-screening-clean/profile.json",
       "display_name": "Resume Screening Clean Retrieval",

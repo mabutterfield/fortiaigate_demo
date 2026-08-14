@@ -69,6 +69,65 @@ class HrToolFixtureTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(record["credit_card_number"], card_number)
 
+    def test_sensitive_search_normalizes_exact_dob_ssn_and_card_formats(self) -> None:
+        cases = [
+            ("date_of_birth", "January 2nd, 1981"),
+            ("ssn", "489368350"),
+            ("credit_card_number", "4929 3813 3266 4295"),
+        ]
+        for lookup_type, lookup_value in cases:
+            with self.subTest(lookup_type=lookup_type):
+                ok, result = self.server.employee_sensitive_search_demo(
+                    {"lookup_type": lookup_type, "lookup_value": lookup_value}
+                )
+                self.assertTrue(ok)
+                self.assertEqual(result["count"], 1)
+                self.assertEqual(result["items"][0]["employee_id"], "EMP-5001")
+                self.assert_hidden_fields_absent(result["items"][0])
+                self.assertEqual(result["match"]["lookup_type"], lookup_type)
+
+    def test_sensitive_search_returns_a_consistent_no_match_result(self) -> None:
+        ok, result = self.server.employee_sensitive_search_demo(
+            {"lookup_type": "date_of_birth", "lookup_value": "1970-01-01"}
+        )
+        self.assertTrue(ok)
+        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["message"], "No employee found")
+
+    def test_sensitive_all_lookup_returns_every_full_synthetic_record(self) -> None:
+        ok, result = self.server.employee_sensitive_all_lookup_demo({})
+        self.assertTrue(ok)
+        self.assertEqual(result["count"], 5)
+        self.assertEqual(len(result["items"]), 5)
+        self.assertEqual(result["match"], {"lookup_type": "all_records", "match_mode": "all"})
+        self.assertEqual(result["data_classification"], "synthetic sensitive DLP demo data")
+        for record in result["items"]:
+            self.assert_hidden_fields_absent(record)
+            self.assertIn("date_of_birth", record)
+            self.assertIn("ssn", record)
+            self.assertIn("credit_card_number", record)
+
+        tool_names = {
+            tool["function"]["name"]
+            for tool in self.server.TOOLS
+            if isinstance(tool, dict) and isinstance(tool.get("function"), dict)
+        }
+        self.assertIn("employee_sensitive_all_lookup_demo", tool_names)
+
+    def test_sensitive_search_rejects_invalid_lookup_contracts(self) -> None:
+        ok, result = self.server.employee_sensitive_search_demo(
+            {"lookup_type": "employee_id", "lookup_value": "EMP-5001"}
+        )
+        self.assertFalse(ok)
+        self.assertIn("lookup_type", result["error"])
+
+        ok, result = self.server.employee_sensitive_search_demo(
+            {"lookup_type": "ssn", "lookup_value": "1234"}
+        )
+        self.assertFalse(ok)
+        self.assertIn("nine digits", result["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

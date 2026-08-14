@@ -494,8 +494,8 @@ def baseline_profile_validation(
         errors.append("profile id must equal the catalog scenario ID")
     if not SCENARIO_ID_PATTERN.fullmatch(str(profile.get("id") or "")):
         errors.append("profile id must be lowercase kebab-case")
-    if profile.get("status") != "baseline":
-        errors.append("status must be baseline")
+    if profile.get("status") not in {"baseline", "candidate"}:
+        errors.append("status must be baseline or candidate")
     for field_name in ("display_name", "description"):
         if not isinstance(profile.get(field_name), str) or not profile[field_name].strip():
             errors.append(f"{field_name} must be a non-empty string")
@@ -924,7 +924,7 @@ def validate_scenarios(
         try:
             profile_path, profile = load_scenario(scenario_id, include_inactive=True)
             lifecycle = scenario_lifecycle(catalog_data["scenarios"][scenario_id])
-            if lifecycle == "baseline":
+            if profile.get("schema_version") == 2:
                 errors, symbols = baseline_profile_validation(
                     scenario_id,
                     profile_path,
@@ -1071,15 +1071,25 @@ def parse_args() -> argparse.Namespace:
 
     add_parser = subparsers.add_parser(
         "add",
-        help="Install an editable local copy of a baseline scenario.",
+        help="Install an editable local copy of a baseline or selected candidate scenario.",
     )
-    add_parser.add_argument("scenario", help="Baseline scenario ID.")
+    add_parser.add_argument("scenario", help="Scenario ID.")
+    add_parser.add_argument(
+        "--include-candidates",
+        action="store_true",
+        help="Allow installing a candidate scenario.",
+    )
 
     update_parser = subparsers.add_parser(
         "update",
         help="Inspect or explicitly replace an installed scenario from its tracked example.",
     )
-    update_parser.add_argument("scenario", help="Installed baseline scenario ID.")
+    update_parser.add_argument("scenario", help="Installed scenario ID.")
+    update_parser.add_argument(
+        "--include-candidates",
+        action="store_true",
+        help="Allow updating an installed candidate scenario.",
+    )
     update_parser.add_argument(
         "--force",
         action="store_true",
@@ -1141,14 +1151,20 @@ def main() -> None:
                 include_candidates=args.include_candidates,
             )
         elif args.command == "add":
-            profile_path, profile = load_scenario(args.scenario)
+            profile_path, profile = load_scenario(
+                args.scenario,
+                include_candidates=args.include_candidates,
+            )
             validate_baseline_source(args.scenario, profile_path, profile)
             result = store.add(args.scenario, profile_path)
             print_operation_status(result)
             if result.get("changed"):
                 print("next: deploy LiteLLM and chatbot after matrix integration is enabled")
         elif args.command == "update":
-            profile_path, profile = load_scenario(args.scenario)
+            profile_path, profile = load_scenario(
+                args.scenario,
+                include_candidates=args.include_candidates,
+            )
             validate_baseline_source(args.scenario, profile_path, profile)
             result = store.update(
                 args.scenario,

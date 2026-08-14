@@ -27,6 +27,7 @@ class FunctionalCurlRendererTests(unittest.TestCase):
         for scenario_id in (
             "fortistore-injection",
             "hr-tool-dlp",
+            "hr-sensitive-lookup",
             "resume-tool-injection",
         ):
             self.store.add(
@@ -49,6 +50,11 @@ class FunctionalCurlRendererTests(unittest.TestCase):
         expected_cases = {
             "fortistore-injection": {"alert-attack", "deny-attack"},
             "hr-tool-dlp": {"alert-attack", "deny-attack", "redact-attack"},
+            "hr-sensitive-lookup": {
+                "alert-ssn",
+                "deny-credit-card",
+                "redact-all-records",
+            },
             "resume-tool-injection": {"alert-attack", "deny-attack"},
         }
         with mock.patch.object(

@@ -15,7 +15,7 @@ if str(SCRIPTS_ROOT) not in sys.path:
 import scenario_profiles  # noqa: E402
 
 
-BASELINE_IDS = ["fortistore-injection", "hr-tool-dlp", "resume-tool-injection"]
+BASELINE_IDS = ["fortistore-injection", "hr-sensitive-lookup", "hr-tool-dlp", "resume-tool-injection"]
 CANDIDATE_IDS = [
     "fortigate-operator",
 ]
@@ -72,8 +72,25 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
         profile_path, profile = self.load_baseline("fortistore-injection")
         profile["status"] = "phase" + "11-baseline"
         self.assertIn(
-            "status must be baseline",
+            "status must be baseline or candidate",
             self.validate("fortistore-injection", profile_path, profile),
+        )
+
+    def test_hr_sensitive_lookup_satisfies_semantic_validation(self) -> None:
+        profile_path, profile = self.load_baseline("hr-sensitive-lookup")
+        self.assertEqual(
+            self.validate("hr-sensitive-lookup", profile_path, profile),
+            [],
+        )
+        self.assertEqual(
+            profile["mcp"]["required_tools"],
+            ["employee_sensitive_search_demo", "employee_sensitive_all_lookup_demo"],
+        )
+        self.assertTrue(
+            all(
+                item["context_mode"] == "consolidated" and item["context_window"] == 8
+                for item in profile["matrix"]["chatbot_profiles"]
+            )
         )
 
     def test_builtin_profile_names_follow_the_chatbot_display_convention(self) -> None:
@@ -83,6 +100,12 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
                 "FortiStore Injection - Baseline",
                 "FortiStore Injection - Alert",
                 "FortiStore Injection - Deny",
+            ],
+            "hr-sensitive-lookup": [
+                "HR Sensitive Lookup - LLM Direct",
+                "HR Sensitive Lookup - Alert",
+                "HR Sensitive Lookup - Redact",
+                "HR Sensitive Lookup - Deny",
             ],
             "hr-tool-dlp": [
                 "HR Tool DLP - LLM Direct",
@@ -104,10 +127,13 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
             )
             self.assertNotIn("chatbot_demo_profiles", profile)
 
-    def test_builtin_mcp_scenarios_prefer_fortiweb_and_chains_default_off(self) -> None:
+    def test_builtin_mcp_scenarios_prefer_fortiweb_and_only_sensitive_lookup_enables_chain(self) -> None:
         for scenario_id in BASELINE_IDS:
             _profile_path, profile = self.load_baseline(scenario_id)
-            self.assertFalse(profile["matrix"]["faig_chain"]["enabled"])
+            self.assertEqual(
+                profile["matrix"]["faig_chain"]["enabled"],
+                scenario_id == "hr-sensitive-lookup",
+            )
             if profile["mcp"]["enabled"]:
                 self.assertEqual(profile["mcp"]["default_transport"], "fortiweb")
 

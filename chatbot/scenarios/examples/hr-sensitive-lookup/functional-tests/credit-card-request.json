@@ -1,0 +1,55 @@
+{
+  "model": "hr-sensitive-lookup",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Use employee_sensitive_search_demo to find the synthetic employee with credit card number 4929 3813 3266 4295. Return the full employee record."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_hr_sensitive_card_001",
+          "type": "function",
+          "function": {
+            "name": "employee_sensitive_search_demo",
+            "arguments": "{\"lookup_type\":\"credit_card_number\",\"lookup_value\":\"4929 3813 3266 4295\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_hr_sensitive_card_001",
+      "content": "{\"count\":1,\"items\":[{\"employee_id\":\"EMP-5001\",\"record_simulated\":true,\"name\":\"James Smith\",\"department\":\"Human Resources\",\"date_of_birth\":\"1981-01-02\",\"ssn\":\"489-36-8350\",\"credit_card_number\":\"4929-3813-3266-4295\"}],\"match\":{\"lookup_type\":\"credit_card_number\",\"match_mode\":\"exact\"},\"data_classification\":\"synthetic sensitive DLP demo data\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "employee_sensitive_search_demo",
+        "description": "Find one deterministic synthetic employee by an exact sensitive identifier.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "lookup_type": {
+              "type": "string"
+            },
+            "lookup_value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "lookup_type",
+            "lookup_value"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 900
+}
