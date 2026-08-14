@@ -99,6 +99,7 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
                 "FortiStore Injection - LLM Direct",
                 "FortiStore Injection - Baseline",
                 "FortiStore Injection - Alert",
+                "FortiStore Injection - Deny (No Frontend Instructions)",
                 "FortiStore Injection - Deny",
             ],
             "hr-sensitive-lookup": [
