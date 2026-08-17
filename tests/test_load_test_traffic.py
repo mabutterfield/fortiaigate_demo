@@ -175,14 +175,20 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
             passthrough_percent=80.0,
             passthrough_output_words=1200,
         )
+        scenario_ids = [
+            "fortistore-injection",
+            "hr-tool-dlp",
+            "resume-tool-injection",
+        ]
         profiles = {
             scenario_id: {
                 "id": scenario_id,
+                "status": "baseline",
                 "clean_prompts": [],
                 "attack_prompts": [f"attack {scenario_id}"],
                 "mcp": {"enabled": False, "tool_profile": ""},
             }
-            for scenario_id in traffic_generator.BASELINE_SCENARIOS
+            for scenario_id in scenario_ids
         }
         path_configs = {
             scenario_id: [
@@ -209,16 +215,98 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
                 passthrough_config=self.passthrough_config(),
             )
 
-    def test_baseline_family_is_the_three_current_scenarios(self) -> None:
-        args = types.SimpleNamespace(scenario=None, scenario_family="baseline")
+    def test_default_selection_uses_installed_active_scenarios(self) -> None:
+        args = types.SimpleNamespace(
+            scenario=None,
+            scenario_family="active",
+            include_candidates=False,
+        )
         installed = {
-            **{scenario_id: {} for scenario_id in traffic_generator.BASELINE_SCENARIOS},
-            "fortigate-operator": {},
+            "fortistore-injection": {"status": "baseline"},
+            "hr-tool-dlp": {"status": "baseline"},
+            "resume-tool-injection": {"status": "baseline"},
+            "hr-sensitive-lookup": {"status": "candidate"},
         }
         self.assertEqual(
             traffic_generator.selected_installed_scenarios(args, installed),
-            traffic_generator.BASELINE_SCENARIOS,
+            ["fortistore-injection", "hr-tool-dlp", "resume-tool-injection"],
         )
+
+    def test_candidate_selection_requires_explicit_opt_in(self) -> None:
+        installed = {
+            "fortistore-injection": {"status": "baseline"},
+            "hr-sensitive-lookup": {"status": "candidate"},
+        }
+        all_active = types.SimpleNamespace(
+            scenario=None,
+            scenario_family="active",
+            include_candidates=True,
+        )
+        self.assertEqual(
+            traffic_generator.selected_installed_scenarios(all_active, installed),
+            ["fortistore-injection", "hr-sensitive-lookup"],
+        )
+        explicit_candidate = types.SimpleNamespace(
+            scenario=["hr-sensitive-lookup"],
+            scenario_family="active",
+            include_candidates=False,
+        )
+        self.assertEqual(
+            traffic_generator.selected_installed_scenarios(explicit_candidate, installed),
+            ["hr-sensitive-lookup"],
+        )
+
+    def test_required_actions_fail_before_workload_submission(self) -> None:
+        profiles = {
+            "fortistore-injection": {
+                "status": "baseline",
+                "validation": {
+                    "cases": [
+                        {
+                            "id": "alert",
+                            "action": "alert",
+                            "prompt_kind": "attack",
+                            "prompt_index": 0,
+                            "expected_result": "completed",
+                            "required_tools": [],
+                            "forbidden_tools": [],
+                        }
+                    ]
+                },
+                "attack_prompts": ["test"],
+            }
+        }
+        matrix = {
+            "chatbot_faig_static_routes": [
+                {
+                    "scenario_id": "fortistore-injection",
+                    "action": "alert",
+                    "name": "fortistore-injection-alert",
+                    "route": "fortistore-injection-alert",
+                    "model": "fortistore-injection",
+                }
+            ],
+            "chatbot_simplified_profiles": [
+                {
+                    "scenario_id": "fortistore-injection",
+                    "provider_path": "faig-static",
+                    "route": "fortistore-injection-alert",
+                }
+            ],
+        }
+        with self.assertRaisesRegex(SystemExit, "redact"):
+            traffic_generator.require_validation_actions(
+                matrix, profiles, ["fortistore-injection"], {"alert", "redact"}
+            )
+
+    def test_custom_scenario_without_validation_metadata_fails_clearly(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "custom scenario.*validation.cases"):
+            traffic_generator.require_validation_actions(
+                {"chatbot_faig_static_routes": [], "chatbot_simplified_profiles": []},
+                {"operator-demo": {"status": "baseline"}},
+                ["operator-demo"],
+                {"alert"},
+            )
 
     def test_action_expectations_validate_deny_redact_and_resume_trace(self) -> None:
         base_item = {

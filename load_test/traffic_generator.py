@@ -69,19 +69,7 @@ except Exception as error:
 print(json.dumps(result, sort_keys=True))
 """
 
-BASELINE_SCENARIOS = [
-    "fortistore-injection",
-    "hr-tool-dlp",
-    "resume-tool-injection",
-]
-
-SCENARIO_FAMILIES = {
-    "baseline": BASELINE_SCENARIOS,
-    "documents": ["resume-tool-injection"],
-    "hr": ["hr-tool-dlp"],
-    "fortinet": ["fortistore-injection"],
-    "all": [],
-}
+SCENARIO_SELECTIONS = ("active", "all")
 
 
 def now_iso() -> str:
@@ -147,7 +135,14 @@ def selected_installed_scenarios(
     args: argparse.Namespace,
     profiles: dict[str, dict[str, Any]],
 ) -> list[str]:
-    explicit = parse_csv_values(args.scenario)
+    """Select installed scenario profiles from their local lifecycle metadata.
+
+    An explicit scenario ID is deliberate operator intent, so it may select an
+    installed candidate.  Otherwise the default is the installed baseline
+    set.  This keeps developer load traffic aligned with the configured demo
+    without encoding a release-specific scenario list in this module.
+    """
+    explicit = parse_csv_values(getattr(args, "scenario", None))
     if explicit:
         unknown = [scenario for scenario in explicit if scenario not in profiles]
         if unknown:
@@ -155,15 +150,59 @@ def selected_installed_scenarios(
                 "Scenario(s) are not installed: " + ", ".join(unknown)
             )
         return explicit
-    if args.scenario_family == "all":
-        return sorted(profiles)
-    family = SCENARIO_FAMILIES[args.scenario_family]
-    selected = [scenario for scenario in family if scenario in profiles]
+    selection = getattr(args, "scenario_family", "active")
+    include_candidates = bool(getattr(args, "include_candidates", False))
+    if selection == "all":
+        include_candidates = True
+    selected = [
+        scenario_id
+        for scenario_id, profile in sorted(profiles.items())
+        if profile.get("status", "baseline") == "baseline" or include_candidates
+    ]
     if not selected:
+        description = "installed scenarios" if include_candidates else "installed active scenarios"
         raise SystemExit(
-            f"Scenario family '{args.scenario_family}' has no installed scenarios."
+            f"No {description} are available for this load-test run."
         )
     return selected
+
+
+def require_validation_actions(
+    matrix: dict[str, Any],
+    profiles: dict[str, dict[str, Any]],
+    scenario_ids: list[str],
+    required_actions: set[str],
+) -> None:
+    """Fail before a run when selected installed profiles lack needed routes."""
+    def has_validation_cases(profile: dict[str, Any]) -> bool:
+        validation = profile.get("validation")
+        return isinstance(validation, dict) and bool(validation.get("cases"))
+
+    custom_without_validation = [
+        scenario_id
+        for scenario_id in scenario_ids
+        if not has_validation_cases(profiles[scenario_id])
+        and not (
+            scenario_validation.TRACKED_SCENARIOS_ROOT / scenario_id / "profile.json"
+        ).is_file()
+    ]
+    if custom_without_validation:
+        raise SystemExit(
+            "Installed custom scenario(s) have no validation.cases metadata: "
+            + ", ".join(sorted(custom_without_validation))
+            + ". Add validation metadata or select scenario(s) with test cases."
+        )
+    validation_items = scenario_validation.validation_plan_items(
+        matrix, profiles, scenario_ids
+    )
+    available = {str(item["route"]) for item in validation_items}
+    missing = sorted(required_actions - available)
+    if missing:
+        raise SystemExit(
+            "Selected installed scenarios do not supply required validation action(s): "
+            + ", ".join(missing)
+            + ". Select another installed scenario or adjust the workload profile."
+        )
 
 
 def matrix_action_configs(
@@ -1210,7 +1249,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--concurrency", type=int, default=None, help="Concurrent agent probes. Defaults by --use-case.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--scenario", action="append", help="Scenario ID. Can be repeated or comma-separated.")
-    parser.add_argument("--scenario-family", choices=sorted(SCENARIO_FAMILIES), default="baseline")
+    parser.add_argument(
+        "--scenario-family",
+        choices=SCENARIO_SELECTIONS,
+        default="active",
+        help="Installed scenario lifecycle selection; active excludes candidates.",
+    )
+    parser.add_argument(
+        "--include-candidates",
+        action="store_true",
+        help="Also include installed candidate scenarios when no --scenario is specified.",
+    )
     parser.add_argument("--traffic-profile", choices=["clean", "attack", "mixed"], default="mixed")
     parser.add_argument("--action", action="append", help="Scenario action. Can be repeated or comma-separated; defaults to direct and alert.")
     parser.add_argument("--model", default="", help="Override the matrix-derived chatbot model alias.")

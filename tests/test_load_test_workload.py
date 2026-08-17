@@ -11,6 +11,11 @@ from load_test import statistics, traffic_generator, workload
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+BASELINE_SCENARIO_IDS = [
+    "fortistore-injection",
+    "hr-tool-dlp",
+    "resume-tool-injection",
+]
 
 
 class DashboardWorkloadTests(unittest.TestCase):
@@ -27,7 +32,7 @@ class DashboardWorkloadTests(unittest.TestCase):
                     / "profile.json"
                 ).read_text(encoding="utf-8")
             )
-            for scenario_id in traffic_generator.BASELINE_SCENARIOS
+            for scenario_id in BASELINE_SCENARIO_IDS
         }
 
     @classmethod
@@ -69,7 +74,7 @@ class DashboardWorkloadTests(unittest.TestCase):
 
     def test_metadata_declares_every_current_protected_path(self) -> None:
         items = scenario_validation.validation_plan_items(
-            self.matrix(), self.profiles(), traffic_generator.BASELINE_SCENARIOS
+            self.matrix(), self.profiles(), BASELINE_SCENARIO_IDS
         )
         self.assertEqual(len(items), 7)
         self.assertEqual(

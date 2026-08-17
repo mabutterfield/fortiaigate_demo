@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "dashboard-completion-driven-24h",
+  "duration_hours": 24,
+  "seed": 42,
+  "maximum_requests": 10000,
+  "mix": {
+    "normal_ratio": 0.75,
+    "coverage_within_requests": 11,
+    "hourly_each_path_actions": [
+      "deny",
+      "redact"
+    ],
+    "hourly_alert_count": 1
+  },
+  "normal_traffic": {
+    "prompt_set": "high-token-benign",
+    "minimum_output_words": 1800,
+    "maximum_output_words": 3000,
+    "max_tokens": 8192
+  },
+  "pacing": {
+    "minimum_backoff_seconds": 1,
+    "mean_backoff_seconds": 5,
+    "maximum_backoff_seconds": 15
+  },
+  "execution": {
+    "request_timeout_seconds": 600,
+    "timeout_circuit_breaker_count": 1,
+    "error_circuit_breaker_count": 5
+  },
+  "statistics": {
+    "update_interval_seconds": 30,
+    "checkpoint_interval_seconds": 60
+  },
+  "gpu": {
+    "enabled": true,
+    "sample_interval_seconds": 5
+  }
+}
