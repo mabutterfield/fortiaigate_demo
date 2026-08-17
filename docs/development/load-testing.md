@@ -48,7 +48,12 @@ The default profile is
 - NVIDIA samples every five seconds.
 
 Protected requests are selected from installed scenario
-`validation.cases`. Normal prompts come from
+`validation.cases`. By default the runner discovers every installed scenario
+whose local `profile.json` has `"status": "baseline"`; it does not maintain a
+hard-coded scenario list. An installed candidate is opt-in with either
+`--scenario <id>` or `--include-candidates`. The run fails before sending
+traffic if its selected scenarios do not provide every action required by the
+workload profile. Normal prompts come from
 `load_test/prompts/high-token-benign.json` and intentionally avoid attack
 language.
 
@@ -77,6 +82,19 @@ python3 -m load_test run --yes
 Multiple requests may run concurrently up to the profile limit. Sequential
 scenario execution is easier to diagnose; bounded parallel execution creates
 more realistic latency and utilization trends.
+
+For a completion-driven run with exactly one request in flight, use the
+separate profile and runner. It starts the next request only after the prior
+request completes and a randomized backoff expires. A timeout trips its
+circuit breaker because ending the client probe does not guarantee that the
+upstream local-model request was cancelled.
+
+```bash
+python3 -m load_test completion --hours 1 --yes
+```
+
+Use `--scenario hr-sensitive-lookup` only after that candidate is installed;
+the default selection excludes it.
 
 ## Lightweight Path Probe
 

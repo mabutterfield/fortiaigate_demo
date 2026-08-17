@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 
 from functional_test import validation as scenario_validation
-from load_test import dashboard_runner, traffic_generator
+from load_test import completion_runner, dashboard_runner, traffic_generator
 
 
 USAGE = """usage: python3 -m load_test <command> [options]
@@ -15,6 +15,7 @@ commands:
   validate  Compatibility alias for `python3 -m functional_test validate`
   paths     Send one lightweight request to each installed FAIG path
   run       Generate a scheduled local dashboard workload
+  completion  Generate completion-driven local dashboard traffic (one request in flight)
 
 Run `python3 -m load_test <command> --help` for command options.
 """
@@ -29,7 +30,10 @@ def main() -> int:
     if command == "validate":
         sys.argv = [f"{sys.argv[0]} validate", *remaining]
         return scenario_validation.main()
-    if command in {"paths", "run"}:
+    if command in {"paths", "run", "completion"}:
+        if command == "completion":
+            sys.argv = [f"{sys.argv[0]} completion", *remaining]
+            return completion_runner.main()
         if command == "run":
             sys.argv = [f"{sys.argv[0]} run", *remaining]
             return dashboard_runner.main()

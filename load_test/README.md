@@ -10,10 +10,17 @@ Commands:
 ```bash
 python3 -m load_test paths --help
 python3 -m load_test run --help
+python3 -m load_test completion --help
 ```
 
 `python3 -m load_test validate` remains only as a compatibility alias to the
 functional validator.
+
+By default, traffic uses every installed scenario whose local profile has
+`"status": "baseline"`; no scenario IDs are hard-coded in the runner.
+Installed candidates are excluded unless selected with `--scenario` or
+`--include-candidates`. The workload stops before sending traffic if the
+selected scenarios cannot supply an action required by its profile.
 
 The tracked `profiles/dashboard-balanced-24h.json` workload uses a configurable
 75/25 normal-to-suspicious long-run baseline, hourly request-volume variance,

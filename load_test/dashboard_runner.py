@@ -103,14 +103,17 @@ def run(args: argparse.Namespace) -> int:
     if hours > 1 and not args.yes and not args.dry_run:
         raise SystemExit("Runs longer than one hour require --yes")
     matrix, installed_profiles = traffic_generator.installed_runtime()
+    scenario_ids = traffic_generator.selected_installed_scenarios(args, installed_profiles)
     profiles = {
         scenario_id: installed_profiles[scenario_id]
-        for scenario_id in traffic_generator.BASELINE_SCENARIOS
-        if scenario_id in installed_profiles
+        for scenario_id in scenario_ids
     }
-    if len(profiles) != len(traffic_generator.BASELINE_SCENARIOS):
-        missing = sorted(set(traffic_generator.BASELINE_SCENARIOS) - set(profiles))
-        raise SystemExit("Missing installed baseline scenarios: " + ", ".join(missing))
+    traffic_generator.require_validation_actions(
+        matrix,
+        profiles,
+        scenario_ids,
+        {str(action) for action in profile["mix"]["hourly_action_floor"]},
+    )
     plan, hourly = workload.build_plan(
         profile,
         matrix,
@@ -300,6 +303,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", default="dashboard-balanced-24h")
     parser.add_argument("--hours", type=int, default=0, help="Override profile duration.")
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--scenario", action="append", help="Installed scenario ID; repeat or use comma-separated values.")
+    parser.add_argument("--include-candidates", action="store_true", help="Include installed candidate scenarios in the default selection.")
+    parser.add_argument("--scenario-family", choices=traffic_generator.SCENARIO_SELECTIONS, default="active")
     parser.add_argument("--label", default="")
     parser.add_argument(
         "--output-root",
