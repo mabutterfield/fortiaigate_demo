@@ -25,6 +25,7 @@ Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do 
 |---|---|---|
 | Terraform default lab size | `g4dn.4xlarge` | Cost-conscious T4 lab default; not an officially supported GPU family |
 | Lower-cost supported GPU candidate | `g6.4xlarge` | L4 GPU family, modern single-GPU lab option |
+| Supported A10G validation | `g5.8xlarge` | A10G GPU with stronger CPU/RAM headroom |
 | Production-like supported validation | `g6.8xlarge` | L4 GPU with stronger CPU/RAM headroom |
 | Multi-GPU validation | `g6.12xlarge` | Four L4 GPUs, meets/exceeds the dual-GPU recommendation |
 
@@ -34,8 +35,9 @@ AWS profile initialization offers these choices before Terraform runs:
 
 1. `g4dn.4xlarge` — default budget lab size;
 2. `g6.4xlarge` — lower-cost supported L4 size;
-3. `g6.8xlarge` — preferred supported L4 validation size; or
-4. a custom EC2 instance type.
+3. `g5.8xlarge` — supported A10G validation size;
+4. `g6.8xlarge` — preferred supported L4 validation size; or
+5. a custom EC2 instance type.
 
 The selected value is written to ignored
 `terraform/aws-ec2-k3s/99-local.auto.tfvars`. Quickstart asks only when an AWS
@@ -44,9 +46,10 @@ reuse the stored value. `--yolo` never prompts and uses the stored selection or
 the tracked `g4dn.4xlarge` default.
 
 Terraform checks whether the selected type is offered in the target region,
-but the operator remains responsible for current price and EC2 quota. Changing
-an existing instance type can stop/restart the host and lose ephemeral
-instance-store-backed k3s data.
+but the operator remains responsible for current price, EC2 quota, and
+Availability Zone capacity. G5/G6 capacity is not guaranteed in every AZ;
+verify it before an apply. Changing an existing instance type can stop/restart
+the host and lose ephemeral instance-store-backed k3s data.
 
 ## FortiGate And FortiWeb Appliances
 

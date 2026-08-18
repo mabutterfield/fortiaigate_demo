@@ -51,6 +51,19 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
             "g4dn.4xlarge",
         )
 
+    def test_instance_choice_offers_g5_a10g_validation_size(self) -> None:
+        with mock.patch.object(user_profile, "prompt_text", return_value="3"):
+            selected = user_profile.configure_ec2_instance_type()
+
+        self.assertEqual(selected, "g5.8xlarge")
+        local_content = (
+            self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            user_profile.get_tf_string(local_content, "instance_type"),
+            "g5.8xlarge",
+        )
+
     def test_existing_profile_selection_is_reused_without_prompting(self) -> None:
         local_path = self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
         local_path.write_text('instance_type = "g6.8xlarge"\n', encoding="utf-8")
@@ -79,6 +92,60 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
 
         self.assertTrue(enabled)
         self.assertEqual(prompt.call_args.args[1], True)
+
+    def test_aws_appliance_profile_persists_intent_and_fortiflex_token(self) -> None:
+        with mock.patch.object(
+            user_profile,
+            "prompt_yes_no",
+            side_effect=[True, False],
+        ), mock.patch.object(
+            user_profile,
+            "prompt_text",
+            side_effect=["fortiflex_token", "test-token"],
+        ):
+            selected = user_profile.configure_aws_appliance_profiles()
+
+        self.assertEqual(selected, ["fortigate"])
+        fortigate = (self.test_root / "terraform/aws-fortigate/99-local.auto.tfvars").read_text(encoding="utf-8")
+        fortiweb = (self.test_root / "terraform/aws-fortiweb/99-local.auto.tfvars").read_text(encoding="utf-8")
+        self.assertTrue(user_profile.get_tf_bool(fortigate, "fortigate_enabled", False))
+        self.assertEqual(user_profile.get_tf_string(fortigate, "fortigate_license_mode"), "fortiflex_token")
+        self.assertEqual(user_profile.get_tf_string(fortigate, "fortigate_fortiflex_token"), "test-token")
+        self.assertFalse(user_profile.get_tf_bool(fortiweb, "fortiweb_enabled", True))
+        user_vars = (self.test_root / "ansible/group_vars/user.yml").read_text(encoding="utf-8")
+        self.assertEqual(user_profile.get_yaml_scalar(user_vars, "fortiweb_mcp_proxy_enabled"), "false")
+
+    def test_aws_appliance_profile_writes_selected_byol_license_location(self) -> None:
+        license_dir = self.test_root / "licenses"
+        license_dir.mkdir()
+        (license_dir / "fortigate.lic").write_text("synthetic", encoding="utf-8")
+        system_path = self.test_root / "terraform/aws-fortigate/00-system.auto.tfvars"
+        system_path.parent.mkdir(parents=True, exist_ok=True)
+        system_path.write_text(
+            f'fortigate_license_source_dir = "{license_dir}"\n',
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(
+            user_profile,
+            "prompt_yes_no",
+            side_effect=[True, False],
+        ), mock.patch.object(
+            user_profile,
+            "prompt_text",
+            side_effect=["byol_file", "fortigate.lic"],
+        ):
+            user_profile.configure_aws_appliance_profiles()
+
+        content = (self.test_root / "terraform/aws-fortigate/99-local.auto.tfvars").read_text(encoding="utf-8")
+        self.assertEqual(user_profile.get_tf_string(content, "fortigate_license_file_name"), "fortigate.lic")
+        self.assertEqual(
+            user_profile.resolve_appliance_license_path(
+                "fortigate",
+                user_profile.get_tf_string(content, "fortigate_license_source_dir"),
+            ),
+            license_dir.resolve(),
+        )
 
 
 class UserProfileScenarioArchiveTests(unittest.TestCase):

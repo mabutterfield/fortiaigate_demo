@@ -17,12 +17,15 @@ operator-owned files do not exist, quickstart launches profile initialization
 or import before it starts the deployment. On later runs, existing values are
 shown as the defaults so they can be accepted or changed.
 
-AWS profile initialization also asks for the k3s GPU instance size. The default
-remains the cost-conscious `g4dn.4xlarge`; supported L4 choices include
-`g6.4xlarge` and `g6.8xlarge`. The selection is stored in ignored
-`terraform/aws-ec2-k3s/99-local.auto.tfvars`, reused without another prompt,
-and included in profile export/import. See [AWS Instance
-Sizing](aws-instance.md) before selecting a higher-cost validation target.
+AWS profile initialization asks for the k3s GPU instance size, FortiGate and
+FortiWeb intent, and the BYOL-file or FortiFlex input for each enabled AWS
+appliance. These choices are stored in ignored module-specific
+`99-local.auto.tfvars` files, reused on later runs, and included in profile
+export/import. The k3s default remains the cost-conscious `g4dn.4xlarge`;
+supported choices include `g6.4xlarge`/`g6.8xlarge` (L4) and `g5.8xlarge`
+(A10G). Verify EC2 quota and Availability Zone capacity before selecting a
+G5/G6 size. See [AWS Instance Sizing](aws-instance.md) before selecting a
+higher-cost validation target.
 
 Running `python3 scripts/user_profile.py init` separately is useful only when
 you want to configure and review those values before beginning the longer
@@ -51,18 +54,22 @@ Marketplace subscription, network reachability, or registry-capacity checks.
 ## Choose Appliance Intent
 
 FortiGate and FortiWeb are desired by default but remain optional to the core
-k3s/FortiAIGate deployment:
+k3s/FortiAIGate deployment. On the first AWS run, profile initialization saves
+the selected intent and license configuration. Later AWS quickstarts reuse that
+profile:
 
-- no appliance flags: try both and safely skip one whose prerequisites are
-  absent;
-- `--no-fortigate` or `--no-fortiweb`: explicitly disable one;
-- `--no-appliances`: explicitly disable both;
+- no appliance flags: use the saved profile intent;
+- `--no-fortigate` or `--no-fortiweb`: skip one for this run without changing
+  the saved profile;
+- `--no-appliances`: skip both for this run without changing the saved profile;
 - `--include-fortigate`, `--include-fortiweb`, or `--include-appliances`:
-  require the selected appliance and stop if its prerequisites are missing.
+  temporarily include the selected appliance and stop if its prerequisites are
+  missing.
 
 FortiWeb is the preferred MCP transport when installed and desired. Disabling
-or safely skipping FortiWeb selects Direct MCP as the fallback. FortiGate is
-not required for the supported scenario paths.
+Disabling FortiWeb in the AWS profile selects Direct MCP as the fallback. FortiGate is
+not required for the supported scenario paths. A command-line appliance
+override does not rewrite the saved MCP transport preference.
 
 For the smallest first deployment:
 
@@ -87,7 +94,8 @@ It then guides the following sequence:
 
 1. verify Terraform, AWS CLI, Ansible, and the repository root;
 2. verify the AWS session, shared profile values, and selected k3s GPU instance size;
-3. record desired or disabled appliance intent;
+3. reuse the saved appliance intent and license configuration, then apply any
+   command-line override for this run;
 4. check FortiAIGate and selected appliance licenses;
 5. create/import ECR repositories and apply AWS prep, EC2/k3s, and selected
    appliance Terraform modules;

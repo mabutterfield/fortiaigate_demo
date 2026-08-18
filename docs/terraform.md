@@ -343,7 +343,10 @@ and rendered user-data are stored in local Terraform state.
 
 The Terraform default instance type is `g4dn.4xlarge`.
 
-Use `g6.8xlarge` for a stronger production-like L4 validation target. Use `g6.4xlarge` when you want a lower-cost official L4 lab candidate.
+Use `g6.8xlarge` for a stronger production-like L4 validation target,
+`g6.4xlarge` for a lower-cost official L4 lab candidate, or `g5.8xlarge` for
+supported A10G validation. Before deploying a G5/G6 size, verify the EC2 quota
+and capacity in the Availability Zone selected by the subnet.
 
 See [AWS Instance Sizing](aws-instance.md) for the detailed table separating
 test infrastructure, supported validation infrastructure, and experimental

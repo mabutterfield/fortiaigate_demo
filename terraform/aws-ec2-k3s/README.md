@@ -73,7 +73,8 @@ offsets starting at `30443`.
 The default instance type is `g4dn.4xlarge`. AWS profile initialization asks
 for this value once and stores it in ignored `99-local.auto.tfvars`; existing
 selections are reused. Use `g6.8xlarge` for a stronger supported L4 validation
-target.
+target or `g5.8xlarge` for supported A10G validation. Verify EC2 quota and
+Availability Zone capacity before selecting a G5/G6 size.
 
 After apply, validate host status and SSH:
 
