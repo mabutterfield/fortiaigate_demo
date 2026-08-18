@@ -69,6 +69,9 @@ EC2_K3S_MODULE_PATH = Path("terraform/aws-ec2-k3s")
 EC2_K3S_SYSTEM_TFVARS = EC2_K3S_MODULE_PATH / "00-system.auto.tfvars"
 EC2_K3S_LOCAL_TFVARS = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars"
 EC2_K3S_LOCAL_TFVARS_EXAMPLE = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars.example"
+AWS_PREP_MODULE_PATH = Path("terraform/aws-prep")
+AWS_PREP_LOCAL_TFVARS = AWS_PREP_MODULE_PATH / "99-local.auto.tfvars"
+AWS_PREP_LOCAL_TFVARS_EXAMPLE = AWS_PREP_MODULE_PATH / "99-local.auto.tfvars.example"
 DEFAULT_EC2_INSTANCE_TYPE = "g4dn.4xlarge"
 EC2_INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9]+$")
 EC2_INSTANCE_CHOICES = [
@@ -184,6 +187,21 @@ def set_tf_string(content: str, key: str, value: str) -> str:
     return content.rstrip() + f"\n{replacement}\n"
 
 
+def get_tf_bool(content: str, key: str, default: bool = False) -> bool:
+    matches = re.findall(rf"(?m)^\s*{re.escape(key)}\s*=\s*(true|false)\s*$", content, re.IGNORECASE)
+    if not matches:
+        return default
+    return matches[-1].lower() == "true"
+
+
+def set_tf_bool(content: str, key: str, value: bool) -> str:
+    replacement = f"{key} = {'true' if value else 'false'}"
+    pattern = rf"(?m)^\s*{re.escape(key)}\s*=\s*(?:true|false)\s*$"
+    if re.search(pattern, content, re.IGNORECASE):
+        return re.sub(pattern, replacement, content, count=1, flags=re.IGNORECASE)
+    return content.rstrip() + f"\n{replacement}\n"
+
+
 def set_tf_list_strings(content: str, key: str, values: list[str]) -> str:
     rendered_values = "\n".join(f'  "{value}",' for value in values)
     replacement = f"{key} = [\n{rendered_values}\n]"
@@ -294,6 +312,28 @@ def ensure_ec2_instance_type(*, interactive: bool) -> str:
     print_header("AWS k3s GPU Instance Size")
     print(f"No profile override; using tracked default: {selected}")
     return selected
+
+
+def configure_aws_prep_syslog_preservation() -> bool:
+    """Create the AWS Prep override and set its explicit S3 syslog choice."""
+    print_header("AWS Syslog Preservation")
+    print("S3 preservation is optional. It creates a private bucket and EC2 write policy.")
+    path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS
+    example_path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS_EXAMPLE
+    if path.is_file():
+        content = read_file(path)
+    elif example_path.is_file():
+        content = read_file(example_path)
+    else:
+        content = "# User-owned AWS Prep module overrides.\n"
+    enabled = prompt_yes_no(
+        "Enable durable FortiAIGate syslog S3 preservation?",
+        get_tf_bool(content, "fortiaigate_syslog_bucket_enabled", False),
+    )
+    write_file(path, set_tf_bool(content, "fortiaigate_syslog_bucket_enabled", enabled))
+    print(f"updated: {rel(path)}")
+    print(f"FortiAIGate syslog S3 preservation: {'enabled' if enabled else 'disabled'}")
+    return enabled
 
 
 def get_yaml_scalar(content: str, key: str, default: str = "") -> str:
@@ -720,6 +760,7 @@ def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     if configure_aws:
         configure_terraform_user_profile()
         configure_ec2_instance_type()
+        configure_aws_prep_syslog_preservation()
     else:
         print("Local profile initialization: skipped AWS/Terraform onboarding.")
     configure_ansible_user_profile()
@@ -1141,6 +1182,12 @@ def check_profile() -> None:
     print("Required user profile files exist.")
     for path in existing_profile_paths():
         print(f"- {path.as_posix()}")
+    aws_prep_path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS
+    if aws_prep_path.is_file():
+        enabled = get_tf_bool(read_file(aws_prep_path), "fortiaigate_syslog_bucket_enabled", False)
+        print(f"AWS Prep syslog S3 preservation: {'enabled' if enabled else 'disabled'}")
+    else:
+        print("AWS Prep syslog S3 preservation: not initialized (run user_profile.py init to create the disabled override).")
     _scenario_paths, scenario_ids = installed_scenario_profile_paths()
     if scenario_ids:
         print("Registered installed scenarios included by export:")

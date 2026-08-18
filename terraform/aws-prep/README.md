@@ -77,8 +77,10 @@ When enabled, this module creates a private encrypted bucket, blocks public
 access, and attaches a read/list policy for the configured prefix to the k3s
 EC2 IAM role. The chatbot does not receive AWS credentials.
 
-FortiAIGate syslog S3 prep is disabled by default. Enable it before deploying
-the in-cluster syslog collector:
+FortiAIGate syslog S3 prep is disabled by default. AWS `python3
+scripts/user_profile.py init` asks whether to enable it and creates the ignored
+`99-local.auto.tfvars` override either way. To change an existing profile before
+deploying the in-cluster syslog collector, set:
 
 ```hcl
 fortiaigate_syslog_bucket_enabled = true

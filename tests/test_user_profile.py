@@ -61,6 +61,25 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
         self.assertEqual(selected, "g6.8xlarge")
         prompt.assert_not_called()
 
+    def test_syslog_init_creates_explicit_disabled_aws_prep_override(self) -> None:
+        with mock.patch.object(user_profile, "prompt_yes_no", return_value=False):
+            enabled = user_profile.configure_aws_prep_syslog_preservation()
+
+        self.assertFalse(enabled)
+        content = (self.test_root / user_profile.AWS_PREP_LOCAL_TFVARS).read_text(encoding="utf-8")
+        self.assertFalse(user_profile.get_tf_bool(content, "fortiaigate_syslog_bucket_enabled", True))
+
+    def test_syslog_init_preserves_enabled_choice_as_prompt_default(self) -> None:
+        path = self.test_root / user_profile.AWS_PREP_LOCAL_TFVARS
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fortiaigate_syslog_bucket_enabled = true\n", encoding="utf-8")
+
+        with mock.patch.object(user_profile, "prompt_yes_no", return_value=True) as prompt:
+            enabled = user_profile.configure_aws_prep_syslog_preservation()
+
+        self.assertTrue(enabled)
+        self.assertEqual(prompt.call_args.args[1], True)
+
 
 class UserProfileScenarioArchiveTests(unittest.TestCase):
     def setUp(self) -> None:
