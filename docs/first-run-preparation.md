@@ -181,7 +181,10 @@ control by `.gitignore`:
 
 ```text
 terraform/user.tfvars
+terraform/aws-prep/99-local.auto.tfvars
 terraform/aws-ec2-k3s/99-local.auto.tfvars
+terraform/aws-fortigate/99-local.auto.tfvars
+terraform/aws-fortiweb/99-local.auto.tfvars
 ansible/group_vars/user.yml
 ```
 
@@ -191,21 +194,19 @@ trusted CIDRs, and tags to every Terraform module through tracked
 operator overrides layered after repo and generated defaults.
 
 For AWS initialization, the profile tool also asks for the k3s GPU instance
-size and writes it to the module-local file above. Enter accepts
-`g4dn.4xlarge`; choose `g6.4xlarge` or `g6.8xlarge` for a supported NVIDIA L4
-validation target. Existing explicit selections are reused without prompting.
+size, durable syslog preservation, and whether to deploy FortiGate and
+FortiWeb. Each enabled appliance then requires either a selected BYOL file or
+a FortiFlex token. The choices are written to the module-local files above.
+Enter accepts `g4dn.4xlarge`; choose `g6.4xlarge` or `g6.8xlarge` for a
+supported NVIDIA L4 validation target, or `g5.8xlarge` for an A10G validation
+target. Verify EC2 quota and Availability Zone capacity before selecting any
+G5/G6 size. Existing explicit selections are reused as prompt defaults.
 Changing the type of an existing instance can stop/restart it, and its
 instance-store-backed k3s data is ephemeral.
 
-Create a module-local override only when that module needs a value different
-from the shared profile and the file does not already exist:
-
-```bash
-cp -n terraform/aws-fortigate/99-local.auto.tfvars.example \
-  terraform/aws-fortigate/99-local.auto.tfvars
-cp -n terraform/aws-fortiweb/99-local.auto.tfvars.example \
-  terraform/aws-fortiweb/99-local.auto.tfvars
-```
+Run `python3 scripts/user_profile.py init` again to add or change these AWS
+appliance choices in an existing profile. Do not copy or edit the tracked
+`00-system.auto.tfvars` files.
 
 Profile archives contain the operator tfvars/YAML files, existing module-local
 overrides, and every registered package under
@@ -235,10 +236,10 @@ the configured file name. The tracked all-zero FortiGate and FortiWeb names are
 placeholders, not usable licenses. Interactive quickstart asks for a real file
 when a desired appliance still has a placeholder or missing path.
 
-FortiFlex token variables exist as an advanced Terraform path, but guided
-FortiFlex lifecycle integration is not part of the current first-run baseline.
-If used, tokens belong only in the appropriate local `99-local.auto.tfvars`
-file excluded from Git; they may also be recorded in Terraform state.
+Guided profile initialization can store a FortiFlex token in the appropriate
+local `99-local.auto.tfvars` file. FortiFlex lifecycle integration remains out
+of scope: tokens may be recorded in Terraform state and must be replaced before
+rebuilding an appliance when the licensing process requires it.
 
 Restrict private inputs on a shared workstation:
 

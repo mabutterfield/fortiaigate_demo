@@ -69,6 +69,21 @@ EC2_K3S_MODULE_PATH = Path("terraform/aws-ec2-k3s")
 EC2_K3S_SYSTEM_TFVARS = EC2_K3S_MODULE_PATH / "00-system.auto.tfvars"
 EC2_K3S_LOCAL_TFVARS = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars"
 EC2_K3S_LOCAL_TFVARS_EXAMPLE = EC2_K3S_MODULE_PATH / "99-local.auto.tfvars.example"
+AWS_PREP_MODULE_PATH = Path("terraform/aws-prep")
+AWS_PREP_LOCAL_TFVARS = AWS_PREP_MODULE_PATH / "99-local.auto.tfvars"
+AWS_PREP_LOCAL_TFVARS_EXAMPLE = AWS_PREP_MODULE_PATH / "99-local.auto.tfvars.example"
+AWS_APPLIANCE_PROFILE_CONFIG = {
+    "fortigate": {
+        "label": "FortiGate",
+        "module_path": Path("terraform/aws-fortigate"),
+        "default_license_file": "FGVMSLTM00000000.lic",
+    },
+    "fortiweb": {
+        "label": "FortiWeb",
+        "module_path": Path("terraform/aws-fortiweb"),
+        "default_license_file": "FWBVMSTM00000000.lic",
+    },
+}
 DEFAULT_EC2_INSTANCE_TYPE = "g4dn.4xlarge"
 EC2_INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9]+$")
 EC2_INSTANCE_CHOICES = [
@@ -79,6 +94,10 @@ EC2_INSTANCE_CHOICES = [
     (
         "g6.4xlarge",
         "Lower-cost supported NVIDIA L4 with 24 GB VRAM",
+    ),
+    (
+        "g5.8xlarge",
+        "Supported NVIDIA A10G validation size with additional CPU and RAM",
     ),
     (
         "g6.8xlarge",
@@ -184,6 +203,21 @@ def set_tf_string(content: str, key: str, value: str) -> str:
     return content.rstrip() + f"\n{replacement}\n"
 
 
+def get_tf_bool(content: str, key: str, default: bool = False) -> bool:
+    matches = re.findall(rf"(?m)^\s*{re.escape(key)}\s*=\s*(true|false)\s*$", content, re.IGNORECASE)
+    if not matches:
+        return default
+    return matches[-1].lower() == "true"
+
+
+def set_tf_bool(content: str, key: str, value: bool) -> str:
+    replacement = f"{key} = {'true' if value else 'false'}"
+    pattern = rf"(?m)^\s*{re.escape(key)}\s*=\s*(?:true|false)\s*$"
+    if re.search(pattern, content, re.IGNORECASE):
+        return re.sub(pattern, replacement, content, count=1, flags=re.IGNORECASE)
+    return content.rstrip() + f"\n{replacement}\n"
+
+
 def set_tf_list_strings(content: str, key: str, values: list[str]) -> str:
     rendered_values = "\n".join(f'  "{value}",' for value in values)
     replacement = f"{key} = [\n{rendered_values}\n]"
@@ -231,8 +265,11 @@ def choose_ec2_instance_type(current: str) -> str:
             marker_labels.append("default")
         marker = f" ({'/'.join(marker_labels)})" if marker_labels else ""
         print(f"{index}. {instance_type}{marker} - {description}")
-    print("4. Custom instance type")
-    print("AWS region capacity, EC2 quota, and current price are checked outside the profile.")
+    custom_choice = str(len(EC2_INSTANCE_CHOICES) + 1)
+    print(f"{custom_choice}. Custom instance type")
+    print(
+        "Verify EC2 quota and Availability Zone capacity before deployment, especially for g5/g6 sizes."
+    )
     print(
         "Changing an existing EC2 instance type can stop/restart the host; "
         "instance-store-backed k3s data is ephemeral."
@@ -253,16 +290,16 @@ def choose_ec2_instance_type(current: str) -> str:
 
     while True:
         selected = prompt_text(
-            "EC2 instance size number, type, or 4 for custom",
+            f"EC2 instance size number, type, or {custom_choice} for custom",
             default_choice,
         ).strip()
         if selected in choice_by_number:
             return choice_by_number[selected]
-        if selected == "4":
+        if selected == custom_choice:
             selected = prompt_text("Custom EC2 instance type", current).strip()
         if EC2_INSTANCE_TYPE_PATTERN.fullmatch(selected):
             return selected
-        print("Enter a listed number or an EC2 instance type such as g6.8xlarge.")
+        print("Enter a listed number or an EC2 instance type such as g5.8xlarge.")
 
 
 def configure_ec2_instance_type() -> str:
@@ -293,6 +330,183 @@ def ensure_ec2_instance_type(*, interactive: bool) -> str:
     selected = tracked_ec2_instance_type()
     print_header("AWS k3s GPU Instance Size")
     print(f"No profile override; using tracked default: {selected}")
+    return selected
+
+
+def configure_aws_prep_syslog_preservation() -> bool:
+    """Create the AWS Prep override and set its explicit S3 syslog choice."""
+    print_header("AWS Syslog Preservation")
+    print("S3 preservation is optional. It creates a private bucket and EC2 write policy.")
+    path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS
+    example_path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS_EXAMPLE
+    if path.is_file():
+        content = read_file(path)
+    elif example_path.is_file():
+        content = read_file(example_path)
+    else:
+        content = "# User-owned AWS Prep module overrides.\n"
+    enabled = prompt_yes_no(
+        "Enable durable FortiAIGate syslog S3 preservation?",
+        get_tf_bool(content, "fortiaigate_syslog_bucket_enabled", False),
+    )
+    write_file(path, set_tf_bool(content, "fortiaigate_syslog_bucket_enabled", enabled))
+    print(f"updated: {rel(path)}")
+    print(f"FortiAIGate syslog S3 preservation: {'enabled' if enabled else 'disabled'}")
+    return enabled
+
+
+def appliance_tfvars_path(appliance_key: str) -> Path:
+    config = AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]
+    return config["module_path"] / "99-local.auto.tfvars"
+
+
+def appliance_system_tfvars_path(appliance_key: str) -> Path:
+    config = AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]
+    return config["module_path"] / "00-system.auto.tfvars"
+
+
+def appliance_effective_tfvars(appliance_key: str) -> str:
+    paths = [
+        REPO_ROOT / appliance_system_tfvars_path(appliance_key),
+        REPO_ROOT / appliance_tfvars_path(appliance_key),
+    ]
+    return "\n".join(read_file(path) for path in paths if path.is_file())
+
+
+def resolve_appliance_license_path(appliance_key: str, value: str) -> Path:
+    module_root = (REPO_ROOT / AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]["module_path"]).resolve()
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else (module_root / path).resolve()
+
+
+def render_appliance_license_source_dir(appliance_key: str, source_dir: Path) -> str:
+    module_root = (REPO_ROOT / AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]["module_path"]).resolve()
+    return os.path.relpath(source_dir.resolve(), module_root)
+
+
+def choose_appliance_license_file(appliance_key: str, source_dir: Path, default_license: str) -> Path:
+    label = AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]["label"]
+    candidates = list_license_candidates(source_dir)
+    if candidates:
+        print(f"Available {label} license files in {source_dir}:")
+        for index, path in enumerate(candidates, start=1):
+            marker = " (current)" if path.name == default_license else ""
+            print(f"{index}. {path.name}{marker}")
+        print("m. Enter a path manually")
+    else:
+        print(f"No {label} license files were found in {source_dir}.")
+
+    while True:
+        selected = prompt_text(
+            f"{label} BYOL license file name, path, number, or m",
+            default_license if default_license else (candidates[0].name if candidates else ""),
+        )
+        if selected.lower() == "m":
+            selected = prompt_text(f"{label} BYOL license file path")
+        elif selected.isdigit() and candidates:
+            index = int(selected)
+            if 1 <= index <= len(candidates):
+                return candidates[index - 1]
+            print("Choose a listed number, m, or a file path.")
+            continue
+        if not selected:
+            print("Enter a license file path.")
+            continue
+        selected_path = Path(selected).expanduser()
+        if not selected_path.is_absolute():
+            selected_path = source_dir / selected_path
+        if selected_path.is_file():
+            return selected_path.resolve()
+        print(f"Selected {label} license file does not exist: {selected_path}")
+
+
+def choose_appliance_license_mode(appliance_key: str, default: str) -> str:
+    label = AWS_APPLIANCE_PROFILE_CONFIG[appliance_key]["label"]
+    allowed = {"byol_file", "fortiflex_token"}
+    while True:
+        selected = prompt_text(
+            f"{label} license mode (byol_file or fortiflex_token)",
+            default if default in allowed else "byol_file",
+        ).lower()
+        if selected in allowed:
+            return selected
+        print("Choose byol_file or fortiflex_token. Disable the appliance instead of selecting an unlicensed mode.")
+
+
+def configure_aws_appliance_profiles() -> list[str]:
+    """Persist AWS appliance intent and the required license input in ignored tfvars."""
+    print_header("AWS Appliance Intent And Licenses")
+    print("FortiGate and FortiWeb are optional. Enabled appliances require a BYOL file or FortiFlex token.")
+    selected: list[str] = []
+
+    for appliance_key, config in AWS_APPLIANCE_PROFILE_CONFIG.items():
+        path = REPO_ROOT / appliance_tfvars_path(appliance_key)
+        effective = appliance_effective_tfvars(appliance_key)
+        content = read_file(path) if path.is_file() else "# User-owned AWS appliance overrides.\n"
+        enabled_key = f"{appliance_key}_enabled"
+        enabled = prompt_yes_no(
+            f"Deploy {config['label']} in AWS?",
+            get_tf_bool(effective, enabled_key, True),
+        )
+        content = set_tf_bool(content, enabled_key, enabled)
+        if not enabled:
+            write_file(path, content)
+            print(f"updated: {rel(path)}")
+            print(f"{config['label']}: disabled in the persistent AWS profile.")
+            continue
+
+        mode_key = f"{appliance_key}_license_mode"
+        mode = choose_appliance_license_mode(appliance_key, get_tf_string(effective, mode_key, "byol_file"))
+        content = set_tf_string(content, mode_key, mode)
+        if mode == "fortiflex_token":
+            token_key = f"{appliance_key}_fortiflex_token"
+            token = prompt_text(f"{config['label']} FortiFlex token").strip()
+            while not token:
+                print(f"Enter a {config['label']} FortiFlex token, or select BYOL mode or disable the appliance.")
+                token = prompt_text(f"{config['label']} FortiFlex token").strip()
+            content = set_tf_string(content, token_key, token)
+        else:
+            source_dir_key = f"{appliance_key}_license_source_dir"
+            file_name_key = f"{appliance_key}_license_file_name"
+            current_source_dir = resolve_appliance_license_path(
+                appliance_key,
+                get_tf_string(effective, source_dir_key, "../../../licenses"),
+            )
+            selected_license = choose_appliance_license_file(
+                appliance_key,
+                current_source_dir,
+                get_tf_string(effective, file_name_key, config["default_license_file"]),
+            )
+            content = set_tf_string(content, f"{appliance_key}_license_file", "")
+            content = set_tf_string(
+                content,
+                source_dir_key,
+                render_appliance_license_source_dir(appliance_key, selected_license.parent),
+            )
+            content = set_tf_string(content, file_name_key, selected_license.name)
+            content = set_tf_string(content, f"{appliance_key}_fortiflex_token", "")
+        write_file(path, content)
+        print(f"updated: {rel(path)}")
+        print(f"{config['label']}: enabled with {mode}.")
+        selected.append(appliance_key)
+
+    fortiweb_enabled = "fortiweb" in selected
+    ansible_user_path = REPO_ROOT / "ansible/group_vars/user.yml"
+    ansible_user_content = (
+        read_file(ansible_user_path)
+        if ansible_user_path.is_file()
+        else "---\n# User-specific overrides generated by the guided quickstart.\n"
+    )
+    ansible_user_content = set_yaml_scalar(
+        ansible_user_content,
+        "fortiweb_mcp_proxy_enabled",
+        "true" if fortiweb_enabled else "false",
+    )
+    write_file(ansible_user_path, ansible_user_content)
+    print(
+        "FortiWeb MCP transport preference: "
+        + ("FortiWeb preferred when available." if fortiweb_enabled else "Direct MCP preferred.")
+    )
     return selected
 
 
@@ -720,6 +934,8 @@ def init_profile(*, force: bool, configure_aws: bool = True) -> None:
     if configure_aws:
         configure_terraform_user_profile()
         configure_ec2_instance_type()
+        configure_aws_prep_syslog_preservation()
+        configure_aws_appliance_profiles()
     else:
         print("Local profile initialization: skipped AWS/Terraform onboarding.")
     configure_ansible_user_profile()
@@ -1141,6 +1357,29 @@ def check_profile() -> None:
     print("Required user profile files exist.")
     for path in existing_profile_paths():
         print(f"- {path.as_posix()}")
+    aws_prep_path = REPO_ROOT / AWS_PREP_LOCAL_TFVARS
+    if aws_prep_path.is_file():
+        enabled = get_tf_bool(read_file(aws_prep_path), "fortiaigate_syslog_bucket_enabled", False)
+        print(f"AWS Prep syslog S3 preservation: {'enabled' if enabled else 'disabled'}")
+    else:
+        print("AWS Prep syslog S3 preservation: not initialized (run user_profile.py init to create the disabled override).")
+    for appliance_key, config in AWS_APPLIANCE_PROFILE_CONFIG.items():
+        path = REPO_ROOT / appliance_tfvars_path(appliance_key)
+        if not path.is_file():
+            print(f"{config['label']} AWS intent: not initialized (run user_profile.py init).")
+            continue
+        content = read_file(path)
+        enabled = get_tf_bool(content, f"{appliance_key}_enabled", True)
+        if not enabled:
+            print(f"{config['label']} AWS intent: disabled")
+            continue
+        mode = get_tf_string(content, f"{appliance_key}_license_mode", "byol_file")
+        if mode == "fortiflex_token":
+            configured = bool(get_tf_string(content, f"{appliance_key}_fortiflex_token"))
+            print(f"{config['label']} AWS intent: enabled; FortiFlex token {'configured' if configured else 'missing'}")
+        else:
+            license_name = get_tf_string(content, f"{appliance_key}_license_file_name")
+            print(f"{config['label']} AWS intent: enabled; BYOL file {'configured' if license_name else 'missing'}")
     _scenario_paths, scenario_ids = installed_scenario_profile_paths()
     if scenario_ids:
         print("Registered installed scenarios included by export:")

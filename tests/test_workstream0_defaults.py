@@ -52,24 +52,48 @@ class ApplianceDefaultTests(unittest.TestCase):
         )
 
     def test_both_appliances_are_desired_by_default(self) -> None:
-        self.assertEqual(
-            automated_quickstart.requested_appliance_keys(appliance_args()),
-            ["fortigate", "fortiweb"],
-        )
+        with mock.patch.object(
+            automated_quickstart,
+            "appliance_enabled_from_tfvars",
+            return_value=True,
+        ):
+            self.assertEqual(
+                automated_quickstart.requested_appliance_keys(appliance_args()),
+                ["fortigate", "fortiweb"],
+            )
+
+    def test_persisted_appliance_opt_out_is_honored_but_include_overrides_it(self) -> None:
+        with mock.patch.object(
+            automated_quickstart,
+            "appliance_enabled_from_tfvars",
+            return_value=False,
+        ):
+            self.assertEqual(automated_quickstart.requested_appliance_keys(appliance_args()), [])
+            self.assertEqual(
+                automated_quickstart.requested_appliance_keys(
+                    appliance_args(include_fortiweb=True)
+                ),
+                ["fortiweb"],
+            )
 
     def test_explicit_opt_out_wins_over_default_intent(self) -> None:
-        self.assertEqual(
-            automated_quickstart.requested_appliance_keys(
-                appliance_args(no_fortiweb=True)
-            ),
-            ["fortigate"],
-        )
-        self.assertEqual(
-            automated_quickstart.requested_appliance_keys(
-                appliance_args(no_appliances=True)
-            ),
-            [],
-        )
+        with mock.patch.object(
+            automated_quickstart,
+            "appliance_enabled_from_tfvars",
+            return_value=True,
+        ):
+            self.assertEqual(
+                automated_quickstart.requested_appliance_keys(
+                    appliance_args(no_fortiweb=True)
+                ),
+                ["fortigate"],
+            )
+            self.assertEqual(
+                automated_quickstart.requested_appliance_keys(
+                    appliance_args(no_appliances=True)
+                ),
+                [],
+            )
 
     def test_noninteractive_default_skips_missing_license_but_explicit_request_does_not(self) -> None:
         args = appliance_args(yolo=True)

@@ -456,7 +456,9 @@
   loop: "{{ chatbot_instances }}"
   changed_when: false
   register: chatbot_rollout_status
-  no_log: true
+  # The rollout command contains no rendered values or credentials. Preserve
+  # its stdout/stderr so ImagePullBackOff, CrashLoopBackOff, and scheduling
+  # failures are actionable from the Ansible result.
   when: chatbots_enabled | bool
   # - ansible.builtin.debug:
   #     var: chatbot_rollout_status.results
