@@ -110,7 +110,7 @@ mapping and instruction injection.
 
 ## 3. Create The Scenario Guard
 
-Create one guard for each work-order row:
+Use the work order to create every guard required by the installed scenarios:
 
 | Field | Value |
 |---|---|
