@@ -4,6 +4,50 @@ FortiWeb is an appliance path enabled by default for the full AWS demo. The
 deployment lives in `terraform/aws-fortiweb` so it can still be disabled with
 local overrides when the public k3s-only demo is desired.
 
+## AWS Administrator Login
+
+After the AWS FortiWeb module applies, retrieve the management URL and use the
+password source that matches the selected bootstrap mode:
+
+```bash
+terraform -chdir=terraform/aws-fortiweb output -raw fortiweb_admin_url
+terraform -chdir=terraform/aws-fortiweb output -raw fortiweb_initial_password_hint
+```
+
+The username is `admin`.
+
+- The normal automated default is `fortiweb_set_initial_password = true`. When
+  `fortiweb_admin_password` is empty, Terraform generates a compliant
+  16-character password, sends it as `initial_passwd`, and stores it in
+  sensitive Terraform state. Retrieve it only in a trusted terminal:
+
+  ```bash
+  terraform -chdir=terraform/aws-fortiweb output -raw fortiweb_admin_password
+  ```
+
+- When an explicit `fortiweb_admin_password` is saved in ignored local tfvars,
+  use that value instead.
+
+- If `fortiweb_set_initial_password = false`, no password is sent in cloud-init;
+  use the FortiWeb EC2 instance ID as the initial password:
+
+  ```bash
+  terraform -chdir=terraform/aws-fortiweb output -raw fortiweb_instance_id
+  ```
+
+The generated default configuration disables the FortiWeb password policy and
+the `admin` account's forced password-change flag. Therefore the normal
+automated path does not require a first-login password change. If you later
+change the password manually, add the current value to ignored
+`ansible/group_vars/user.yml` as `fortiweb_admin_password_override` before
+rerunning FortiWeb Ansible playbooks. `show_demo_outputs.yml` prints the
+non-secret FortiWeb URL and instance ID, but deliberately does not print the
+sensitive generated password.
+
+For an existing local FortiWeb, use the management URL and administrator
+credentials supplied during `local_setup.py`; Terraform does not own its
+password.
+
 Deployment shape:
 
 - `terraform/aws-prep` can allocate the FortiWeb EIP.
