@@ -50,7 +50,7 @@ names are:
 | Object | Pattern |
 |---|---|
 | LiteLLM alias | `<scenario-id>` |
-| FAIG configured URI | `/v1/<scenario-id>/<action>/*` |
+| FAIG Scenario Path | `/v1/<scenario-id>/<action>/*` |
 | Flow Name/route | `<scenario-id>-<action>` |
 | Guard Name | `<scenario-id>_<action>` |
 | Extended MCP profile | `<scenario-id>-<tool-set-id>` |

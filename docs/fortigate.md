@@ -4,6 +4,24 @@ FortiGate is an appliance path enabled by default for the full AWS demo. The
 deployment lives in `terraform/aws-fortigate` so it can still be disabled with
 local overrides when the public k3s-only demo is desired.
 
+## AWS Administrator Login
+
+After the AWS FortiGate module applies, retrieve the management URL and initial
+password source from `<repo_root>`:
+
+```bash
+terraform -chdir=terraform/aws-fortigate output -raw fortigate_admin_url
+terraform -chdir=terraform/aws-fortigate output -raw fortigate_instance_id
+```
+
+Open the URL, sign in as `admin`, and use the FortiGate EC2 instance ID as the
+initial password. `show_demo_outputs.yml` also prints the non-secret FortiGate
+admin URL and instance ID when the appliance is deployed.
+
+For an existing local FortiGate, use the management URL and administrator
+credentials supplied during `local_setup.py`; Terraform does not own its
+password.
+
 Deployment status:
 
 - `terraform/aws-prep` can allocate the FortiGate EIP.

@@ -41,7 +41,7 @@ operator-owned tuning surface.
 
 ## Generated Objects
 
-| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
+| Action | Flow Name | Scenario Path | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
 | Alert | `hr-tool-dlp-alert` | `/v1/hr-tool-dlp/alert/*` | `hr-tool-dlp_alert` | `output_dlp_alert` | `hr-tool-dlp` |
 | Redact | `hr-tool-dlp-redact` | `/v1/hr-tool-dlp/redact/*` | `hr-tool-dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` |

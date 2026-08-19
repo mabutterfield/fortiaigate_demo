@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import json
 import re
@@ -28,6 +29,10 @@ DEFAULT_WORK_ORDER_PATH = (
 )
 SCENARIO_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CATALOG_LIFECYCLES = {"baseline", "candidate", "archived"}
+LITELLM_VARIABLE_PATHS = (
+    REPO_ROOT / "ansible/group_vars/system.yml",
+    REPO_ROOT / "ansible/group_vars/user.yml",
+)
 
 
 def print_header(message: str) -> None:
@@ -40,6 +45,62 @@ def read_json(path: Path) -> dict:
     if not isinstance(data, dict):
         raise SystemExit(f"Expected JSON object: {path}")
     return data
+
+
+def ansible_scalar_values(paths: tuple[Path, ...]) -> dict[str, str]:
+    """Read the scalar LiteLLM settings needed only for local work-order display."""
+    values: dict[str, str] = {}
+    keys = {
+        "litellm_master_key",
+        "litellm_internal_base_url",
+        "litellm_release_name",
+        "litellm_namespace",
+        "litellm_service_port",
+    }
+    for path in paths:
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*?)\s*$", line)
+            if not match or match.group(1) not in keys:
+                continue
+            key, raw_value = match.groups()
+            if not raw_value or raw_value.startswith("#"):
+                continue
+            try:
+                parsed = ast.literal_eval(raw_value)
+            except (SyntaxError, ValueError):
+                parsed = raw_value.split(" #", 1)[0].strip()
+            if isinstance(parsed, (str, int, float)):
+                values[key] = str(parsed)
+    return values
+
+
+def render_ansible_value(value: str, values: dict[str, str]) -> str:
+    """Resolve the simple {{ variable }} substitutions used by LiteLLM defaults."""
+    for _attempt in range(4):
+        rendered = re.sub(
+            r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}",
+            lambda match: values.get(match.group(1), match.group(0)),
+            value,
+        )
+        if rendered == value:
+            break
+        value = rendered
+    return value
+
+
+def litellm_guard_connection_values() -> dict[str, str]:
+    """Resolve display-only LiteLLM values without adding secrets to the matrix."""
+    values = ansible_scalar_values(LITELLM_VARIABLE_PATHS)
+    url = render_ansible_value(
+        values.get("litellm_internal_base_url", "{{litellm_url}}"),
+        values,
+    )
+    return {
+        "litellm_url": url,
+        "litellm_api_key": values.get("litellm_master_key", "{{litellm_api_key}}"),
+    }
 
 
 def catalog() -> dict:
@@ -1185,7 +1246,11 @@ def main() -> None:
         elif args.command == "render-work-order":
             validate_local_matrix(store)
             matrix = scenario_matrix.build_scenario_matrix(store.matrix_summary())
-            rendered_work_order = scenario_matrix.render_work_order(matrix)
+            connection_values = litellm_guard_connection_values()
+            rendered_work_order = scenario_matrix.render_work_order(
+                matrix,
+                connection_values=connection_values,
+            )
             output_path = (args.output or DEFAULT_WORK_ORDER_PATH).resolve()
             if args.output and output_path.exists() and not args.force:
                 raise scenario_local.LocalScenarioError(
@@ -1193,7 +1258,13 @@ def main() -> None:
                 )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(rendered_work_order, encoding="utf-8")
-            print(scenario_matrix.render_work_order_text(matrix), end="")
+            print(
+                scenario_matrix.render_work_order_text(
+                    matrix,
+                    connection_values=connection_values,
+                ),
+                end="",
+            )
             print(
                 "\nMarkdown version: "
                 + scenario_local.relative_to_repo(output_path)

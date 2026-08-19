@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,6 +21,44 @@ CANDIDATE_IDS = [
     "fortigate-operator",
     "hr-sensitive-lookup",
 ]
+
+
+class LiteLLMWorkOrderConnectionTests(unittest.TestCase):
+    def test_uses_user_override_and_resolves_url_template(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            system_path = temporary_root / "system.yml"
+            user_path = temporary_root / "user.yml"
+            system_path.write_text(
+                "\n".join(
+                    [
+                        "litellm_release_name: litellm",
+                        "litellm_namespace: litellm",
+                        "litellm_service_port: 4000",
+                        'litellm_internal_base_url: "http://{{ litellm_release_name }}.{{ litellm_namespace }}.svc.cluster.local:{{ litellm_service_port }}/v1"',
+                        "litellm_master_key: tracked-demo-key",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            user_path.write_text(
+                "litellm_namespace: custom-proxy\n"
+                "litellm_master_key: local-operator-key\n",
+                encoding="utf-8",
+            )
+            original_paths = scenario_profiles.LITELLM_VARIABLE_PATHS
+            scenario_profiles.LITELLM_VARIABLE_PATHS = (system_path, user_path)
+            try:
+                values = scenario_profiles.litellm_guard_connection_values()
+            finally:
+                scenario_profiles.LITELLM_VARIABLE_PATHS = original_paths
+
+        self.assertEqual(
+            values["litellm_url"],
+            "http://litellm.custom-proxy.svc.cluster.local:4000/v1",
+        )
+        self.assertEqual(values["litellm_api_key"], "local-operator-key")
 
 
 class ScenarioCatalogLifecycleTests(unittest.TestCase):

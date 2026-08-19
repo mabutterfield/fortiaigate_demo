@@ -118,7 +118,7 @@ The enabled matrix adds this dedicated object:
 | Scenario | `<scenario-id>` |
 | Action | `chain` |
 | Flow Name | `<scenario-id>-faig-chain` |
-| Configured URI | `/v1/<scenario-id>/faig-chain/*` |
+| Scenario Path | `/v1/<scenario-id>/faig-chain/*` |
 | Guard Name | `<scenario-id>_faig_chain` |
 | Guard Template | `alert_all` |
 | Guard Protections | `inject_alert`, `output_dlp_alert` |
