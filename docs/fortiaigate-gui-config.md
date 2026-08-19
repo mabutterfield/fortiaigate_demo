@@ -123,6 +123,10 @@ Use the work order to create every guard required by the installed scenarios:
 | Token pricing | Enabled |
 | Input/output token costs | The same demonstration values used for `pass_model` |
 
+Use the exact **Guard Name** from the work order. It normally follows
+`{{scenario_id}}_{{action}}`, such as `fortistore-injection_deny`; do not use
+the Guard Protections recipe as the guard name.
+
 FortiAIGate configures the model connection per guard. Select `OpenAI`, turn on
 **Private endpoint**, put the work order's **LiteLLM URL** in the field labeled
 **Endpoint**, and put its **LiteLLM API Key** in the API key field. Do not
@@ -174,31 +178,26 @@ Use the recipe that appears in the work order:
 | `output_dlp_redact` | Output | Output DLP protection and shared PII selection; action **Redact** |
 | `none` | None | Leave all scenario protections disabled |
 
-Prompt Injection is an **input guard**: it evaluates the transcript being sent
-to the model, including selected message roles and retrieved tool results.
-Output DLP is an **output guard**: it evaluates the model response before the
-response is returned to the chatbot or caller. Configure only the protection
-recipe listed for the current work-order row.
+Configure Prompt Injection under **Input Guard** and DLP under **Output Guard**.
 
 ### Prompt Injection Input
 
 This recipe applies to `inject_alert` and `inject_deny`.
 
-1. Open **Input Guard**, select **Prompt Injection Detection**, and open
-   **Advanced Controls**.
-2. Enable **Scan MCP Tool Calls** so content returned from an MCP tool is
-   included in prompt-injection inspection before the next model round.
+1. Select **Input Guard** and enable **Prompt Injection Detection**.
+2. Enable **Advanced Controls**, **Scan MCP Tool Calls**, and every **Message
+   Scanning** option.
 3. Select the action named by the work-order recipe:
 
-   | Guard Protections | Action | Expected result |
-   |---|---|---|
-   | `inject_alert` | **Alert** | The request continues and FortiAIGate records the alert. |
-   | `inject_deny` | **Alert & Deny** | FortiAIGate blocks the protected request or tool response. |
+   | Guard Protections | Action |
+   |---|---|
+   | `inject_alert` | **Alert** |
+   | `inject_deny` | **Alert & Deny** |
 
 > **Screenshot to add — `faig-scenario-input-guard.png`:** show
 > `{{guard_name}}` on the Input Guard / Prompt Injection Detection page with
-> Advanced Controls expanded, **Scan MCP Tool Calls** enabled, and the Action
-> choices visible.
+> Advanced Controls, **Scan MCP Tool Calls**, all Message Scanning options,
+> and the Action choices.
 
 ### DLP Output
 
@@ -210,14 +209,11 @@ This recipe applies to `output_dlp_alert`, `output_dlp_deny`, and
    `last_name`, `street_address`, and `city` to reduce demonstration noise.
 3. Select the action named by the work-order recipe:
 
-   | Guard Protections | Action | Expected result |
-   |---|---|---|
-   | `output_dlp_alert` | **Alert** | The response is returned unchanged and FortiAIGate records the alert. |
-   | `output_dlp_deny` | **Alert & Deny** | FortiAIGate blocks the response containing selected PII. |
-   | `output_dlp_redact` | **Redact** | Matching values are replaced and the safe remainder is returned. |
-
-FortiAIGate warns that tool calls remain Alert-only because partially redacting
-structured tool payloads could break their schema.
+   | Guard Protections | Action |
+   |---|---|
+   | `output_dlp_alert` | **Alert** |
+   | `output_dlp_deny` | **Alert & Deny** |
+   | `output_dlp_redact` | **Redact** |
 
 > **Screenshot to add — `faig-scenario-output-guard.png`:** show
 > `{{guard_name}}` on the Output Guard / Data Leak Prevention page, including
