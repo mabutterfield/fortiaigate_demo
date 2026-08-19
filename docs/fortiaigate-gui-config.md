@@ -180,78 +180,49 @@ Output DLP is an **output guard**: it evaluates the model response before the
 response is returned to the chatbot or caller. Configure only the protection
 recipe listed for the current work-order row.
 
-### Input Guard: `inject_alert`
+### Prompt Injection Input
 
-Enable prompt-injection inspection, select **Alert**, and allow the request and
-response. Do not select Deny. The matching work-order behavior should say the
-attack continues while FortiAIGate records the alert.
+This recipe applies to `inject_alert` and `inject_deny`.
 
-![Prompt-injection Alert configuration](images/fortiaigate/faig-scenario-alert-protection.png)
+1. Open **Input Guard**, select **Prompt Injection Detection**, and open
+   **Advanced Controls**.
+2. Enable **Scan MCP Tool Calls** so content returned from an MCP tool is
+   included in prompt-injection inspection before the next model round.
+3. Select the action named by the work-order recipe:
 
-*Configure `{{guard_name}}` with `inject_alert` to alert without denying.*
+   | Guard Protections | Action | Expected result |
+   |---|---|---|
+   | `inject_alert` | **Alert** | The request continues and FortiAIGate records the alert. |
+   | `inject_deny` | **Alert & Deny** | FortiAIGate blocks the protected request or tool response. |
 
-### Input Guard: `inject_deny`
+> **Screenshot to add — `faig-scenario-input-guard.png`:** show
+> `{{guard_name}}` on the Input Guard / Prompt Injection Detection page with
+> Advanced Controls expanded, **Scan MCP Tool Calls** enabled, and the Action
+> choices visible.
 
-Enable prompt-injection inspection for the complete input transcript and set
-the action to **Alert & Deny**. For tool scenarios, enable Assistant Message,
-System Message, Tool Response, and Tool List scanning so retrieved document
-content carried in `tool` messages is inspected. The goal is to stop poisoned
-content before the model can follow it or select a prohibited tool.
+### DLP Output
 
-![Prompt-injection Deny configuration](images/fortiaigate/faig-scenario-deny-protection.png)
+This recipe applies to `output_dlp_alert`, `output_dlp_deny`, and
+`output_dlp_redact`.
 
-*Configure `{{guard_name}}` with `inject_deny` to alert and deny the protected
-prompt or tool response.*
+1. Open **Output Guard** and select **Data Leak Prevention**.
+2. Leave the default PII selection enabled. Disable only `first_name`,
+   `last_name`, `street_address`, and `city` to reduce demonstration noise.
+3. Select the action named by the work-order recipe:
 
-### Output Guard: Shared DLP PII Selection
+   | Guard Protections | Action | Expected result |
+   |---|---|---|
+   | `output_dlp_alert` | **Alert** | The response is returned unchanged and FortiAIGate records the alert. |
+   | `output_dlp_deny` | **Alert & Deny** | FortiAIGate blocks the response containing selected PII. |
+   | `output_dlp_redact` | **Redact** | Matching values are replaced and the safe remainder is returned. |
 
-Use the same PII selection for `output_dlp_alert`, `output_dlp_deny`, and
-`output_dlp_redact`. In the shared demonstration configuration:
+FortiAIGate warns that tool calls remain Alert-only because partially redacting
+structured tool payloads could break their schema.
 
-- disable `first_name`, `last_name`, `street_address`, and `city`;
-
-- enable `ssn`, `date_of_birth`, `gender`, `email`, `phone_number`, `state`,
-  `postcode`, `country`, and `county`; and
-
-- leave every Financial, Technical, Identification, and Sensitive Attributes
-  type enabled.
-
-> **Screenshot to add — `faig-scenario-output-dlp-base.png`:** show the base
-> Output DLP guard page before opening the PII field list, including the output
-> protection toggle and Action control.
-
-![Output DLP PII field selection](images/fortiaigate/faig_scenario_output_pii.png)
-
-*Use the shared PII selection for every output-DLP action; broad name, street,
-and city fields are disabled to reduce demo noise.*
-
-### Output Guard: `output_dlp_alert`
-
-Configure the PII fields above and select **Alert**. The response is returned
-unchanged while FortiAIGate records the alert.
-
-### Output Guard: `output_dlp_deny`
-
-Configure the PII fields above, leave the shown advanced controls enabled, and
-select **Alert & Deny**.
-
-![Output DLP Deny configuration](images/fortiaigate/faig-scenario-output-dlp-deny.png)
-
-*Configure output DLP to alert and deny responses containing the selected PII
-patterns.*
-
-### Output Guard: `output_dlp_redact`
-
-Create this guard exactly like `output_dlp_deny`, including the same PII list
-and advanced controls, but change **Action** to **Redact**. The safe remainder
-of the response is returned with matching values replaced. FortiAIGate warns
-that tool calls remain Alert-only because partially redacting structured tool
-payloads could break their schema.
-
-![Output DLP Redact action](images/fortiaigate/faig-scenario-output-dlp-redact.png)
-
-*Copy the output-DLP Deny configuration and change only its action to
-Redact.*
+> **Screenshot to add — `faig-scenario-output-guard.png`:** show
+> `{{guard_name}}` on the Output Guard / Data Leak Prevention page, including
+> the base protection view, Action control, and the PII field list with the
+> four disabled name/address fields visible.
 
 The passthrough guard is the exception: its Guard Protections value is `none`,
 so no prompt-injection or DLP protection is enabled.
