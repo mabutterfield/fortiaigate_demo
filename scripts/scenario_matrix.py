@@ -555,7 +555,7 @@ def render_work_order(
         "",
         "- LiteLLM passthrough alias: `pass-model`",
         "- FAIG passthrough Flow Name: `passthrough`",
-        "- FAIG passthrough configured URI: `/v1/passthrough/*`",
+        "- FAIG passthrough Scenario Path: `/v1/passthrough/*`",
         "- FAIG passthrough Guard Name: `pass_model`",
         "- FAIG passthrough Guard Protections: none",
         "- Behavior: no scenario instructions",
@@ -570,7 +570,7 @@ def render_work_order(
     else:
         lines.extend(
             [
-                "| Scenario | Action | Flow Name | Configured URI | Guard Name | Guard Protections | Model Alias | LiteLLM URL | LiteLLM API Key | Required | Expected Behavior |",
+                "| Scenario | Action | Flow Name | Scenario Path | Guard Name | Guard Protections | Model Alias | LiteLLM URL | LiteLLM API Key | Required | Expected Behavior |",
                 "|---|---|---|---|---|---|---|---|---|---|---|",
             ]
         )
@@ -601,8 +601,8 @@ def render_work_order(
         lines.extend(
             [
                 "",
-                "Guard and flow names may differ, but each configured URI and guard next-hop",
-                "LiteLLM model alias must match this work order.",
+                "Guard and flow names may differ, but each Scenario Path and guard",
+                "Model Alias must match this work order.",
                 "",
             ]
         )
@@ -620,7 +620,7 @@ def render_work_order(
     else:
         lines.extend(
             [
-                "| Scenario | Flow Name | Guard Name | Guard Protections | Model Alias | Re-entry URI | Downstream Model |",
+                "| Scenario | Flow Name | Guard Name | Guard Protections | Model Alias | Re-entry Scenario Path | Downstream Model |",
                 "|---|---|---|---|---|---|---|",
             ]
         )
@@ -659,7 +659,7 @@ def render_work_order_text(
         "Global controls:",
         "  Passthrough alias: pass-model",
         "  Passthrough Flow Name: passthrough",
-        "  Passthrough URI: /v1/passthrough/*",
+        "  Passthrough Scenario Path: /v1/passthrough/*",
         "  Passthrough Guard Name: pass_model",
         "  Passthrough Guard Protections: none",
         "  Passthrough behavior: no scenario instructions",
@@ -682,7 +682,7 @@ def render_work_order_text(
                 f"  Scenario: {entry['scenario_id']}",
                 f"  Action: {entry['action']}",
                 f"  Flow Name: {entry['suggested_flow_name']}",
-                f"  Configured URI: {entry['uri']}/*",
+                f"  Scenario Path: {entry['uri']}/*",
                 f"  Guard Name: {entry['suggested_guard_name']}",
                 "  Guard Protections: "
                 + (", ".join(entry["guard_protections"]) or "none"),
@@ -701,11 +701,11 @@ def render_work_order_text(
             [
                 f"  {chain['scenario_id']}: {chain['model_alias']}",
                 f"    Flow Name: {chain['flow_name']}",
-                f"    Configured URI: {chain['entry_uri']}/*",
+                f"    Scenario Path: {chain['entry_uri']}/*",
                 f"    Guard Name: {chain['guard_name']}",
                 "    Guard Protections: "
                 + (", ".join(chain["guard_protections"]) or "none"),
-                f"    Re-entry URI: {chain['reentry_uri']}/*",
+                f"    Re-entry Scenario Path: {chain['reentry_uri']}/*",
                 f"    Downstream Model: {chain['downstream_model']}",
             ]
         )

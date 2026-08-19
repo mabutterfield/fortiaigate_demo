@@ -435,7 +435,7 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.assertIn("Scenario: fortistore-injection", terminal_work_order)
         self.assertIn("Action: alert", terminal_work_order)
         self.assertIn("Flow Name: fortistore-injection-alert", terminal_work_order)
-        self.assertIn("Configured URI: /v1/fortistore-injection/alert/*", terminal_work_order)
+        self.assertIn("Scenario Path: /v1/fortistore-injection/alert/*", terminal_work_order)
         self.assertIn("Guard Name: fortistore-injection_alert", terminal_work_order)
         self.assertIn("Guard Protections: inject_alert", terminal_work_order)
         self.assertNotIn("Guard Template:", terminal_work_order)

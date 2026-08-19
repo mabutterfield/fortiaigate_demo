@@ -35,7 +35,7 @@ python3 scripts/scenario_profiles.py render-work-order
 ```
 
 The command first prints a terminal-friendly object list. Each numbered entry
-uses the exact labels Scenario, Action, Flow Name, Configured URI, Guard Name,
+uses the exact labels Scenario, Action, Flow Name, Scenario Path, Guard Name,
 Guard Protections, Model Alias, LiteLLM URL, LiteLLM API Key, Required, and
 Expected Behavior. It then
 prints the path to the ignored formatted Markdown version:
@@ -56,7 +56,7 @@ Map one row at a time:
 | `{{scenario_id}}` | Scenario | `resume-tool-injection` |
 | `{{action}}` | Action | `alert`, `deny`, `redact`, or `chain` |
 | `{{flow_name}}` | Flow Name | `{{scenario_id}}-{{action}}` |
-| `{{scenario_path}}` | Configured URI | `/v1/{{scenario_id}}/{{action}}/*` |
+| `{{scenario_path}}` | Scenario Path | `/v1/{{scenario_id}}/{{action}}/*` |
 | `{{guard_name}}` | Guard Name | `{{scenario_id}}_{{action}}` |
 | `{{guard_protections}}` | Guard Protections | The GUI protection recipe to apply to this guard; for example `inject_deny` or `output_dlp_redact` |
 | `{{model_alias}}` | Model Alias | Normally `{{scenario_id}}` |
@@ -64,7 +64,7 @@ Map one row at a time:
 | `{{litellm_api_key}}` | LiteLLM API Key | Resolved API key for the guard |
 | `{{expected_behavior}}` | Expected Behavior | Work-order description |
 
-Guard and flow display names can be changed locally, but the configured URI
+Guard and flow display names can be changed locally, but the Scenario Path
 and next-hop model alias must match the work order. Keeping the suggested names
 makes troubleshooting and telemetry correlation substantially easier.
 
@@ -264,7 +264,7 @@ saved:
 | Field | Value |
 |---|---|
 | Flow Name | `{{flow_name}}` |
-| URI | `{{scenario_path}}` |
+| Scenario Path | `{{scenario_path}}` |
 | AI Guard | `{{guard_name}}` |
 | Client API-key validation | Disabled for the normal isolated lab |
 

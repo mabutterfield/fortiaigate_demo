@@ -564,7 +564,7 @@ class LocalScenarioStore:
             "",
             "- LiteLLM passthrough alias: `pass-model`",
             "- FAIG passthrough Flow Name: `passthrough`",
-            "- FAIG passthrough configured URI: `/v1/passthrough/*`",
+            "- FAIG passthrough Scenario Path: `/v1/passthrough/*`",
             "- FAIG passthrough Guard Name: `pass_model`",
             "- FAIG passthrough Guard Template: `no_protections`",
             "- Behavior: no scenario instructions",
@@ -584,7 +584,7 @@ class LocalScenarioStore:
                     f"- Underlying target: `{scenario['llm_target']}`",
                     f"- Local profile: `{scenario['local_profile']}`",
                     "",
-                    "| Action | Flow Name | Configured URI | Guard Name | Guard Template | Guard Protections | Next-hop Model | Required | Expected Behavior |",
+                    "| Action | Flow Name | Scenario Path | Guard Name | Guard Template | Guard Protections | Next-hop Model | Required | Expected Behavior |",
                     "|---|---|---|---|---|---|---|---|---|",
                 ]
             )
@@ -615,7 +615,7 @@ class LocalScenarioStore:
             lines.append("")
             lines.extend(
                 [
-                    "Guard and flow names may differ, but the configured URI and guard next-hop",
+                    "Guard and flow names may differ, but the Scenario Path and guard next-hop",
                     "LiteLLM model alias must match this work order.",
                     "",
                 ]

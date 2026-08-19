@@ -37,7 +37,7 @@ Tune only the ignored installed copy under
 
 ## Generated Objects
 
-| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
+| Action | Flow Name | Scenario Path | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
 | Alert | `fortistore-injection-alert` | `/v1/fortistore-injection/alert/*` | `fortistore-injection_alert` | `inject_alert` | `fortistore-injection` |
 | Deny | `fortistore-injection-deny` | `/v1/fortistore-injection/deny/*` | `fortistore-injection_deny` | `inject_deny` | `fortistore-injection` |

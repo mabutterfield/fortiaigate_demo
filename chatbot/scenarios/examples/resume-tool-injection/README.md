@@ -41,7 +41,7 @@ Tune only the ignored installed package under
 
 ## Generated Objects
 
-| Action | Flow Name | Configured URI | Guard Name | Guard Template | Next-hop Model |
+| Action | Flow Name | Scenario Path | Guard Name | Guard Template | Next-hop Model |
 |---|---|---|---|---|---|
 | Alert | `resume-tool-injection-alert` | `/v1/resume-tool-injection/alert/*` | `resume-tool-injection_alert` | `inject_alert` | `resume-tool-injection` |
 | Deny | `resume-tool-injection-deny` | `/v1/resume-tool-injection/deny/*` | `resume-tool-injection_deny` | `inject_deny` | `resume-tool-injection` |
@@ -162,7 +162,7 @@ Capture the selected profile or Detailed controls, chatbot response, ordered
 MCP trace, and FAIG event fields for path, flow, guard, `PromptInjection`
 source, tool name, action, verdict, model, timestamp, tokens, cost, and latency.
 
-If a path returns `500` before a tool call, verify its configured URI ends in
+If a path returns `500` before a tool call, verify its Scenario Path ends in
 `/*` and its next-hop model is `resume-tool-injection`. If an explicit user
 prompt is denied but the poisoned resume pivots, confirm the guard inspects
 tool-role content and the deployed fixture contains the synthetic hidden
