@@ -20,7 +20,7 @@ DEFAULT_OUTPUT_ROOT = REPO_ROOT / "load_test" / "output" / "runs"
 
 
 def now_iso() -> str:
-    return dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z")
+    return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def append_jsonl(path: Path, value: Any) -> None:
@@ -323,7 +323,7 @@ def parse_args() -> argparse.Namespace:
     args.run_label = (
         traffic_generator.slugify(args.label)
         if args.label
-        else dt.datetime.now(dt.UTC).strftime("dashboard-%Y%m%dT%H%M%SZ")
+        else dt.datetime.now(dt.timezone.utc).strftime("dashboard-%Y%m%dT%H%M%SZ")
     )
     if not args.output_root.is_absolute():
         args.output_root = REPO_ROOT / args.output_root

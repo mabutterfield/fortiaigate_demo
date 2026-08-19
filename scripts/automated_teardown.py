@@ -315,7 +315,7 @@ def delete_s3_version_entries(profile: str, bucket: str, entries: list[dict[str,
 
 
 def export_fortiaigate_syslog(profile: str, bucket: str, prefix: str, export_root: Path) -> Path:
-    timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     label = f"fortiaigate-syslog-{timestamp}"
     export_dir = export_root / label
     export_dir.mkdir(parents=True, exist_ok=True)

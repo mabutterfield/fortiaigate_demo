@@ -140,7 +140,7 @@ def live_statistics(
         math.ceil(int(event.get("approx_response_length", 0)) / 4) for event in events
     )
     return {
-        "updated_at": dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z"),
+        "updated_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
         "started_at": started_at,
         "run_label": run_label,
         "status": status,

@@ -96,7 +96,7 @@ def reconstruct(download_dir: Path, combined_path: Path, manifest_path: Path) ->
             line_count += append_file_content(path, output_file)
 
     manifest = {
-        "created_at": dt.datetime.now(dt.UTC).isoformat(),
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "download_dir": str(download_dir),
         "combined_path": str(combined_path),
         "object_count": len(objects),
@@ -127,7 +127,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     label = args.label or f"fortiaigate-syslog-{timestamp}"
     backup_dir = args.download_dir if args.download_dir else args.backup_root / label / "raw"
     combined_path = backup_dir.parent / "fortiaigate-syslog-combined.jsonl"

@@ -77,7 +77,7 @@ class NvidiaSmiMonitor:
                     values = next(csv.reader([line]))
                     if len(values) != len(QUERY_FIELDS):
                         continue
-                    received_at = dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z")
+                    received_at = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
                     sample = {
                         "received_at": received_at,
                         "received_epoch": time.time(),

@@ -30,11 +30,11 @@ DEFAULT_MODEL_LABELS = {
 
 
 def now_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def timestamp_label() -> str:
-    return dt.datetime.now(dt.UTC).strftime("run-%Y%m%dT%H%M%SZ")
+    return dt.datetime.now(dt.timezone.utc).strftime("run-%Y%m%dT%H%M%SZ")
 
 
 def slugify(value: str) -> str:
