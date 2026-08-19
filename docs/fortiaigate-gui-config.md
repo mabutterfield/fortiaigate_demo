@@ -36,15 +36,18 @@ python3 scripts/scenario_profiles.py render-work-order
 
 The command first prints a terminal-friendly object list. Each numbered entry
 uses the exact labels Scenario, Action, Flow Name, Configured URI, Guard Name,
-Guard Protections, Next-hop Model, Required, and Expected Behavior. It then
+Guard Protections, Model Alias, LiteLLM URL, LiteLLM API Key, Required, and
+Expected Behavior. It then
 prints the path to the ignored formatted Markdown version:
 
 ```text
 Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
 ```
 
-Open the Markdown file when reviewing the complete table. Re-render after
-installing, updating, removing, or locally tuning a scenario.
+The terminal output is the normal configuration reference and contains every
+value needed for each object. The Markdown file is an optional wider view when
+you prefer a table. Re-render after installing, updating, removing, or locally
+tuning a scenario.
 
 Map one row at a time:
 
@@ -56,7 +59,9 @@ Map one row at a time:
 | `{{scenario_path}}` | Configured URI | `/v1/{{scenario_id}}/{{action}}/*` |
 | `{{guard_name}}` | Guard Name | `{{scenario_id}}_{{action}}` |
 | `{{guard_protections}}` | Guard Protections | The GUI protection recipe to apply to this guard; for example `inject_deny` or `output_dlp_redact` |
-| `{{model_alias}}` | Next-hop Model | Normally `{{scenario_id}}` |
+| `{{model_alias}}` | Model Alias | Normally `{{scenario_id}}` |
+| `{{litellm_url}}` | LiteLLM URL | Resolved endpoint value for the guard |
+| `{{litellm_api_key}}` | LiteLLM API Key | Resolved API key for the guard |
 | `{{expected_behavior}}` | Expected Behavior | Work-order description |
 
 Guard and flow display names can be changed locally, but the configured URI
@@ -119,10 +124,9 @@ Create one guard for each work-order row:
 | Input/output token costs | The same demonstration values used for `pass_model` |
 
 FortiAIGate configures the model connection per guard. Select `OpenAI`, turn on
-**Private endpoint**, and put the shared LiteLLM URL in the field labeled
-**Endpoint**. Use the same ignored LiteLLM provider key configured during
-initial setup. Do not create or rely on a separate global `litellm` provider
-object.
+**Private endpoint**, put the work order's **LiteLLM URL** in the field labeled
+**Endpoint**, and put its **LiteLLM API Key** in the API key field. Do not
+create or rely on a separate global `litellm` provider object.
 
 Enter input and output token costs for each guard. These values drive only the
 FortiAIGate GUI's demonstration cost calculations, so made-up values are fine.
@@ -211,6 +215,10 @@ Use the same PII selection for `output_dlp_alert`, `output_dlp_deny`, and
 
 - leave every Financial, Technical, Identification, and Sensitive Attributes
   type enabled.
+
+> **Screenshot to add — `faig-scenario-output-dlp-base.png`:** show the base
+> Output DLP guard page before opening the PII field list, including the output
+> protection toggle and Action control.
 
 ![Output DLP PII field selection](images/fortiaigate/faig_scenario_output_pii.png)
 

@@ -533,7 +533,21 @@ def build_scenario_matrix(
     return matrix
 
 
-def render_work_order(matrix: dict[str, Any]) -> str:
+def guard_connection_values(values: dict[str, str] | None = None) -> dict[str, str]:
+    """Return display-only LiteLLM connection values for a GUI work order."""
+    values = values or {}
+    return {
+        "litellm_url": values.get("litellm_url", "{{litellm_url}}"),
+        "litellm_api_key": values.get("litellm_api_key", "{{litellm_api_key}}"),
+    }
+
+
+def render_work_order(
+    matrix: dict[str, Any],
+    *,
+    connection_values: dict[str, str] | None = None,
+) -> str:
+    connection = guard_connection_values(connection_values)
     lines = [
         "# FAIG Scenario Work Order",
         "",
@@ -556,8 +570,8 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Action | Flow Name | Configured URI | Guard Name | Guard Protections | Next-hop Model | Required | Expected Behavior |",
-                "|---|---|---|---|---|---|---|---|---|",
+                "| Scenario | Action | Flow Name | Configured URI | Guard Name | Guard Protections | Model Alias | LiteLLM URL | LiteLLM API Key | Required | Expected Behavior |",
+                "|---|---|---|---|---|---|---|---|---|---|---|",
             ]
         )
         for entry in work_order:
@@ -576,6 +590,8 @@ def render_work_order(matrix: dict[str, Any]) -> str:
                         )
                         or "none",
                         f"`{entry['guard_next_hop_model']}`",
+                        f"`{connection['litellm_url']}`",
+                        f"`{connection['litellm_api_key']}`",
                         "yes" if entry["required_for_release"] else "no",
                         str(entry["expected_behavior"]).replace("|", "\\|"),
                     ]
@@ -604,7 +620,7 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     else:
         lines.extend(
             [
-                "| Scenario | Flow Name | Guard Name | Guard Protections | Next-hop Model | Re-entry URI | Downstream Model |",
+                "| Scenario | Flow Name | Guard Name | Guard Protections | Model Alias | Re-entry URI | Downstream Model |",
                 "|---|---|---|---|---|---|---|",
             ]
         )
@@ -630,7 +646,12 @@ def render_work_order(matrix: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_work_order_text(matrix: dict[str, Any]) -> str:
+def render_work_order_text(
+    matrix: dict[str, Any],
+    *,
+    connection_values: dict[str, str] | None = None,
+) -> str:
+    connection = guard_connection_values(connection_values)
     work_order = matrix.get("faig_work_order", [])
     lines = [
         "FAIG Scenario Work Order",
@@ -665,7 +686,9 @@ def render_work_order_text(matrix: dict[str, Any]) -> str:
                 f"  Guard Name: {entry['suggested_guard_name']}",
                 "  Guard Protections: "
                 + (", ".join(entry["guard_protections"]) or "none"),
-                f"  Next-hop Model: {entry['guard_next_hop_model']}",
+                f"  Model Alias: {entry['guard_next_hop_model']}",
+                f"  LiteLLM URL: {connection['litellm_url']}",
+                f"  LiteLLM API Key: {connection['litellm_api_key']}",
                 f"  Required: {'yes' if entry['required_for_release'] else 'no'}",
                 f"  Expected Behavior: {entry['expected_behavior']}",
             ]

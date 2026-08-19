@@ -439,7 +439,9 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.assertIn("Guard Name: fortistore-injection_alert", terminal_work_order)
         self.assertIn("Guard Protections: inject_alert", terminal_work_order)
         self.assertNotIn("Guard Template:", terminal_work_order)
-        self.assertIn("Next-hop Model: fortistore-injection", terminal_work_order)
+        self.assertIn("Model Alias: fortistore-injection", terminal_work_order)
+        self.assertIn("LiteLLM URL: {{litellm_url}}", terminal_work_order)
+        self.assertIn("LiteLLM API Key: {{litellm_api_key}}", terminal_work_order)
         self.assertNotIn("| Scenario |", terminal_work_order)
         self.assertNotIn("Warnings:", terminal_work_order)
 
