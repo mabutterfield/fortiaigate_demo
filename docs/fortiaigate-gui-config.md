@@ -6,7 +6,7 @@ FortiAIGate 8.x GUI objects. Complete
 LiteLLM connection values and global passthrough flow already work.
 
 The generated work order is authoritative for names, paths, model aliases, and
-guard templates. Screenshots use `{{variable}}` values so the same walkthrough
+Guard Protections. Screenshots use `{{variable}}` values so the same walkthrough
 applies to every scenario.
 
 All commands run from `<repo_root>`.
@@ -36,8 +36,8 @@ python3 scripts/scenario_profiles.py render-work-order
 
 The command first prints a terminal-friendly object list. Each numbered entry
 uses the exact labels Scenario, Action, Flow Name, Configured URI, Guard Name,
-Guard Template, Guard Protections, Next-hop Model, Required, and Expected
-Behavior. It then prints the path to the ignored formatted Markdown version:
+Guard Protections, Next-hop Model, Required, and Expected Behavior. It then
+prints the path to the ignored formatted Markdown version:
 
 ```text
 Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
@@ -55,8 +55,7 @@ Map one row at a time:
 | `{{flow_name}}` | Flow Name | `{{scenario_id}}-{{action}}` |
 | `{{scenario_path}}` | Configured URI | `/v1/{{scenario_id}}/{{action}}/*` |
 | `{{guard_name}}` | Guard Name | `{{scenario_id}}_{{action}}` |
-| `{{guard_template}}` | Guard Template | `inject_alert`, `inject_deny`, `output_dlp_alert`, `output_dlp_deny`, `output_dlp_redact`, or `alert_all` |
-| `{{guard_protections}}` | Guard Protections | Concrete recipes to configure; `alert_all` expands to `inject_alert`, `output_dlp_alert` |
+| `{{guard_protections}}` | Guard Protections | The GUI protection recipe to apply to this guard; for example `inject_deny` or `output_dlp_redact` |
 | `{{model_alias}}` | Next-hop Model | Normally `{{scenario_id}}` |
 | `{{expected_behavior}}` | Expected Behavior | Work-order description |
 
@@ -118,8 +117,6 @@ Create one guard for each work-order row:
 | API key | `{{litellm_api_key}}` |
 | Token pricing | Enabled |
 | Input/output token costs | The same demonstration values used for `pass_model` |
-| Guard Template | `{{guard_template}}` |
-| Guard Protections | `{{guard_protections}}` |
 
 FortiAIGate configures the model connection per guard. Select `OpenAI`, turn on
 **Private endpoint**, and put the shared LiteLLM URL in the field labeled
@@ -155,9 +152,31 @@ The AI Provider screenshot above shows the button location. A successful test
 checks the connection only; use the Python functional validator after the flow
 exists to prove the guard's Alert, Deny, or Redact behavior.
 
-## 4. Configure The Protection
+## 4. Configure Guard Protections
 
-### `inject_alert`: Alert On Prompt Injection
+**Guard Protections** is the work-order value that tells you which FortiAIGate
+inspection policy to configure on `{{guard_name}}`. It is not a field to enter
+on the base guard settings page. Apply the listed recipe after the guard's
+LiteLLM connection test succeeds.
+
+Use the recipe that appears in the work order:
+
+| Guard Protections | Protection direction | FortiAIGate configuration |
+|---|---|---|
+| `inject_alert` | Input | Prompt Injection protection; action **Alert** |
+| `inject_deny` | Input | Prompt Injection protection; action **Alert & Deny** |
+| `output_dlp_alert` | Output | Output DLP protection and shared PII selection; action **Alert** |
+| `output_dlp_deny` | Output | Output DLP protection and shared PII selection; action **Alert & Deny** |
+| `output_dlp_redact` | Output | Output DLP protection and shared PII selection; action **Redact** |
+| `none` | None | Leave all scenario protections disabled |
+
+Prompt Injection is an **input guard**: it evaluates the transcript being sent
+to the model, including selected message roles and retrieved tool results.
+Output DLP is an **output guard**: it evaluates the model response before the
+response is returned to the chatbot or caller. Configure only the protection
+recipe listed for the current work-order row.
+
+### Input Guard: `inject_alert`
 
 Enable prompt-injection inspection, select **Alert**, and allow the request and
 response. Do not select Deny. The matching work-order behavior should say the
@@ -167,7 +186,7 @@ attack continues while FortiAIGate records the alert.
 
 *Configure `{{guard_name}}` with `inject_alert` to alert without denying.*
 
-### `inject_deny`: Deny Prompt Injection
+### Input Guard: `inject_deny`
 
 Enable prompt-injection inspection for the complete input transcript and set
 the action to **Alert & Deny**. For tool scenarios, enable Assistant Message,
@@ -180,7 +199,7 @@ content before the model can follow it or select a prohibited tool.
 *Configure `{{guard_name}}` with `inject_deny` to alert and deny the protected
 prompt or tool response.*
 
-### Output DLP PII Selection
+### Output Guard: Shared DLP PII Selection
 
 Use the same PII selection for `output_dlp_alert`, `output_dlp_deny`, and
 `output_dlp_redact`. In the shared demonstration configuration:
@@ -198,12 +217,12 @@ Use the same PII selection for `output_dlp_alert`, `output_dlp_deny`, and
 *Use the shared PII selection for every output-DLP action; broad name, street,
 and city fields are disabled to reduce demo noise.*
 
-### `output_dlp_alert`: Alert On Sensitive Output
+### Output Guard: `output_dlp_alert`
 
 Configure the PII fields above and select **Alert**. The response is returned
 unchanged while FortiAIGate records the alert.
 
-### `output_dlp_deny`: Deny Sensitive Output
+### Output Guard: `output_dlp_deny`
 
 Configure the PII fields above, leave the shown advanced controls enabled, and
 select **Alert & Deny**.
@@ -213,7 +232,7 @@ select **Alert & Deny**.
 *Configure output DLP to alert and deny responses containing the selected PII
 patterns.*
 
-### `output_dlp_redact`: Redact Sensitive Output
+### Output Guard: `output_dlp_redact`
 
 Create this guard exactly like `output_dlp_deny`, including the same PII list
 and advanced controls, but change **Action** to **Redact**. The safe remainder
@@ -226,18 +245,8 @@ payloads could break their schema.
 *Copy the output-DLP Deny configuration and change only its action to
 Redact.*
 
-### `alert_all`: Configure Both Alert Recipes
-
-`alert_all` is a composite work-order template, not an additional FortiAIGate
-protection type. Configure both entries listed under **Guard Protections** on
-the same named AI Guard:
-
-1. `inject_alert`
-
-2. `output_dlp_alert`
-
-The passthrough guard is the exception: its template is `no_protections`, so
-no prompt-injection or DLP protection is enabled.
+The passthrough guard is the exception: its Guard Protections value is `none`,
+so no prompt-injection or DLP protection is enabled.
 
 ## 5. Create The Scenario Flow
 
@@ -259,10 +268,9 @@ than a generic `/v1/*` fallback.
 *Publish `{{scenario_path}}` through `{{guard_name}}` with client API-key
 validation disabled for the isolated lab.*
 
-FAIG re-entry is not part of normal scenario configuration. Built-in scenarios
-leave it disabled. See
-[Advanced Scenario Management: Optional FAIG Re-entry](advanced-scenario-management.md#optional-faig-re-entry)
-only when deliberately building that comparison.
+FAIG re-entry is advanced functionality, not part of normal scenario
+configuration. Built-in scenarios leave it disabled. Its separate configuration
+guide will cover the additional flow, guard, and routing requirements.
 
 ## 6. Validate The Active Path
 

@@ -89,8 +89,8 @@ package instead produces a specific error and exits nonzero; use
 to diagnose it.
 
 Re-render after every install, local edit, forced update, or removal. The work
-order owns each scenario path, Flow Name, Guard Name, Guard Template, Guard
-Protections, and next-hop model alias.
+order owns each scenario path, Flow Name, Guard Name, Guard Protections, and
+next-hop model alias.
 
 ## 5. Deploy Matrix Consumers
 
