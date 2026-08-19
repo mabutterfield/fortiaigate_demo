@@ -194,19 +194,20 @@ This recipe applies to `inject_alert` and `inject_deny`.
    | `inject_alert` | **Alert** |
    | `inject_deny` | **Alert & Deny** |
 
-> **Screenshot to add — `faig-scenario-input-guard.png`:** show
-> `{{guard_name}}` on the Input Guard / Prompt Injection Detection page with
-> Advanced Controls, **Scan MCP Tool Calls**, all Message Scanning options,
-> and the Action choices.
+For the Deny workflow, select **Alert & Deny**.
+
+![Prompt Injection Input guard](images/fortiaigate/faig-scenario-input-guard.png)
+
+*Configure Prompt Injection Detection for `{{guard_name}}`; the screenshot
+shows the Alert action. Select Alert & Deny for `inject_deny`.*
 
 ### DLP Output
 
 This recipe applies to `output_dlp_alert`, `output_dlp_deny`, and
 `output_dlp_redact`.
 
-1. Open **Output Guard** and select **Data Leak Prevention**.
-2. Leave the default PII selection enabled. Disable only `first_name`,
-   `last_name`, `street_address`, and `city` to reduce demonstration noise.
+1. Select **Output Guard** and enable **Data Leak Prevention**.
+2. Open **Advanced Controls** and enable **MCP Tool Call Scanning** > **Tool Calls**.
 3. Select the action named by the work-order recipe:
 
    | Guard Protections | Action |
@@ -215,10 +216,24 @@ This recipe applies to `output_dlp_alert`, `output_dlp_deny`, and
    | `output_dlp_deny` | **Alert & Deny** |
    | `output_dlp_redact` | **Redact** |
 
-> **Screenshot to add — `faig-scenario-output-guard.png`:** show
-> `{{guard_name}}` on the Output Guard / Data Leak Prevention page, including
-> the base protection view, Action control, and the PII field list with the
-> four disabled name/address fields visible.
+For the Deny workflow, select **Alert & Deny**. For the Redact workflow, select
+**Redact**.
+
+![DLP Output guard](images/fortiaigate/faig-scenario-output-guard.png)
+
+*Configure Data Leak Prevention for `{{guard_name}}`; the screenshot shows the
+Alert action.*
+
+### DLP PII Fields
+
+Edit **Personal Identifiers** and **Contact Information**. Leave the default
+PII types enabled, except disable `first_name`, `last_name`, `street_address`,
+`city`, and `state` to reduce demonstration noise.
+
+![DLP PII field selection](images/fortiaigate/faig-scenario-output-guard-fields.png)
+
+*The shared DLP selection keeps SSN, date of birth, email, and phone number
+enabled while removing the listed name and address fields.*
 
 The passthrough guard is the exception: its Guard Protections value is `none`,
 so no prompt-injection or DLP protection is enabled.
@@ -230,10 +245,9 @@ saved:
 
 | Field | Value |
 |---|---|
-| Flow Name | `{{flow_name}}` |
-| Scenario Path | `{{scenario_path}}` |
-| AI Guard | `{{guard_name}}` |
-| Client API-key validation | Disabled for the normal isolated lab |
+| Name | `{{flow_name}}` (work order: **Flow Name**) |
+| Path | `{{scenario_path}}` (work order: **Scenario Path**) |
+| AI Guard | `{{guard_name}}` (work order: **Guard Name**) |
 
 The configured path must end in `/*`. Create specific scenario routes rather
 than a generic `/v1/*` fallback.
