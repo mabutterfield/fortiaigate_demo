@@ -1,0 +1,109 @@
+---
+# A new namespace avoids deleting or modifying existing workloads during cleanup.
+- name: Choose a unique foundation validation namespace
+  ansible.builtin.set_fact:
+    validate_foundation_namespace: "faig-foundation-{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_lowercase', 'digits'], length=10) }}"
+  # - ansible.builtin.debug:
+  #     var: validate_foundation_namespace
+
+- name: Validate GPU allocation and persistent storage
+  block:
+    - name: Create isolated validation namespace
+      ansible.builtin.command:
+        argv: [/usr/local/bin/kubectl, --kubeconfig, "{{ validate_k3s_kubeconfig }}", create, namespace, "{{ validate_foundation_namespace }}"]
+      register: validate_foundation_namespace_create
+      changed_when: true
+      # - ansible.builtin.debug:
+      #     var: validate_foundation_namespace_create.stdout_lines
+
+    - name: Create GPU and storage validation workloads
+      ansible.builtin.shell: |
+        set -euo pipefail
+        /usr/local/bin/kubectl --kubeconfig {{ validate_k3s_kubeconfig | quote }} -n {{ validate_foundation_namespace | quote }} create -f - <<'MANIFEST'
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: storage-check
+        spec:
+          accessModes: [ReadWriteOnce]
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 64Mi
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: gpu-check
+        spec:
+          restartPolicy: Never
+          runtimeClassName: {{ nvidia_runtime_class_name }}
+          containers:
+            - name: gpu
+              image: {{ validate_k3s_gpu_check_image }}
+              command: ["nvidia-smi"]
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: storage-check
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: storage
+              image: {{ validate_k3s_dns_check_image }}
+              command: ["sh", "-c", "echo foundation-check > /data/check && grep -qx foundation-check /data/check"]
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: storage-check
+        MANIFEST
+      args:
+        executable: /bin/bash
+      register: validate_foundation_workloads_create
+      changed_when: true
+      # - ansible.builtin.debug:
+      #     var: validate_foundation_workloads_create.stdout_lines
+
+    - name: Wait for GPU and storage validation workloads
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ validate_k3s_kubeconfig }}"
+          - -n
+          - "{{ validate_foundation_namespace }}"
+          - wait
+          - "--for=jsonpath={.status.phase}=Succeeded"
+          - "pod/{{ item }}"
+          - "--timeout={{ validate_k3s_workload_timeout }}"
+      loop: [gpu-check, storage-check]
+      register: validate_foundation_workloads_wait
+      changed_when: false
+      # - ansible.builtin.debug:
+      #     var: validate_foundation_workloads_wait.results
+
+    - name: Capture GPU validation output
+      ansible.builtin.command:
+        argv: [/usr/local/bin/kubectl, --kubeconfig, "{{ validate_k3s_kubeconfig }}", -n, "{{ validate_foundation_namespace }}", logs, gpu-check]
+      register: validate_foundation_gpu_output
+      changed_when: false
+      # - ansible.builtin.debug:
+      #     var: validate_foundation_gpu_output.stdout_lines
+
+    - name: Show detected GPU in validation container
+      ansible.builtin.debug:
+        var: validate_foundation_gpu_output.stdout_lines
+
+  always:
+    - name: Remove isolated validation namespace and workloads
+      ansible.builtin.command:
+        argv: [/usr/local/bin/kubectl, --kubeconfig, "{{ validate_k3s_kubeconfig }}", delete, namespace, "{{ validate_foundation_namespace }}", --ignore-not-found=true, --wait=false]
+      when: validate_foundation_namespace_create is defined and validate_foundation_namespace_create is changed
+      changed_when: true

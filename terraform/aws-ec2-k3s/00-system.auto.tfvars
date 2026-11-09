@@ -4,9 +4,8 @@
 
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
 
-# g4dn.4xlarge is the default lab size used by this module.
-# Use g6.8xlarge for a stronger production-like L4 validation target.
-instance_type = "g4dn.4xlarge"
+# L4 is for development testing only; L40S and RTX PRO 6000 are supported 8.0.2 GPUs.
+instance_type = "g6.4xlarge"
 
 # Optional AWS Price List location override. Leave empty unless a new AWS region
 # is not in the module's built-in region-to-location map.

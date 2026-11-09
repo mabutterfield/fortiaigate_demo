@@ -69,7 +69,7 @@
 - name: Wait for node GPU allocatable resource
   ansible.builtin.shell: |
     /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o json \
-      | jq -e '.items[].status.allocatable["nvidia.com/gpu"] | tonumber >= 1'
+      | jq -e '.items[].status.allocatable["nvidia.com/gpu"] | tonumber == {{ nvidia_expected_gpu_count | int }}'
   args:
     executable: /bin/bash
   changed_when: false

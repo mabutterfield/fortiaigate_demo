@@ -1,5 +1,8 @@
 # Deployment Quickstart
 
+> **8.0.2:** The full quickstart and application deployment are not yet ported.
+> For a GPU host and k3s only, use [AWS k3s Foundation](aws-k3s-foundation.md).
+
 This is the single supported first-run deployment guide for the repository.
 Use the guided script for both AWS and local Ubuntu deployments. Individual
 Terraform and Ansible commands are operations and recovery tools, not a second
@@ -21,11 +24,9 @@ AWS profile initialization asks for the k3s GPU instance size, FortiGate and
 FortiWeb intent, and the BYOL-file or FortiFlex input for each enabled AWS
 appliance. These choices are stored in ignored module-specific
 `99-local.auto.tfvars` files, reused on later runs, and included in profile
-export/import. The k3s default remains the cost-conscious `g4dn.4xlarge`;
-supported choices include `g6.4xlarge`/`g6.8xlarge` (L4) and `g5.8xlarge`
-(A10G). Verify EC2 quota and Availability Zone capacity before selecting a
-G5/G6 size. See [AWS Instance Sizing](aws-instance.md) before selecting a
-higher-cost validation target.
+export/import. The tracked k3s default is `g6.4xlarge` (L4 development-only);
+`g6e.4xlarge` and `g7e.4xlarge` provide supported GPUs. Existing profile
+selections take precedence. Check capacity and costs in [AWS Instance Sizing](aws-instance.md).
 
 Running `python3 scripts/user_profile.py init` separately is useful only when
 you want to configure and review those values before beginning the longer

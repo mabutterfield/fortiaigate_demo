@@ -2338,6 +2338,12 @@ def main() -> None:
     profile_action = ensure_user_profile(args)
     if profile_action == "export":
         return
+    # CHANGED for 8.0.2: do not run the unported legacy application flow.
+    if not args.skip_ansible:
+        raise SystemExit(
+            "The full 8.0.2 Ansible deployment is not ready. "
+            "Use docs/aws-k3s-foundation.md for foundation bootstrap only."
+        )
     profile_tool.warn_legacy_files()
 
     requested_appliances = requested_appliance_keys(

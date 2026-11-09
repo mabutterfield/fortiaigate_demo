@@ -27,7 +27,7 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
 
         system_path = self.test_root / user_profile.EC2_K3S_SYSTEM_TFVARS
         system_path.parent.mkdir(parents=True, exist_ok=True)
-        system_path.write_text('instance_type = "g4dn.4xlarge"\n', encoding="utf-8")
+        system_path.write_text('instance_type = "g6.4xlarge"\n', encoding="utf-8")
         example_path = self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS_EXAMPLE
         example_path.write_text(
             "# Optional EC2/k3s local overrides.\n# instance_type = \"g6.8xlarge\"\n",
@@ -38,30 +38,30 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
         user_profile.REPO_ROOT = self.original_repo_root
         self.temporary_directory.cleanup()
 
-    def test_instance_choice_keeps_budget_default_and_writes_profile_override(self) -> None:
+    def test_instance_choice_keeps_development_default_and_writes_profile_override(self) -> None:
         with mock.patch.object(user_profile, "prompt_text", return_value="1"):
             selected = user_profile.configure_ec2_instance_type()
 
-        self.assertEqual(selected, "g4dn.4xlarge")
+        self.assertEqual(selected, "g6.4xlarge")
         local_content = (
             self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
         ).read_text(encoding="utf-8")
         self.assertEqual(
             user_profile.get_tf_string(local_content, "instance_type"),
-            "g4dn.4xlarge",
+            "g6.4xlarge",
         )
 
-    def test_instance_choice_offers_g5_a10g_validation_size(self) -> None:
+    def test_instance_choice_offers_blackwell_validation_size(self) -> None:
         with mock.patch.object(user_profile, "prompt_text", return_value="3"):
             selected = user_profile.configure_ec2_instance_type()
 
-        self.assertEqual(selected, "g5.8xlarge")
+        self.assertEqual(selected, "g7e.4xlarge")
         local_content = (
             self.test_root / user_profile.EC2_K3S_LOCAL_TFVARS
         ).read_text(encoding="utf-8")
         self.assertEqual(
             user_profile.get_tf_string(local_content, "instance_type"),
-            "g5.8xlarge",
+            "g7e.4xlarge",
         )
 
     def test_existing_profile_selection_is_reused_without_prompting(self) -> None:

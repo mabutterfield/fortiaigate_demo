@@ -1,3 +1,5 @@
 ---
 nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
 nvidia_runtime_class_name: nvidia
+
+nvidia_expected_gpu_count: 1

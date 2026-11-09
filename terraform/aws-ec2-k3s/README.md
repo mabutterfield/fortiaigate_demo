@@ -70,11 +70,12 @@ and `../../ansible/group_vars/terraform.generated.yml` for Ansible. The default
 HTTP ports are `30080` through `30084`; the HTTPS gateway uses matching
 offsets starting at `30443`.
 
-The default instance type is `g4dn.4xlarge`. AWS profile initialization asks
-for this value once and stores it in ignored `99-local.auto.tfvars`; existing
-selections are reused. Use `g6.8xlarge` for a stronger supported L4 validation
-target or `g5.8xlarge` for supported A10G validation. Verify EC2 quota and
-Availability Zone capacity before selecting a G5/G6 size.
+The default instance type is `g6.4xlarge` (L4, 8.0.2 development-only).
+`g6e.4xlarge` uses supported L40S and `g7e.4xlarge` uses Blackwell RTX PRO 6000.
+Existing ignored profile selections are preserved; check them, current capacity,
+quotas and price before applying. `ubuntu_ami_id` optionally pins a tested AMI;
+the default discovers the latest Canonical Ubuntu 24.04 amd64 AMI. Root EBS
+is 300 GiB by default and has ongoing cost; application storage remains unmeasured.
 
 After apply, validate host status and SSH:
 

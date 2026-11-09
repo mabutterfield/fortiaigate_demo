@@ -1,73 +1,83 @@
 ---
-- name: Detect AWS instance-store NVMe device
-  ansible.builtin.shell: |
-    set -euo pipefail
-    if [ -n "{{ k3s_instance_store_device }}" ]; then
-      echo "{{ k3s_instance_store_device }}"
-    else
-      nvme list | awk '/Instance Storage/ {print $1; exit}'
-    fi
-  args:
-    executable: /bin/bash
-  changed_when: false
-  register: k3s_instance_store_device_detect
-  # - ansible.builtin.debug:
-  #     var: k3s_instance_store_device_detect.stdout
-  when: k3s_use_instance_store
+# CHANGED for 8.0.2: disable automatic disk discovery/formatting until a
+# fail-closed instance-store workflow has been tested. Use sized EBS instead.
+- name: Reject automatic instance-store formatting
+  ansible.builtin.assert:
+    that:
+      - not (k3s_use_instance_store | bool)
+    fail_msg: >-
+      Automatic instance-store formatting is disabled. Use EBS for this foundation;
+      do not set k3s_use_instance_store until a safe storage workflow is implemented.
 
-- name: Set effective AWS instance-store device
-  ansible.builtin.set_fact:
-    k3s_effective_instance_store_device: "{{ k3s_instance_store_device_detect.stdout | trim }}"
-  when: k3s_use_instance_store
-  # - ansible.builtin.debug:
-  #     var: k3s_effective_instance_store_device
-
-- name: Check for AWS instance-store NVMe device
-  ansible.builtin.stat:
-    path: "{{ k3s_effective_instance_store_device }}"
-  register: k3s_instance_store_device_stat
-  # - ansible.builtin.debug:
-  #     var: k3s_instance_store_device_stat
-  when:
-    - k3s_use_instance_store
-    - k3s_effective_instance_store_device | length > 0
-
-- name: Prepare instance-store filesystem for k3s data
-  ansible.builtin.shell: |
-    set -euo pipefail
-    if ! blkid {{ k3s_effective_instance_store_device }} >/dev/null 2>&1; then
-      mkfs.xfs -f {{ k3s_effective_instance_store_device }}
-    fi
-    mkdir -p {{ k3s_instance_store_mount }}/rancher
-    UUID="$(blkid -s UUID -o value {{ k3s_effective_instance_store_device }})"
-    test -n "${UUID}"
-    if ! grep -q "${UUID}" /etc/fstab; then
-      echo "UUID=${UUID} {{ k3s_instance_store_mount }} xfs defaults,nofail 0 2" >> /etc/fstab
-    fi
-    if ! mountpoint -q {{ k3s_instance_store_mount }}; then
-      mkdir -p {{ k3s_instance_store_mount }}
-      mount {{ k3s_instance_store_mount }}
-    fi
-    mkdir -p {{ k3s_instance_store_mount }}/rancher
-  args:
-    executable: /bin/bash
-  changed_when: false
-  when:
-    - k3s_use_instance_store
-    - k3s_effective_instance_store_device | length > 0
-    - k3s_instance_store_device_stat.stat.exists
-
-- name: Link k3s data directory to instance-store path
-  ansible.builtin.file:
-    src: "{{ k3s_instance_store_mount }}/rancher"
-    dest: "{{ k3s_data_dir }}"
-    state: link
-    force: true
-  when:
-    - k3s_use_instance_store
-    - k3s_effective_instance_store_device | length > 0
-    - k3s_instance_store_device_stat.stat.exists
-
+# - name: Detect AWS instance-store NVMe device
+#   ansible.builtin.shell: |
+#     set -euo pipefail
+#     if [ -n "{{ k3s_instance_store_device }}" ]; then
+#       echo "{{ k3s_instance_store_device }}"
+#     else
+#       nvme list | awk '/Instance Storage/ {print $1; exit}'
+#     fi
+#   args:
+#     executable: /bin/bash
+#   changed_when: false
+#   register: k3s_instance_store_device_detect
+#   # - ansible.builtin.debug:
+#   #     var: k3s_instance_store_device_detect.stdout
+#   when: k3s_use_instance_store
+#
+# - name: Set effective AWS instance-store device
+#   ansible.builtin.set_fact:
+#     k3s_effective_instance_store_device: "{{ k3s_instance_store_device_detect.stdout | trim }}"
+#   when: k3s_use_instance_store
+#   # - ansible.builtin.debug:
+#   #     var: k3s_effective_instance_store_device
+#
+# - name: Check for AWS instance-store NVMe device
+#   ansible.builtin.stat:
+#     path: "{{ k3s_effective_instance_store_device }}"
+#   register: k3s_instance_store_device_stat
+#   # - ansible.builtin.debug:
+#   #     var: k3s_instance_store_device_stat
+#   when:
+#     - k3s_use_instance_store
+#     - k3s_effective_instance_store_device | length > 0
+#
+# - name: Prepare instance-store filesystem for k3s data
+#   ansible.builtin.shell: |
+#     set -euo pipefail
+#     if ! blkid {{ k3s_effective_instance_store_device }} >/dev/null 2>&1; then
+#       mkfs.xfs -f {{ k3s_effective_instance_store_device }}
+#     fi
+#     mkdir -p {{ k3s_instance_store_mount }}/rancher
+#     UUID="$(blkid -s UUID -o value {{ k3s_effective_instance_store_device }})"
+#     test -n "${UUID}"
+#     if ! grep -q "${UUID}" /etc/fstab; then
+#       echo "UUID=${UUID} {{ k3s_instance_store_mount }} xfs defaults,nofail 0 2" >> /etc/fstab
+#     fi
+#     if ! mountpoint -q {{ k3s_instance_store_mount }}; then
+#       mkdir -p {{ k3s_instance_store_mount }}
+#       mount {{ k3s_instance_store_mount }}
+#     fi
+#     mkdir -p {{ k3s_instance_store_mount }}/rancher
+#   args:
+#     executable: /bin/bash
+#   changed_when: false
+#   when:
+#     - k3s_use_instance_store
+#     - k3s_effective_instance_store_device | length > 0
+#     - k3s_instance_store_device_stat.stat.exists
+#
+# - name: Link k3s data directory to instance-store path
+#   ansible.builtin.file:
+#     src: "{{ k3s_instance_store_mount }}/rancher"
+#     dest: "{{ k3s_data_dir }}"
+#     state: link
+#     force: true
+#   when:
+#     - k3s_use_instance_store
+#     - k3s_effective_instance_store_device | length > 0
+#     - k3s_instance_store_device_stat.stat.exists
+#
 - name: Ensure k3s local-path storage directory exists
   ansible.builtin.file:
     path: "{{ k3s_local_storage_dir }}"
@@ -186,13 +196,27 @@
   # - ansible.builtin.debug:
   #     var: k3s_private_registry_config
 
+- name: Check installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_existing_version
+  changed_when: false
+  failed_when: false
+  # - ansible.builtin.debug:
+  #     var: k3s_existing_version.stdout_lines
+
+- name: Refuse implicit k3s upgrades or downgrades
+  ansible.builtin.assert:
+    that:
+      - k3s_existing_version.rc != 0 or k3s_version in k3s_existing_version.stdout
+    fail_msg: "Installed k3s differs from {{ k3s_version }}; plan an explicit upgrade or rebuild."
+
 - name: Install k3s
   ansible.builtin.shell: |
     set -euo pipefail
     if systemctl is-active --quiet k3s; then
       exit 0
     fi
-    curl -sfL https://get.k3s.io | sh -
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version | quote }} sh -
     echo k3s_installed
   args:
     executable: /bin/bash

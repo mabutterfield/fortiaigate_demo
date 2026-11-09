@@ -13,6 +13,12 @@ repositories = [
   "triton-models",
   "custom-triton",
   "chatbot-basic",
+  # Additional 8.0.2 images. Keep the older repositories for 8.0.1 rollback.
+  "guardrail",
+  "guardrail-scanner",
+  "llm-gateway",
+  "faig-models",
+  "vllm-server",
 ]
 
 image_tag_mutability = "IMMUTABLE"

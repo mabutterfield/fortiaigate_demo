@@ -211,6 +211,9 @@
           - --wait=false
       changed_when: false
 
+- name: Run GPU and persistent storage workload checks
+  ansible.builtin.include_tasks: workload_checks.yml
+
 - name: Show k3s validation summary
   ansible.builtin.debug:
     msg:
@@ -223,3 +226,4 @@
       - "Foundation pods healthy: yes"
       - "Pod health namespaces: {{ validate_k3s_pod_health_namespaces | join(', ') }}"
       - "Pod DNS resolution: yes"
+      - "GPU container and local-path PVC: yes"

@@ -84,25 +84,13 @@ AWS_APPLIANCE_PROFILE_CONFIG = {
         "default_license_file": "FWBVMSTM00000000.lic",
     },
 }
-DEFAULT_EC2_INSTANCE_TYPE = "g4dn.4xlarge"
+DEFAULT_EC2_INSTANCE_TYPE = "g6.4xlarge"
 EC2_INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9]+$")
 EC2_INSTANCE_CHOICES = [
-    (
-        "g4dn.4xlarge",
-        "Budget lab default; NVIDIA T4 with 16 GB VRAM, not a supported FortiAIGate GPU family",
-    ),
-    (
-        "g6.4xlarge",
-        "Lower-cost supported NVIDIA L4 with 24 GB VRAM",
-    ),
-    (
-        "g5.8xlarge",
-        "Supported NVIDIA A10G validation size with additional CPU and RAM",
-    ),
-    (
-        "g6.8xlarge",
-        "Preferred supported NVIDIA L4 validation size with additional CPU and RAM",
-    ),
+    ("g6.4xlarge", "L4 24 GB; 8.0.2 development-only profile"),
+    ("g6e.4xlarge", "L40S 48 GB; supported 8.0.2 GPU"),
+    ("g7e.4xlarge", "RTX PRO 6000 96 GB; recommended Blackwell GPU architecture"),
+    ("g7e.12xlarge", "Two RTX PRO 6000 GPUs; check licensing and higher cost"),
 ]
 
 
@@ -268,7 +256,7 @@ def choose_ec2_instance_type(current: str) -> str:
     custom_choice = str(len(EC2_INSTANCE_CHOICES) + 1)
     print(f"{custom_choice}. Custom instance type")
     print(
-        "Verify EC2 quota and Availability Zone capacity before deployment, especially for g5/g6 sizes."
+        "Verify EC2 quota and Availability Zone capacity before deployment, especially for GPU instance sizes."
     )
     print(
         "Changing an existing EC2 instance type can stop/restart the host; "

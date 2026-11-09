@@ -14,8 +14,10 @@ The current AWS foundation creates a single-node FortiAIGate lab:
 - k3s with Traefik disabled
 - nginx ingress controller
 - NVIDIA driver, runtime, RuntimeClass, and device plugin
-- k3s local-path storage backed by instance-store NVMe when available
-- FortiAIGate deployed with Helm and a post-renderer
+- k3s local-path storage on encrypted root EBS (300 GiB by default)
+
+This is the 8.0.2 foundation checkpoint only. Application deployment and the
+FortiAIGate Helm integration have not yet been ported or validated.
 
 `terraform/aws-prep` creates the EC2 IAM role/profile and attaches scoped ECR
 pull access when `registry_backend = "ecr"`. The EC2 module consumes the prep
@@ -57,20 +59,46 @@ The generated inventory is ignored by Git and used by the Ansible playbooks.
 
 ## Host Bootstrap
 
-`ansible/playbooks/bootstrap_gpu_k3s.yml` prepares the host in this order:
+Use the staged workflow below; the automated quickstart still continues into the
+8.0.1 application deployment and must not be used for the 8.0.2 test.
 
-1. common Ubuntu packages
-2. NVIDIA driver
-3. NVIDIA container runtime
-4. k3s with Traefik disabled
-5. instance-store local-path storage setup
-6. nginx ingress
-7. NVIDIA RuntimeClass and device plugin
-8. k3s cluster sanity validation
+1. Set up the AWS SSO profile and operator-owned `terraform/user.tfvars` and
+   `ansible/group_vars/user.yml` using `scripts/user_profile.py`. Review existing
+   values; they take precedence over the tracked defaults.
+2. Reconcile the existing ECR repositories into `terraform/aws-ecr` state before
+   applying that module. Do not create duplicate repositories or destroy retained
+   images. Review `terraform/aws-prep` state too; it reads ECR state and provides
+   the instance profile and EIP. Disable optional appliance resources in its
+   ignored overrides. Review each Terraform plan before applying it.
+3. Initialize and apply the approved AWS prep and `terraform/aws-ec2-k3s`
+   modules, in that order. Set `instance_type` and `availability_zone` in an
+   ignored module override; an offered AZ is not a capacity guarantee. Set
+   `ubuntu_ami_id` to a tested Ubuntu 24.04 amd64 AMI if reproducibility is needed.
+   Defaults are `g6.4xlarge` (L4 development-only) and 300 GiB root EBS. The
+   exact 8.0.2 storage requirement has not yet been measured. Check instance
+   and EBS costs, quotas and SSH CIDRs before applying.
+4. Use the generated `ansible/inventory/aws.generated.ini` to run only:
 
-The k3s role waits for flannel before checking system deployments. `metrics-server` is handled separately because it can start before service networking is fully ready on a fresh host.
+   ```bash
+   ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/bootstrap_gpu_k3s.yml
+   ```
 
-Bootstrap also runs `validate_k3s` as a final gate. The validation checks Kubernetes API reachability, node readiness, kube-system and ingress-nginx deployments, NVIDIA device plugin rollout, all pod health, and DNS resolution from inside a temporary pod.
+   This installs common packages, the NVIDIA driver, k3s, NVIDIA runtime and
+   device plugin, ingress, and validates the foundation. Set
+   `nvidia_expected_gpu_count` in the ignored user vars to match the host (for
+   example, `2` for `g7e.12xlarge`). Existing user overrides are never changed.
+5. Confirm the GPU model, version output, free disk and pod logs. Reboot the host
+   and rerun the playbook to verify runtime persistence and idempotence. Confirm
+   ECR image pulls through the instance role separately after uploads finish.
+   The GPU and storage tests create and clean up an isolated namespace; public
+   images must be reachable. Do not install the FortiAIGate chart at this stage.
+
+The initial candidate pin is k3s `v1.35.10+k3s1`; the Ubuntu NVIDIA 595-server
+driver, NVIDIA toolkit, GPU test image and full combination remain unverified on
+a live 8.0.2 host. The pinned ingress-nginx 4.15.1 chart is **retired upstream**:
+use it only for an isolated, trusted-source lab while an actively maintained
+replacement is evaluated before application exposure. The existing Helm
+installer and NVIDIA toolkit package versions are not pinned yet.
 
 After bootstrap, the SSH user has:
 
@@ -82,21 +110,18 @@ Open a new SSH session before testing interactive `kubectl`.
 
 ## Storage
 
-When instance-store NVMe is available, Ansible formats and mounts it under `k3s_instance_store_mount`, then uses it for k3s data through `k3s_data_dir`.
+The first-test default uses root EBS for `/var/lib/rancher` and local-path
+volumes. EBS survives an EC2 stop but root volume deletion follows the EC2
+resource's termination settings; Terraform destroy can delete this data. Size it
+for downloaded and unpacked images, models, PVCs and logs. The 300 GiB default
+is provisional and has not been measured against the application.
 
-The default FortiAIGate storage path is:
+Automatic instance-store formatting is disabled and `k3s_use_instance_store:
+true` fails deliberately. Do not enable it until a tested, fail-closed disk
+identity and filesystem workflow exists. Instance-store data is ephemeral and
+is lost on stop/termination.
 
-```yaml
-k3s_data_dir: /var/lib/rancher
-k3s_local_storage_dir: "{{ k3s_data_dir }}/k3s/storage"
-fortiaigate_storage_class: local-path
-fortiaigate_storage_access_modes:
-  - ReadWriteOnce
-```
-
-On non-AWS hosts or hosts without instance-store NVMe, Ansible still creates the local-path storage directory.
-
-## Helm Chart Handling
+## Helm Chart Handling (8.0.1; Not Yet Ported)
 
 The FortiAIGate chart is not vendored into this repo. Store release charts outside the repo as:
 
@@ -153,4 +178,4 @@ provider exists:
 - FortiAIGate chart under `FAIG_helm/<version>/fortiaigate`
 - AWS SSO session before Terraform and ECR operations
 
-All of these are environment-specific and must remain out of Git.
+User overrides, generated files and licenses are environment-specific and must remain out of Git; `system.yml` is tracked. Chart and license inputs are not needed for foundation-only bootstrap.

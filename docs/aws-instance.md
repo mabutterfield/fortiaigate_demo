@@ -1,144 +1,126 @@
-# AWS Instance Sizing
+# AWS Instance Sizing for FortiAIGate 8.0.2
 
-This page separates low-cost test infrastructure from supported FortiAIGate validation targets.
+This is a planning guide, not proof that this repository deploys 8.0.2. The
+current quickstart and Terraform defaults still target the earlier release and
+must be updated and validated before use. EC2 is an instance type; an AMI is the
+operating-system image launched on that instance.
 
-FortiAIGate sizing guidance is approximately:
+## GPU support and lab categories
 
-- 24 physical CPU cores
-- 70 GB RAM
-- dual GPU recommended
+The FortiAIGate 8.0.2 Administration Guide lists NVIDIA L40/L40S/RTX 6000 Ada,
+H100/H200/H800/H20, RTX PRO 6000/5000/5500 and B200/B300. It recommends
+Blackwell for hardware acceleration. It does not list L4 or A10G as supported
+production GPUs. The included 8.0.2 chart contains an `l4` tuning profile marked
+`devOnly`, with one DLP instance and reduced vLLM concurrency. Its comments
+show a 24 GB L4 can be used for development; this is not a vendor-supported
+production minimum or proof that our entire lab fits.
 
-AWS publishes vCPU counts, not physical core counts. For typical Intel-based EC2 instances, 2 vCPUs roughly map to 1 physical core, so the 24-core recommendation is roughly 48 vCPUs.
+The admin guide does not give a complete 8.0.2 CPU/RAM/storage minimum or
+recommendation in its prerequisites section. Do not treat the earlier 8.0.1
+4-vCPU/25-GB minimum or 24-core/70-GB and dual-GPU recommendation as 8.0.2
+requirements. Confirm build-specific requirements with Fortinet and leave
+capacity for k3s, LiteLLM, chatbot, MCP and operating system. One GPU can be
+shared by Triton and vLLM according to the chart; multi-GPU placement and
+licensing must be verified during the deployment.
 
-Pricing below is an approximate us-east-1 estimate from lab notes. AWS pricing and instance availability change; verify the current price and availability before long-running tests. The `terraform/aws-ec2-k3s` module now also outputs a current AWS Price List estimate for the configured `instance_type` and `aws_region`:
+- **24 GB development test:** G6/L4 with the `l4` profile; experimental and
+  unsupported for 8.0.2 production. AWS reports 22,888 MiB usable GPU memory
+  even though it markets an L4 as 24 GB.
+- **Supported GPU candidate:** G6e/L40S, marketed as 48 GB; verify actual
+  available VRAM, host resources, license and model behavior. AWS reports
+  45,776 MiB per GPU. This is a supported GPU family, not a demonstrated
+  minimum whole-system configuration.
+- **Recommended GPU architecture:** G7e/RTX PRO 6000 Blackwell with 96 GiB
+  per GPU, matching the chart's default tuning. Hardware qualification does not
+  imply that the full demo has been validated.
 
-```bash
-terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_hourly_cost_usd
-terraform -chdir=terraform/aws-ec2-k3s output ec2_instance_monthly_cost_usd
-```
+The 8.0.2 guide requires license coverage for each distinct GPU used by Triton
+and vLLM. Verify the **Security Scanning** status: uncovered GPUs can disable
+inspection while model traffic continues. Extra GPUs can increase licensing
+costs; check entitlement before planning a multi-GPU deployment.
 
-Those outputs estimate Linux On-Demand shared-tenancy EC2 compute only. They do not include EBS, EIP idle charges, data transfer, Bedrock, marketplace, or licensing costs.
+## US East (N. Virginia) candidates
 
-## Current Defaults
+Prices below are AWS Price List Linux On-Demand shared-tenancy compute prices
+queried 2026-11-09. GPU VRAM labels use marketed GB or reported GiB, as
+indicated above; RAM is GiB. Prices exclude EBS, networking, public IPs,
+Bedrock, FortiAIGate and appliance licenses, taxes and other services. Actual
+capacity, account quota and prices can change. AWS specifications:
+[accelerated instance types](https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html)
+and [G6 instances](https://aws.amazon.com/ec2/instance-types/g6/).
+The price source is the AWS Price List API (`AmazonEC2`, location US East
+(N. Virginia), Linux, shared tenancy, no preinstalled software, used capacity,
+On-Demand hourly rate). Verify the live price before a long-running lab.
 
-| Purpose | Instance | Notes |
+| Classification | Instance | vCPU | RAM GiB | GPUs | GPU memory per card | USD/hour |
+|---|---|---:|---:|---|---:|---:|
+| Experimental L4, smaller lab | `g6.4xlarge` | 16 | 64 | 1 x L4 | 24 GB | 1.3232 |
+| Experimental L4, more host RAM | `g6.8xlarge` | 32 | 128 | 1 x L4 | 24 GB | 2.0144 |
+| Experimental multi-GPU L4 | `g6.12xlarge` | 48 | 192 | 4 x L4 | 24 GB | 4.6016 |
+| Supported GPU candidate, small host | `g6e.2xlarge` | 8 | 64 | 1 x L40S | 48 GB | 2.24208 |
+| Supported GPU candidate, initial sizing | `g6e.4xlarge` | 16 | 128 | 1 x L40S | 48 GB | 3.00424 |
+| Supported GPU candidate, more CPU/RAM | `g6e.8xlarge` | 32 | 256 | 1 x L40S | 48 GB | 4.52856 |
+| Supported GPU candidate, multi-GPU | `g6e.12xlarge` | 48 | 384 | 4 x L40S | 48 GB | 10.49264 |
+| Blackwell candidate, single GPU | `g7e.4xlarge` | 16 | 128 | 1 x RTX PRO 6000 | 96 GiB | 3.99816 |
+| Blackwell candidate, more CPU/RAM | `g7e.8xlarge` | 32 | 256 | 1 x RTX PRO 6000 | 96 GiB | 5.26824 |
+| Blackwell candidate, dual GPU | `g7e.12xlarge` | 48 | 512 | 2 x RTX PRO 6000 | 96 GiB | 8.28608 |
+
+`g7e.12xlarge` is a two-GPU comparison; the listed G6 and G6e families jump
+from one to four GPUs. Four 24 GB cards do not combine into one 96 GB memory
+space for a single model without software support. A single GPU shared by
+both engines is the simplest baseline; compare a dedicated second card only
+after verifying scheduling, throughput and per-GPU license coverage.
+
+The L40S `g6e.4xlarge` is a reasonable supported-GPU starting candidate,
+not a validated vendor minimum. The `g7e.4xlarge` is the first Blackwell
+candidate to investigate. The L4 profile offers a cheaper exploratory lane;
+use it only if the license and vendor allow it, without claiming support.
+An 8-hour session costs approximately $10.59 on `g6.4xlarge`, $24.03 on
+`g6e.4xlarge`, or $31.99 on `g7e.4xlarge` for EC2 compute alone.
+
+## Point-in-time capacity
+
+The existing `origin/feature/advanced` capacity probe was run on 2026-11-09
+in `us-east-1`, testing offered account-visible AZs in order until the first
+successful launch for each instance type. Successful probe instances were
+terminated and the script reported deletion of every temporary VPC. The
+G/VT On-Demand quota was 768 vCPUs at the time. Results:
+
+| Instance | Outcome | Tested AZs |
 |---|---|---|
-| Terraform default lab size | `g4dn.4xlarge` | Cost-conscious T4 lab default; not an officially supported GPU family |
-| Lower-cost supported GPU candidate | `g6.4xlarge` | L4 GPU family, modern single-GPU lab option |
-| Supported A10G validation | `g5.8xlarge` | A10G GPU with stronger CPU/RAM headroom |
-| Production-like supported validation | `g6.8xlarge` | L4 GPU with stronger CPU/RAM headroom |
-| Multi-GPU validation | `g6.12xlarge` | Four L4 GPUs, meets/exceeds the dual-GPU recommendation |
+| `g6.4xlarge` | Available | `1a` insufficient; `1b` succeeded |
+| `g6.8xlarge` | Available | `1a` succeeded |
+| `g6.12xlarge` | Insufficient capacity | `1a`, `1b`, `1c`, `1d`, `1f` |
+| `g6e.2xlarge` | Insufficient capacity | `1a`, `1b`, `1c`, `1d` |
+| `g6e.4xlarge` | Available | `1a` insufficient; `1b` succeeded |
+| `g6e.8xlarge` | Insufficient capacity | `1a`, `1b`, `1c`, `1d` |
+| `g6e.12xlarge` | Insufficient capacity | `1a`, `1b`, `1c`, `1d` |
+| `g7e.4xlarge` | Available | `1a` succeeded |
+| `g7e.8xlarge` | Available | `1a` succeeded |
+| `g7e.12xlarge` | Available | `1a` succeeded |
 
-## Quickstart Selection
+AZ abbreviations refer to `us-east-1`; names are account-specific. A
+successful temporary launch indicates capacity at that moment for that
+account and AZ; it is not a reservation or guarantee for later deployment.
+AZs after the first success were not tested. The run's detailed JSON is kept
+locally outside the repository and contains account and resource identifiers.
+Do not commit it. `InsufficientInstanceCapacity`, quota errors, unsupported
+offerings and authentication errors must be reported separately.
 
-AWS profile initialization offers these choices before Terraform runs:
+## Operational notes
 
-1. `g4dn.4xlarge` — default budget lab size;
-2. `g6.4xlarge` — lower-cost supported L4 size;
-3. `g5.8xlarge` — supported A10G validation size;
-4. `g6.8xlarge` — preferred supported L4 validation size; or
-5. a custom EC2 instance type.
-
-The selected value is written to ignored
-`terraform/aws-ec2-k3s/99-local.auto.tfvars`. Quickstart asks only when an AWS
-profile has no explicit instance selection; normal reruns and imported profiles
-reuse the stored value. `--yolo` never prompts and uses the stored selection or
-the tracked `g4dn.4xlarge` default.
-
-Terraform checks whether the selected type is offered in the target region,
-but the operator remains responsible for current price, EC2 quota, and
-Availability Zone capacity. G5/G6 capacity is not guaranteed in every AZ;
-verify it before an apply. Changing an existing instance type can stop/restart
-the host and lose ephemeral instance-store-backed k3s data.
-
-## FortiGate And FortiWeb Appliances
-
-FortiGate and FortiWeb do not need GPU instances for the appliance baseline.
-FortiGate uses `c6i.xlarge` by default; `c6i.large` is acceptable for
-lighter validation when cost matters more than headroom. FortiWeb 8.0
-Marketplace images support the older `c5`/`m5`/`t3` families, not `c6i`.
-
-| Appliance | Instance | Approx. Cost | Use |
-|---|---|---:|---|
-| FortiGate | `c6i.large` | ~$0.08/hr | Acceptable lower-cost appliance test size |
-| FortiGate | `c6i.xlarge` | ~$0.17/hr | Default FortiGate size |
-| FortiWeb | `c5.large` | ~$0.085/hr | Acceptable lower-cost appliance test size |
-| FortiWeb | `c5.xlarge` | ~$0.17/hr | Default FortiWeb size |
-
-## Test Infrastructure
-
-These are useful for automation, Kubernetes, and budget lab testing. The T4-based `g4dn` family is not treated here as officially supported FortiAIGate infrastructure.
-
-| Instance | vCPU | RAM | GPU | GPU VRAM | Local NVMe | Approx. Cost | Use |
-|---|---:|---:|---|---:|---:|---:|---|
-| `g4dn.xlarge` | 4 | 16 GB | 1 x T4 | 16 GB | 125 GB | ~$0.53/hr | Smoke test automation only |
-| `g4dn.2xlarge` | 8 | 32 GB | 1 x T4 | 16 GB | 225 GB | ~$0.75/hr | Minimum viable lab with reduced chart values |
-| `g4dn.4xlarge` | 16 | 64 GB | 1 x T4 | 16 GB | 225 GB | ~1.20/hr | Current Terraform default lab size |
-| `g4dn.8xlarge` | 32 | 128 GB | 1 x T4 | 16 GB | 900 GB | ~$2.18/hr | Strong budget T4 lab box |
-
-### Reduced Lab Resource Profile
-
-The deployment uses a reduced Triton resource profile that was tuned to make
-FortiAIGate practical on smaller lab instances such as `g4dn.2xlarge` and
-`g4dn.4xlarge`. This same profile is currently rendered for every AWS instance
-size, including `g6.8xlarge`; instance selection does not dynamically change
-the Helm resources:
-
-| Resource | Request | Limit |
-|---|---:|---:|
-| CPU | `2` | `8` |
-| Memory | `16Gi` | `48Gi` |
-| NVIDIA GPU | `1` | `1` |
-
-The shared-memory volume is limited to `8Gi`. These are lab-oriented values,
-not production sizing recommendations. A 32 GB host can schedule the 16 GiB
-memory request, but the 48 GiB limit does not reserve that memory and the node
-can still encounter pressure under load. Validate the complete workload before
-using the smallest instance for a presentation.
-
-The active values are rendered by
-`ansible/roles/fortiaigate/templates/fortiaigate-values.yaml.j2` and enforced
-by `k8s-overlays/bin/post_render_fortiaigate.py`. The former standalone AWS and
-local Helm example files were not consumed by deployment and were removed to
-avoid presenting stale image, license, or node values as configuration inputs.
-
-## Supported Validation Infrastructure
-
-Use these when validating FortiAIGate behavior on supported GPU families.
-
-| Instance | vCPU | RAM | GPU | GPU VRAM | Local NVMe | Approx. Cost | Use |
-|---|---:|---:|---|---:|---:|---:|---|
-| `g6.4xlarge` | 16 | 64 GB | 1 x L4 | 24 GB | 600 GB | ~$2.30/hr | Reasonable modern single-GPU lab |
-| `g5.8xlarge` | 32 | 128 GB | 1 x A10G | 24 GB | 900 GB | ~$3.06/hr | A10G production-like validation |
-| `g6.8xlarge` | 32 | 128 GB | 1 x L4 | 24 GB | 1.2 TB | ~$2.95/hr | Recommended single-GPU L4 validation |
-| `g5.12xlarge` | 48 | 192 GB | 4 x A10G | 96 GB total | 3.8 TB | ~$5.67/hr | Multi-GPU A10G validation |
-| `g6.12xlarge` | 48 | 192 GB | 4 x L4 | 96 GB total | 1.8 TB | ~$5.85/hr | Multi-GPU L4 validation |
-
-## Experimental Infrastructure
-
-These are interesting for future or model-heavy tests, but should not be treated as the default FortiAIGate validation target without separate confirmation.
-
-| Instance | vCPU | RAM | GPU | GPU VRAM | Local NVMe | Approx. Cost | Why |
-|---|---:|---:|---|---:|---:|---:|---|
-| `g6e.4xlarge` | 16 | 128 GB | 1 x L40S | 48 GB | Verify | ~$3.50/hr | Large single-GPU VRAM |
-| `g7e.4xlarge` | 16 | 128 GB | Verify current AWS GPU | Verify | Verify | ~$4.50/hr | Future-looking large-VRAM testing |
-
-## Recommendation Summary
-
-| Category | Recommendation |
-|---|---|
-| Cheapest smoke test | `g4dn.xlarge` |
-| Current default lab deployment | `g4dn.4xlarge` |
-| Minimum modern supported GPU lab | `g6.4xlarge` |
-| Preferred single-GPU supported validation | `g6.8xlarge` |
-| Supported A10G validation | `g5.8xlarge` |
-| Supported multi-GPU validation | `g6.12xlarge` |
-
-## Notes
-
-- `g4dn` is useful for proving the Terraform, Ansible, k3s, ingress, storage, and Helm workflow.
-- Keep the reduced lab resource profile when testing smaller instances; raise
-  it when the workload and selected instance provide more headroom.
-- `g4dn` should not be used as the final supported GPU validation result.
-- Prefer `g6.8xlarge` when the goal is a stronger single-node validation pass with a supported L4 GPU.
-- Prefer `g6.12xlarge` or `g5.12xlarge` when dual/multi-GPU behavior matters.
+- AWS reports a GPU vCPU quota for the account, not guaranteed capacity. A
+  larger multi-GPU instance may consume many vCPUs and require separate quota.
+- Each GPU used by the inference engines requires coverage. A multi-GPU EC2
+  shape does not mandate allocating all cards, but placement and licensing
+  must be verified with the 8.0.2 chart and license manager.
+- Compare the vendor GPU support list with instance GPU model and drivers,
+  and confirm that the intended region/AZ actually offers the instance type.
+- Existing quickstart choices and the `g4dn.4xlarge` Terraform default are
+  inherited from 8.0.1 and are not 8.0.2 sizing guidance. Do not use them as
+  the supported baseline until the automation has been updated.
+- The old reduced Triton overlay was designed for 8.0.1; do not assume it is
+  correct for 8.0.2. Validate Helm output, GPU scheduling, available memory,
+  detector availability and sustained workload on a fresh instance.
+- This research does not select an AMI. Verify Ubuntu 24.04 compatibility,
+  NVIDIA drivers and toolkit, architecture and storage before provisioning.

@@ -38,36 +38,102 @@
   delay: "{{ nvidia_container_runtime_apt_retry_delay | int }}"
   until: nvidia_container_runtime_install is succeeded
 
-- name: Check NVIDIA containerd runtime snippet
-  ansible.builtin.stat:
-    path: /etc/containerd/conf.d/99-nvidia.toml
-  register: nvidia_containerd_runtime_snippet
-  # - ansible.builtin.debug:
-  #     var: nvidia_containerd_runtime_snippet
-
-- name: Configure k3s containerd NVIDIA runtime
+# CHANGED: k3s generates containerd configuration. Do not modify the generated
+# file or infer k3s configuration from an unrelated system containerd snippet.
+- name: Check k3s generated NVIDIA runtime handler
   ansible.builtin.command:
     argv:
-      - nvidia-ctk
-      - runtime
-      - configure
-      - --runtime=containerd
-      - --config=/var/lib/rancher/k3s/agent/etc/containerd/config.toml
-  register: nvidia_ctk_configure
-  changed_when: "'Wrote updated config' in nvidia_ctk_configure.stderr or 'Wrote updated config' in nvidia_ctk_configure.stdout"
-  when: not nvidia_containerd_runtime_snippet.stat.exists
-  # - ansible.builtin.debug:
-  #     var: nvidia_ctk_configure.stdout_lines
+      - /usr/bin/python3
+      - -c
+      - |
+        import os
+        import sys
+        import tomllib
 
-- name: Restart k3s after NVIDIA runtime configuration
+        with open(sys.argv[1], "rb") as config_file:
+            config = tomllib.load(config_file)
+        plugins = config.get("plugins", {})
+        runtimes = [
+            plugin.get("containerd", {}).get("runtimes", {}).get("nvidia", {})
+            for plugin in plugins.values() if isinstance(plugin, dict)
+        ]
+        binaries = [runtime.get("options", {}).get("BinaryName", "") for runtime in runtimes]
+        if not any(binary and os.path.isfile(binary) and os.access(binary, os.X_OK) for binary in binaries):
+            sys.exit("k3s NVIDIA runtime handler or executable is missing")
+        print("k3s NVIDIA runtime:", next(binary for binary in binaries if binary and os.path.isfile(binary) and os.access(binary, os.X_OK)))
+      - /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+  register: nvidia_k3s_handler_before
+  changed_when: false
+  failed_when: false
+  # - ansible.builtin.debug:
+  #     var: nvidia_k3s_handler_before.stdout_lines
+
+- name: Restart k3s to discover installed NVIDIA runtime
   ansible.builtin.systemd:
     name: k3s
     state: restarted
-  when: nvidia_ctk_configure.changed | default(false)
+  when: nvidia_container_runtime_install.changed or nvidia_k3s_handler_before.rc != 0
 
-- name: Validate configured NVIDIA runtime
-  ansible.builtin.command: grep -R "nvidia" /var/lib/rancher/k3s/agent/etc/containerd
+- name: Verify k3s generated NVIDIA runtime handler
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -c
+      - |
+        import os
+        import sys
+        import tomllib
+
+        with open(sys.argv[1], "rb") as config_file:
+            config = tomllib.load(config_file)
+        plugins = config.get("plugins", {})
+        runtimes = [
+            plugin.get("containerd", {}).get("runtimes", {}).get("nvidia", {})
+            for plugin in plugins.values() if isinstance(plugin, dict)
+        ]
+        binaries = [runtime.get("options", {}).get("BinaryName", "") for runtime in runtimes]
+        if not any(binary and os.path.isfile(binary) and os.access(binary, os.X_OK) for binary in binaries):
+            sys.exit("k3s NVIDIA runtime handler or executable is missing")
+        print("k3s NVIDIA runtime:", next(binary for binary in binaries if binary and os.path.isfile(binary) and os.access(binary, os.X_OK)))
+      - /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+  register: nvidia_k3s_handler_after
   changed_when: false
-  register: nvidia_runtime_grep
+  retries: 12
+  delay: 5
+  until: nvidia_k3s_handler_after.rc == 0
   # - ansible.builtin.debug:
-  #     var: nvidia_runtime_grep.stdout_lines
+  #     var: nvidia_k3s_handler_after.stdout_lines
+
+# - name: Check NVIDIA containerd runtime snippet
+#   ansible.builtin.stat:
+#     path: /etc/containerd/conf.d/99-nvidia.toml
+#   register: nvidia_containerd_runtime_snippet
+#   # - ansible.builtin.debug:
+#   #     var: nvidia_containerd_runtime_snippet
+#
+# - name: Configure k3s containerd NVIDIA runtime
+#   ansible.builtin.command:
+#     argv:
+#       - nvidia-ctk
+#       - runtime
+#       - configure
+#       - --runtime=containerd
+#       - --config=/var/lib/rancher/k3s/agent/etc/containerd/config.toml
+#   register: nvidia_ctk_configure
+#   changed_when: "'Wrote updated config' in nvidia_ctk_configure.stderr or 'Wrote updated config' in nvidia_ctk_configure.stdout"
+#   when: not nvidia_containerd_runtime_snippet.stat.exists
+#   # - ansible.builtin.debug:
+#   #     var: nvidia_ctk_configure.stdout_lines
+#
+# - name: Restart k3s after NVIDIA runtime configuration
+#   ansible.builtin.systemd:
+#     name: k3s
+#     state: restarted
+#   when: nvidia_ctk_configure.changed | default(false)
+#
+# - name: Validate configured NVIDIA runtime
+#   ansible.builtin.command: grep -R "nvidia" /var/lib/rancher/k3s/agent/etc/containerd
+#   changed_when: false
+#   register: nvidia_runtime_grep
+#   # - ansible.builtin.debug:
+#   #     var: nvidia_runtime_grep.stdout_lines

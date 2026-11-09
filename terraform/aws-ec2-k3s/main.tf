@@ -464,7 +464,7 @@ resource "aws_security_group" "this" {
 }
 
 resource "aws_instance" "this" {
-  ami                    = data.aws_ami.ubuntu_2404.id
+  ami                    = var.ubuntu_ami_id != "" ? var.ubuntu_ami_id : data.aws_ami.ubuntu_2404.id
   instance_type          = var.instance_type
   key_name               = var.ssh_key_name
   iam_instance_profile   = local.iam_instance_profile_name

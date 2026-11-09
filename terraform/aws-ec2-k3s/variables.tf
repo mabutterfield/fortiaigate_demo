@@ -17,8 +17,8 @@ variable "name_prefix" {
 
 variable "instance_type" {
   type        = string
-  description = "EC2 GPU instance type. g4dn.4xlarge is the default lab size; consider g6.8xlarge for production-like validation."
-  default     = "g4dn.4xlarge"
+  description = "GPU host; g6.4xlarge uses the 8.0.2 development-only L4 profile. See docs/aws-instance.md."
+  default     = "g6.4xlarge"
 }
 
 variable "aws_pricing_location_override" {
@@ -243,10 +243,16 @@ variable "k3s_cluster_dns" {
   default     = "10.70.0.10"
 }
 
+variable "ubuntu_ami_id" {
+  type        = string
+  description = "Optional tested Ubuntu 24.04 amd64 AMI ID; empty discovers the latest Canonical AMI."
+  default     = ""
+}
+
 variable "root_volume_size_gb" {
   type        = number
-  description = "Root EBS volume size in GiB."
-  default     = 100
+  description = "Root EBS volume size in GiB; measure image and model requirements before application deployment."
+  default     = 300
 }
 
 variable "inventory_output_path" {
