@@ -1,0 +1,18 @@
+# Isolated lab override; not a normal deployment profile.
+triton:
+  resources:
+    limits:
+      gpuCount: 1
+      gpuResourceName: nvidia.com/mig-1g.16gb
+vllm:
+  gpuAttach: dedicated
+  gpuMemoryUtilization: 0.91
+  maxModelLen: 1024
+  maxNumSeqs: 1
+  extraArgs:
+    - --enable-prefix-caching
+    - --enforce-eager
+  resources:
+    limits:
+      gpuCount: 1
+      gpuResourceName: nvidia.com/mig-1g.16gb

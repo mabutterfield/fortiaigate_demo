@@ -7,6 +7,16 @@ NVSMI=${FAIG_NVIDIA_SMI:-/usr/bin/nvidia-smi}
 profile_id=5
 profile_name='MIG 1g.16gb'
 
+# `nvidia-smi -L` does not accept -i on the tested 595 driver. Restrict the
+# full listing to the indented MIG entries belonging to the requested card.
+gpu_mig_listing() {
+  "$NVSMI" -L | awk -v gpu="$1" '
+    $0 ~ "^GPU " gpu ": " { selected=1; next }
+    /^GPU [0-9]+:/ { selected=0 }
+    selected { print }
+  '
+}
+
 physical_ids=()
 while IFS= read -r gpu; do
   physical_ids+=("$gpu")
@@ -23,7 +33,7 @@ for gpu in "${physical_ids[@]}"; do
     echo "GPU $gpu does not report a configurable MIG mode; refusing." >&2
     exit 1
   fi
-  listing=$("$NVSMI" -i "$gpu" -L)
+  listing=$(gpu_mig_listing "$gpu")
   count=$(printf '%s\n' "$listing" | grep -c 'MIG ' || true)
   matching=$(printf '%s\n' "$listing" | grep -Fc "$profile_name" || true)
   gi_count=0
@@ -35,7 +45,8 @@ for gpu in "${physical_ids[@]}"; do
     echo "GPU $gpu has an unexpected MIG layout; refusing to modify it." >&2
     exit 1
   fi
-  if ! "$NVSMI" mig -i "$gpu" -lgip | grep -Eq 'MIG 1g[.]16gb[[:space:]]+5[[:space:]]'; then
+  profiles=$("$NVSMI" mig -i "$gpu" -lgip)
+  if ! grep -Eq 'MIG 1g[.]16gb[[:space:]]+5[[:space:]]' <<<"$profiles"; then
     echo "GPU $gpu does not advertise the expected 1g.16gb profile ID 5; refusing." >&2
     exit 1
   fi
@@ -46,7 +57,7 @@ for gpu in "${physical_ids[@]}"; do
   if [ "$mode" != Enabled ]; then
     "$NVSMI" -i "$gpu" -mig 1
   fi
-  listing=$("$NVSMI" -i "$gpu" -L)
+  listing=$(gpu_mig_listing "$gpu")
   count=$(printf '%s\n' "$listing" | grep -c 'MIG ' || true)
   if [ "$count" -eq 0 ]; then
     "$NVSMI" mig -i "$gpu" -cgi "$profile_id" -C

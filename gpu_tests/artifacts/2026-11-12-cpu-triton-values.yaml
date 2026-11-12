@@ -1,0 +1,18 @@
+# Experimental CPU Triton + dedicated dual-MIG vLLM; use only with the
+# accompanying lab post-renderer, never the regular deployment post-renderer.
+triton:
+  resources:
+    limits:
+      gpuCount: 1
+      gpuResourceName: nvidia.com/mig-1g.16gb
+vllm:
+  gpuAttach: dedicated
+  gpuMemoryUtilization: 0.80
+  maxModelLen: 16384
+  maxNumSeqs: 64
+  extraArgs:
+    - --enable-prefix-caching
+  resources:
+    limits:
+      gpuCount: 2
+      gpuResourceName: nvidia.com/mig-1g.16gb
