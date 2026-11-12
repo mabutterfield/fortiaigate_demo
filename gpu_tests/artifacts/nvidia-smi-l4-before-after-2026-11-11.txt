@@ -1,0 +1,36 @@
+Owner-provided snapshots before and after enabling DLP/NLP detectors.
+GPU 0: NVIDIA L4; driver 595.91.07; reported CUDA capability 13.2.
+
+Before: Wed Nov 11 14:51:35 2026
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 595.91.07              Driver Version: 595.91.07      CUDA Version: 13.2     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA L4                      Off |   00000000:35:00.0 Off |                    0 |
+| N/A   49C    P0             29W /   72W |   19256MiB /  23034MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|    0   N/A  N/A           22040      C   tritonserver                           2380MiB |
+|    0   N/A  N/A           24974      C   VLLM::EngineCore                      16862MiB |
++-----------------------------------------------------------------------------------------+
+
+After: Wed Nov 11 15:00:57 2026
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 595.91.07              Driver Version: 595.91.07      CUDA Version: 13.2     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA L4                      Off |   00000000:35:00.0 Off |                    0 |
+| N/A   49C    P0             29W /   72W |   19276MiB /  23034MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|    0   N/A  N/A           22040      C   tritonserver                           2400MiB |
+|    0   N/A  N/A           24974      C   VLLM::EngineCore                      16862MiB |
++-----------------------------------------------------------------------------------------+

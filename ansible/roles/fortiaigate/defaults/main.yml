@@ -22,6 +22,8 @@ fortiaigate_update_strategy: Recreate
 fortiaigate_gpu_enabled: true
 fortiaigate_gpu_profile: l4
 fortiaigate_vllm_gpu_attach: shared
+fortiaigate_triton_gpu_count: 1
+fortiaigate_triton_gpu_resource_name: nvidia.com/gpu
 fortiaigate_storage_class: local-path
 fortiaigate_storage_size: 16Gi
 fortiaigate_storage_access_modes:

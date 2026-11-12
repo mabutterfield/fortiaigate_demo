@@ -10,6 +10,12 @@ fortiaigate:
     type: {{ fortiaigate_gpu_profile | to_json }}
   updateStrategy: {{ fortiaigate_update_strategy | to_json }}
 
+triton:
+  resources:
+    limits:
+      gpuCount: {{ fortiaigate_triton_gpu_count | int }}
+      gpuResourceName: {{ fortiaigate_triton_gpu_resource_name | to_json }}
+
 vllm:
   gpuAttach: {{ fortiaigate_vllm_gpu_attach | to_json }}
 
