@@ -5,6 +5,8 @@ lab-only deviations used in the G7 tests. Times are UTC
 unless otherwise specified. These results are point-in-time observations, not
 Fortinet support statements or production recommendations.
 
+- [Consolidated GPU and CPU test report](2026-11-12-gpu-test-report.md):
+  goals, instance details, results, changes required and lessons learned.
 - [Experiment report](2026-11-11-gpu-experiment.md): L4 baseline, CPU-only
   behavior, G7 MIG results, observations, failures and log excerpts.
 - [Next: two physical GPUs](2026-11-12-dual-gpu-plan.md): prepared plan,
