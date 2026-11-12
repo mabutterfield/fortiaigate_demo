@@ -89,8 +89,8 @@ do not prove broad DLP equivalence, long-input behavior, throughput or
 concurrent stability. The previous GPU-backed baseline had lower latency on
 individual requests.
 
-The lab is intentionally left in this configuration for user testing. To
-restore the last known working GPU-Triton configuration, roll back to the
+At the end of the experiment the lab was left in this configuration for user
+testing. To restore the last known working GPU-Triton configuration, roll back to the
 previous shared release and reapply the documented MIG metering workaround
 after independently verifying both reporters. A Helm rollback or upgrade may
 restart models and interrupt inspection. ECR is not changed by these steps.

@@ -1,6 +1,6 @@
 # Dedicated Triton and vLLM on separate 16 GB MIG slices
 
-On November 12, 2026, Helm revision 3 used the adjacent lab values file to
+On November 12, 2026, Helm revision 3 used the [lab values file](artifacts/2026-11-12-dedicated-16gb-values.yaml) to
 switch the stock 8.0.2 chart to `vllm.gpuAttach: dedicated`. Triton and vLLM
 each requested one `nvidia.com/mig-1g.16gb` resource. This changed the shared
 pod into separate deployments without editing the vendor chart.
