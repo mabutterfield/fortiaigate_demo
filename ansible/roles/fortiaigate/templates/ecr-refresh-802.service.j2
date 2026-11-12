@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh FortiAIGate ECR pull secret
+After=network-online.target k3s.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fortiaigate-ecr-refresh

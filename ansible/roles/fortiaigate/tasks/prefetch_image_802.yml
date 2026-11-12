@@ -1,0 +1,59 @@
+---
+- name: Check whether 8.0.2 image is already cached
+  ansible.builtin.command:
+    argv: [/usr/local/bin/k3s, crictl, inspecti, "{{ faig_prefetch_image }}"]
+  register: faig_prefetch_cached
+  changed_when: false
+  failed_when: false
+  no_log: true
+  # - ansible.builtin.debug:
+  #     var: faig_prefetch_cached.rc
+
+- name: Pull missing image through a temporary Kubernetes pod
+  when: faig_prefetch_cached.rc != 0
+  block:
+    - name: Choose unique image prefetch pod name
+      ansible.builtin.set_fact:
+        faig_prefetch_pod: "faig-prefetch-{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_lowercase', 'digits'], length=10) }}"
+      # - ansible.builtin.debug:
+      #     var: faig_prefetch_pod
+
+    - name: Start a temporary image-pull pod
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - /etc/rancher/k3s/k3s.yaml
+          - -n
+          - "{{ fortiaigate_namespace }}"
+          - run
+          - "{{ faig_prefetch_pod }}"
+          - "--image={{ faig_prefetch_image }}"
+          - --restart=Never
+          - "--overrides={{ {'spec': {'imagePullSecrets': [{'name': ecr_pull_secret_name}]}} | to_json }}"
+          - --command
+          - --
+          - /bin/true
+      register: faig_prefetch_create
+      changed_when: true
+      # - ansible.builtin.debug:
+      #     var: faig_prefetch_create.stdout_lines
+
+    - name: Wait for k3s to cache the image
+      ansible.builtin.command:
+        argv: [/usr/local/bin/k3s, crictl, inspecti, "{{ faig_prefetch_image }}"]
+      register: faig_prefetch_result
+      changed_when: false
+      no_log: true
+      retries: "{{ fortiaigate_prefetch_retries | int }}"
+      delay: "{{ fortiaigate_prefetch_delay | int }}"
+      until: faig_prefetch_result.rc == 0
+      # - ansible.builtin.debug:
+      #     var: faig_prefetch_result.rc
+
+  always:
+    - name: Remove the temporary image-pull pod
+      ansible.builtin.command:
+        argv: [/usr/local/bin/kubectl, --kubeconfig, /etc/rancher/k3s/k3s.yaml, -n, "{{ fortiaigate_namespace }}", delete, pod, "{{ faig_prefetch_pod }}", --ignore-not-found=true, --wait=false]
+      when: faig_prefetch_create is defined and faig_prefetch_create is changed
+      changed_when: true

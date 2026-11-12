@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+# Credentials are piped in memory to kubectl and never written to a file or argv.
+/usr/local/bin/aws ecr get-login-password --region {{ aws_region | quote }} | \
+/usr/bin/python3 -c 'import base64,json,sys
+password=sys.stdin.read().strip()
+if not password: raise SystemExit("ECR returned an empty token")
+registry,namespace,name=sys.argv[1:]
+auth=base64.b64encode(("AWS:"+password).encode()).decode()
+config=base64.b64encode(json.dumps({"auths":{registry:{"auth":auth}}}).encode()).decode()
+json.dump({"apiVersion":"v1","kind":"Secret","metadata":{"name":name,"namespace":namespace},"type":"kubernetes.io/dockerconfigjson","data":{".dockerconfigjson":config}},sys.stdout)
+' {{ ecr_registry | quote }} {{ fortiaigate_namespace | quote }} {{ ecr_pull_secret_name | quote }} | \
+/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -f - >/dev/null

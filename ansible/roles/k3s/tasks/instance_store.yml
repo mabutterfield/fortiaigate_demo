@@ -1,0 +1,141 @@
+---
+# Fresh AWS instances only. This never migrates an existing k3s data directory.
+- name: Validate the image-cache mountpoint
+  ansible.builtin.assert:
+    that:
+      - k3s_instance_store_mount is match("^/[^ \t\n]+$")
+      - k3s_instance_store_mount != "/"
+    fail_msg: "Set a dedicated absolute image-cache mountpoint without whitespace."
+
+- name: Inspect existing k3s containerd directory
+  ansible.builtin.stat:
+    path: /var/lib/rancher/k3s/agent/containerd
+    follow: false
+  register: k3s_cache_dir_stat
+  # - ansible.builtin.debug:
+  #     var: k3s_cache_dir_stat.stat
+
+- name: Refuse to replace an existing containerd data directory
+  ansible.builtin.assert:
+    that:
+      - not k3s_cache_dir_stat.stat.exists or (k3s_cache_dir_stat.stat.islnk | default(false) and k3s_cache_dir_stat.stat.lnk_source == k3s_instance_store_mount ~ '/containerd')
+    fail_msg: "Existing k3s containerd data will not be migrated or replaced automatically."
+
+- name: Install EC2 disk selection helper
+  ansible.builtin.copy:
+    src: select_instance_store.py
+    dest: /usr/local/sbin/faig-select-instance-store
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Identify root block device ancestry
+  ansible.builtin.shell: |
+    set -euo pipefail
+    root=$(findmnt -n -o SOURCE --target /)
+    lsblk -s -n -r -p -o PATH "$(readlink -f "$root")"
+  args:
+    executable: /bin/bash
+  register: k3s_root_devices
+  changed_when: false
+  # - ansible.builtin.debug:
+  #     var: k3s_root_devices.stdout_lines
+
+- name: Select verified instance-store disk
+  ansible.builtin.shell: |
+    set -euo pipefail
+    lsblk -J -p -o PATH,TYPE,MODEL,FSTYPE,MOUNTPOINTS | /usr/local/sbin/faig-select-instance-store {{ k3s_instance_store_device | quote }} {% for device in k3s_root_devices.stdout_lines %}{{ device | quote }} {% endfor %}
+  args:
+    executable: /bin/bash
+  register: k3s_verified_instance_store
+  changed_when: false
+  # - ansible.builtin.debug:
+  #     var: k3s_verified_instance_store.stdout_lines
+
+- name: Inspect instance-store signatures and mount state
+  ansible.builtin.shell: |
+    set -euo pipefail
+    device={{ k3s_verified_instance_store.stdout | trim | quote }}
+    findmnt -rn -S "$device" -o TARGET || true
+    printf '%s\n' '---signatures---'
+    wipefs -n --noheadings --output TYPE "$device"
+    printf '%s\n' '---label---'
+    blkid -s LABEL -o value "$device" || true
+    printf '%s\n' '---uuid---'
+    blkid -s UUID -o value "$device" || true
+  args:
+    executable: /bin/bash
+  register: k3s_instance_store_inspection
+  changed_when: false
+  # - ansible.builtin.debug:
+  #     var: k3s_instance_store_inspection.stdout_lines
+
+- name: Prepare signature-free or previously registered image-cache disk
+  ansible.builtin.shell: |
+    set -euo pipefail
+    device={{ k3s_verified_instance_store.stdout | trim | quote }}
+    mount_dir={{ k3s_instance_store_mount | quote }}
+    target=/var/lib/rancher/k3s/agent/containerd
+    if [ -L "$target" ] && [ "$(readlink "$target")" != "$mount_dir/containerd" ]; then
+      echo 'Refusing to replace an existing containerd symlink' >&2; exit 1
+    fi
+    label=$(blkid -s LABEL -o value "$device" || true)
+    uuid=$(blkid -s UUID -o value "$device" || true)
+    signatures=$(wipefs -n --noheadings --output TYPE "$device" | tr -d '[:space:]')
+    existing_mount=$(findmnt -rn -S "$device" -o TARGET || true)
+    if [ -n "$existing_mount" ] && [ "$existing_mount" != "$mount_dir" ]; then
+      echo 'Refusing instance store mounted at another location' >&2; exit 1
+    fi
+    if mountpoint -q "$mount_dir"; then
+      mounted=$(findmnt -n -o SOURCE --mountpoint "$mount_dir")
+      [ "$(readlink -f "$mounted")" = "$(readlink -f "$device")" ] || { echo 'Mountpoint has a different source' >&2; exit 1; }
+    elif [ -d "$mount_dir" ] && [ -n "$(ls -A "$mount_dir")" ]; then
+      echo 'Refusing to hide data in the image-cache mountpoint' >&2; exit 1
+    fi
+    if [ -z "$signatures" ]; then
+      [ -z "$existing_mount" ] || { echo 'Refusing mounted blank disk' >&2; exit 1; }
+      if [ -e "$target" ] && [ ! -L "$target" ]; then echo 'Refusing existing containerd directory' >&2; exit 1; fi
+      if awk -v m="$mount_dir" '$1 !~ /^#/ && $2 == m { found=1 } END { exit !found }' /etc/fstab; then
+        echo 'Mountpoint already has an fstab entry; manual recovery required' >&2; exit 1
+      fi
+      mkfs.ext4 -F -L FAIGIMAGES "$device" >/dev/null
+      uuid=$(blkid -s UUID -o value "$device")
+      printf 'UUID=%s %s ext4 defaults,nofail 0 2 # FAIG image cache\n' "$uuid" "$mount_dir" >> /etc/fstab
+      echo formatted
+    else
+      [ "$signatures" = ext4 ] && [ "$label" = FAIGIMAGES ] && [ -n "$uuid" ] || { echo 'Refusing existing or unrecognized disk signatures' >&2; exit 1; }
+      awk -v u="UUID=$uuid" -v m="$mount_dir" '$1 == u && $2 == m && $0 ~ /# FAIG image cache/ { found=1 } END { exit !found }' /etc/fstab || { echo 'Existing filesystem is not registered as a FAIG image cache' >&2; exit 1; }
+    fi
+    mkdir -p "$mount_dir"
+    if ! mountpoint -q "$mount_dir"; then mount "$mount_dir"; echo mounted; fi
+    mkdir -p "$mount_dir/containerd" "$(dirname "$target")"
+    if [ ! -L "$target" ]; then ln -s "$mount_dir/containerd" "$target"; echo linked; fi
+  args:
+    executable: /bin/bash
+  register: k3s_instance_store_setup
+  changed_when: "k3s_instance_store_setup.stdout | length > 0"
+  # - ansible.builtin.debug:
+  #     var: k3s_instance_store_setup.stdout_lines
+
+- name: Ensure k3s service override directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    mode: '0755'
+
+- name: Require the image cache mount before starting k3s
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3s.service.d/10-faig-image-cache.conf
+    mode: '0644'
+    content: |
+      [Unit]
+      RequiresMountsFor={{ k3s_instance_store_mount }}
+      ConditionPathIsMountPoint={{ k3s_instance_store_mount }}
+  register: k3s_image_cache_unit
+  # - ansible.builtin.debug:
+  #     var: k3s_image_cache_unit
+
+- name: Reload systemd after image cache override
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: k3s_image_cache_unit.changed

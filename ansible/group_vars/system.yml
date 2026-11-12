@@ -77,6 +77,9 @@ publish_image_state: active
 publish_target_repos: []
 
 fortiaigate_update_strategy: Recreate
+# L4 is the chart's development-only profile. Change with the selected GPU.
+fortiaigate_gpu_profile: l4
+fortiaigate_vllm_gpu_attach: shared
 fortiaigate_storage_class: local-path
 fortiaigate_storage_size: 16Gi
 fortiaigate_storage_access_modes:
@@ -466,8 +469,9 @@ nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-
 nvidia_runtime_class_name: nvidia
 nvidia_expected_gpu_count: 1
 
-# EBS is the safe first-test default. Automated instance-store formatting is disabled.
-k3s_use_instance_store: false
+# On new AWS hosts, a EC2 instance-store disk with no detected signatures is used for image cache.
+# Set false for EBS-only hosts; existing k3s data is never automatically migrated.
+k3s_use_instance_store: "{{ deployment_target | default(lookup('env', 'FAIG_DEPLOYMENT_TARGET') | default('aws', true)) == 'aws' }}"
 # Candidate pin for initial testing; vendor compatibility and live bootstrap are not yet proven.
 k3s_version: v1.35.10+k3s1
 k3s_instance_store_device: ""

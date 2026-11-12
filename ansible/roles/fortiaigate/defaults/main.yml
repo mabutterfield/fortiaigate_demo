@@ -19,6 +19,9 @@ fortiaigate_gpu_uuids: "{{ local_faig_gpu_uuids | default([]) }}"
 fortiaigate_image_pull_policy: IfNotPresent
 fortiaigate_image_pull_secrets: []
 fortiaigate_update_strategy: Recreate
+fortiaigate_gpu_enabled: true
+fortiaigate_gpu_profile: l4
+fortiaigate_vllm_gpu_attach: shared
 fortiaigate_storage_class: local-path
 fortiaigate_storage_size: 16Gi
 fortiaigate_storage_access_modes:
@@ -35,3 +38,7 @@ fortiaigate_license_files: []
 fortiaigate_licenses: {}
 aws_region: us-east-1
 ecr_pull_secret_name: ecr-secret
+
+fortiaigate_prefetch_images: true
+fortiaigate_prefetch_retries: 180
+fortiaigate_prefetch_delay: 10

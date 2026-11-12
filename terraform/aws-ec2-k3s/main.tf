@@ -473,6 +473,10 @@ resource "aws_instance" "this" {
   user_data              = local.github_keys_user_data
 
   lifecycle {
+    # Create a replacement host before waiting for a slow GPU termination.
+    # This can temporarily consume two GPU instances and their quota.
+    create_before_destroy = true
+
     precondition {
       condition     = var.k3s_subnet_mode == "private" || local.k3s_eip_allocation_id != null
       error_message = "k3s_subnet_mode=public requires terraform/aws-prep to allocate a k3s EIP."

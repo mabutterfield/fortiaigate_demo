@@ -1,13 +1,8 @@
 ---
-# CHANGED for 8.0.2: disable automatic disk discovery/formatting until a
-# fail-closed instance-store workflow has been tested. Use sized EBS instead.
-- name: Reject automatic instance-store formatting
-  ansible.builtin.assert:
-    that:
-      - not (k3s_use_instance_store | bool)
-    fail_msg: >-
-      Automatic instance-store formatting is disabled. Use EBS for this foundation;
-      do not set k3s_use_instance_store until a safe storage workflow is implemented.
+# CHANGED: use the guarded instance-store image-cache workflow for new hosts.
+- name: Prepare AWS instance-store image cache
+  ansible.builtin.include_tasks: instance_store.yml
+  when: k3s_use_instance_store | bool
 
 # - name: Detect AWS instance-store NVMe device
 #   ansible.builtin.shell: |

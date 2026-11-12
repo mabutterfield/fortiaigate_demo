@@ -21,5 +21,7 @@
           + query('ansible.builtin.fileglob', playbook_dir + '/../group_vars/user.yml')
         }}
   roles:
-    - nginx_ingress
+    # CHANGED: ingress is owned by the foundation bootstrap; avoid running
+    # Helm ingress hooks again during application deployments.
+    # - nginx_ingress
     - fortiaigate

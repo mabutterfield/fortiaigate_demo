@@ -25,7 +25,7 @@
             nvidia_driver_package,
             nvidia_utils_package,
             'nvidia-dkms-' ~ nvidia_driver_package_suffix,
-            'nvidia-compute-utils-' ~ nvidia_driver_package_suffix
+            'nvidia-compute-utils-' ~ (nvidia_driver_package_suffix | regex_replace('-open$', ''))
           ]
           + (nvidia_driver_extra_packages | default([])))
         | unique
@@ -69,6 +69,7 @@
   ansible.builtin.apt:
     name: "{{ nvidia_driver_effective_packages }}"
     state: present
+    install_recommends: false
     update_cache: true
     cache_valid_time: 3600
   register: nvidia_driver_install

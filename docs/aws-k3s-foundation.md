@@ -14,10 +14,11 @@ The current AWS foundation creates a single-node FortiAIGate lab:
 - k3s with Traefik disabled
 - nginx ingress controller
 - NVIDIA driver, runtime, RuntimeClass, and device plugin
-- k3s local-path storage on encrypted root EBS (300 GiB by default)
+- k3s local-path volumes on encrypted root EBS (300 GiB by default)
+- on fresh AWS hosts, container image cache on a instance-store NVMe disk without detected signatures
 
-This is the 8.0.2 foundation checkpoint only. Application deployment and the
-FortiAIGate Helm integration have not yet been ported or validated.
+The 8.0.2 application path is under live development; see
+[FortiAIGate 8.0.2 Deployment](fortiaigate-802-deployment.md).
 
 `terraform/aws-prep` creates the EC2 IAM role/profile and attaches scoped ECR
 pull access when `registry_backend = "ecr"`. The EC2 module consumes the prep
@@ -74,7 +75,8 @@ Use the staged workflow below; the automated quickstart still continues into the
    modules, in that order. Set `instance_type` and `availability_zone` in an
    ignored module override; an offered AZ is not a capacity guarantee. Set
    `ubuntu_ami_id` to a tested Ubuntu 24.04 amd64 AMI if reproducibility is needed.
-   Defaults are `g6.4xlarge` (L4 development-only) and 300 GiB root EBS. The
+   Defaults are `g6.4xlarge` (L4 development-only), 300 GiB root EBS and a
+   guarded instance-store image cache. The
    exact 8.0.2 storage requirement has not yet been measured. Check instance
    and EBS costs, quotas and SSH CIDRs before applying.
 4. Use the generated `ansible/inventory/aws.generated.ini` to run only:
@@ -110,16 +112,32 @@ Open a new SSH session before testing interactive `kubectl`.
 
 ## Storage
 
-The first-test default uses root EBS for `/var/lib/rancher` and local-path
-volumes. EBS survives an EC2 stop but root volume deletion follows the EC2
-resource's termination settings; Terraform destroy can delete this data. Size it
-for downloaded and unpacked images, models, PVCs and logs. The 300 GiB default
-is provisional and has not been measured against the application.
+On a fresh AWS host the default `k3s_use_instance_store: true` selects a whole
+NVMe disk whose model is `Amazon EC2 NVMe Instance Storage`. It refuses EBS and
+root devices, partitions, ambiguous choices, mounted disks, pre-existing disk
+signatures, a populated mountpoint, and an existing containerd directory. It
+formats a disk without detected signatures as ext4 and uses it for the k3s containerd image
+cache only. It never automatically migrates an existing deployment. When
+multiple instance-store disks exist, explicitly choose one using
+`k3s_instance_store_device`. Set `k3s_use_instance_store: false` in ignored
+user vars for an EBS-only deployment. The original 8.0.2 test host was created
+before this change and is EBS-only; do not rerun bootstrap with instance-store
+enabled on that host.
 
-Automatic instance-store formatting is disabled and `k3s_use_instance_store:
-true` fails deliberately. Do not enable it until a tested, fail-closed disk
-identity and filesystem workflow exists. Instance-store data is ephemeral and
-is lost on stop/termination.
+Signature checks do not detect arbitrary raw data, so use this automatic path
+only for a new host whose instance store can be erased.
+
+The cache is ephemeral and is lost on an EC2 stop or termination. A systemd
+mount condition prevents k3s from silently using root EBS if its image cache is
+not mounted. After instance-store loss the old fstab UUID must be reconciled
+and the new disk verified before k3s starts; this recovery is not automatic.
+Pre-pull the images again after recovery. The format-and-mount path and idempotent rerun were validated on a fresh AWS
+L4 host. Recovery after instance-store loss has not yet been tested.
+
+Local-path PVCs and k3s cluster state remain on root EBS, which survives EC2
+stop but can be deleted with instance termination or Terraform destroy. Size it
+for application data, model copies, logs and headroom. The 300 GiB default is
+provisional; the first L4 test used approximately 108 GiB after image pulls.
 
 ## Helm Chart Handling (8.0.1; Not Yet Ported)
 

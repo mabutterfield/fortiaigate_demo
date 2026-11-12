@@ -10,6 +10,7 @@
       - apt-transport-https
       - ca-certificates
       - curl
+      - e2fsprogs
       - gnupg
       - jq
       - nvme-cli

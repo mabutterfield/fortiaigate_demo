@@ -77,6 +77,18 @@ quotas and price before applying. `ubuntu_ami_id` optionally pins a tested AMI;
 the default discovers the latest Canonical Ubuntu 24.04 amd64 AMI. Root EBS
 is 300 GiB by default and has ongoing cost; application storage remains unmeasured.
 
+## Replacing the GPU host
+
+The EC2 resource uses `create_before_destroy`: during a replacement Terraform
+first detaches the EIP, creates the new instance, attaches the EIP and writes
+inventory, then terminates the old instance. This lets the new host be reached
+while a slow GPU termination is still pending; the Terraform apply itself still
+waits for AWS to finish and holds the state lock. Do not interrupt it or run
+another Terraform operation concurrently. This sequence temporarily requires
+quota and incurs cost for two GPU instances. Check the replacement plan and
+current capacity before applying. Replacing the instance destroys its root EBS
+data; protect anything you need before replacing it.
+
 After apply, validate host status and SSH:
 
 ```bash

@@ -1,0 +1,28 @@
+# FortiAIGate 8.0.2: licenses are uploaded after installation, not chart values.
+fortiaigate:
+  image:
+    repository: {{ fortiaigate_image_repository | to_json }}
+    tag: {{ fortiaigate_image_tag | to_json }}
+    pullPolicy: {{ fortiaigate_image_pull_policy | to_json }}
+    pullSecrets: {{ fortiaigate_image_pull_secrets | to_json }}
+  gpu:
+    enabled: {{ fortiaigate_gpu_enabled | bool | lower }}
+    type: {{ fortiaigate_gpu_profile | to_json }}
+  updateStrategy: {{ fortiaigate_update_strategy | to_json }}
+
+vllm:
+  gpuAttach: {{ fortiaigate_vllm_gpu_attach | to_json }}
+
+storage:
+  size: {{ fortiaigate_storage_size | to_json }}
+  storageClass: {{ fortiaigate_storage_class | to_json }}
+  accessModes: {{ fortiaigate_storage_access_modes | to_json }}
+
+ingress:
+  className: {{ fortiaigate_ingress_class | to_json }}
+  host: {{ fortiaigate_ingress_host | to_json }}
+
+tls:
+  enabled: {{ fortiaigate_tls_enabled | bool | lower }}
+  cert: {{ fortiaigate_ssl_cert_chart_path | to_json }}
+  key: {{ fortiaigate_ssl_key_chart_path | to_json }}
