@@ -79,6 +79,7 @@ def main():
     ap.add_argument('--url', required=True, help='HTTPS origin')
     ap.add_argument('--insecure', action='store_true', help='Trust the lab self-signed certificate')
     ap.add_argument('--credentials', type=Path, help='Owner-only JSON file containing username and password')
+    ap.add_argument('--secrets-file', type=Path, help='Owner-only JSON mapping secret prompt names to values')
     ap.add_argument('--yes', action='store_true', help='Skip request confirmation prompts')
     ap.add_argument('--key-dir', type=Path, default=Path.home() / '.faig-api-keys')
     args = ap.parse_args()
@@ -133,6 +134,12 @@ def main():
     csrf = call('POST', '/api/v1/login', {'username': username, 'password': password})['csrf_token']
     password = None
     objects, secrets, errors = {}, {}, []
+    if args.secrets_file:
+        if args.secrets_file.stat().st_mode & 0o077:
+            ap.error('Secrets file must be accessible only to its owner (chmod 600)')
+        secrets = json.loads(args.secrets_file.read_text())
+        if not isinstance(secrets, dict) or any(not isinstance(v, str) or not v for v in secrets.values()):
+            ap.error('Secrets file must be a JSON object with non-empty string values')
     variables = config.get('variables', {})
     for spec in specs:
         name, kind = spec['name'], spec['kind']

@@ -3,25 +3,33 @@
 import argparse
 import http.cookiejar
 import json
-import os
 from pathlib import Path
-import secrets
 import ssl
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from credentials import select_password, student_email, write_new_private_json
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--url', required=True)
     ap.add_argument('--admin-credentials', required=True, type=Path)
-    ap.add_argument('--email', required=True)
-    ap.add_argument('--name', required=True)
+    identity = ap.add_mutually_exclusive_group(required=True)
+    identity.add_argument('--email')
+    identity.add_argument('--student-number', type=int, help='Number used for student01@fortiai.lab and onward')
+    ap.add_argument('--student-domain', default='fortiai.lab')
+    ap.add_argument('--name', help='Display name; defaults to Student NN for numbered students')
+    ap.add_argument('--password-file', type=Path, help='Owner-only one-line password; omitted generates a random password')
     ap.add_argument('--output', required=True, type=Path)
     ap.add_argument('--insecure', action='store_true')
     args = ap.parse_args()
+    if args.student_number is not None:
+        args.email = student_email(args.student_number, args.student_domain)
+        args.name = args.name or f'Student {args.student_number:02d}'
+    if not args.name:
+        ap.error('--name is required with an explicit email')
     origin = args.url.rstrip('/')
     parsed = urllib.parse.urlsplit(origin)
     if parsed.scheme != 'https' or not parsed.netloc or parsed.path or parsed.query or parsed.fragment:
@@ -31,6 +39,7 @@ def main():
     if args.admin_credentials.stat().st_mode & 0o077:
         ap.error('Admin credential file must be owner-only (chmod 600)')
     credentials = json.loads(args.admin_credentials.read_text())
+    password = select_password(args.password_file)
     context = ssl._create_unverified_context() if args.insecure else ssl.create_default_context()
 
     def client():
@@ -73,17 +82,14 @@ def main():
     _, identity = call(new_user, 'POST', invitation_path + '/identify', {'email': args.email})
     if identity.get('outcome') != 'needs-registration':
         raise RuntimeError('Unexpected invitation identify outcome; invitation remains pending')
-    password = 'Aa1!' + secrets.token_urlsafe(27)
     _, strength = call(new_user, 'POST', invitation_path + '/password/strength', {'password': password})
     if not strength.get('isStrong'):
-        raise RuntimeError('Generated password did not satisfy strength policy; invitation remains pending')
+        raise RuntimeError('Password did not satisfy strength policy; invitation remains pending')
     _, result = call(new_user, 'POST', invitation_path + '/accept', {'email': args.email, 'displayName': args.name, 'password': password})
     if result.get('createdAccount') is not True:
         raise RuntimeError('Acceptance did not report a newly created account; inspect FAIG')
     try:
-        fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, 'w') as output:
-            json.dump({'username': args.email, 'password': password}, output)
+        write_new_private_json(args.output, {'username': args.email, 'password': password})
     except OSError:
         raise RuntimeError('Account was created but credentials could not be saved; reset its password') from None
     print('Account created; credentials saved to', args.output, flush=True)
