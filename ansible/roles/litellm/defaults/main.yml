@@ -11,6 +11,16 @@ litellm_helm_timeout: 10m
 litellm_image_repository: ghcr.io/berriai/litellm
 litellm_image_tag: main-stable
 litellm_image_pull_policy: IfNotPresent
+
+# Shared, non-admin LiteLLM virtual key (no model limit) used by FAIG's
+# provider credential and the chatbot's direct mode instead of the master key.
+# Created once by alias; see roles/litellm/tasks/shared_virtual_key.yml. Kept
+# open for per-student LiteLLM keys later (for example FAIG key passthrough).
+litellm_shared_virtual_key_enabled: true
+litellm_shared_virtual_key_alias: faig-lab-shared
+litellm_shared_virtual_key_secret_name: litellm-shared-virtual-key
+litellm_shared_virtual_key_local_file: "{{ faig_workspace_root }}/.litellm_shared_virtual_key.json"
+litellm_shared_virtual_key_regenerate: false
 litellm_service_type: NodePort
 litellm_service_port: 4000
 litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"

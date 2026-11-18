@@ -475,6 +475,12 @@
   # - ansible.builtin.debug:
   #     var: litellm_rollout_status.stdout_lines
 
+- name: Ensure shared non-admin LiteLLM virtual key
+  ansible.builtin.include_tasks: shared_virtual_key.yml
+  when:
+    - litellm_enabled | bool
+    - litellm_shared_virtual_key_enabled | bool
+
 - name: Show LiteLLM deployment summary
   ansible.builtin.debug:
     msg:

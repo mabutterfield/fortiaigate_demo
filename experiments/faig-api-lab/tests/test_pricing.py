@@ -59,6 +59,17 @@ class PricingTests(unittest.TestCase):
         self.assertEqual((body['models'][0]['uuid'], body['models'][0]['customOutputCost']), ('u1', 8000.0))
         self.assertEqual(body['updatedAt'], 't')
 
+    def test_credential_replacement_body_and_mask_check(self):
+        provider = {'providerId': 'litellm-direct', 'platform': 'custom', 'name': 'litellm-direct',
+                    'endpoint': {}, 'updatedAt': 't', 'models': [],
+                    'apiKeys': [{'id': 'k1', 'name': 'litellm-key', 'apiKeyMasked': 'sk-******abcd'}]}
+        body = model_pricing.provider_update(provider, PRICING, credential='sk-new-wxyz')
+        self.assertEqual(body['apiKeys'][0]['credential'], {'kind': 'apiKey', 'apiKey': 'sk-new-wxyz'})
+        self.assertNotIn('credential', model_pricing.provider_update(provider, PRICING)['apiKeys'][0])
+        self.assertTrue(model_pricing.masked_matches('sk-******wxyz', 'sk-new-wxyz'))
+        self.assertFalse(model_pricing.masked_matches('sk-******abcd', 'sk-new-wxyz'))
+        self.assertFalse(model_pricing.masked_matches('', 'sk-new-wxyz'))
+
     def test_missing_matrix_aliases_are_appended_priced(self):
         provider = {'providerId': 'litellm-direct', 'platform': 'custom', 'name': 'litellm-direct',
                     'endpoint': {}, 'updatedAt': 't', 'apiKeys': [],

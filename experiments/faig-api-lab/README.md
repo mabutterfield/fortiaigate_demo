@@ -557,3 +557,15 @@ chatbot flow, which has not been retested here. See
 passthrough path for baseline checks. Organization-level policies, if any,
 still apply to it. `python3 -m functional_test baseline` uses it alongside the
 scenario keys; see `docs/functional-validation.md`.
+
+## Provider credential replacement
+
+`model_pricing.py --provider <id> --set-credential-file FILE --apply` replaces
+the provider's stored LiteLLM credential with `api_key` from an owner-only JSON
+file (the shared virtual key file written by `deploy_litellm.yml`). It sends
+the GUI's provider update with `credential: {kind: apiKey, apiKey}` on the
+existing credential ID, then verifies the stored mask and runs a connectivity
+test with the stored credential. The key is never printed. On 2026-11-18
+`litellm-direct` was switched from the LiteLLM master key to `faig-lab-shared`;
+the baseline result was unchanged (14/16, Resume Deny known) and LiteLLM
+attributed FortiAIGate's requests to the shared key.

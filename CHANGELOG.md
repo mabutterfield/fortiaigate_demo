@@ -5,6 +5,13 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Replaced the LiteLLM master key in lab clients with a shared virtual key:
+  - `deploy_litellm.yml` creates a non-admin LiteLLM virtual key once by alias,
+    stores it in a Kubernetes Secret and an owner-only local file, and verifies
+    it cannot manage keys
+  - FortiAIGate's `litellm-direct` provider now uses that key; the provider
+    tool gained `--set-credential-file` with mask and connectivity checks
+
 - Added a FortiAIGate 8.0.2 baseline validator that runs before the chatbot:
   - `python3 -m functional_test baseline` runs each scenario's declared
     validation case per student key through `/ai/openai/v1`, with live tool

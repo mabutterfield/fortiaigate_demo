@@ -55,3 +55,35 @@ supported API, rather than being staged into the Helm chart. A successful Helm
 submission does not mean the application, GPU model, license or scanning is
 ready. Check pod and application health and validate a licensed request before
 using the deployment.
+
+## LiteLLM Credential For FortiAIGate
+
+FortiAIGate's LiteLLM provider and the chatbot's direct mode use a shared,
+non-admin LiteLLM virtual key instead of the LiteLLM master key. The master key
+is LiteLLM's administrator credential (key management, spend logs, model
+changes); a virtual key can only call models.
+
+`deploy_litellm.yml` creates the key once by alias (`faig-lab-shared`, no model
+restriction), stores it in the `litellm/litellm-shared-virtual-key` Secret
+(key `api-key`) and in the owner-only file named by
+`litellm_shared_virtual_key_local_file` outside Git, and verifies that it can
+list models but cannot generate keys. Later runs reuse it. If the Secret is
+lost while the alias still exists in LiteLLM, the role stops rather than
+creating a duplicate; rerun with
+`-e litellm_shared_virtual_key_regenerate=true` only after deciding how to
+replace the old key.
+
+Point FortiAIGate's provider at the key with the experimental provider tool,
+which also checks the stored credential mask and runs FortiAIGate's
+connectivity test:
+
+```bash
+python3 experiments/faig-api-lab/model_pricing.py --url "$FAIG_URL" \
+  --admin-credentials "$FAIG_ADMIN_FILE" --insecure \
+  --provider litellm-direct \
+  --set-credential-file "$LITELLM_SHARED_KEY_FILE" --apply
+```
+
+Because FortiAIGate no longer holds the master key, rotating the master key no
+longer breaks FortiAIGate. Per-student LiteLLM keys (for example with
+FortiAIGate key passthrough) remain a possible later extension.

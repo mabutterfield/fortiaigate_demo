@@ -1,0 +1,176 @@
+---
+# Shared, non-admin LiteLLM virtual key for lab clients (FAIG provider
+# credential and the chatbot's direct mode), so they never hold the LiteLLM
+# master key. Created once by alias; never regenerated or overwritten unless
+# litellm_shared_virtual_key_regenerate=true. The key value lives only in the
+# Kubernetes Secret and an owner-only local file outside Git.
+
+- name: Find LiteLLM service address for shared key management
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ litellm_namespace }}"
+      - get
+      - svc
+      - "{{ litellm_release_name }}"
+      - -o
+      - jsonpath={.spec.clusterIP}
+  changed_when: false
+  register: litellm_shared_key_service_ip
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_service_ip.stdout
+
+- name: Check for existing shared LiteLLM virtual key Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ litellm_namespace }}"
+      - get
+      - secret
+      - "{{ litellm_shared_virtual_key_secret_name }}"
+      - -o
+      - name
+  changed_when: false
+  failed_when: false
+  register: litellm_shared_key_secret_check
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_secret_check.rc
+
+- name: Check whether the shared key alias already exists in LiteLLM
+  ansible.builtin.uri:
+    url: "http://{{ litellm_shared_key_service_ip.stdout }}:4000/key/list?key_alias={{ litellm_shared_virtual_key_alias | urlencode }}"
+    headers:
+      Authorization: "Bearer {{ litellm_master_key }}"
+    return_content: true
+  register: litellm_shared_key_alias_check
+  no_log: true
+  when: litellm_shared_key_secret_check.rc != 0
+  # - ansible.builtin.debug:
+  #     msg: "Alias keys found: {{ litellm_shared_key_alias_check.json.total_count | default(0) }}"
+
+- name: Refuse to create a duplicate shared key when its Secret is missing
+  ansible.builtin.assert:
+    that:
+      - (litellm_shared_key_alias_check.json.total_count | default(0) | int) == 0
+        or litellm_shared_virtual_key_regenerate | bool
+    fail_msg: >-
+      LiteLLM already has a key with alias {{ litellm_shared_virtual_key_alias }} but the
+      {{ litellm_shared_virtual_key_secret_name }} Secret is missing, so its value cannot be
+      recovered. Delete the old key in LiteLLM, or rerun with
+      -e litellm_shared_virtual_key_regenerate=true to add a new key with the same alias.
+  when: litellm_shared_key_secret_check.rc != 0
+
+- name: Generate shared LiteLLM virtual key
+  ansible.builtin.uri:
+    url: "http://{{ litellm_shared_key_service_ip.stdout }}:4000/key/generate"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ litellm_master_key }}"
+    body_format: json
+    body:
+      key_alias: "{{ litellm_shared_virtual_key_alias }}"
+      metadata:
+        purpose: "Shared non-admin lab key for FAIG provider and chatbot direct mode"
+        managed_by: ansible
+    return_content: true
+  register: litellm_shared_key_generated
+  no_log: true
+  when: litellm_shared_key_secret_check.rc != 0
+  # - ansible.builtin.debug:
+  #     msg: "Generated shared key: {{ litellm_shared_key_generated.status }}"
+
+- name: Store shared LiteLLM virtual key in a Kubernetes Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ litellm_namespace }}"
+      - create
+      - secret
+      - generic
+      - "{{ litellm_shared_virtual_key_secret_name }}"
+      - --from-file=api-key=/dev/stdin
+    stdin: "{{ litellm_shared_key_generated.json.key }}"
+    stdin_add_newline: false
+  no_log: true
+  when: litellm_shared_key_secret_check.rc != 0
+
+- name: Read shared LiteLLM virtual key from its Secret
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ litellm_namespace }}"
+      - get
+      - secret
+      - "{{ litellm_shared_virtual_key_secret_name }}"
+      - -o
+      - jsonpath={.data.api-key}
+  changed_when: false
+  register: litellm_shared_key_secret_value
+  no_log: true
+
+- name: Set shared LiteLLM virtual key fact
+  ansible.builtin.set_fact:
+    litellm_shared_virtual_key_value: "{{ litellm_shared_key_secret_value.stdout | b64decode }}"
+  no_log: true
+
+- name: Verify the shared key can list models
+  ansible.builtin.uri:
+    url: "http://{{ litellm_shared_key_service_ip.stdout }}:4000/v1/models"
+    headers:
+      Authorization: "Bearer {{ litellm_shared_virtual_key_value }}"
+    status_code: 200
+  no_log: true
+
+- name: Verify the shared key cannot manage keys
+  ansible.builtin.uri:
+    url: "http://{{ litellm_shared_key_service_ip.stdout }}:4000/key/generate"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ litellm_shared_virtual_key_value }}"
+    body_format: json
+    body:
+      key_alias: shared-key-admin-probe
+    status_code: [401, 403]
+  register: litellm_shared_key_admin_probe
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "Admin probe status: {{ litellm_shared_key_admin_probe.status }}"
+
+- name: Check local shared key file
+  ansible.builtin.stat:
+    path: "{{ litellm_shared_virtual_key_local_file }}"
+  delegate_to: localhost
+  become: false
+  register: litellm_shared_key_local_stat
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_local_stat.stat.exists
+
+- name: Write owner-only local shared key file when missing
+  ansible.builtin.copy:
+    dest: "{{ litellm_shared_virtual_key_local_file }}"
+    content: "{{ {'key_alias': litellm_shared_virtual_key_alias, 'api_key': litellm_shared_virtual_key_value} | to_json }}\n"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: not litellm_shared_key_local_stat.stat.exists
+
+- name: Show shared LiteLLM virtual key status
+  ansible.builtin.debug:
+    msg:
+      - "Shared LiteLLM virtual key alias: {{ litellm_shared_virtual_key_alias }}"
+      - "Kubernetes Secret: {{ litellm_namespace }}/{{ litellm_shared_virtual_key_secret_name }} (key api-key)"
+      - "Local file: {{ litellm_shared_virtual_key_local_file }}"
+      - "{{ 'Created this run' if litellm_shared_key_secret_check.rc != 0 else 'Existing key reused' }}; non-admin check passed"

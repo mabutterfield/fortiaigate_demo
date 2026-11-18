@@ -176,6 +176,16 @@ direct_model_bedrock_read_credentials_from_terraform: true
 litellm_enabled: true
 litellm_namespace: litellm
 litellm_release_name: litellm
+
+# Shared, non-admin LiteLLM virtual key (no model limit) used by FAIG's
+# provider credential and the chatbot's direct mode instead of the master key.
+# Created once by alias; see roles/litellm/tasks/shared_virtual_key.yml. Kept
+# open for per-student LiteLLM keys later (for example FAIG key passthrough).
+litellm_shared_virtual_key_enabled: true
+litellm_shared_virtual_key_alias: faig-lab-shared
+litellm_shared_virtual_key_secret_name: litellm-shared-virtual-key
+litellm_shared_virtual_key_local_file: "{{ faig_workspace_root }}/.litellm_shared_virtual_key.json"
+litellm_shared_virtual_key_regenerate: false
 # Port values normally come from terraform/aws-ec2-k3s generated
 # ansible/group_vars/ports.generated.yml. The defaults keep local-only
 # deployments usable before Terraform has generated that file.
