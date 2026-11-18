@@ -184,3 +184,62 @@ The runner stops before writes if it finds a planned name collision. It is a
 one-time lab tool, not reconciliation: API errors can leave partially created
 users, workspaces or projects. Inspect and clean up partial results before
 retrying. This tool does not rename or remove any existing objects.
+
+## Workspace review and approval workflow (observed)
+
+Observed on the Ohio FAIG 8.0.2 lab on 2026-11-18. The student-side
+calls were made directly against the API as a Workspace Admin; the admin side
+was recorded from the GUI. Endpoint names were confirmed against the GUI's
+own client code. No helper script automates this sequence yet.
+
+Workspace-owned security objects go through organization review. A Workspace
+Admin creates them as `draft`, submits them (`pending`), and an organization
+administrator approves (`active`) or rejects them. All write calls send the
+`X-CSRF-Token` header returned by login.
+
+| Step | Role | Request | Body | Result |
+|------|------|---------|------|--------|
+| 1 | Workspace Admin | `POST /api/v1/workspaces/{workspace_id}/guardrails` | `name`, `description`, `detectorIds`, `denySuspiciousCharacters` | guardrail `draft` |
+| 2 | Workspace Admin | `POST /api/v1/workspaces/{workspace_id}/guardrails/{guardrail_id}/submit` | none | guardrail `pending` |
+| 3 | Workspace Admin | `POST /api/v1/workspaces/{workspace_id}/policies` | `name`, `description`, `inputGuardrailIds`, `outputGuardrailIds`, `responseScanMode`, `providerAccess` | policy `draft` |
+| 4 | Workspace Admin | `POST /api/v1/workspaces/{workspace_id}/policies/{policy_id}/submit` | none | policy `pending` |
+| 5 | Org admin | `GET /api/v1/admin/review-queue` | — | `items[]` with `id`, `type` (`guardrail`/`policy`), `name`, `submittedBy`, `ownerWorkspaceId`, `changeKind` (`create`) |
+| 6 | Org admin | `POST /api/v1/admin/guardrails/{guardrail_id}/approve` | none | guardrail `active`, `activatedAt` set |
+| 7 | Org admin | `POST /api/v1/admin/policies/{policy_id}/approve` | none | policy `active`, `activatedAt` set |
+
+Rejection uses `POST /api/v1/admin/{guardrails|policies}/{id}/reject`; its
+request body (a rejection reason) has not been recorded. Workspace detectors
+follow the same pattern (`/api/v1/workspaces/{workspace_id}/detectors`,
+`.../{detector_uuid}/submit`, `/api/v1/admin/detectors/{detector_uuid}/approve`),
+but have not been exercised.
+
+Ordering rules and notes:
+
+- A policy can reference only a guardrail that is `pending` or `active`.
+  Submit the guardrail before creating the policy. The policy may be created
+  and submitted while its guardrail still awaits approval.
+- Approving the guardrail before the policy matches the dependency order and
+  is what was recorded. Approving a policy whose guardrail is still pending,
+  or rejecting a guardrail used by a pending policy, has not been tested.
+- The GUI notification pane and the policy management page send the same
+  approve request with no body; they only refresh different lists afterward.
+  Approvals are one object per request; no batch endpoint was observed.
+- Approval does not apply a policy. After approval, `assignedWorkspaceIds`
+  is empty and projects still have no `policyIds`. Binding the policy to a
+  project or workspace and creating a project key are separate steps that
+  have not yet been recorded for a Workspace Admin.
+- `providerAccess` with `allModels: true` and an empty `models` list is
+  expanded by the server to the provider's current models in the response.
+
+Observed errors:
+
+| Call | Status | Response | Cause / fix |
+|------|--------|----------|-------------|
+| Create policy referencing a draft guardrail | 422 | `{"error": "guardrail \"<id>\" is still a draft — a policy can attach only a guardrail that is approved or awaiting review", "field": "inputGuardrailIds[0]"}` | Submit the guardrail first, then create the policy. The failed request creates no policy. |
+| `POST /api/v1/login` with an unrelated or stale credential file | 401 | withheld by the client | The credential file does not match this installation's admin. Stop after one or two attempts to avoid lockout and confirm which file belongs to the installation. |
+| `GET /api/v1/admin/review-queue` before initial setup | 403 | — | Expected before the first administrator exists. |
+
+The `student_lab.py` client withholds error bodies. When diagnosing a 4xx,
+read the JSON `error` and `field` values, which describe validation failures
+and have not contained secrets in these tests; never print request bodies
+or headers that may carry passwords, CSRF tokens or keys.
