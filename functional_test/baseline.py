@@ -35,7 +35,9 @@ from scripts import scenario_local
 
 REPO_ROOT = validation.REPO_ROOT
 AGENT_PATH = Path(__file__).with_name("baseline_agent.py")
-REMOTE_AGENT_PATH = "/tmp/faig_baseline_agent.py"
+SHARED_AGENT_PATH = REPO_ROOT / "chatbot" / "agent" / "faig_agent.py"
+REMOTE_DIR = "/tmp/faig-baseline"
+REMOTE_AGENT_PATH = f"{REMOTE_DIR}/baseline_agent.py"
 EXPECTED_LOG_VERDICT = {"alert": "Alert", "deny": "Block", "redact": "Redact", "passthrough": "Log"}
 VERDICT_SEVERITY = {"Log": 0, "Alert": 1, "Redact": 2, "Block": 3}
 PASSTHROUGH_PROMPT = "Reply with one short sentence confirming you are reachable."
@@ -147,7 +149,7 @@ def kubectl_exec(args: argparse.Namespace, host: dict[str, str], command: list[s
 
 
 def run_case(args: argparse.Namespace, host: dict[str, str], case: dict[str, Any], key: dict[str, Any]) -> dict[str, Any]:
-    spec = {"faig_url": args.faig_internal_url, "api_key": key["secretKey"], "model": case["model"],
+    spec = {"base_url": args.faig_internal_url, "api_key": key["secretKey"], "model": case["model"],
             "prompt": case["prompt"], "system_prompt": case["system_prompt"], "mcp_url": args.mcp_url,
             "tools": case["tools"], "max_rounds": case["max_rounds"], "max_tokens": args.max_tokens,
             "temperature": args.temperature}
@@ -224,9 +226,11 @@ def main(argv: list[str]) -> int:
             raise SystemExit("Admin credential file must be owner-only (chmod 600)")
         admin = FaigAdmin(args.faig_url or default_faig_origin(host),
                           json.loads(args.admin_credentials.read_text(encoding="utf-8")), args.insecure)
-    copied = kubectl_exec(args, host, ["sh", "-c", f"cat > {REMOTE_AGENT_PATH}"], AGENT_PATH.read_text(encoding="utf-8"))
-    if copied.returncode != 0:
-        raise SystemExit(f"Could not stage the baseline agent in the MCP pod: {copied.stderr.strip()[-400:]}")
+    for source, target in ((SHARED_AGENT_PATH, f"{REMOTE_DIR}/faig_agent.py"), (AGENT_PATH, REMOTE_AGENT_PATH)):
+        copied = kubectl_exec(args, host, ["sh", "-c", f"mkdir -p {REMOTE_DIR} && cat > {target}"],
+                              source.read_text(encoding="utf-8"))
+        if copied.returncode != 0:
+            raise SystemExit(f"Could not stage {source.name} in the MCP pod: {copied.stderr.strip()[-400:]}")
 
     output_dir = args.output_root / ("baseline-" + validation.timestamp_label())
     output_dir.mkdir(parents=True, exist_ok=True)

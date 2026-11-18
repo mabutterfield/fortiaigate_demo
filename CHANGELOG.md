@@ -5,6 +5,11 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Moved the agent loop into a shared module, `chatbot/agent/faig_agent.py`,
+  used by the 8.0.2 baseline and the planned student chatbot; it supports
+  FortiAIGate and direct LiteLLM endpoints, conversation history, and
+  recording of request and response payloads for the single-test view
+
 - Replaced the LiteLLM master key in lab clients with a shared virtual key:
   - `deploy_litellm.yml` creates a non-admin LiteLLM virtual key once by alias,
     stores it in a Kubernetes Secret and an owner-only local file, and verifies

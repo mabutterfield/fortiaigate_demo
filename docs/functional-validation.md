@@ -88,9 +88,11 @@ For each key file the baseline:
   (prompt, expected result, required and forbidden tools);
 - takes the model, frontend instructions, MCP tool profile and round limit from
   the installed scenario matrix, the same settings a chatbot user would select;
-- runs `functional_test/baseline_agent.py` inside the MCP pod's
-  `mcp-standard` container: requests go to the in-cluster FAIG ingress at
-  `/ai/openai/v1` with the key, and tool calls go to the standards MCP endpoint;
+- runs the shared agent loop (`chatbot/agent/faig_agent.py`, the same code the
+  8.0.2 chatbot will use) through `functional_test/baseline_agent.py` inside
+  the MCP pod's `mcp-standard` container: requests go to the in-cluster FAIG
+  ingress at `/ai/openai/v1` with the key, and tool calls go to the standards
+  MCP endpoint;
 - classifies the reply with the same contract as `validate` (8.0.2 redaction
   markers such as `[REDACTED_SSN_1]` are recognized); and
 - with `--admin-credentials`, reads the FAIG Traffic Log for that key and
