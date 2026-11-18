@@ -243,3 +243,74 @@ The `student_lab.py` client withholds error bodies. When diagnosing a 4xx,
 read the JSON `error` and `field` values, which describe validation failures
 and have not contained secrets in these tests; never print request bodies
 or headers that may carry passwords, CSRF tokens or keys.
+
+## Workspace virtual key and first governed traffic (observed)
+
+After the guardrail and policy were approved, the Workspace Admin created a
+project key that carries the policy. No admin action is needed for this step,
+and no separate project-policy binding was required. The request body matches
+the GUI's own create-key form:
+
+```text
+POST /api/v1/me/virtual-keys
+{ "keyName": "...", "keyType": "user", "scope": "workspace",
+  "workspaceId": "<workspace id>", "projectId": "<project id>",
+  "policyIds": ["<approved policy id>"],
+  "providerAccess": [{ "providerId": "litellm-direct", "platform": "custom",
+      "name": "litellm-direct", "allModels": true, "models": [],
+      "blockedModelUuids": [], "allKeys": true, "keys": [],
+      "excludedKeyIds": [] }],
+  "modelGroups": [],
+  "budgetWindows": { "hourly": null, "daily": null, "weekly": null, "monthly": null },
+  "tpm": null, "rpm": null, "expiresAt": null }
+```
+
+- `GET /api/v1/workspaces/{workspace_id}/attachable-policies` lists the
+  approved workspace policies a Workspace Admin may put on a key.
+- Budget is unlimited when every `budgetWindows` period is `null`. Each period
+  (`hourly`, `daily`, `weekly`, `monthly`) can carry its own dollar amount, so
+  daily and monthly budgets can coexist; the GUI collects them as
+  `{period, amount}` rows and sends this object. Non-null amounts have not been
+  tested through the API.
+- `tpm` and `rpm` are optional token and request per-minute limits; `null`
+  means no limit. `expiresAt` is optional; `null` means the key does not expire.
+- The response contains `secretKey` exactly once. Write it straight to a new
+  owner-only file outside Git; never print or log it. The response also
+  echoes `policyIds` as `{id, assignedByOrg: false}` and the resolved project,
+  workspace and provider models.
+- Rotate, revoke and delete use `/api/v1/me/virtual-keys/{key_id}/rotate`,
+  `/revoke`, and `DELETE /api/v1/me/virtual-keys/{key_id}`; not yet exercised.
+
+Inference uses the gateway's dialect namespace, not `/ai/v1`:
+
+```text
+POST https://<faig>/ai/openai/v1/chat/completions
+Authorization: Bearer <virtual key>
+```
+
+`/ai/v1/chat/completions` returns 404 `no_such_namespace` (the gateway serves
+`/ai/openai`, `/ai/anthropic` and `/ai/gemini`) and is still logged as
+`Passthrough` / `failure` traffic for the key's user.
+
+Observed results with `student02-policy-01` (OWASP Agentic Top 10 and OWASP
+LLM Top 10 2025 at their default actions, suspicious characters denied):
+
+| Request | Model | Client result | Traffic Log |
+|---------|-------|---------------|-------------|
+| Benign product question | `fortistore-injection` | 200, reply carries `FORTISTORE_DEMO_BOT` | `Governed`, verdict `Log` |
+| Prompt injection / system prompt request | `fortistore-injection` | 200 with FortiAIGate block message | `Governed`, `Block` / `DENY`, both OWASP detectors in `violation.input[]` |
+
+- A short `max_tokens` can return an empty `content` with
+  `finish_reason: length`; this is model token usage, not a FAIG block.
+- Admin read: `GET /api/v1/admin/traffic-logs?limit=&offset=` (summary rows
+  with `verdictLabel`, `action`, `user`, `workspace`, `model`, `requestPath`,
+  `trafficType`) and `GET /api/v1/admin/traffic-logs/{uuid}` (detail).
+- Detail records attribute the request to the user, workspace, key alias and
+  key preview, and list each matched detector. In this test the detail's
+  `policy`, `guardrail` and `project` fields were `null`, so policy
+  attribution is inferred from the key's only attached policy rather than
+  read from the log. The GUI Traffic Log detail view matches: it shows user,
+  workspace, virtual key, model, detectors (name, ID, version, rules
+  violated) and the LLM messages, but no policy, guardrail or project.
+- Detail records include the original prompt and response text. Treat traffic
+  log exports as sensitive when real data is used.
