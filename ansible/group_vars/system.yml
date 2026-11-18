@@ -132,7 +132,10 @@ validate_faig_login_url_override: ""
 # Focused external connectivity test after the passthrough flow and guard are configured.
 # Leave fortiaigate_test_api_key empty unless the FortiAIGate guard requires an auth token.
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."
-fortiaigate_test_endpoint_path: /v1/passthrough/chat/completions
+# Change 2026-11-18: FortiAIGate 8.0.2 serves the OpenAI dialect under
+# /ai/openai/v1 and authorizes with a virtual key; 8.0.1 used /v1/passthrough.
+# fortiaigate_test_endpoint_path: /v1/passthrough/chat/completions
+fortiaigate_test_endpoint_path: /ai/openai/v1/chat/completions
 fortiaigate_test_include_uri_in_prompt: true
 fortiaigate_test_default_model: pass-model
 fortiaigate_test_model: ""
@@ -183,7 +186,11 @@ litellm_ui_password: litellm-demo-change-me
 scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
 scenario_matrix_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
 scenario_matrix_llm_target_overrides: {}
-faig_chain_capability_enabled: true
+# Change 2026-11-18: FAIG re-entry (LiteLLM -> FAIG chain) is on hold for 8.0.2;
+# its 8.0.1 /v1/passthrough path does not exist in 8.0.2. Re-enable after the
+# re-entry provider, key and loop prevention are designed and validated.
+# faig_chain_capability_enabled: true
+faig_chain_capability_enabled: false
 litellm_passthrough_model_alias: pass-model
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false
@@ -206,6 +213,10 @@ faig_internal_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.clust
 # /v1/openwebui only for support/experimentation.
 litellm_faig_base_path: /v1/passthrough
 litellm_faig_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_base_path }}"
+# ON HOLD (8.0.2): the re-entry and OpenWebUI FAIG paths below are 8.0.1
+# /v1/passthrough values, kept only because the LiteLLM role validates them
+# against the scenario matrix. They are unused while
+# faig_chain_capability_enabled=false and OpenWebUI is disabled.
 # FAIG re-entry URI used after LiteLLM injects demo instructions. Reuse the
 # passthrough FAIG flow so FAIG sees the post-injection request without a
 # separate re-entry GUI flow. Do not route this path back to a "*-faig-be" model

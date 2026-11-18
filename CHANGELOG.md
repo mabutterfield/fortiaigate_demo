@@ -5,6 +5,18 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added a FortiAIGate 8.0.2 baseline validator that runs before the chatbot:
+  - `python3 -m functional_test baseline` runs each scenario's declared
+    validation case per student key through `/ai/openai/v1`, with live tool
+    calls over the standards MCP endpoint and optional Traffic Log verdict
+    checks; scenario_lab also creates a per-student passthrough key
+  - the FAIG chat smoke test (`test_fortiaigate_chat.yml`,
+    `scripts/fortiaigate_chat_test.py`) now targets `/ai/openai/v1` and can
+    read a virtual key file
+  - recognized 8.0.2 `[REDACTED_*]` markers in response classification
+  - put FAIG re-entry on hold (`faig_chain_capability_enabled: false`) and
+    documented the 8.0.2 migration holds and the Resume Deny metadata finding
+
 - Added a standards-based MCP endpoint alongside the legacy tool facade:
   - `mcp_standard.py` serves MCP JSON-RPC 2.0 over Streamable HTTP with the
     official MCP Python SDK, converting the existing tool registry so both

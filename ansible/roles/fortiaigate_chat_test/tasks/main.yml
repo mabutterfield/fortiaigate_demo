@@ -20,6 +20,24 @@
   # - ansible.builtin.debug:
   #     var: fortiaigate_test_effective_model
 
+- name: Resolve FortiAIGate test API key
+  ansible.builtin.set_fact:
+    fortiaigate_test_effective_api_key: >-
+      {{
+        fortiaigate_test_api_key
+        if fortiaigate_test_api_key | length > 0
+        else (
+          (lookup('ansible.builtin.file', fortiaigate_test_api_key_file) | from_json).secretKey
+          if fortiaigate_test_api_key_file | length > 0
+          else ''
+        )
+      }}
+  no_log: true
+  # - ansible.builtin.debug:
+  #     msg: "API key configured: {{ fortiaigate_test_effective_api_key | length > 0 }}"
+
+# 8.0.1 only: header routes select FAIG flows by X-FAIG-Model-Route. 8.0.2 has
+# no equivalent; these cases run only when chatbot_faig_header_route is set.
 - name: Select explicitly configured FortiAIGate header route
   ansible.builtin.set_fact:
     fortiaigate_test_selected_header_routes: >-

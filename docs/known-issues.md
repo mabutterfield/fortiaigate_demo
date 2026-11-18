@@ -85,3 +85,33 @@ five-tool-loop chatbot flow, so card fields stay hidden from MCP responses
 until that flow is retested. The model sometimes refuses to print the table;
 the validator reports that as inconclusive rather than as a DLP result. See
 `experiments/faig-api-lab/README.md` for the procedure.
+
+## FortiAIGate 8.0.2 Migration Holds
+
+These 8.0.1 features are intentionally on hold on the 8.0.2 branch:
+
+- FAIG re-entry (LiteLLM → FAIG chain): `faig_chain_capability_enabled` is
+  `false`. The 8.0.1 `/v1/passthrough` re-entry path does not exist in 8.0.2;
+  the re-entry provider, key and loop prevention need a new design.
+- Chatbot, the scenario installer and the demo home page wait for a
+  multi-tenant (per-student) design. The chatbot still routes by 8.0.1 URI
+  paths and headers with one FAIG key, so `functional_test validate` and
+  `load_test` are 8.0.1-only until it is ported; use
+  `functional_test baseline` for 8.0.2.
+- Open WebUI remains disabled; its FAIG path still defaults to the 8.0.1 value.
+- `automated_quickstart.py` stops before the application flow on 8.0.2; deploy
+  and validate the individual playbooks until the chatbot works.
+
+## Resume Deny Blocks On Upload Metadata In 8.0.2
+
+In the 8.0.2 baseline, Resume Deny is blocked when the result of
+`document_upload_simulation` reaches FortiAIGate, before the model calls
+`document_read`. The upload result's metadata for the attack fixture
+describes the attack in plain text (summary "Synthetic poisoned resume fixture
+containing hidden instructions…", tags `prompt-injection` and `cloud-pivot`),
+and the OWASP detectors block on that description rather than on the poisoned
+resume content. The security outcome is correct (`cloud_bucket_list_demo`
+never runs), but the scenario's deny case requires `document_read`, so the
+baseline reports it as unexpected. Resolving it means either withholding the
+self-describing metadata from tool results or changing the case contract; it
+is deferred with the scenario installer redesign.

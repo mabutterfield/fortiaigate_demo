@@ -13,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def matrix_groups():
     """LiteLLM aliases from this checkout's installed scenarios, by FAIG provider."""
-    result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_scenario_matrix.py')], cwd=ROOT,
+    # FAIG re-entry (chain) aliases are on hold for 8.0.2, matching
+    # faig_chain_capability_enabled=false in ansible/group_vars/system.yml.
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_scenario_matrix.py'), '--disable-faig-chain'], cwd=ROOT,
                             capture_output=True, text=True, check=True)
     models = json.loads(result.stdout)['litellm_models']
     return {

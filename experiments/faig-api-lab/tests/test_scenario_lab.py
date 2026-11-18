@@ -14,6 +14,7 @@ CATALOG = lab.load_catalog()
 TEMPLATE = json.loads((ROOT / 'student-template.json').read_text())
 PROVIDER = {'providerId': 'litellm-direct', 'platform': 'custom', 'name': 'litellm-direct'}
 MODEL = {'uuid': 'm-1', 'modelId': 'fortistore-injection', 'publicName': 'fortistore-injection'}
+PASS_MODEL = {'uuid': 'm-0', 'modelId': 'pass-model', 'publicName': 'pass-model'}
 
 
 class CatalogTests(unittest.TestCase):
@@ -96,7 +97,7 @@ class FakeClient:
     """Records calls and simulates FAIG draft/pending/active transitions."""
 
     def __init__(self, store, queue):
-        self.store, self.queue, self.calls = store, queue, []
+        self.store, self.queue, self.calls, self.keys = store, queue, [], []
 
     def call(self, method, path, payload=None):
         self.calls.append((method, path))
@@ -104,7 +105,7 @@ class FakeClient:
         if method == 'GET' and path == '/api/v1/me/workspaces':
             return [{'id': 'w', 'workspaceName': 'student02_workspace'}]
         if method == 'GET' and path.endswith('/grantable-providers'):
-            return {'providers': [{**PROVIDER, 'models': [MODEL]}]}
+            return {'providers': [{**PROVIDER, 'models': [MODEL, PASS_MODEL]}]}
         if method == 'GET' and path.endswith('/projects'):
             return [{'id': 'proj', 'name': 'student02_fortistore-injection'}]
         if method == 'GET' and path.endswith('/built-in-detectors'):
@@ -114,6 +115,7 @@ class FakeClient:
         if method == 'GET' and path == '/api/v1/me/virtual-keys':
             return []
         if method == 'POST' and path == '/api/v1/me/virtual-keys':
+            self.keys.append(payload)
             return {'id': 'key-id', 'secretKey': 'faig_test_secret'}
         if method == 'POST' and parts[-1] == 'approve':
             oid = parts[-2]
@@ -153,7 +155,11 @@ class PrepopulateTests(unittest.TestCase):
     def test_alert_and_deny_build_layers_in_order(self):
         entries = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], None)
         created, client, store, files, secret = self.run_lab(entries)
-        self.assertEqual(created, ['student02-fortistore-injection-alert', 'student02-fortistore-injection-deny'])
+        self.assertEqual(created, ['student02-fortistore-injection-alert', 'student02-fortistore-injection-deny',
+                                   'student02-passthrough'])
+        passthrough = client.keys[-1]
+        self.assertEqual((passthrough['policyIds'], passthrough['projectId']), ([], None))
+        self.assertEqual([m['modelId'] for m in passthrough['providerAccess'][0]['models']], ['pass-model'])
         self.assertTrue(all(o['status'] == 'active' for o in store.values()))
         kinds = [o['kind'] for o in store.values()]
         self.assertEqual(kinds.count('detector'), 2)
@@ -163,7 +169,8 @@ class PrepopulateTests(unittest.TestCase):
         deny_guard = next(o for o in store.values() if o['name'].endswith('-deny-guardrail'))
         self.assertEqual(deny_guard['payload']['detectorIds'], ['owasp-agentic-top-10', 'owasp-llm-top-10-2025'])
         self.assertEqual(secret['basePath'], '/ai/openai/v1')
-        self.assertEqual(files, ['student02-fortistore-injection-alert.json', 'student02-fortistore-injection-deny.json'])
+        self.assertEqual(files, ['student02-fortistore-injection-alert.json', 'student02-fortistore-injection-deny.json',
+                                 'student02-passthrough.json'])
 
     def test_rerun_skips_active_objects(self):
         entries = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['deny'])
@@ -177,7 +184,7 @@ class PrepopulateTests(unittest.TestCase):
     def test_missing_model_is_skipped(self):
         entries = lab.select_entries(CATALOG['entries'], ['hr-tool-dlp'], None)
         created, client, store, files, _ = self.run_lab(entries)
-        self.assertEqual((created, store, files), ([], {}, []))
+        self.assertEqual((created, store, files), (['student02-passthrough'], {}, ['student02-passthrough.json']))
 
 
 class AutoApproveTests(unittest.TestCase):

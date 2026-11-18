@@ -40,7 +40,11 @@ litellm_bedrock_region: "{{ direct_model_bedrock_region | default('') }}"
 scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
 scenario_matrix_repo_root: "{{ scenario_matrix_builder_path | dirname | dirname }}"
 scenario_matrix_llm_target_overrides: {}
-faig_chain_capability_enabled: true
+# Change 2026-11-18: FAIG re-entry (LiteLLM -> FAIG chain) is on hold for 8.0.2;
+# its 8.0.1 /v1/passthrough path does not exist in 8.0.2. Re-enable after the
+# re-entry provider, key and loop prevention are designed and validated.
+# faig_chain_capability_enabled: true
+faig_chain_capability_enabled: false
 litellm_passthrough_model_alias: pass-model
 litellm_ollama_base_url: "{{ (ollama_base_url | default('http://ollama.ollama.svc.cluster.local:11434')) | regex_replace('/v1/?$', '') }}"
 litellm_use_ollama_model_list: false

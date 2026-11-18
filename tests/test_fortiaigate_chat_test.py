@@ -23,13 +23,26 @@ class FortiAIGateChatTestContractTests(unittest.TestCase):
         ):
             args = fortiaigate_chat_test.parse_args()
 
-        self.assertEqual(args.path, "/v1/passthrough/chat/completions")
+        self.assertEqual(args.path, "/ai/openai/v1/chat/completions")
         self.assertEqual(args.model, "pass-model")
         self.assertEqual(args.api_key, "")
         self.assertEqual(
             fortiaigate_chat_test.build_headers(args),
             [("Content-Type", "application/json")],
         )
+
+    def test_api_key_file_must_be_owner_only(self) -> None:
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "key.json"
+            path.write_text(json.dumps({"secretKey": "faig_test"}), encoding="utf-8")
+            path.chmod(0o600)
+            self.assertEqual(fortiaigate_chat_test.key_from_file(str(path)), "faig_test")
+            path.chmod(0o644)
+            with self.assertRaises(ValueError):
+                fortiaigate_chat_test.key_from_file(str(path))
 
     def test_explicit_auth_and_route_headers_are_preserved(self) -> None:
         args = Namespace(

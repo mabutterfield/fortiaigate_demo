@@ -549,3 +549,11 @@ detector; the Traffic Log showed the model had refused to print the table, so
 these were not FAIG misses. The 8.0.1 multi-card miss came from a five-tool-loop
 chatbot flow, which has not been retested here. See
 `docs/known-issues.md`.
+
+## Passthrough baseline key
+
+`scenario_lab.py prepopulate` also creates `studentNN-passthrough`: a key for
+`pass-model` with no student policy and no project, replacing the 8.0.1 global
+passthrough path for baseline checks. Organization-level policies, if any,
+still apply to it. `python3 -m functional_test baseline` uses it alongside the
+scenario keys; see `docs/functional-validation.md`.

@@ -14,7 +14,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-DEFAULT_ENDPOINT_PATH = "/v1/passthrough/chat/completions"
+# Change 2026-11-18: FortiAIGate 8.0.2 gateway path (8.0.1: /v1/passthrough).
+# DEFAULT_ENDPOINT_PATH = "/v1/passthrough/chat/completions"
+DEFAULT_ENDPOINT_PATH = "/ai/openai/v1/chat/completions"
 DEFAULT_MODEL_ID = "pass-model"
 DEFAULT_PROMPT = "hello, this is a test. Reply in one short sentence and include the name of the model answering."
 DEFAULT_TERRAFORM_EC2_PATH = (
@@ -67,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         or os.environ.get("FORTIAIGATE_API_KEY")
         or os.environ.get("FORTIAIGATE_TEST_API_KEY", ""),
         help="Optional API key. No API key header is sent when empty.",
+    )
+    parser.add_argument(
+        "--api-key-file",
+        default=os.environ.get("FORTIAIGATE_TEST_API_KEY_FILE", ""),
+        help="Owner-only virtual key JSON (scenario_lab.py output) whose secretKey is used when no key is given.",
     )
     parser.add_argument(
         "--auth-header",
@@ -164,7 +171,7 @@ def build_url(args: argparse.Namespace, host: str) -> str:
         if not parsed.scheme or not parsed.netloc:
             raise ValueError(
                 "--url must be a full URL such as "
-                "https://1.2.3.4:443/v1/passthrough/chat/completions"
+                "https://1.2.3.4:443/ai/openai/v1/chat/completions"
             )
         return args.url.strip()
 
@@ -338,8 +345,21 @@ def summarize_response(body: str) -> str:
     return json.dumps(data, indent=2)[:4000]
 
 
+def key_from_file(path: str) -> str:
+    key_path = Path(path).expanduser()
+    if key_path.stat().st_mode & 0o077:
+        raise ValueError(f"API key file must be owner-only (chmod 600): {key_path}")
+    return str(json.loads(key_path.read_text(encoding="utf-8")).get("secretKey", ""))
+
+
 def main() -> int:
     args = parse_args()
+    if not args.api_key.strip() and args.api_key_file:
+        try:
+            args.api_key = key_from_file(args.api_key_file)
+        except (OSError, ValueError) as error:
+            print(str(error), file=sys.stderr)
+            return 2
     model = args.model.strip() or DEFAULT_MODEL_ID
     host = resolve_host(args.host, args.terraform_ec2_path)
 

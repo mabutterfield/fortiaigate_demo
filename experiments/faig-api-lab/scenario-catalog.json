@@ -2,6 +2,10 @@
   "description": "Maps scenario guard templates to per-student FAIG 8.0.2 workspace objects. Scenario actions come from each scenario profile's matrix.entry_points; this file only defines how a guard template becomes detectors and a guardrail.",
   "provider": "litellm-direct",
   "gateway_base_path": "/ai/openai/v1",
+  "passthrough": {
+    "model": "pass-model",
+    "description": "Per-student baseline key with no student policy (replaces the 8.0.1 global passthrough path)"
+  },
   "scenarios": {
     "fortistore-injection": {
       "profile": "chatbot/scenarios/examples/fortistore-injection/profile.json",

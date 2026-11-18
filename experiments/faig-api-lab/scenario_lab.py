@@ -231,7 +231,7 @@ def policy_body(name, description, guardrail_id, direction, provider, model):
 def key_body(name, workspace_id, project_id, policy_id, provider, model):
     # Unlimited budget, no tpm/rpm limit and no expiry; see README.
     return {'keyName': name, 'keyType': 'user', 'scope': 'workspace', 'workspaceId': workspace_id,
-            'projectId': project_id, 'policyIds': [policy_id],
+            'projectId': project_id, 'policyIds': [policy_id] if policy_id else [],
             'providerAccess': [model_access(provider, model, True)], 'modelGroups': [],
             'budgetWindows': {'hourly': None, 'daily': None, 'weekly': None, 'monthly': None},
             'tpm': None, 'rpm': None, 'expiresAt': None}
@@ -267,12 +267,40 @@ class Prepopulate:
                 self.out(f'  skip {entry["scenario"]}/{entry["action"]}: model {entry["model"]} is not available '
                          f'from {provider_id} (deploy the LiteLLM alias and add it to the provider)')
         if not entries:
-            return []
+            return self.ensure_passthrough_key(provider, models)
         projects = self.ensure_projects(entries, provider_id)
         detectors = self.ensure_layer('detector', self.detector_specs(entries))
         guardrails = self.ensure_layer('guardrail', self.guardrail_specs(entries, detectors))
         policies = self.ensure_layer('policy', self.policy_specs(entries, guardrails, provider, models))
-        return self.ensure_keys(entries, projects, policies, provider, models)
+        created = self.ensure_keys(entries, projects, policies, provider, models)
+        return created + self.ensure_passthrough_key(provider, models)
+
+    def ensure_passthrough_key(self, provider, models):
+        """Baseline key with no student policy; org-level policies still apply."""
+        spec = self.catalog.get('passthrough')
+        if not spec:
+            return []
+        if spec['model'] not in models:
+            self.out(f'  skip passthrough: model {spec["model"]} is not available')
+            return []
+        name = f'{self.student["student"]}-passthrough'
+        path = self.key_dir / (name + '.json')
+        if name in {k.get('keyName') for k in items(self.user.call('GET', '/api/v1/me/virtual-keys'))}:
+            self.out(f'  key {name} exists' + ('' if path.exists() else ' (no local secret file)'))
+            return []
+        if path.exists():
+            raise RuntimeError(f'Secret file exists for a key FAIG does not list: {path}')
+        response = self.user.call('POST', '/api/v1/me/virtual-keys',
+                                  key_body(name, self.wid, None, None, provider, models[spec['model']]))
+        if not response.get('secretKey'):
+            raise RuntimeError(f'FAIG did not return a secret for {name}')
+        write_new_private_json(path, {
+            'student': self.student['student'], 'workspace': self.student['workspace'],
+            'scenario': 'passthrough', 'action': 'passthrough', 'model': spec['model'], 'keyName': name,
+            'keyId': response.get('id'), 'policy': None, 'project': None,
+            'basePath': self.catalog['gateway_base_path'], 'secretKey': response['secretKey']})
+        self.out(f'  created key {name} -> {path}')
+        return [name]
 
     # Projects belong to the admin workflow; create only those missing.
     def ensure_projects(self, entries, provider_id):

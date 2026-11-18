@@ -72,6 +72,56 @@ prove that an Alert event was recorded, or that response text classified as a
 Deny came from FortiAIGate rather than a model refusal. Correlate the saved UTC
 timestamp with FortiAIGate Traffic logs for that evidence.
 
+## FortiAIGate 8.0.2 Baseline Without The Chatbot
+
+`validate` above drives the deployed chatbot and the 8.0.1 URI-path routes.
+For FortiAIGate 8.0.2, `baseline` validates the deployment before the chatbot
+exists, so the chatbot can later be checked against a known-good result. It
+uses one virtual key per student, scenario and action (created by
+`experiments/faig-api-lab/scenario_lab.py prepopulate`, including a
+`studentNN-passthrough` key with no student policy) and the standards MCP
+endpoint.
+
+For each key file the baseline:
+
+- takes the scenario's declared `validation.cases` entry for that action
+  (prompt, expected result, required and forbidden tools);
+- takes the model, frontend instructions, MCP tool profile and round limit from
+  the installed scenario matrix, the same settings a chatbot user would select;
+- runs `functional_test/baseline_agent.py` inside the MCP pod's
+  `mcp-standard` container: requests go to the in-cluster FAIG ingress at
+  `/ai/openai/v1` with the key, and tool calls go to the standards MCP endpoint;
+- classifies the reply with the same contract as `validate` (8.0.2 redaction
+  markers such as `[REDACTED_SSN_1]` are recognized); and
+- with `--admin-credentials`, reads the FAIG Traffic Log for that key and
+  requires the action's verdict: alert → Alert, deny → Block, redact → Redact,
+  passthrough → Log (the most severe verdict across the turn's requests).
+
+Keys travel to the pod on stdin and are not written to the output.
+
+```bash
+python3 -m functional_test baseline \
+  --inventory cloud --host-alias faig-aws \
+  --key-dir "$FAIG_STUDENT_CREDENTIALS_DIR/student01-keys" \
+  --admin-credentials "$FAIG_ADMIN_FILE" --insecure
+```
+
+Limit with `--scenario` and `--action`; `--retries` (default 1) reruns a failed
+case to absorb model variance. Results are written below
+`functional_test/output/baseline-run-<timestamp>/`. A complete run ends with
+`BASELINE READY: <passed>/<total> expected results`.
+
+Observed on 2026-11-18 (Ohio lab), identical for student01 and student02:
+7/8. Passthrough, FortiStore alert/deny, HR alert/redact/deny and Resume alert
+passed with matching Traffic Log verdicts. Resume Deny was blocked before the
+declared `document_read` call; see Known Issues. The ported deployment smoke
+test also passes:
+
+```bash
+ansible-playbook -i cloud ansible/playbooks/test_fortiaigate_chat.yml \
+  -e fortiaigate_test_api_key_file="$FAIG_STUDENT_CREDENTIALS_DIR/student01-keys/student01-passthrough.json"
+```
+
 ## Result Classification And Future Tuning
 
 The current path test classifies Deny and Redact from the returned response.

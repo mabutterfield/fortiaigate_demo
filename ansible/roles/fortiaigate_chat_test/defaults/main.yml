@@ -1,6 +1,13 @@
 ---
 fortiaigate_test_api_key: ""
-fortiaigate_test_endpoint_path: /v1/passthrough/chat/completions
+# Optional owner-only virtual key file from scenario_lab.py (for example
+# studentNN-keys/studentNN-passthrough.json); its secretKey is used when
+# fortiaigate_test_api_key is empty. The file path, not the key, is logged.
+fortiaigate_test_api_key_file: ""
+# Change 2026-11-18: FortiAIGate 8.0.2 serves the OpenAI dialect under
+# /ai/openai/v1 and authorizes with a virtual key; 8.0.1 used /v1/passthrough.
+# fortiaigate_test_endpoint_path: /v1/passthrough/chat/completions
+fortiaigate_test_endpoint_path: /ai/openai/v1/chat/completions
 faig_model_route_header_name: X-FAIG-Model-Route
 fortiaigate_test_host_override: ""
 fortiaigate_test_message: "hello, this is a test. Reply in one short sentence and include the name of the model answering."

@@ -41,7 +41,7 @@
       - "FortiAIGate chat test URL: {{ fortiaigate_test_case_url }}"
       - "Model: {{ fortiaigate_test_case_model }}"
       - "Prompt: {{ fortiaigate_test_case_prompt }}"
-      - "Authorization header: {{ 'enabled' if fortiaigate_test_api_key | length > 0 else 'disabled' }}"
+      - "Authorization header: {{ 'enabled' if fortiaigate_test_effective_api_key | length > 0 else 'disabled' }}"
       - "Route headers: {{ fortiaigate_test_case_headers | join(', ') if fortiaigate_test_case_headers | length > 0 else 'none' }}"
 
 - name: Send FortiAIGate chat completion test
@@ -71,7 +71,7 @@
   failed_when: false
   register: fortiaigate_test_response_raw
   environment:
-    FORTIAIGATE_TEST_API_KEY: "{{ fortiaigate_test_api_key }}"
+    FORTIAIGATE_TEST_API_KEY: "{{ fortiaigate_test_effective_api_key }}"
   # - ansible.builtin.debug:
   #     var: fortiaigate_test_response_raw.stdout_lines
 

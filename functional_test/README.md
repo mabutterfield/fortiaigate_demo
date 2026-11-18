@@ -8,9 +8,15 @@ may reuse these functions, but it does not own the validation contract.
 From `<repo_root>`:
 
 ```bash
+python3 -m functional_test baseline --help
 python3 -m functional_test validate
 python3 -m functional_test render-curl --help
 ```
+
+`baseline` is the FortiAIGate 8.0.2 validator that runs before the chatbot:
+per-student virtual keys, the `/ai/openai/v1` gateway, live tool calls over the
+standards MCP endpoint, and optional Traffic Log verdict checks. Its in-cluster
+agent is `baseline_agent.py`.
 
 Running `python3 -m functional_test` without a command remains a transition
 alias for `validate`.
