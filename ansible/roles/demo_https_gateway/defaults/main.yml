@@ -7,7 +7,9 @@ demo_https_gateway_chart_remote_root: "/home/{{ ansible_user }}/tmp/demo-https-g
 demo_https_gateway_values_remote_path: "/home/{{ ansible_user }}/tmp/demo-https-gateway-values.yaml"
 
 demo_https_gateway_image_repository: nginx
-demo_https_gateway_image_tag: "1.27-alpine"
+# Change 2026-11-18: move to the current nginx stable line (1.27 is no longer current).
+# demo_https_gateway_image_tag: "1.27-alpine"
+demo_https_gateway_image_tag: "1.30-alpine"
 demo_https_gateway_image_pull_policy: IfNotPresent
 demo_https_gateway_resolver: "{{ k3s_cluster_dns | default('10.43.0.10') }}"
 
@@ -30,7 +32,16 @@ demo_https_gateway_routes:
   - name: chatbot
     display_name: Chat Front-End
     external_port: "{{ demo_https_gateway_chatbot_https_port }}"
-    upstream: "http://{{ chatbot_instances[0].release_name | default('chatbot') }}.{{ chatbot_instances[0].namespace | default('chatbot') }}.svc.cluster.local:80"
+    # Lab login gateway: HTTP listener on the chatbot HTTP port, sign-in required.
+    plain_port: "{{ lab_gateway_http_port if lab_gateway_enabled | bool else '' }}"
+    auth: "{{ lab_gateway_enabled | bool }}"
+    upstream: >-
+      {{
+        ('http://127.0.0.1:' ~ lab_gateway_auth_port)
+        if (lab_gateway_enabled | bool and lab_gateway_chatbot_placeholder | bool)
+        else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
+              ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
+      }}
   - name: demo-home
     display_name: Demo Home
     external_port: "{{ demo_https_gateway_demo_home_https_port }}"
@@ -44,3 +55,22 @@ demo_https_gateway_routes:
     external_port: "{{ demo_https_gateway_mcp_https_port }}"
     health_path: /tools
     upstream: "http://{{ mcp_release_name | default('mcp-demo') }}.{{ mcp_namespace | default('mcp') }}.svc.cluster.local:{{ mcp_service_port | default(8000) }}"
+
+# Lab login gateway (auth sidecar in this release). Students and FAIG super
+# admins sign in with their FortiAIGate account; routes with auth: true receive
+# HMAC-signed X-Lab-* identity headers. HTTP logins redirect to HTTPS.
+lab_gateway_enabled: true
+lab_gateway_http_port: "{{ demo_chatbot_http_port | default(30081) }}"
+lab_gateway_auth_port: 8090
+lab_gateway_faig_url: "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+lab_gateway_faig_verify_tls: false
+lab_gateway_max_session_hours: 8
+lab_gateway_idle_minutes: 120
+# faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
+lab_gateway_mode: faig
+lab_gateway_signing_secret_name: lab-gateway-signing
+lab_gateway_fallback_secret_name: ""
+# Until the 8.0.2 student chatbot exists, serve the auth service's "who am I"
+# page on the chatbot route. Set false once the chatbot is deployed.
+lab_gateway_chatbot_placeholder: true
+

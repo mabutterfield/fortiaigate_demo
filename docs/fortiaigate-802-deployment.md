@@ -87,3 +87,18 @@ python3 experiments/faig-api-lab/model_pricing.py --url "$FAIG_URL" \
 Because FortiAIGate no longer holds the master key, rotating the master key no
 longer breaks FortiAIGate. Per-student LiteLLM keys (for example with
 FortiAIGate key passthrough) remain a possible later extension.
+
+## Vendor Chart Expectations Versus Lab Workarounds
+
+Reviewed against `FAIG_helm/8.0.2/fortiaigate` (chart 8.0.2, build 0055):
+
+| Area | What the 8.0.2 chart expects | What this lab applies | Notes |
+|---|---|---|---|
+| Ingress | `ingress.className: nginx` (default) with ingress-nginx annotations: `app-root /ui`, `proxy-body-size 64m`, backend HTTPS; `traefik` and `alb` are also templated | Installs the `ingress-nginx` controller (chart 4.15.1, controller v1.15.1) with k3s Traefik disabled | Matches the vendor default, but ingress-nginx is retired upstream. The chart's Traefik branch only sets entrypoint and a `default-redirect-https` middleware; backend HTTPS, body size and the root redirect would need verification before switching. |
+| Shared storage | One `ReadWriteMany` PVC (`fortiaigate-storage`), shared by the application services and PostgreSQL (`existingClaim`); access mode hardcoded in `storage.yaml` | `local-path` storage class; the post-renderer rewrites the PVC to `ReadWriteOnce` | Works only because every pod runs on one node. The `storage.accessModes` value we render is ignored by the chart. Multi-node needs a real RWX class (for example NFS or EFS). |
+| GPU runtime | No `runtimeClassName` option; assumes the NVIDIA runtime is the node default (as the GPU Operator configures) | k3s registers a non-default `nvidia` RuntimeClass; the post-renderer adds `runtimeClassName: nvidia` to GPU workloads (`triton-vllm-server` in shared mode) | Setting the NVIDIA runtime as the k3s default would remove this patch. |
+| GPU sizing | `fortiaigate.gpu.type` profiles in `files/gpu-profiles.yaml`; `vllm.gpuAttach` shared or dedicated | `gpu.type: l4`, `gpuAttach: shared`, `updateStrategy: Recreate` | Vendor options, not workarounds; `l4` is marked development-only by the vendor. |
+| Images | Pull from the image repository with `pullSecrets` | Private ECR mirror, instance-role ECR token refresh timer, image pre-pull | Deployment choice; pre-pull avoids slow first starts with large images. |
+| TLS | Certificate and key read from files inside the chart (`tls.cert`, `tls.key`) | Custom TLS files are copied into the staged chart before install | Needed because the chart reads files rather than an existing Secret. |
+| PostgreSQL/Redis | Bitnami subcharts using `bitnamilegacy/*` images | Used as shipped | Vendor-side risk: the legacy repository no longer receives updates. |
+| Chart packaging | Vendor tarball | Repacked without macOS metadata files | Workstation artifact only. |

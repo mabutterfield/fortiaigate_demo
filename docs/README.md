@@ -24,6 +24,7 @@ changes directories.
 | Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
 | Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
+| Sign students in to the shared lab chatbot | [Lab Login Gateway](lab-gateway.md) |
 
 The automated quickstart is the only normal installation journey. Detailed
 Terraform and Ansible command sequences are reference and recovery material,

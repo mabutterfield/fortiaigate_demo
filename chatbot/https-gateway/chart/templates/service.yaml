@@ -17,4 +17,34 @@ spec:
       targetPort: {{ .externalPort }}
       nodePort: {{ .externalPort }}
       protocol: TCP
+{{- if .plainPort }}
+    - name: {{ printf "%s-http" .name | trunc 15 | trimSuffix "-" }}
+      port: {{ .plainPort }}
+      targetPort: {{ .plainPort }}
+      nodePort: {{ .plainPort }}
+      protocol: TCP
 {{- end }}
+{{- end }}
+{{- if .Values.labAuth.enabled }}
+---
+# Cluster-internal access to the auth service's internal API (for example
+# /_lab/internal/traffic-logs), used by upstream apps with signed identities.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-auth
+  labels:
+    app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: lab-auth
+      port: {{ .Values.labAuth.port }}
+      targetPort: {{ .Values.labAuth.port }}
+      protocol: TCP
+{{- end }}
+

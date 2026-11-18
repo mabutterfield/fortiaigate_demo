@@ -18,5 +18,25 @@ routes:
   - name: "{{ route.name }}"
     displayName: "{{ route.display_name | default(route.name) }}"
     externalPort: {{ route.external_port }}
-    upstream: "{{ route.upstream }}"
+{% if route.plain_port | default('') | string | length > 0 %}
+    plainPort: {{ route.plain_port }}
+{% endif %}
+    auth: {{ (route.auth | default(false) | bool) | ternary('true', 'false') }}
+    upstream: "{{ route.upstream | trim }}"
 {% endfor %}
+
+labAuth:
+  enabled: {{ (lab_gateway_enabled | bool) | ternary('true', 'false') }}
+  image:
+    repository: python
+    tag: "3.12-slim"
+  port: {{ lab_gateway_auth_port }}
+  faigUrl: {{ lab_gateway_faig_url | to_json }}
+  faigVerifyTls: {{ (lab_gateway_faig_verify_tls | bool) | ternary('true', 'false') }}
+  httpsPort: {{ demo_https_gateway_chatbot_https_port }}
+  maxSessionHours: {{ lab_gateway_max_session_hours }}
+  idleMinutes: {{ lab_gateway_idle_minutes }}
+  mode: {{ lab_gateway_mode | to_json }}
+  signingSecretName: {{ lab_gateway_signing_secret_name | to_json }}
+  fallbackSecretName: {{ lab_gateway_fallback_secret_name | to_json }}
+

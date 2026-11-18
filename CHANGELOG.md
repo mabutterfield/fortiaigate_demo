@@ -5,6 +5,16 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added a lab login gateway to the nginx HTTPS gateway:
+  - an auth sidecar signs students and FAIG super admins in with their
+    FortiAIGate account, redirects HTTP logins to HTTPS, and passes HMAC-signed
+    identity headers to the chatbot route on HTTP 30081 and HTTPS 30444
+  - upstream apps read the signed-in student's own Traffic Log entries through
+    an internal API that keeps the FortiAIGate session server-side
+  - moved the gateway to the nginx 1.30 stable line and waited for rollout
+    before route checks
+- Documented the FortiAIGate 8.0.2 chart expectations versus lab workarounds
+
 - Moved the agent loop into a shared module, `chatbot/agent/faig_agent.py`,
   used by the 8.0.2 baseline and the planned student chatbot; it supports
   FortiAIGate and direct LiteLLM endpoints, conversation history, and

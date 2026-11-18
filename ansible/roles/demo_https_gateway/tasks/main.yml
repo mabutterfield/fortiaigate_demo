@@ -197,6 +197,38 @@
   no_log: true
   when: demo_https_gateway_enabled | bool
 
+- name: Ensure demo HTTPS gateway namespace exists
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get namespace {{ demo_https_gateway_namespace }} >/dev/null 2>&1 \
+      || /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml create namespace {{ demo_https_gateway_namespace }}
+  changed_when: false
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+
+- name: Create lab gateway signing key Secret once
+  # The HMAC key is generated on the host and passed on stdin; it is never
+  # regenerated, so upstream apps keep verifying identities across redeploys.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ demo_https_gateway_namespace }}"
+    if $K get secret {{ lab_gateway_signing_secret_name }} >/dev/null 2>&1; then
+      echo exists
+    else
+      openssl rand -hex 32 | tr -d '\n' | $K create secret generic {{ lab_gateway_signing_secret_name }} --from-file=hmac-key=/dev/stdin >/dev/null
+      echo created
+    fi
+  args:
+    executable: /bin/bash
+  register: lab_gateway_signing_secret
+  changed_when: lab_gateway_signing_secret.stdout == 'created'
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_gateway_signing_secret.stdout
+
 - name: Deploy demo HTTPS gateway release
   ansible.builtin.command:
     argv:
@@ -218,6 +250,21 @@
   # - ansible.builtin.debug:
   #     var: demo_https_gateway_helm_deploy.stdout_lines
 
+- name: Wait for demo HTTPS gateway rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ demo_https_gateway_namespace }}"
+      - rollout
+      - status
+      - "deployment/{{ demo_https_gateway_release_name }}"
+      - --timeout=180s
+  changed_when: false
+  when: demo_https_gateway_enabled | bool
+
 - name: Check demo HTTPS gateway route responses
   ansible.builtin.command:
     argv:
@@ -228,8 +275,18 @@
       - /dev/null
       - -w
       - "%{http_code}"
-      - "https://127.0.0.1:{{ item.external_port }}{{ item.health_path | default('/') }}"
-  loop: "{{ demo_https_gateway_routes }}"
+      - >-
+        {{
+          ('http://127.0.0.1:' ~ item.plain_port ~ '/_lab/health')
+          if item.http_check | default(false)
+          else ('https://127.0.0.1:' ~ item.external_port ~ (item.health_path | default('/')))
+        }}
+  loop: >-
+    {{
+      demo_https_gateway_routes
+      + (demo_https_gateway_routes | selectattr('plain_port', 'defined') | rejectattr('plain_port', 'equalto', '')
+         | map('combine', {'http_check': true}) | list)
+    }}
   changed_when: false
   failed_when: false
   register: demo_https_gateway_route_checks
@@ -246,7 +303,11 @@
     demo_https_gateway_route_line: >-
       {{
         (demo_https_gateway_route.display_name | default(demo_https_gateway_route.name))
-        ~ ': https://127.0.0.1:' ~ (demo_https_gateway_route.external_port | string)
+        ~ (
+          (': http://127.0.0.1:' ~ (demo_https_gateway_route.plain_port | string) ~ '/_lab/health')
+          if demo_https_gateway_route.http_check | default(false)
+          else (': https://127.0.0.1:' ~ (demo_https_gateway_route.external_port | string))
+        )
         ~ ' -> HTTP ' ~ (demo_https_gateway_route_code | string)
       }}
   loop: "{{ demo_https_gateway_route_checks.results | default([]) }}"

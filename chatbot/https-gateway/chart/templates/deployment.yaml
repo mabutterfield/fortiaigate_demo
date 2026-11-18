@@ -31,6 +31,11 @@ spec:
             - name: {{ .name | trunc 15 | trimSuffix "-" }}
               containerPort: {{ .externalPort }}
               protocol: TCP
+{{- if .plainPort }}
+            - name: {{ printf "%s-http" .name | trunc 15 | trimSuffix "-" }}
+              containerPort: {{ .plainPort }}
+              protocol: TCP
+{{- end }}
 {{- end }}
           readinessProbe:
             tcpSocket:
@@ -52,6 +57,59 @@ spec:
             - name: tls
               mountPath: /etc/nginx/tls
               readOnly: true
+{{- if .Values.labAuth.enabled }}
+        - name: lab-auth
+          image: "{{ .Values.labAuth.image.repository }}:{{ .Values.labAuth.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/app/lab_auth.py"]
+          env:
+            - name: LAB_AUTH_PORT
+              value: "{{ .Values.labAuth.port }}"
+            - name: LAB_FAIG_URL
+              value: {{ .Values.labAuth.faigUrl | quote }}
+            - name: LAB_FAIG_VERIFY_TLS
+              value: "{{ .Values.labAuth.faigVerifyTls }}"
+            - name: LAB_HTTPS_PORT
+              value: "{{ .Values.labAuth.httpsPort }}"
+            - name: LAB_MAX_SESSION_HOURS
+              value: "{{ .Values.labAuth.maxSessionHours }}"
+            - name: LAB_IDLE_MINUTES
+              value: "{{ .Values.labAuth.idleMinutes }}"
+            - name: LAB_AUTH_MODE
+              value: {{ .Values.labAuth.mode | quote }}
+            - name: LAB_SIGNING_KEY_FILE
+              value: /etc/lab-auth/signing/hmac-key
+{{- if .Values.labAuth.fallbackSecretName }}
+            - name: LAB_FALLBACK_FILE
+              value: /etc/lab-auth/fallback/fallback.json
+{{- end }}
+          ports:
+            - name: lab-auth
+              containerPort: {{ .Values.labAuth.port }}
+          readinessProbe:
+            httpGet:
+              path: /_lab/health
+              port: lab-auth
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_lab/health
+              port: lab-auth
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /app/lab_auth.py
+              subPath: lab_auth.py
+              readOnly: true
+            - name: lab-signing
+              mountPath: /etc/lab-auth/signing
+              readOnly: true
+{{- if .Values.labAuth.fallbackSecretName }}
+            - name: lab-fallback
+              mountPath: /etc/lab-auth/fallback
+              readOnly: true
+{{- end }}
+{{- end }}
       volumes:
         - name: config
           configMap:
@@ -59,3 +117,13 @@ spec:
         - name: tls
           secret:
             secretName: {{ include "demo-https-gateway.name" . }}-tls
+{{- if .Values.labAuth.enabled }}
+        - name: lab-signing
+          secret:
+            secretName: {{ .Values.labAuth.signingSecretName }}
+{{- if .Values.labAuth.fallbackSecretName }}
+        - name: lab-fallback
+          secret:
+            secretName: {{ .Values.labAuth.fallbackSecretName }}
+{{- end }}
+{{- end }}

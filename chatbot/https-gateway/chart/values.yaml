@@ -2,7 +2,8 @@ nameOverride: demo-https-gateway
 
 image:
   repository: nginx
-  tag: "1.27-alpine"
+  # nginx stable line (even minor); patch releases follow the minor tag.
+  tag: "1.30-alpine"
   pullPolicy: IfNotPresent
 
 resolver: "10.43.0.10"
@@ -19,6 +20,10 @@ routes:
   - name: chatbot
     displayName: Chat Front-End
     externalPort: 30444
+    # Optional plain HTTP listener for the same route; logins still redirect to HTTPS.
+    plainPort: 30081
+    # Require a lab sign-in (labAuth below) before proxying.
+    auth: true
     upstream: http://chatbot.chatbot.svc.cluster.local:80
   - name: demo-home
     displayName: Demo Home
@@ -32,3 +37,23 @@ routes:
     displayName: MCP Demo Tools
     externalPort: 30447
     upstream: http://mcp-demo.mcp.svc.cluster.local:8000
+
+# Lab login gateway: an auth sidecar (files/lab_auth.py) answers nginx
+# auth_request for routes with auth: true. Students and FAIG super admins sign in
+# with their FortiAIGate account; upstreams receive HMAC-signed X-Lab-* headers.
+labAuth:
+  enabled: false
+  image:
+    repository: python
+    tag: "3.12-slim"
+  port: 8090
+  faigUrl: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local
+  faigVerifyTls: false
+  httpsPort: 30444
+  maxSessionHours: 8
+  idleMinutes: 120
+  mode: faig
+  # Existing Secret holding the HMAC key (key: hmac-key) shared with upstream apps.
+  signingSecretName: lab-gateway-signing
+  # Optional Secret with the fallback password store (key: fallback.json).
+  fallbackSecretName: ""
