@@ -97,6 +97,22 @@ def object_id(obj):
     return obj.get('uuid') or obj.get('id')
 
 
+def detector_drift(existing, desired):
+    """Describe how an existing workspace detector differs from the catalog body ('' if it matches)."""
+    if desired.get('detectorType') == 'managed':
+        want = {(r['category'], r['disposition']) for r in desired['rules']}
+        have = {(r.get('category'), r.get('disposition')) for r in existing.get('rules') or []}
+        if want != have:
+            return 'DLP rules ' + ', '.join(sorted(f'{c}:{d}' for c, d in want - have)) + ' missing'
+        for field in ('inputGuards', 'outputGuards'):
+            if set(existing.get(field) or []) != set(desired[field]):
+                return field + ' differ'
+        return ''
+    if existing.get('action') != desired.get('action'):
+        return f'action {existing.get("action")} -> {desired.get("action")}'
+    return ''
+
+
 def review_status(obj):
     """Guardrails and policies report `status`; workspace detectors report `approvalStatus`."""
     status = obj.get('status') or obj.get('approvalStatus')
@@ -326,6 +342,17 @@ class Prepopulate:
             if obj is None:
                 obj = self.user.call('POST', collection, body)
                 self.out(f'  created {kind} {name}')
+            elif kind == 'detector' and not obj.get('hasPendingChange'):
+                if obj.get('rules') is None:
+                    obj = self.user.call('GET', f'{collection}/{object_id(obj)}')
+                drift = detector_drift(obj, body)
+                if drift:
+                    obj = self.user.call('PUT', f'{collection}/{object_id(obj)}', body)
+                    self.out(f'  updated {kind} {name} ({drift}); status {review_status(obj)}, '
+                             f'pending change {obj.get("hasPendingChange")}')
+                    if obj.get('hasPendingChange') and not obj.get('submittedAt'):
+                        obj = self.user.call('POST', f'{collection}/{object_id(obj)}/submit')
+                        self.out(f'  submitted {kind} change {name}')
             status = review_status(obj)
             if status == 'rejected':
                 raise RuntimeError(f'{kind} {name} was rejected: {obj.get("rejectionReason")}')

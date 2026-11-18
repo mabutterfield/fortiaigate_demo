@@ -62,3 +62,26 @@ quickstart or component playbooks. It does not currently provide an automated
 uninstall for the local k3s host. Exporting generated local state moves local
 inventory and variable files; it does not remove k3s, images, applications, or
 appliances.
+
+## HR DLP Payment Cards Are Withheld From MCP Responses
+
+In 8.0.1 testing, a multi-record HR employee table built from five tool calls
+redacted dates of birth but missed several credit card numbers, while a
+single-employee request redacted DOB and card values correctly (see the
+CHANGELOG entry for `employee_table_with_cc`). Since then the MCP server strips
+`credit_card_number`, `credit_card_expiration`, `credit_card_cvv` and
+`salary_usd` from every employee tool response
+(`EMPLOYEE_TOOL_HIDDEN_FIELDS` in `mcp/chart/files/server.py`); the values
+remain only in the synthetic fixture `mcp/chart/files/tools.json`.
+
+On FortiAIGate 8.0.2 (2026-11-18, Ohio lab) the experimental per-student HR
+DLP detectors were extended with the `Credit/debit card` category and the
+whole five-row synthetic table, including card numbers, was replayed as one
+tool result through each student's HR keys. Whenever the model reproduced the
+table, all five DOB, SSN and card values were redacted by the Redact key,
+blocked by the Deny key, and passed through with an Alert verdict by the Alert
+key. This was a single tool result checked on model output, not the earlier
+five-tool-loop chatbot flow, so card fields stay hidden from MCP responses
+until that flow is retested. The model sometimes refuses to print the table;
+the validator reports that as inconclusive rather than as a DLP result. See
+`experiments/faig-api-lab/README.md` for the procedure.

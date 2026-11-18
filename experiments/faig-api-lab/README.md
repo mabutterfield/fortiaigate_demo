@@ -517,3 +517,35 @@ to be validated.
 | HR / deny | Block | `studentNN-hr-dlp-block` (output) | blocked after generation, so the response is still billed |
 
 FAIG appends a counter (`_1`) to the configured replacement text.
+
+## HR DLP: full synthetic table with payment cards
+
+The HR DLP detectors cover `Date of birth`, `SSN` and `Credit/debit card`.
+`scenario_lab.py prepopulate` now updates an existing student detector whose
+DLP rules (category and disposition), guard lists or AI action differ from
+the catalog. Editing an active workspace detector puts it straight back into
+the review queue (status `pending`, `hasPendingChange: true`, no separate
+submit), and prepopulate then approves it as the admin.
+
+`validate_keys.py --hr-table-with-cards` replays the whole five-row synthetic
+employee table from `mcp/chart/files/tools.json`, including the card numbers
+that the MCP server normally withholds, as one tool result through each HR
+key. It reads the model's original response from the Traffic Log and reports
+how many DOB, SSN and card values the model produced and how many reached the
+client. If the model refuses to reproduce the data, DLP has nothing to act on;
+the run is reported as `INCONCLUSIVE` and resent (`--retries`, default 2), and
+the exit code is 2 when any key stays inconclusive.
+
+Observed on 2026-11-18 for student01 and student02:
+
+| Key | Verdict | Model output (DOB / SSN / card) | Reached client |
+|-----|---------|---------------------------------|----------------|
+| `-hr-tool-dlp-alert` | Alert | 5/5, 5/5, 5/5 | 5/5, 5/5, 5/5 |
+| `-hr-tool-dlp-redact` | Redact | 5/5, 5/5, 5/5 | 0/5, 0/5, 0/5 |
+| `-hr-tool-dlp-deny` | Block | 5/5, 5/5, 5/5 | 0/5, 0/5, 0/5 |
+
+A first run had one Redact key and one Deny key return verdict `Log` with no
+detector; the Traffic Log showed the model had refused to print the table, so
+these were not FAIG misses. The 8.0.1 multi-card miss came from a five-tool-loop
+chatbot flow, which has not been retested here. See
+`docs/known-issues.md`.

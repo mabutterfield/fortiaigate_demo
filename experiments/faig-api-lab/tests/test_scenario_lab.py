@@ -77,6 +77,15 @@ class BodyTests(unittest.TestCase):
         self.assertIsNone(body['expiresAt'])
         self.assertEqual(set(body['budgetWindows'].values()), {None})
 
+    def test_detector_drift(self):
+        desired = lab.dlp_body('n', 'd', 'redact', ['Date of birth', 'SSN', 'Credit/debit card'])
+        old = lab.dlp_body('n', 'd', 'redact', ['Date of birth', 'SSN'])
+        self.assertIn('Credit/debit card:redact', lab.detector_drift(old, desired))
+        self.assertEqual(lab.detector_drift(desired, desired), '')
+        ai = {'detectorType': 'ai', 'action': 'alert'}
+        self.assertEqual(lab.detector_drift({'action': 'alert'}, ai), '')
+        self.assertTrue(lab.detector_drift({'action': 'block'}, ai))
+
     def test_error_detail_keeps_only_validation_text(self):
         raw = json.dumps({'error': 'bad', 'field': 'x[0]', 'echo': 'secret'}).encode()
         self.assertEqual(lab.error_detail(raw), 'bad field=x[0]')

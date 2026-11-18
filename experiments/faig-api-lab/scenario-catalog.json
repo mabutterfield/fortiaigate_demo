@@ -32,20 +32,20 @@
     "hr-dlp-alert": {
       "kind": "dlp",
       "disposition": "alert",
-      "categories": ["Date of birth", "SSN"],
-      "description": "HR DLP: alert on date of birth and SSN"
+      "categories": ["Date of birth", "SSN", "Credit/debit card"],
+      "description": "HR DLP: alert on date of birth, SSN and payment card"
     },
     "hr-dlp-redact": {
       "kind": "dlp",
       "disposition": "redact",
-      "categories": ["Date of birth", "SSN"],
-      "description": "HR DLP: redact date of birth and SSN"
+      "categories": ["Date of birth", "SSN", "Credit/debit card"],
+      "description": "HR DLP: redact date of birth, SSN and payment card"
     },
     "hr-dlp-block": {
       "kind": "dlp",
       "disposition": "block",
-      "categories": ["Date of birth", "SSN"],
-      "description": "HR DLP: block date of birth and SSN"
+      "categories": ["Date of birth", "SSN", "Credit/debit card"],
+      "description": "HR DLP: block date of birth, SSN and payment card"
     }
   },
   "guard_templates": {

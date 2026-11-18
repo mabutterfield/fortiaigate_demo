@@ -19,6 +19,14 @@ class ValidateKeysTests(unittest.TestCase):
         values = vk.sensitive_values(vk.attack_request('hr-tool-dlp', 'redact'))
         self.assertEqual(len(values), 2)
 
+    def test_table_with_cards_includes_every_row(self):
+        request = vk.table_with_cards_request()
+        values = vk.sensitive_values(request)
+        self.assertEqual(len(values), 15)
+        counts = vk.leaked_by_kind('none here', request)
+        self.assertEqual(counts['credit_card_number'], (5, 0))
+        self.assertEqual(request['model'], 'hr-tool-dlp')
+
     def test_judge(self):
         values = ['1981-01-02', '489-36-8350']
         self.assertEqual(vk.judge('deny', 'Block', 'blocked', values), (True, ''))
