@@ -20,7 +20,8 @@ class StudentLabTests(unittest.TestCase):
         items = lab.expand_template(TEMPLATE, 1, 2)
         self.assertEqual(items[0]['email'], 'student01@fortiai.lab')
         self.assertEqual(items[0]['workspace'], 'student01_workspace')
-        self.assertEqual(items[1]['projects'], ['student02_fortistore-injection', 'student02_resume-tool-injection'])
+        self.assertEqual(items[1]['projects'], ['student02_fortistore-injection', 'student02_hr-tool-dlp',
+                                                 'student02_resume-tool-injection'])
         self.assertEqual(lab.expand_template(TEMPLATE, 100, 1)[0]['student'], 'student100')
 
     def test_invalid_template_does_not_generate_duplicate_projects(self):
@@ -106,7 +107,8 @@ class StudentLabTests(unittest.TestCase):
             with patch.object(lab, 'Client', FakeClient):
                 lab.apply_plan(args, TEMPLATE, plan)
             self.assertEqual(writes[0][1]['admins'], [{'id': 'student-id'}])
-            self.assertEqual([x[1]['name'] for x in writes[1:]], ['student01_fortistore-injection', 'student01_resume-tool-injection'])
+            self.assertEqual([x[1]['name'] for x in writes[1:]], ['student01_fortistore-injection', 'student01_hr-tool-dlp',
+                                                       'student01_resume-tool-injection'])
             self.assertTrue(all(x[1]['workspaceId'] == 'workspace-id' for x in writes[1:]))
 
 

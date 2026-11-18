@@ -314,3 +314,98 @@ LLM Top 10 2025 at their default actions, suspicious characters denied):
   violated) and the LLM messages, but no policy, guardrail or project.
 - Detail records include the original prompt and response text. Treat traffic
   log exports as sensitive when real data is used.
+
+## Scenario keys: one virtual key per scenario action
+
+`scenario_lab.py` gives each student one virtual key per scenario action, so a
+client switches scenario behavior by switching keys while always calling the
+same `https://<faig>/ai/openai/v1` endpoint with the scenario's model. Each
+key carries exactly one policy, so the key alias in the Traffic Log identifies
+the scenario and action even though log records do not name the policy.
+
+Scenario actions come from each profile's `matrix.entry_points` under
+`chatbot/scenarios/examples/`. `scenario-catalog.json` maps each entry point's
+`guard_template` to FAIG detectors and a guardrail direction:
+
+| Guard template | Detectors | Direction |
+|----------------|-----------|-----------|
+| `inject_alert` | per-student alert copies of OWASP Agentic Top 10 and OWASP LLM Top 10 2025 | input |
+| `inject_deny` | built-in OWASP Agentic Top 10 and OWASP LLM Top 10 2025 (`block`) | input, deny suspicious characters |
+| `output_dlp_alert` / `_redact` / `_deny` | per-student DLP detector for Date of birth and SSN with disposition `alert` / `redact` / `block` | output |
+
+Built-in detectors are fixed to `block`, so alert and redact behavior requires
+custom detectors. AI detector copies take the built-in rule text from
+`GET /api/v1/workspaces/{id}/built-in-detectors`; DLP rule dispositions may be
+`block`, `redact`, `alert` or `log`.
+
+Per student and scenario action the names are:
+
+| Object | Name |
+|--------|------|
+| detector (shared within the student) | `studentNN-owasp-agentic-alert`, `studentNN-hr-dlp-redact`, ... |
+| guardrail | `studentNN-<scenario>-<action>-guardrail` |
+| policy | `studentNN-<scenario>-<action>-policy` |
+| virtual key | `studentNN-<scenario>-<action>` on project `studentNN_<scenario>`, limited to the scenario model |
+
+All objects are owned by the student's workspace and go through review.
+Scenario actions whose model is not offered by the provider are skipped with
+a message; for example `hr-tool-dlp` needs its LiteLLM alias deployed and
+added to `litellm-direct` first.
+
+### Workflow 1: admin pre-populates ready-to-test students
+
+`prepopulate` signs in with each student's saved credentials, creates and
+submits that student's objects one layer at a time (detectors, guardrails,
+policies), approves each layer as the org admin, then creates the keys. It
+approves only the IDs it created or found pending. Reruns skip active objects
+and existing keys. Limit scope with repeatable `--scenario` and `--action`.
+
+```sh
+python3 experiments/faig-api-lab/scenario_lab.py prepopulate --start 1 --count 2 \
+  --scenario fortistore-injection             # preview only
+python3 experiments/faig-api-lab/scenario_lab.py prepopulate --start 1 --count 2 \
+  --scenario fortistore-injection --apply --url "$FAIG_URL" \
+  --admin-credentials "$FAIG_ADMIN_FILE" \
+  --credentials-dir "$FAIG_STUDENT_CREDENTIALS_DIR" --insecure
+```
+
+`--credentials-dir` is the owner-only directory (`chmod 700`, outside Git)
+that `student_lab.py` fills with `studentNN.json`. Keys are written once to
+`studentNN-keys/<key name>.json` with `scenario`, `action`, `model`,
+`basePath` and `secretKey`; a front end can map scenario and action to a key
+from these files. If FAIG lists a key with no local secret file, rotate or
+delete it to obtain a new secret.
+
+### Workflow 2: students build, admin auto-approves
+
+Run `student_lab.py` to create the accounts, workspaces and scenario projects
+(the template now includes `hr-tool-dlp`). Students then build detectors,
+guardrails, policies and keys themselves. `auto-approve` approves pending
+detector, guardrail and policy submissions only from workspaces matching the
+template's `studentNN_workspace` pattern, detectors first and policies last.
+Deletion requests are skipped unless `--include-deletes` is given.
+
+```sh
+python3 experiments/faig-api-lab/scenario_lab.py auto-approve \
+  --url "$FAIG_URL" --admin-credentials "$FAIG_ADMIN_FILE" --insecure          # preview
+python3 experiments/faig-api-lab/scenario_lab.py auto-approve --apply --watch 15 \
+  --url "$FAIG_URL" --admin-credentials "$FAIG_ADMIN_FILE" --insecure
+```
+
+Auto-approval removes the review safeguard for those workspaces; use it only
+for a controlled lab.
+
+### Observed results (2026-11-18, Ohio lab)
+
+`prepopulate` for student02 and `fortistore-injection` created two detectors,
+two guardrails, two policies and two keys, approved each layer, and a rerun
+made no changes. Using the same endpoint and model:
+
+| Key | Benign | Injection |
+|-----|--------|-----------|
+| `student02-fortistore-injection-alert` | 200, Log | 200 (model refused on its own), Traffic Log `Alert` from both student alert detectors |
+| `student02-fortistore-injection-deny` | 200, Log | FAIG block message, Traffic Log `Block`/`DENY` from both built-in detectors |
+
+`auto-approve` previewed and then approved a guardrail submitted by student01
+and ignored nothing else. Workspace detectors report review state in
+`approvalStatus` (not `status`) and use `uuid` as their ID.

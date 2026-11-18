@@ -1,0 +1,78 @@
+{
+  "description": "Maps scenario guard templates to per-student FAIG 8.0.2 workspace objects. Scenario actions come from each scenario profile's matrix.entry_points; this file only defines how a guard template becomes detectors and a guardrail.",
+  "provider": "litellm-direct",
+  "gateway_base_path": "/ai/openai/v1",
+  "scenarios": {
+    "fortistore-injection": {
+      "profile": "chatbot/scenarios/examples/fortistore-injection/profile.json",
+      "model": "fortistore-injection"
+    },
+    "hr-tool-dlp": {
+      "profile": "chatbot/scenarios/examples/hr-tool-dlp/profile.json",
+      "model": "hr-tool-dlp"
+    },
+    "resume-tool-injection": {
+      "profile": "chatbot/scenarios/examples/resume-tool-injection/profile.json",
+      "model": "resume-tool-injection"
+    }
+  },
+  "detectors": {
+    "owasp-agentic-alert": {
+      "kind": "ai_copy",
+      "source": "owasp-agentic-top-10",
+      "action": "alert",
+      "description": "Alert-only copy of OWASP Agentic Top 10"
+    },
+    "owasp-llm-alert": {
+      "kind": "ai_copy",
+      "source": "owasp-llm-top-10-2025",
+      "action": "alert",
+      "description": "Alert-only copy of OWASP LLM Top 10 2025 Security Guard"
+    },
+    "hr-dlp-alert": {
+      "kind": "dlp",
+      "disposition": "alert",
+      "categories": ["Date of birth", "SSN"],
+      "description": "HR DLP: alert on date of birth and SSN"
+    },
+    "hr-dlp-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": ["Date of birth", "SSN"],
+      "description": "HR DLP: redact date of birth and SSN"
+    },
+    "hr-dlp-block": {
+      "kind": "dlp",
+      "disposition": "block",
+      "categories": ["Date of birth", "SSN"],
+      "description": "HR DLP: block date of birth and SSN"
+    }
+  },
+  "guard_templates": {
+    "inject_alert": {
+      "detectors": ["owasp-agentic-alert", "owasp-llm-alert"],
+      "direction": "input",
+      "deny_suspicious_characters": false
+    },
+    "inject_deny": {
+      "builtin_detectors": ["owasp-agentic-top-10", "owasp-llm-top-10-2025"],
+      "direction": "input",
+      "deny_suspicious_characters": true
+    },
+    "output_dlp_alert": {
+      "detectors": ["hr-dlp-alert"],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    },
+    "output_dlp_redact": {
+      "detectors": ["hr-dlp-redact"],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    },
+    "output_dlp_deny": {
+      "detectors": ["hr-dlp-block"],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    }
+  }
+}
