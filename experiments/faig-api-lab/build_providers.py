@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from pricing import DEFAULT_PRICING, cost_fields, load_pricing
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -13,7 +15,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True, help='New JSON resource file')
     parser.add_argument('--litellm-url', default='http://litellm.litellm.svc.cluster.local:4000/v1')
+    parser.add_argument('--pricing', type=Path, default=DEFAULT_PRICING, help='Lab model prices (USD per 1M tokens)')
     args = parser.parse_args()
+    pricing = load_pricing(args.pricing)
     result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_scenario_matrix.py')], cwd=ROOT, capture_output=True, text=True, check=True)
     matrix = json.loads(result.stdout)
     models = matrix['litellm_models']
@@ -26,9 +30,7 @@ def main():
     resources = []
     for name, aliases in groups.items():
         entries = [{'modelId': alias, 'publicName': alias, 'enabled': True, 'isCustom': True,
-                    'description': '', 'customizedCost': False, 'customInputCost': None,
-                    'customOutputCost': None, 'customCacheReadCost': None,
-                    'customCacheWriteCost': None} for alias in aliases]
+                    'description': '', **cost_fields(pricing, alias)} for alias in aliases]
         resources.append({
             'name': name, 'kind': 'provider', 'operation': 'create', 'lookup': name,
             'body': {'providerId': name, 'platform': 'custom', 'name': name,

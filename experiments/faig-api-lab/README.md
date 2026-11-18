@@ -409,3 +409,56 @@ made no changes. Using the same endpoint and model:
 `auto-approve` previewed and then approved a guardrail submitted by student01
 and ignored nothing else. Workspace detectors report review state in
 `approvalStatus` (not `status`) and use `uuid` as their ID.
+
+## Lab model prices
+
+Model prices are defined in code in `model-pricing.json` as USD per 1M
+tokens, FAIG's unit. Values are deliberately about a thousand times
+real-world rates so a typical scenario request (~650 input, ~90–400 output
+tokens) costs several dollars and cost, budget and attribution views move
+visibly without much real token use. `default`
+applies to any alias without its own entry (for example future
+`*-faig-chain` aliases); a model entry overrides it per field. `cache_read`
+and `cache_write` are optional and `null` leaves them unset.
+
+| Alias | Input $/1M | Output $/1M |
+|-------|-----------:|------------:|
+| default | 3,000 | 6,000 |
+| `pass-model` | 3,000 | 8,000 |
+| `fortistore-injection` | 4,000 | 9,000 |
+| `hr-tool-dlp` | 5,000 | 10,000 |
+| `resume-tool-injection` | 6,000 | 12,000 |
+
+- `build_providers.py` writes these prices into newly generated provider
+  resources (`customizedCost: true` plus the custom cost fields).
+- `model_pricing.py` previews and, with `--apply`, saves prices onto existing
+  providers. It sends the GUI's full provider update: endpoint, all models with
+  their `uuid`, credentials referenced only by `id`/`name`/`enabled`/`weight`
+  (no secret is resent), and `updatedAt` for concurrency. It then checks that
+  the saved models and credential IDs match the original and the prices
+  applied.
+
+```sh
+python3 experiments/faig-api-lab/model_pricing.py --url "$FAIG_URL" \
+  --admin-credentials "$FAIG_ADMIN_FILE" --insecure            # preview
+python3 experiments/faig-api-lab/model_pricing.py --url "$FAIG_URL" \
+  --admin-credentials "$FAIG_ADMIN_FILE" --insecure --apply
+```
+
+Observed on 2026-11-18: applying prices to `litellm-direct` kept its credential
+ID, and a connectivity test with the stored credential still passed (the
+credential's `updatedAt` changes on save). With the current prices a
+`fortistore-injection` request of 656 input and 392 output tokens was logged
+with `cost` `6.15200000` and `costBasis` `tokens`, matching
+656 × $4,000/1M + 392 × $9,000/1M. Budgets of tens of dollars therefore trip
+after a handful of requests.
+
+## Ownership of workspace policies
+
+An org admin can create a policy inside a specific student's workspace from
+the GUI, but it can only use the organization's global guardrails, not that
+workspace's own guardrails. It has not been determined whether this is
+intended. To keep ownership consistent, `scenario_lab.py prepopulate` signs in
+as each student and creates that student's detectors, guardrails, policies and
+keys with the student's own session; the admin session is used only to
+approve submissions and to create missing projects.

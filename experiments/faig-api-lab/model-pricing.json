@@ -1,0 +1,18 @@
+{
+  "description": "Lab-only FAIG model prices in USD per 1M tokens, deliberately about a thousand times real-world rates so a typical scenario request (~650 input, ~90 output tokens) costs a few dollars and cost, budget and attribution views move visibly with little traffic. FAIG bills these instead of any system price for custom providers.",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "providers": ["litellm-direct", "litellm-faig-chain"],
+  "default": {
+    "input": 3000.0,
+    "output": 6000.0,
+    "cache_read": null,
+    "cache_write": null
+  },
+  "models": {
+    "pass-model": {"input": 3000.0, "output": 8000.0},
+    "fortistore-injection": {"input": 4000.0, "output": 9000.0},
+    "hr-tool-dlp": {"input": 5000.0, "output": 10000.0},
+    "resume-tool-injection": {"input": 6000.0, "output": 12000.0}
+  }
+}
