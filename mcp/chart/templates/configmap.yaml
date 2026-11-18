@@ -8,6 +8,12 @@ metadata:
 data:
   server.py: |
 {{ .Files.Get "files/server.py" | indent 4 }}
+{{- if .Values.standard.enabled }}
+  mcp_standard.py: |
+{{ .Files.Get "files/mcp_standard.py" | indent 4 }}
+  requirements-standard.txt: |
+{{ .Files.Get "files/requirements-standard.txt" | indent 4 }}
+{{- end }}
   tools.json: |
 {{ .Files.Get "files/tools.json" | indent 4 }}
   documents.json: |

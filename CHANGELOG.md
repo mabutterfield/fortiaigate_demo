@@ -5,6 +5,17 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added a standards-based MCP endpoint alongside the legacy tool facade:
+  - `mcp_standard.py` serves MCP JSON-RPC 2.0 over Streamable HTTP with the
+    official MCP Python SDK, converting the existing tool registry so both
+    endpoints expose the same tools and synthetic results
+  - runs as a second container in the MCP pod on port 8001 (`/mcp`), with
+    schema-validated arguments, MCP tool errors, an Origin allow-list and a
+    server-side tool policy hook; the chatbot continues to use the legacy
+    facade until a standards client is added
+  - the MCP Ansible defaults now deploy this checkout's chart instead of the
+    sibling `fortiaigate_demo` checkout
+
 - Made external demo HTTP validation tolerant of brief startup transitions:
   - retry each failing path up to five times with a five-second delay while
     allowing healthy paths to complete immediately

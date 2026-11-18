@@ -22,3 +22,21 @@ probes:
 fortigate:
   enabled: false
   secretName: ""
+
+# Standards-based MCP endpoint (JSON-RPC 2.0, Streamable HTTP) served by
+# files/mcp_standard.py in a second container. It reuses the legacy tool
+# registry and runs in parallel with the custom HTTP facade above.
+standard:
+  enabled: true
+  containerPort: 8001
+  servicePort: 8001
+  nodePort: null
+  path: /mcp
+  stateless: false
+  jsonResponse: false
+  # Comma-separated browser Origins allowed to call the endpoint; requests
+  # without an Origin header (server-side clients) are always accepted.
+  allowedOrigins: ""
+  probes:
+    startupFailureThreshold: 30
+    periodSeconds: 10

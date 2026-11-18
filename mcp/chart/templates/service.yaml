@@ -17,3 +17,11 @@ spec:
 {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
       nodePort: {{ .Values.service.nodePort }}
 {{- end }}
+{{- if .Values.standard.enabled }}
+    - name: mcp-standard
+      port: {{ .Values.standard.servicePort }}
+      targetPort: mcp-standard
+{{- if and (eq .Values.service.type "NodePort") .Values.standard.nodePort }}
+      nodePort: {{ .Values.standard.nodePort }}
+{{- end }}
+{{- end }}

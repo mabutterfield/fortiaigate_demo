@@ -100,6 +100,115 @@ spec:
             - name: mcp-config
               mountPath: /app/documents
               readOnly: true
+{{- if .Values.standard.enabled }}
+        - name: mcp-standard
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Installs the pinned MCP SDK at start; a prebuilt image is a later step.
+          command:
+            - sh
+            - -c
+            - >-
+              pip install --no-cache-dir --disable-pip-version-check --root-user-action=ignore
+              -r /app/server/requirements-standard.txt
+              && exec python /app/server/mcp_standard.py
+          env:
+            - name: MCP_DATA_PATH
+              value: /app/data/tools.json
+            - name: MCP_DOCUMENT_INDEX_PATH
+              value: /app/documents/documents.json
+            - name: MCP_DOCUMENT_ROOT
+              value: /app/documents
+            - name: MCP_LEGACY_SERVER_PATH
+              value: /app/server/server.py
+            - name: MCP_STANDARD_PORT
+              value: "{{ .Values.standard.containerPort }}"
+            - name: MCP_STANDARD_PATH
+              value: "{{ .Values.standard.path }}"
+            - name: MCP_STANDARD_STATELESS
+              value: "{{ .Values.standard.stateless }}"
+            - name: MCP_STANDARD_JSON_RESPONSE
+              value: "{{ .Values.standard.jsonResponse }}"
+            - name: MCP_STANDARD_ALLOWED_ORIGINS
+              value: "{{ .Values.standard.allowedOrigins }}"
+            - name: MCP_FORTIGATE_ENABLED
+              value: "{{ .Values.fortigate.enabled }}"
+{{- if and .Values.fortigate.enabled .Values.fortigate.secretName }}
+            - name: MCP_FORTIGATE_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: base_url
+                  optional: true
+            - name: MCP_FORTIGATE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: api_token
+                  optional: true
+            - name: MCP_FORTIGATE_VDOM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: vdom
+                  optional: true
+            - name: MCP_FORTIGATE_VERIFY_TLS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: verify_tls
+                  optional: true
+            - name: MCP_FORTIGATE_TIMEOUT_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fortigate.secretName }}
+                  key: timeout_seconds
+                  optional: true
+{{- end }}
+          ports:
+            - name: mcp-standard
+              containerPort: {{ .Values.standard.containerPort }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: mcp-standard
+            periodSeconds: {{ .Values.standard.probes.periodSeconds }}
+            failureThreshold: {{ .Values.standard.probes.startupFailureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: mcp-standard
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: mcp-standard
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: mcp-config
+              mountPath: /app/server/server.py
+              subPath: server.py
+              readOnly: true
+            - name: mcp-config
+              mountPath: /app/server/mcp_standard.py
+              subPath: mcp_standard.py
+              readOnly: true
+            - name: mcp-config
+              mountPath: /app/server/requirements-standard.txt
+              subPath: requirements-standard.txt
+              readOnly: true
+            - name: mcp-config
+              mountPath: /app/data/tools.json
+              subPath: tools.json
+              readOnly: true
+            - name: mcp-config
+              mountPath: /app/documents
+              readOnly: true
+{{- end }}
       volumes:
         - name: mcp-config
           configMap:

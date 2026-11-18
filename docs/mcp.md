@@ -206,6 +206,76 @@ ansible-playbook ansible/playbooks/test_mcp.yml \
   -e mcp_test_base_url_override=http://203.0.113.10:30084
 ```
 
+## Standards MCP Endpoint
+
+The tool server above is a custom HTTP facade (`GET /tools`, `POST /mcp` with
+`{"tool", "arguments"}`); it does not speak the Model Context Protocol. A
+standards-based endpoint now runs in parallel in a second container of the same
+pod (`mcp-standard`). It serves MCP JSON-RPC 2.0 over Streamable HTTP using the
+official MCP Python SDK (`mcp==2.3.0`, pinned with its dependencies in
+`mcp/chart/files/requirements-standard.txt`).
+
+| | Legacy facade | Standards endpoint |
+|---|---|---|
+| Container / file | `mcp-demo` / `server.py` | `mcp-standard` / `mcp_standard.py` |
+| In-cluster URL | `http://mcp-demo.mcp.svc.cluster.local:8000` | `http://mcp-demo.mcp.svc.cluster.local:8001/mcp` |
+| Protocol | custom JSON over HTTP | MCP lifecycle, `tools/list`, `tools/call` |
+| Health | `GET /health` | `GET /health` on port 8001 |
+
+`mcp_standard.py` imports `server.py` and converts its OpenAI-style `TOOLS`
+definitions into MCP tool metadata, so both endpoints expose the same 39 tools
+backed by the same `run_tool` code and synthetic data. Conversion and results:
+
+- every tool is annotated read-only and non-destructive; `fortigate_*` tools
+  are marked open-world because they call a real FortiGate API
+- arguments are validated against each tool's JSON Schema; invalid arguments
+  and tool failures return MCP tool errors (`isError: true`) so a model can
+  correct itself, while an unknown tool is a JSON-RPC protocol error
+- results carry both text content (JSON) and `structuredContent`
+- payment-card and salary fields stay hidden, exactly as in the legacy facade
+
+Security boundary: this is a trusted, single-operator lab endpoint. There is no
+client authentication or per-client authorization; tool listing and calls pass
+through a `ToolPolicy` hook that currently allows everything, so scoping can be
+added later. Browser requests are rejected (403) unless their `Origin` is in
+`mcp_standard_allowed_origins`; server-side clients send no `Origin` and are
+accepted. Keep the endpoint on trusted networks.
+
+The container installs the pinned requirements from PyPI at startup on the
+stock `python:3.12-slim` image, so pod start needs outbound internet access; a
+prebuilt image is a planned follow-up. Because the Service type is NodePort,
+Kubernetes assigns port 8001 a random node port unless
+`mcp_standard_node_port` is set, and external access also needs a matching
+security group rule. The supported path today is in-cluster.
+
+Check the endpoint with the SDK client from inside the pod:
+
+```bash
+kubectl -n mcp exec deploy/mcp-demo -c mcp-standard -- \
+  python /app/server/mcp_standard.py --check http://mcp-demo.mcp.svc.cluster.local:8001/mcp
+```
+
+Expected output lists 39 tools, a successful `employee_lookup` call, an invalid
+argument call with `is_error=True`, and `PASS`.
+
+Variables (repo defaults in `system.yml`):
+
+```yaml
+mcp_standard_enabled: true
+mcp_standard_container_port: 8001
+mcp_standard_service_port: 8001
+mcp_standard_node_port: ""
+mcp_standard_path: /mcp
+mcp_standard_stateless: false
+mcp_standard_json_response: false
+mcp_standard_allowed_origins: []
+```
+
+`mcp_standard_internal_base_url` gives the full in-cluster MCP URL for a
+standards-based chatbot client. The existing chatbot still uses the legacy
+facade. Unit tests in `tests/test_mcp_standard.py` exercise the protocol with
+the SDK client and are skipped when the SDK is not installed.
+
 ## Configuration
 
 Repo defaults live in tracked `ansible/group_vars/system.yml`; local overrides

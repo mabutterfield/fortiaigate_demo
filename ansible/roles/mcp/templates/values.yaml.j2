@@ -26,3 +26,20 @@ probes:
 fortigate:
   enabled: {{ (mcp_fortigate_runtime_enabled | default(false) | bool) | ternary('true', 'false') }}
   secretName: {{ (mcp_fortigate_k8s_secret_name if mcp_fortigate_runtime_enabled | default(false) | bool else '') | to_json }}
+
+standard:
+  enabled: {{ (mcp_standard_enabled | bool) | ternary('true', 'false') }}
+  containerPort: {{ mcp_standard_container_port }}
+  servicePort: {{ mcp_standard_service_port }}
+{% if mcp_service_type == 'NodePort' and (mcp_standard_node_port | string | length > 0) %}
+  nodePort: {{ mcp_standard_node_port }}
+{% else %}
+  nodePort: null
+{% endif %}
+  path: {{ mcp_standard_path | to_json }}
+  stateless: {{ (mcp_standard_stateless | bool) | ternary('true', 'false') }}
+  jsonResponse: {{ (mcp_standard_json_response | bool) | ternary('true', 'false') }}
+  allowedOrigins: {{ (mcp_standard_allowed_origins | join(',')) | to_json }}
+  probes:
+    startupFailureThreshold: {{ mcp_standard_startup_failure_threshold }}
+    periodSeconds: 10

@@ -381,7 +381,10 @@ chatbot_instances:
 mcp_enabled: true
 mcp_namespace: mcp
 mcp_release_name: mcp-demo
-mcp_chart_local_path: "{{ faig_workspace_root }}/fortiaigate_demo/mcp/chart"
+# Change 2026-11-18: use this checkout's chart instead of the sibling
+# fortiaigate_demo checkout, which deployed another repository's MCP server.
+# mcp_chart_local_path: "{{ faig_workspace_root }}/fortiaigate_demo/mcp/chart"
+mcp_chart_local_path: "{{ (playbook_dir + '/../../mcp/chart') | realpath }}"
 mcp_chart_remote_root: "/home/{{ ansible_user }}/tmp/mcp-chart"
 mcp_values_remote_path: "/home/{{ ansible_user }}/tmp/mcp-values.yaml"
 mcp_tools_data_local_path: "{{ mcp_chart_local_path }}/files/tools.json"
@@ -396,6 +399,21 @@ mcp_helm_wait: false
 mcp_helm_timeout: 180s
 mcp_wait_for_rollout: true
 mcp_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_service_port }}"
+
+# Standards-based MCP endpoint (JSON-RPC 2.0 over Streamable HTTP) that runs in
+# parallel with the legacy custom HTTP facade, in a second container of the same
+# pod and sharing its tool registry. Leave mcp_standard_node_port empty for
+# cluster-only access; a NodePort also needs a matching security group rule.
+mcp_standard_enabled: true
+mcp_standard_container_port: 8001
+mcp_standard_service_port: 8001
+mcp_standard_node_port: ""
+mcp_standard_path: /mcp
+mcp_standard_stateless: false
+mcp_standard_json_response: false
+mcp_standard_allowed_origins: []
+mcp_standard_startup_failure_threshold: 30
+mcp_standard_internal_base_url: "http://{{ mcp_release_name }}.{{ mcp_namespace }}.svc.cluster.local:{{ mcp_standard_service_port }}{{ mcp_standard_path }}"
 mcp_status_run_tool_checks: true
 mcp_test_customer_id: CUST-1001
 mcp_test_ticket_id: TCK-2001
