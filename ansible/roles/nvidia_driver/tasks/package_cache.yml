@@ -1,0 +1,93 @@
+---
+- name: Install NVIDIA cache helper
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../scripts/nvidia_package_cache.py"
+    dest: /usr/local/sbin/faig-nvidia-package-cache
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Remove any incomplete prior NVIDIA cache download
+  ansible.builtin.file:
+    path: /var/tmp/faig-nvidia-cache.tar
+    state: absent
+
+- name: Download configured NVIDIA cache bundle
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3
+      - cp
+      - "{{ nvidia_package_cache_s3_uri }}"
+      - /var/tmp/faig-nvidia-cache.tar
+      - --region
+      - "{{ nvidia_package_cache_region }}"
+      - --only-show-errors
+  register: nvidia_package_cache_download
+  changed_when: nvidia_package_cache_download.rc == 0
+  failed_when: false
+  # - ansible.builtin.debug:
+  #     var: nvidia_package_cache_download.rc
+
+- name: Report unavailable NVIDIA cache and use Ubuntu repositories
+  ansible.builtin.debug:
+    msg: "NVIDIA cache could not be downloaded; using Ubuntu repositories."
+  when: nvidia_package_cache_download.rc != 0
+
+- name: Verify and prepare cached NVIDIA packages
+  ansible.builtin.command:
+    argv:
+      - /usr/local/sbin/faig-nvidia-package-cache
+      - prepare
+      - --archive
+      - /var/tmp/faig-nvidia-cache.tar
+      - --sha256
+      - "{{ nvidia_package_cache_sha256 }}"
+      - --driver-suffix
+      - "{{ nvidia_driver_package_suffix }}"
+      - --root
+      - "{{ nvidia_package_cache_root }}"
+  register: nvidia_package_cache_prepared
+  changed_when: true
+  when: nvidia_package_cache_download.rc == 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_package_cache_prepared.stdout
+
+- name: Select exact cached NVIDIA versions
+  ansible.builtin.set_fact:
+    nvidia_package_cache_install_packages: "{{ (nvidia_package_cache_prepared.stdout | from_json).packages + (nvidia_driver_extra_packages | default([])) }}"
+    nvidia_package_cache_repository: "{{ (nvidia_package_cache_prepared.stdout | from_json).repository }}"
+  when: nvidia_package_cache_download.rc == 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_package_cache_install_packages
+
+- name: Enable verified local NVIDIA APT repository
+  ansible.builtin.copy:
+    content: "deb [trusted=yes] file:{{ nvidia_package_cache_repository }} ./\n"
+    dest: /etc/apt/sources.list.d/faig-nvidia-cache.list
+    owner: root
+    group: root
+    mode: '0644'
+  when: nvidia_package_cache_download.rc == 0
+
+- name: Refresh APT metadata for verified NVIDIA cache
+  ansible.builtin.command:
+    argv:
+      - apt-get
+      - -o
+      - Dir::Etc::sourcelist=/etc/apt/sources.list.d/faig-nvidia-cache.list
+      - -o
+      - Dir::Etc::sourceparts=-
+      - -o
+      - APT::Get::List-Cleanup=0
+      - update
+  register: nvidia_package_cache_apt_update
+  changed_when: true
+  when: nvidia_package_cache_download.rc == 0
+  # - ansible.builtin.debug:
+  #     var: nvidia_package_cache_apt_update.stdout_lines
+
+- name: Remove temporary NVIDIA cache download
+  ansible.builtin.file:
+    path: /var/tmp/faig-nvidia-cache.tar
+    state: absent

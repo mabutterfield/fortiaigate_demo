@@ -52,10 +52,17 @@ The demo application layer also uses Helm charts:
 
 ## FortiAIGate Post-Renderer
 
-FortiAIGate uses
-`k8s-overlays/bin/post_render_fortiaigate.py` as a Helm post-renderer. This
-keeps the vendor chart outside the repo and applies lab-specific Kubernetes
-transforms to rendered YAML at deploy time.
+For 8.0.2, the deployment uses
+`k8s-overlays/bin/post_render_fortiaigate_802.py`. It sets the NVIDIA runtime
+on chart GPU workloads that request an NVIDIA resource and changes the
+`fortiaigate-storage` PVC to `ReadWriteOnce` when using the single-node
+`local-path` storage class. These are deployment compatibility changes, not
+the GPU partitioning or model experiments. The vendor chart remains outside
+the repo.
+
+For releases earlier than 8.0.2, the legacy deployment uses
+`k8s-overlays/bin/post_render_fortiaigate.py`. The following transforms and
+environment variables describe that legacy renderer only.
 
 Current post-render transforms:
 

@@ -65,9 +65,26 @@
   # - ansible.builtin.debug:
   #     var: nvidia_driver_branch_remove
 
+- name: Validate optional NVIDIA cache configuration
+  ansible.builtin.assert:
+    that:
+      - (nvidia_package_cache_s3_uri | length == 0) == (nvidia_package_cache_sha256 | length == 0)
+      - nvidia_package_cache_s3_uri | length == 0 or nvidia_package_cache_s3_uri is match('^s3://[^/]+/.+')
+      - nvidia_package_cache_sha256 | length == 0 or nvidia_package_cache_sha256 is match('^[a-fA-F0-9]{64}$')
+    fail_msg: "Configure both a cache S3 object URI and its trusted SHA-256, or leave both empty."
+
+- name: Remove the previously configured NVIDIA cache source
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/faig-nvidia-cache.list
+    state: absent
+
+- name: Prepare optional cached NVIDIA packages
+  ansible.builtin.include_tasks: package_cache.yml
+  when: nvidia_package_cache_s3_uri | length > 0
+
 - name: Install NVIDIA driver packages
   ansible.builtin.apt:
-    name: "{{ nvidia_driver_effective_packages }}"
+    name: "{{ nvidia_package_cache_install_packages | default(nvidia_driver_effective_packages) }}"
     state: present
     install_recommends: false
     update_cache: true

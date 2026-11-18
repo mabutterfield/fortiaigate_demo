@@ -164,6 +164,21 @@ resource "aws_iam_role_policy_attachment" "ec2_managed" {
   policy_arn = each.value
 }
 
+# The cache object is operator-owned and deliberately not created or destroyed here.
+resource "aws_iam_role_policy" "ec2_nvidia_cache_read" {
+  count = var.nvidia_package_cache_s3_uri != "" ? 1 : 0
+  name  = "nvidia-package-cache-read"
+  role  = aws_iam_role.ec2.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject"]
+      Resource = "arn:${data.aws_partition.current.partition}:s3:::${trimprefix(var.nvidia_package_cache_s3_uri, "s3://")}"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = local.ec2_instance_profile_name
   role = aws_iam_role.ec2.name

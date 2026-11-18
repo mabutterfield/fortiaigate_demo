@@ -96,8 +96,8 @@ functionality.
 These are directional ideas, not implemented features, release commitments, or
 supported setup steps:
 
-- create reusable AMI images to replace the NVIDIA package-cache workaround
-  and shorten AWS rebuilds;
+- evaluate reusable AMI images alongside the optional NVIDIA package cache
+  to shorten AWS rebuilds;
 - separate container-repository creation and image publishing from the normal
   deployment quickstart;
 - integrate FortiFlex-based licensing choices;

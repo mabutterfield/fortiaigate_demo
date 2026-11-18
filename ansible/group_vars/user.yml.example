@@ -253,3 +253,9 @@ openwebui_enabled: false
 # Advanced manual HTTPS gateway certificate paths.
 # demo_https_gateway_cert_local_path: /path/to/private/tls.crt
 # demo_https_gateway_key_local_path: /path/to/private/tls.key
+
+# Optional verified NVIDIA .deb bundle, stored outside disposable lab state.
+# Configure the same S3 URI in terraform/aws-prep for the instance role.
+# nvidia_package_cache_s3_uri: s3://your-cache-bucket/ubuntu/24.04/595-server/595.91.07/cache.tar
+# nvidia_package_cache_sha256: <trusted-64-character-sha256-of-the-bundle>
+# nvidia_package_cache_region: us-east-2

@@ -96,7 +96,7 @@ experiments are available from Git history rather than the release tree.
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common diagnosis and recovery procedures |
 | [Known Issues](known-issues.md) | Current limitations and workarounds |
-| [AWS NVIDIA Package Cache Workaround](troubleshooting/aws-nvidia-package-cache-workaround.md) | Temporary recovery for slow driver downloads; future AMI builds are intended to replace it |
+| [AWS NVIDIA Package Cache](troubleshooting/aws-nvidia-package-cache-workaround.md) | Optional verified, version-pinned NVIDIA package cache for AWS bootstrap |
 
 ### Author
 

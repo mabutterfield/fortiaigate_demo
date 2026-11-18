@@ -180,8 +180,8 @@ litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin
 litellm_ui_password: litellm-demo-change-me
-scenario_matrix_builder_path: "{{ faig_workspace_root }}/fortiaigate_demo/scripts/build_scenario_matrix.py"
-scenario_matrix_repo_root: "{{ faig_workspace_root }}/fortiaigate_demo"
+scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
+scenario_matrix_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
 scenario_matrix_llm_target_overrides: {}
 faig_chain_capability_enabled: true
 litellm_passthrough_model_alias: pass-model
@@ -465,6 +465,10 @@ nvidia_utils_package: nvidia-utils-595-server
 nvidia_driver_manage_branch_switch: true
 nvidia_driver_extra_packages: []
 nvidia_driver_expected_gpu_uuids: []
+# Configure both values in user.yml to prefer a verified NVIDIA package cache.
+nvidia_package_cache_s3_uri: ""
+nvidia_package_cache_sha256: ""
+nvidia_package_cache_region: "{{ aws_region | default('us-east-1', true) }}"
 nvidia_device_plugin_manifest_url: https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
 nvidia_runtime_class_name: nvidia
 nvidia_expected_gpu_count: 1

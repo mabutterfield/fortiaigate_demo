@@ -87,6 +87,16 @@ variable "ec2_iam_role_managed_policy_arns" {
   default     = []
 }
 
+variable "nvidia_package_cache_s3_uri" {
+  type        = string
+  description = "Optional s3://bucket/object URI for a separately managed NVIDIA package cache. Grants the EC2 role read access to that object only."
+  default     = ""
+  validation {
+    condition     = var.nvidia_package_cache_s3_uri == "" || can(regex("^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[^*?]+$", var.nvidia_package_cache_s3_uri))
+    error_message = "nvidia_package_cache_s3_uri must be empty or an exact s3://bucket/object URI without wildcards."
+  }
+}
+
 variable "allocate_eips" {
   type = object({
     k3s       = bool

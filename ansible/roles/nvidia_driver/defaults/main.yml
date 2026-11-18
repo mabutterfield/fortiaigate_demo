@@ -6,3 +6,8 @@ nvidia_driver_extra_packages: []
 nvidia_driver_expected_gpu_uuids: []
 nvidia_driver_install_retries: 4
 nvidia_driver_install_retry_delay: 60
+# Optional immutable S3 bundle. Both URI and trusted archive checksum are required.
+nvidia_package_cache_s3_uri: ""
+nvidia_package_cache_sha256: ""
+nvidia_package_cache_region: "{{ aws_region | default('us-east-1', true) }}"
+nvidia_package_cache_root: /var/cache/faig-nvidia-repo

@@ -19,6 +19,9 @@
 # fortiaigate_syslog_bucket_force_destroy = false
 # fortiaigate_syslog_prefix = "fortiaigate/syslog"
 # fortiaigate_syslog_lifecycle_days = 30
+# Optional existing, operator-owned NVIDIA cache object. Grants this exact
+# object read access to the k3s role; this module never creates the bucket.
+# nvidia_package_cache_s3_uri = "s3://your-cache-bucket/ubuntu/24.04/595-server/595.91.07/cache.tar"
 # enable_bedrock_iam = true
 # bedrock_credential_valid_days = 7
 # bedrock_credential_generation = "YYYYMMDD"

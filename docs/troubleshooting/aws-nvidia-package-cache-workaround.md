@@ -1,154 +1,81 @@
-# Temporary AWS NVIDIA Package Cache Workaround
+# NVIDIA package cache for AWS bootstrap
 
-This is a detailed troubleshooting workaround, not a normal quickstart step.
-Future AMI creation is intended to replace it.
+The optional cache keeps a tested NVIDIA driver and its downloaded Ubuntu
+package dependencies in an operator-owned private S3 object. The bucket is
+independent of the disposable FAIG infrastructure and is not deleted by the
+normal demo teardown. The cache is disabled unless both an object URI and an
+independently recorded SHA-256 are configured.
 
-This is a temporary operator workaround for slow NVIDIA package downloads during
-AWS k3s host bootstrap. It creates a private S3 cache bucket and grants the
-existing k3s EC2 instance role read/write access, so the instance can pull cached
-`.deb` bundles without an interactive AWS login.
+The bootstrap verifies the entire object against the configured SHA-256,
+checks each package's hash and metadata, and checks Ubuntu release,
+architecture, and driver branch. It creates a local APT repository and asks
+APT to install the exact cached NVIDIA driver, utilities, DKMS, and compute
+utilities versions. Other packages can still be resolved from Ubuntu if they
+are not in the cache. An unavailable S3 object falls back to the usual Ubuntu
+APT install; a downloaded object with a bad checksum or incompatible metadata
+stops the bootstrap. An S3 error can also indicate missing IAM access.
 
-This is not part of automated quickstart yet. Do not put this bucket in the
-normal demo teardown path.
+The checksum must be recorded through a trusted channel separate from the S3
+object: a hash stored next to an untrusted object is not authentication. The
+local APT repository is marked trusted because its packages were verified
+against that configured hash; keep its path root-owned. A cache accelerates
+package downloads but does not eliminate DKMS compilation, reboot, kernel
+compatibility checks, or all access to Ubuntu's repositories. The branch name
+(e.g. `595-server`) is not a full driver version. Exact pins here apply to the
+bootstrap install; normal OS upgrades are not automatically held.
 
-## Bucket Naming
+## Build a bundle
 
-Use a stable cache bucket base name, the AWS account ID from the active profile,
-and the AWS region. The current temporary convention is
-`faig-cache-${AWS_ACCOUNT_ID}-${AWS_REGION}`:
+On an Ubuntu host of the same release and architecture, after the desired
+NVIDIA driver installation has successfully completed and the complete `.deb`
+files remain in APT's cache, copy `scripts/nvidia_package_cache.py` to the
+host and run:
 
-```bash
-export AWS_PROFILE=ftnt-admin
-export AWS_REGION=us-east-1
-
-export CACHE_BUCKET_BASE=faig-cache
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)"
-export CACHE_BUCKET="${CACHE_BUCKET_BASE}-${AWS_ACCOUNT_ID}-${AWS_REGION}"
-export EC2_ROLE_NAME="$(terraform -chdir=terraform/aws-prep output -raw ec2_iam_role_name)"
-export CACHE_POLICY_NAME="${CACHE_BUCKET_BASE}-nvidia-readwrite"
+```sh
+sudo python3 /tmp/nvidia_package_cache.py build \
+  --packages /var/cache/apt/archives --driver-suffix 595-server \
+  --output /var/tmp/faig-nvidia-cache.tar
 ```
 
-For a typical deployment, `EC2_ROLE_NAME` resolves to `faig-demo-ec2-role`.
+The helper refuses an incomplete cache or inconsistent versions of the four
+required NVIDIA packages and prints the bundle SHA-256 and driver version.
+Review the package set and store the checksum outside the bucket. APT may
+clean downloaded packages on some images; in that case fetch the exact desired
+packages and dependencies into a staging directory before building. Do not
+bundle an APT `partial` directory or a package download still in progress.
 
-## Create The Private Bucket
+Upload the bundle to a versioned, immutable-by-convention object key in a
+private bucket. One option is to copy it to an operator workstation and upload
+with its SSO profile; alternatively grant the host a short-lived, object-scoped
+`PutObject` permission and remove it after upload. Verify the resulting object
+against the recorded SHA-256. S3 storage, requests, and any cross-region
+transfer have their normal AWS charges.
 
-For `us-east-1`:
+## Configure AWS and Ansible
 
-```bash
-aws s3api create-bucket \
-  --profile "$AWS_PROFILE" \
-  --bucket "$CACHE_BUCKET" \
-  --region "$AWS_REGION"
+Configure the same exact object URI in the AWS prep module's ignored override
+file and apply its plan:
+
+```hcl
+nvidia_package_cache_s3_uri = "s3://your-bucket/ubuntu/24.04/595-server/FULL-VERSION/CHECKSUM.tar"
 ```
 
-For other regions:
+The optional Terraform policy gives the EC2 role only `s3:GetObject` for that
+object. It does not create a bucket, write packages, or put the bucket into the
+Terraform destroy path. If the bucket uses a customer-managed KMS key, supply
+the additional key permission separately.
 
-```bash
-aws s3api create-bucket \
-  --profile "$AWS_PROFILE" \
-  --bucket "$CACHE_BUCKET" \
-  --region "$AWS_REGION" \
-  --create-bucket-configuration LocationConstraint="$AWS_REGION"
+In ignored `ansible/group_vars/user.yml`, configure:
+
+```yaml
+nvidia_package_cache_s3_uri: "s3://your-bucket/ubuntu/24.04/595-server/FULL-VERSION/CHECKSUM.tar"
+nvidia_package_cache_sha256: "<trusted-64-character-sha256>"
+nvidia_package_cache_region: "us-east-2"
 ```
 
-Apply basic private-bucket controls:
-
-```bash
-aws s3api put-public-access-block \
-  --profile "$AWS_PROFILE" \
-  --bucket "$CACHE_BUCKET" \
-  --public-access-block-configuration \
-  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-
-aws s3api put-bucket-encryption \
-  --profile "$AWS_PROFILE" \
-  --bucket "$CACHE_BUCKET" \
-  --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-```
-
-## Grant The Existing k3s Role Access
-
-The AWS k3s instance already uses the prep-owned EC2 role from
-`terraform/aws-prep`. Attach a narrow IAM policy to that role:
-
-```bash
-cat > /tmp/faig-nvidia-cache-policy.json <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ListFaigNvidiaCacheBucket",
-      "Effect": "Allow",
-      "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::${CACHE_BUCKET}"
-    },
-    {
-      "Sid": "ReadWriteFaigNvidiaCacheObjects",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject"
-      ],
-      "Resource": "arn:aws:s3:::${CACHE_BUCKET}/*"
-    }
-  ]
-}
-EOF
-
-aws iam create-policy \
-  --profile "$AWS_PROFILE" \
-  --policy-name "$CACHE_POLICY_NAME" \
-  --policy-document file:///tmp/faig-nvidia-cache-policy.json
-
-aws iam attach-role-policy \
-  --profile "$AWS_PROFILE" \
-  --role-name "$EC2_ROLE_NAME" \
-  --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${CACHE_POLICY_NAME}"
-```
-
-## Upload A Package Bundle
-
-After downloading package files into `~/nvidia-debs`:
-
-```bash
-cd ~
-tar -czf nvidia-debs-ubuntu-24.04-595-server.tgz nvidia-debs
-
-aws s3 cp \
-  --profile "$AWS_PROFILE" \
-  nvidia-debs-ubuntu-24.04-595-server.tgz \
-  "s3://${CACHE_BUCKET}/ubuntu/24.04/nvidia/595-server/nvidia-debs-ubuntu-24.04-595-server.tgz"
-```
-
-## Download From The EC2 Instance
-
-Because the instance role has S3 access, this does not require `aws sso login`
-on the instance:
-
-```bash
-aws s3 cp \
-  "s3://${CACHE_BUCKET}/ubuntu/24.04/nvidia/595-server/nvidia-debs-ubuntu-24.04-595-server.tgz" \
-  .
-
-tar -xzf nvidia-debs-ubuntu-24.04-595-server.tgz
-sudo apt-get update
-sudo apt-get install -y ./nvidia-debs/*.deb
-sudo reboot
-```
-
-## Future Direction
-
-Longer term, the cache bucket should remain a semi-permanent operator-owned
-bucket. Terraform should not create or destroy it as part of the disposable demo
-environment.
-
-The likely implementation is:
-
-- Add a user/system variable such as `nvidia_package_cache_bucket_name`, or a
-  bucket base variable that derives `${bucket_base}-${account_id}-${region}`.
-- If set, look up the existing bucket with a Terraform `data "aws_s3_bucket"`.
-- Extend the prep-owned EC2 role policy to include the required object read, and
-  optionally write, permissions for that bucket.
-- Update Ansible bootstrap to try the S3 cache first and fall back to apt when
-  the bucket or package archive is absent.
+The AWS CLI must be available on the host; the `common` role installs it before
+this driver role. A successful fresh-host bootstrap should be followed by
+`nvidia-smi`, a reboot, and Kubernetes GPU validation. When intentionally
+upgrading the driver, build and test a new versioned object, update both the URI
+and trusted checksum, and update the Terraform read policy. Leaving the URI
+and checksum empty uses the standard unpinned branch-based Ubuntu install.

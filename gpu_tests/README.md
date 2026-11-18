@@ -29,6 +29,11 @@ Fortinet support statements or production recommendations.
   They are evidence and manual lab helpers; they are not integrated into the
   supported deployment workflow.
 
+This directory is an isolated archive of experiments. Normal launchers,
+Ansible roles, and Helm post-renderers must not import, execute, or reference
+its scripts, values, services, or patches. Run an experiment only as an
+explicit separate manual activity on a disposable lab host.
+
 The vendor chart is **not** vendored here. The experiment used the extracted
 `FAIG_helm/8.0.2/fortiaigate` chart in the parent workspace, from Fortinet's
 `FAIG_helm_chart-V8.0.2-build0055-FORTINET.tar.gz`. Use the operator's licensed

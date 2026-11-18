@@ -39,11 +39,9 @@ licensing. The local-path storage post-render patch uses ReadWriteOnce for the
 vendor's shared PVC; all consuming pods must stay on the same node. Multi-node
 installations require a properly configured shared storage class.
 
-For a CPU-only experiment, set `fortiaigate_gpu_enabled: false` in ignored
-user vars and redeploy. The chart does not run vLLM in this mode; Fortinet's
-guide says DLP and Natural Language detectors are unavailable. Policies using
-Natural Language detectors can fail closed, so use a suitable test policy.
-CPU-only licensing and functional behavior still require validation.
+<!-- Historical CPU-only experiment: fortiaigate_gpu_enabled: false.
+Do not use as a normal deployment: the observed lab forwarded traffic with
+security scanning paused. GPU experiments are not invoked by this workflow. -->
 
 The chart creates a master-key Secret and uses a Kubernetes lookup to retain it
 across Helm upgrades. The Secret is marked to survive Helm uninstall, but not
