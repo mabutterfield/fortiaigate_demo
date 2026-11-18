@@ -462,3 +462,58 @@ intended. To keep ownership consistent, `scenario_lab.py prepopulate` signs in
 as each student and creates that student's detectors, guardrails, policies and
 keys with the student's own session; the admin session is used only to
 approve submissions and to create missing projects.
+
+## Adding a scenario model end to end (HR tool DLP example)
+
+1. Install the scenario so the LiteLLM matrix includes its alias and
+   instructions, then redeploy LiteLLM (use the deployment's Terraform
+   workspace, for example `TF_WORKSPACE=ohio-802`):
+
+   ```sh
+   python3 scripts/scenario_profiles.py add hr-tool-dlp
+   ansible-playbook -i cloud ansible/playbooks/deploy_litellm.yml
+   ```
+
+2. Add installed-scenario aliases missing from the FAIG providers, priced from
+   `model-pricing.json`. Workspaces and projects granted all provider models
+   receive the new model automatically.
+
+   ```sh
+   python3 experiments/faig-api-lab/model_pricing.py --sync-matrix --url "$FAIG_URL" \
+     --admin-credentials "$FAIG_ADMIN_FILE" --insecure            # preview
+   python3 experiments/faig-api-lab/model_pricing.py --sync-matrix --apply --url "$FAIG_URL" \
+     --admin-credentials "$FAIG_ADMIN_FILE" --insecure
+   ```
+
+3. Build the student objects and keys (`scenario_lab.py prepopulate`). It
+   creates missing scenario projects (for example `studentNN_hr-tool-dlp`) and
+   skips the HR actions until the model is available.
+
+4. Validate every key with `validate_keys.py`. It sends each scenario's
+   tracked `functional-tests` `<action>-attack` request with the matching key,
+   finds the Traffic Log record by key alias, and checks the verdict
+   (`alert` → Alert, `deny` → Block, `redact` → Redact). For HR it also checks
+   whether the fixture's synthetic DOB and SSN reached the client.
+
+   ```sh
+   python3 experiments/faig-api-lab/validate_keys.py --url "$FAIG_URL" \
+     --admin-credentials "$FAIG_ADMIN_FILE" --insecure \
+     --key-dir "$FAIG_STUDENT_CREDENTIALS_DIR/student01-keys" \
+     --key-dir "$FAIG_STUDENT_CREDENTIALS_DIR/student02-keys"
+   ```
+
+Observed on 2026-11-18 (Ohio lab, student01 and student02, 14 keys): all
+passed. LiteLLM answered `hr-tool-dlp` with its `FORTI_HR_DLP_DEMO_BOT`
+marker. The HR fixture replays an `employee_sensitive_lookup` tool result,
+so MCP was not required for this check; the chatbot path through MCP is still
+to be validated.
+
+| Scenario / action | Verdict | Detectors | Notes |
+|-------------------|---------|-----------|-------|
+| FortiStore, resume / alert | Alert | student alert copies (input) | request continues and is billed |
+| FortiStore, resume / deny | Block | built-in OWASP (input) | blocked before the model; cost 0 |
+| HR / alert | Alert | `studentNN-hr-dlp-alert` (output) | DOB and SSN reach the client |
+| HR / redact | Redact | `studentNN-hr-dlp-redact` (output) | values replaced with `[REDACTED_DATE_OF_BIRTH_1]`, `[REDACTED_SSN_1]`; phone and email unchanged |
+| HR / deny | Block | `studentNN-hr-dlp-block` (output) | blocked after generation, so the response is still billed |
+
+FAIG appends a counter (`_1`) to the configured replacement text.

@@ -59,6 +59,17 @@ class PricingTests(unittest.TestCase):
         self.assertEqual((body['models'][0]['uuid'], body['models'][0]['customOutputCost']), ('u1', 8000.0))
         self.assertEqual(body['updatedAt'], 't')
 
+    def test_missing_matrix_aliases_are_appended_priced(self):
+        provider = {'providerId': 'litellm-direct', 'platform': 'custom', 'name': 'litellm-direct',
+                    'endpoint': {}, 'updatedAt': 't', 'apiKeys': [],
+                    'models': [{'uuid': 'u1', 'modelId': 'pass-model'}]}
+        add = model_pricing.missing_models(provider, ['pass-model', 'hr-tool-dlp'])
+        self.assertEqual(add, ['hr-tool-dlp'])
+        models = model_pricing.provider_update(provider, PRICING, add)['models']
+        self.assertEqual([m['modelId'] for m in models], ['pass-model', 'hr-tool-dlp'])
+        self.assertNotIn('uuid', models[1])
+        self.assertEqual((models[1]['isCustom'], models[1]['customInputCost']), (True, 5000.0))
+
 
 if __name__ == '__main__':
     unittest.main()

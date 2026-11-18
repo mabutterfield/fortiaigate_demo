@@ -11,6 +11,17 @@ from pricing import DEFAULT_PRICING, cost_fields, load_pricing
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def matrix_groups():
+    """LiteLLM aliases from this checkout's installed scenarios, by FAIG provider."""
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_scenario_matrix.py')], cwd=ROOT,
+                            capture_output=True, text=True, check=True)
+    models = json.loads(result.stdout)['litellm_models']
+    return {
+        'litellm-direct': [m['name'] for m in models if m['llm_target'] != 'faig-chain-reentry'],
+        'litellm-faig-chain': [m['name'] for m in models if m['llm_target'] == 'faig-chain-reentry'],
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True, help='New JSON resource file')
@@ -18,13 +29,7 @@ def main():
     parser.add_argument('--pricing', type=Path, default=DEFAULT_PRICING, help='Lab model prices (USD per 1M tokens)')
     args = parser.parse_args()
     pricing = load_pricing(args.pricing)
-    result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_scenario_matrix.py')], cwd=ROOT, capture_output=True, text=True, check=True)
-    matrix = json.loads(result.stdout)
-    models = matrix['litellm_models']
-    groups = {
-        'litellm-direct': [m['name'] for m in models if m['llm_target'] != 'faig-chain-reentry'],
-        'litellm-faig-chain': [m['name'] for m in models if m['llm_target'] == 'faig-chain-reentry'],
-    }
+    groups = matrix_groups()
     if 'pass-model' not in groups['litellm-direct']:
         raise ValueError('Matrix does not contain the direct pass-model')
     resources = []
