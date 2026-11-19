@@ -13,10 +13,12 @@ import hashlib
 import json
 from pathlib import Path
 
+from .vocabulary import ACTION_IDS, EXPECTED_RESULTS, LOG_VERDICTS
+
 SCHEMA = 1
-ACTIONS = {'alert', 'block', 'redact'}
-RESULTS = {'completed', 'blocked', 'redacted', 'tool-pivot', 'sensitive-output', 'sensitive-tool-result'}
-VERDICTS = {'Log', 'Alert', 'Block', 'Redact'}
+ACTIONS = frozenset(ACTION_IDS)
+RESULTS = frozenset(EXPECTED_RESULTS)
+VERDICTS = frozenset(LOG_VERDICTS)
 KNOWN_WHEN = {'result_in', 'log_verdicts_any', 'log_verdicts_all', 'tools_called_include',
               'missing_required_tools_include', 'forbidden_tools_called_include'}
 
@@ -259,5 +261,25 @@ def build_views(catalog, source_commit=None, generated_at=None):
         student.append(entry)
         provisioning.append({'id': sid, 'scenario_version': scenario['scenario_version'], 'content_hash': content_hash,
                              'models': visible_models, 'actions': resolved_actions})
+    passthrough = {k: v for k, v in model_value('pass-model').items()
+                   if k not in ('instruction', 'instruction_file')}
+    platform_view = {
+        'hello_world': deepcopy(platform['hello_world']),
+        'passthrough_model': passthrough,
+        # Observed FAIG 8.0.2 behavior: direct model access, no policyIds.
+        'passthrough_direct_policy_count': 0,
+        'naming': deepcopy(platform['naming']),
+        'actions_vocabulary': list(ACTION_IDS),
+        'expected_results_vocabulary': list(EXPECTED_RESULTS),
+        'verdicts_vocabulary': list(LOG_VERDICTS),
+        'currency': platform['currency'],
+        'unit': platform['unit'],
+        'pricing_note': 'Artificial FAIG lab prices; not actual AWS charges.',
+    }
+    platform_view['content_hash'] = digest(platform_view)
+    student_view = header('student', student)
+    student_view['platform'] = deepcopy(platform_view)
+    faig_view = header('faig', provisioning)
+    faig_view['platform'] = deepcopy(platform_view)
     return {'models': header('models', model_items), 'mcp': header('mcp', tool_items),
-            'student': header('student', student), 'faig': header('faig', provisioning)}
+            'student': student_view, 'faig': faig_view}

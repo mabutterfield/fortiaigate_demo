@@ -27,6 +27,16 @@ It references the existing tracked synthetic fixture and dispatcher; runtime
 MCP still uses its old `TOOLS` registry. The future MCP compiler and the
 migration/removal of the duplicate tool registry are not implemented here.
 
+The `student` and `faig` views expose a `platform` object with the shared
+hello-world case, resolved pass-model metadata, naming patterns, action/result/
+verdict vocabularies and lab price units. The observed platform passthrough
+key has no directly attached policy (`policyIds: []`); inherited policies and
+scanning status still need to be checked independently. The object has its
+own deterministic hash. `vocabulary.py` owns the current catalog constants;
+the existing `functional_test/result_contract.py` has not yet migrated to
+them. The proposed ConfigMap keys are `catalog-student.json` and
+`catalog-faig.json`; ConfigMap generation and delivery are not implemented.
+
 All paths resolve within the supplied checkout root; credentials, users and
 FAIG UUIDs are absent. The model view includes backend instruction text and is
 for trusted deployment consumers; the student view omits that text. SHA-256

@@ -6,7 +6,9 @@
   "naming": {
     "workspace": "{student}_workspace",
     "project": "{student}_{scenario}",
-    "key": "{student}-{scenario}-{action}"
+    "key": "{student}-{scenario}-{action}",
+    "policy": "{student}-{scenario}-{action}-policy",
+    "guardrail": "{student}-{scenario}-{action}-guardrail"
   },
   "hello_world": {
     "prompt": "Reply with exactly: Hello.",

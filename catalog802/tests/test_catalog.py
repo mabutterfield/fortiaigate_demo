@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from catalog802 import loader
+from catalog802.vocabulary import ACTION_IDS, EXPECTED_RESULTS, LOG_VERDICTS
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,6 +43,18 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(first['faig']['items'][0]['content_hash'], student['content_hash'])
         self.assertEqual(len(first['mcp']['items']), 4)
         self.assertEqual(first['models']['items'][0]['id'], 'hr-tool-dlp')
+        for view in ('student', 'faig'):
+            platform = first[view]['platform']
+            self.assertEqual(platform['hello_world']['expected_log_verdict'], 'Log')
+            self.assertEqual(platform['passthrough_model']['id'], 'pass-model')
+            self.assertEqual(platform['passthrough_direct_policy_count'], 0)
+            self.assertEqual(platform['actions_vocabulary'], list(ACTION_IDS))
+            self.assertEqual(platform['expected_results_vocabulary'], list(EXPECTED_RESULTS))
+            self.assertEqual(platform['verdicts_vocabulary'], list(LOG_VERDICTS))
+            self.assertEqual((platform['currency'], platform['unit']), ('USD', 'per_1m_tokens'))
+            self.assertEqual(platform['naming']['policy'], '{student}-{scenario}-{action}-policy')
+            self.assertEqual(platform['content_hash'], later[view]['platform']['content_hash'])
+            self.assertNotIn('instruction', platform['passthrough_model'])
 
     def test_instruction_and_tool_fixture_change_affect_hash(self):
         cat, _ = loader.load(self.root)
