@@ -78,3 +78,8 @@ view includes its contents and the scenario hash covers them. Resume document
 fixtures are separately referenced and hashed. Resume Block records the known
 early-block issue without suppressing failed-test evidence. Neither scenario
 change has been tested against a live FAIG deployment in this migration.
+
+`result_contract.evaluate` implements the approved outcome rules over supplied
+observations, preserving the Traffic Log rows and failure reasons. It does not
+collect logs, identify evidence, or replace the existing live test runner; the
+caller must provide complete rows, evidence, and tools called.
