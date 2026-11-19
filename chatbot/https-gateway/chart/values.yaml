@@ -62,3 +62,6 @@ labAuth:
   signingSecretName: lab-gateway-signing
   # Optional Secret with the fallback password store (key: fallback.json).
   fallbackSecretName: ""
+  # Secret with per-caller bearer tokens for /_lab/internal/ broker calls
+  # (key = caller name, e.g. lab-management). Created once by Ansible.
+  callerSecretName: lab-gateway-callers

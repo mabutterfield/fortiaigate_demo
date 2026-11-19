@@ -87,6 +87,12 @@ lab_gateway_idle_minutes: 120
 # faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
+# Change 2026-11-19: per-caller bearer tokens for lab_auth broker endpoints
+# (/_lab/internal/ on the auth service port). Each caller's role copies its own
+# token into its namespace.
+lab_gateway_caller_secret_name: lab-gateway-callers
+lab_gateway_callers:
+  - lab-management
 # Change 2026-11-19: always keep a fallback Secret so admin password resets
 # (lab chatbot Admin tab) store matching fallback hashes; mode stays faig.
 # lab_gateway_fallback_secret_name: ""

@@ -28,6 +28,12 @@ Environment:
   LAB_FALLBACK_SECRET        Secret holding LAB_FALLBACK_FILE (key fallback.json); when set, admin
                              password resets also update the student's fallback hash there
   LAB_NAMESPACE              namespace of LAB_FALLBACK_SECRET
+  LAB_CALLER_TOKEN_DIR       directory of per-caller bearer tokens (lab_broker.py; default /etc/lab-auth/callers)
+
+Change 2026-11-19: each sign-in also gets an opaque session handle, sent to
+upstreams as X-Lab-Session by nginx. In-cluster callers with their own token
+(lab_broker.CALLER_SCOPES) act for that handle's live session through
+/_lab/internal/admin/faig, limited to lab_broker.ADMIN_ALLOW.
 """
 from __future__ import annotations
 
@@ -47,6 +53,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # lab_broker.py sits next to this file
+import lab_broker  # noqa: E402
 
 PORT = int(os.environ.get("LAB_AUTH_PORT", "8090"))
 FAIG_URL = os.environ.get("LAB_FAIG_URL", "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local").rstrip("/")
@@ -97,6 +108,11 @@ def verify_identity(headers: dict, key: bytes = None, now: float = None) -> dict
 
 # ------------------------------------------------------------------ FAIG client
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
 class FaigSession:
     """A signed-in FAIG session (cookie jar + CSRF token) kept server-side."""
 
@@ -104,8 +120,9 @@ class FaigSession:
         self.base = base
         context = ssl.create_default_context() if verify else ssl._create_unverified_context()
         self.jar = http.cookiejar.CookieJar()
+        # Change 2026-11-19: never follow FAIG redirects (cookies/CSRF must not move elsewhere).
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar),
-                                                  urllib.request.HTTPSHandler(context=context))
+                                                  urllib.request.HTTPSHandler(context=context), _NoRedirect())
         self.csrf = ""
 
     def call(self, method: str, path: str, payload=None):
@@ -227,8 +244,18 @@ class Sessions:
         token = secrets.token_urlsafe(32)
         now = time.time()
         with self.lock:
-            self.data[token] = {"identity": identity, "faig": faig, "created": now, "seen": now}
+            # handle: opaque reference for upstream callers; never the cookie value.
+            self.data[token] = {"identity": identity, "faig": faig, "created": now, "seen": now,
+                                "handle": secrets.token_urlsafe(24)}
         return token
+
+    def by_handle(self, handle: str, now: float = None) -> dict | None:
+        """Live session for an upstream-supplied handle (same expiry rules as the cookie)."""
+        if not handle:
+            return None
+        with self.lock:
+            token = next((t for t, s in self.data.items() if hmac.compare_digest(s.get("handle", ""), handle)), None)
+        return self.get(token, now) if token else None
 
     def get(self, token: str, now: float = None) -> dict | None:
         now = now or time.time()
@@ -347,6 +374,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/password":
             return self.admin_password()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/faig":
+            return self.admin_faig_proxy()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -394,7 +423,7 @@ class Handler(BaseHTTPRequestHandler):
         identity = dict(session["identity"], ts=str(int(time.time())))
         headers = {"X-Lab-User": identity["user"], "X-Lab-Student": identity["student"], "X-Lab-Role": identity["role"],
                    "X-Lab-Workspace-Id": identity["workspace_id"], "X-Lab-Ts": identity["ts"],
-                   "X-Lab-Signature": sign_identity(identity)}
+                   "X-Lab-Signature": sign_identity(identity), "X-Lab-Session": session.get("handle", "")}
         return self.respond(200, b"", headers)
 
     def whoami(self):
@@ -524,6 +553,57 @@ class Handler(BaseHTTPRequestHandler):
         print(f"admin password reset for {student} by {session['identity']['user']}: fallback {result['fallback']}",
               flush=True)
         return self.json_reply(200, result)
+
+    def admin_faig_proxy(self):
+        """POST {method, path, body?}: forward one allowlisted call with the instructor's FAIG session."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            if not 0 < length <= lab_broker.MAX_PROXY_BODY:
+                raise ValueError("bad length")
+            request = json.loads(self.rfile.read(length))
+            method, path = str(request.get("method", "")).upper(), str(request.get("path", ""))
+            body = request.get("body")
+            if set(request) - {"method", "path", "body"}:
+                raise ValueError("unexpected fields")
+        except (ValueError, AttributeError):
+            return self.json_reply(400, {"error": "bad request body"})
+        if not lab_broker.allowed(method, path):
+            return self.json_reply(403, {"error": "FAIG call not allowed", "method": method})
+        try:
+            data = session["faig"].call(method, path, body)
+            return self.json_reply(200, {"status": 200, "body": data})
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                # The instructor's FAIG session is no longer valid: end it here too.
+                SESSIONS.drop(next((t for t, s in list(SESSIONS.data.items()) if s is session), ""))
+                return self.json_reply(401, {"error": "FAIG session expired; sign in again"})
+            try:
+                detail = json.loads(exc.read() or b"{}")
+            except ValueError:
+                detail = {}
+            return self.json_reply(200, {"status": exc.code, "body": detail})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            # Unknown outcome: the caller must re-read state before any retry.
+            return self.json_reply(504, {"error": f"FAIG unreachable or timed out ({type(exc).__name__})"})
+
+
+def broker_session(handler, scope: str):
+    """Resolve caller token + session handle; reply and return None when not allowed."""
+    caller = lab_broker.caller_for(handler.headers.get("Authorization", ""), lab_broker.load_caller_tokens())
+    if not caller or lab_broker.CALLER_SCOPES.get(caller) != scope:
+        handler.json_reply(403, {"error": "caller not allowed"})
+        return None
+    session = SESSIONS.by_handle(handler.headers.get("X-Lab-Session", ""))
+    if not session or not session.get("faig"):
+        handler.json_reply(401, {"error": "sign in again"})
+        return None
+    if scope == "admin" and session["identity"].get("role") != "admin":
+        handler.json_reply(403, {"error": "administrator session required"})
+        return None
+    return session
 
 
 def main():

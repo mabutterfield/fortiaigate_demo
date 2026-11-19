@@ -16,6 +16,9 @@ authUrl: http://demo-https-gateway-auth.demo-https-gateway.svc.cluster.local:809
 # Optional exact browser origin for POSTs; empty = derive from X-Forwarded-* set by the gateway.
 publicOrigin: ""
 
+# Bearer token for gateway broker calls (key: token); optional.
+callerSecretName: lab-management-caller
+
 # Rendered catalog views (ConfigMap name shared by convention with the chatbot).
 catalogConfigMapName: lab-catalog
 

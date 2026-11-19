@@ -73,7 +73,8 @@ class JournalTests(unittest.TestCase):
         lm.select(self.db, ["hr-tool-dlp"], {"hr-tool-dlp"})
         lm.create_job(self.db, "models", "admin@lab", {})
         lm.create_job(self.db, "students", "admin@lab", {"count": 2, "start_index": 1, "prepopulate": True})
-        self.assertEqual({j["status"] for j in lm.jobs(self.db)}, {"blocked"})
+        # Model jobs run (queued); student batches have no executor yet (blocked).
+        self.assertEqual({j["kind"]: j["status"] for j in lm.jobs(self.db)}, {"models": "queued", "students": "blocked"})
         for bad in ({"count": 2, "start_index": 1, "prepopulate": True, "password": "secret"},
                     {"count": 0, "start_index": 1, "prepopulate": True},
                     {"count": 2, "start_index": 100, "prepopulate": True},
@@ -171,3 +172,131 @@ class RenderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------- models job (Change 2026-11-19)
+
+PROVIDER = {
+    "providerId": "litellm-direct", "platform": "custom", "name": "litellm-direct", "endpoint": "/v1",
+    "description": None, "autoSyncNewModels": False, "updatedAt": "t1",
+    "apiKeys": [{"id": "k1", "name": "litellm-direct/litellm-key", "enabled": True, "weight": 1,
+                 "apiKeyMasked": "sk-***abcd"}],
+    "models": [
+        {"uuid": "u1", "modelId": "pass-model", "publicName": "pass-model", "enabled": True, "isCustom": True,
+         "customizedCost": True, "customInputCost": 3000, "customOutputCost": 8000,
+         "customCacheReadCost": None, "customCacheWriteCost": None},
+        {"uuid": "u2", "modelId": "other-model", "publicName": "other-model", "enabled": True, "isCustom": True,
+         "customizedCost": False, "customInputCost": None, "customOutputCost": None,
+         "customCacheReadCost": None, "customCacheWriteCost": None},
+    ],
+}
+
+
+class FakeFaig:
+    """Stands in for the broker: keeps one provider and applies PUTs like FAIG."""
+
+    def __init__(self, provider, fail_put=None):
+        self.provider = json.loads(json.dumps(provider))
+        self.calls = []
+        self.fail_put = fail_put
+
+    def __call__(self, method, path, body=None):
+        self.calls.append((method, path, body))
+        if method == "GET":
+            return json.loads(json.dumps(self.provider))
+        if method == "PUT":
+            self.provider["models"] = [dict(m, uuid=m.get("uuid") or "new-" + m["modelId"]) for m in body["models"]]
+            self.provider["apiKeys"] = [dict(k, apiKeyMasked="sk-***abcd") for k in body["apiKeys"]]
+            if self.fail_put:
+                raise self.fail_put
+            return self.provider
+        raise AssertionError(method)
+
+
+class ModelsJobTests(unittest.TestCase):
+    def setUp(self):
+        from catalog802.loader import build_views, load
+        catalog, errors = load(REPO_ROOT)
+        self.assertFalse(errors)
+        self.view = build_views(catalog)["faig"]
+
+    def test_prices_convert_to_api_numbers(self):
+        self.assertEqual(lm.api_number("5000"), 5000)
+        self.assertEqual(lm.api_number("0.25"), 0.25)
+        self.assertIsNone(lm.api_number(None))
+        with self.assertRaises(ValueError):
+            lm.api_number("lots")
+        self.assertEqual(lm.cost_fields({"input": "1", "output": None})["customizedCost"], True)
+        self.assertEqual(lm.cost_fields({})["customizedCost"], False)
+
+    def test_adds_missing_model_keeps_others_and_credentials(self):
+        faig, lines = FakeFaig(PROVIDER), []
+        lm.run_models_job(faig, self.view, {"hr-tool-dlp"}, lines.append)
+        put = next(body for method, _, body in faig.calls if method == "PUT")
+        self.assertEqual(put["apiKeys"], [{"id": "k1", "name": "litellm-direct/litellm-key", "description": None,
+                                           "enabled": True, "weight": 1}])  # no secret, no mask
+        ids = [m["modelId"] for m in put["models"]]
+        self.assertEqual(ids, ["pass-model", "other-model", "hr-tool-dlp"])
+        hr = put["models"][-1]
+        self.assertEqual((hr["customInputCost"], hr["customOutputCost"], hr["customizedCost"]), (5000, 10000, True))
+        self.assertEqual(put["models"][1]["customizedCost"], False)  # unrelated model untouched
+        self.assertIn("saved and verified", lines[-1])
+
+    def test_no_change_means_no_write(self):
+        provider = json.loads(json.dumps(PROVIDER))
+        provider["models"].append({"uuid": "u3", "modelId": "hr-tool-dlp", "publicName": "hr-tool-dlp",
+                                   "enabled": True, "isCustom": True, "customizedCost": True,
+                                   "customInputCost": 5000, "customOutputCost": 10000,
+                                   "customCacheReadCost": None, "customCacheWriteCost": None})
+        faig, lines = FakeFaig(provider), []
+        lm.run_models_job(faig, self.view, {"hr-tool-dlp"}, lines.append)
+        self.assertEqual([m for m, _, _ in faig.calls], ["GET"])
+        self.assertIn("no change", lines[0])
+
+    def test_unknown_put_outcome_is_verified_by_reading_back(self):
+        faig, lines = FakeFaig(PROVIDER, fail_put=lm.UnknownOutcome("timeout")), []
+        lm.run_models_job(faig, self.view, {"hr-tool-dlp"}, lines.append)
+        self.assertEqual([m for m, _, _ in faig.calls], ["GET", "PUT", "GET"])
+        self.assertIn("outcome unknown", " ".join(lines))
+        self.assertIn("saved and verified", lines[-1])
+
+    def test_lost_model_after_save_fails_loudly(self):
+        class Lossy(FakeFaig):
+            def __call__(self, method, path, body=None):
+                result = super().__call__(method, path, body)
+                if method == "PUT":
+                    self.provider["models"] = [m for m in self.provider["models"] if m["modelId"] != "other-model"]
+                return result
+        with self.assertRaises(lm.BrokerError) as raised:
+            lm.run_models_job(Lossy(PROVIDER), self.view, {"hr-tool-dlp"}, lambda _: None)
+        self.assertIn("other-model", str(raised.exception))
+
+    def test_unknown_selected_scenario_is_rejected(self):
+        with self.assertRaises(ValueError):
+            lm.desired_models(self.view, {"no-such-scenario"})
+
+
+class ExecuteTests(unittest.TestCase):
+    def test_session_loss_and_restart_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "j.sqlite3")
+            db = lm.connect(path)
+            lm.select(db, ["hr-tool-dlp"], {"hr-tool-dlp"})
+            job = lm.create_job(db, "models", "admin@lab", {})
+            self.assertEqual(db.execute("SELECT status FROM jobs").fetchone()[0], "queued")
+            with patch.object(lm, "load_faig_view", return_value={}), \
+                    patch.object(lm, "run_models_job", side_effect=lm.SessionLost("x")):
+                lm.execute(job, "models", {"scenarios": ["hr-tool-dlp"]}, "handle", db_path=path)
+            self.assertEqual(db.execute("SELECT status FROM jobs").fetchone()[0], "needs-sign-in")
+            job2 = lm.create_job(db, "models", "admin@lab", {})
+            lm.interrupt_unfinished(db)
+            self.assertEqual(db.execute("SELECT status FROM jobs WHERE id=?", (job2,)).fetchone()[0], "interrupted")
+            db.close()
+
+    def test_broker_requires_token_and_handle(self):
+        with patch.object(lm, "caller_token", return_value=""), patch.object(lm, "AUTH_URL", "http://auth"):
+            with self.assertRaises(lm.BrokerError):
+                lm.broker("h", "GET", "/api/v1/admin/ai-providers")
+        with patch.object(lm, "caller_token", return_value="t" * 64), patch.object(lm, "AUTH_URL", "http://auth"):
+            with self.assertRaises(lm.SessionLost):
+                lm.broker("", "GET", "/api/v1/admin/ai-providers")

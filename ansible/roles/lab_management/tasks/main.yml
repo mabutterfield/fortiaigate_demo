@@ -94,6 +94,49 @@
   become: false
   when: lab_management_enabled | bool
 
+- name: Ensure lab management namespace exists
+  ansible.builtin.shell: |
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    $K get namespace {{ lab_management_namespace }} >/dev/null 2>&1 || $K create namespace {{ lab_management_namespace }} >/dev/null
+  changed_when: false
+  when: lab_management_enabled | bool
+
+- name: Copy the broker caller token into the lab management namespace
+  # The token is piped between kubectl calls on the host and never printed.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    if ! $K -n {{ lab_management_caller_source_namespace }} get secret {{ lab_management_caller_source_secret }} >/dev/null 2>&1; then
+      echo missing
+      exit 0
+    fi
+    DOC="$($K -n {{ lab_management_caller_source_namespace }} get secret {{ lab_management_caller_source_secret }} -o json \
+      | python3 -c 'import json, sys; s = json.load(sys.stdin); v = (s.get("data") or {}).get("lab-management"); print(json.dumps({"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": sys.argv[1], "namespace": sys.argv[2], "labels": {"app.kubernetes.io/part-of": "lab-management"}}, "data": {"token": v}}) if v else "")' \
+        {{ lab_management_caller_secret_name }} {{ lab_management_namespace }})"
+    if [ -n "$DOC" ]; then
+      printf '%s' "$DOC" | $K apply -f - >/dev/null
+      echo copied
+    else
+      echo missing
+    fi
+  args:
+    executable: /bin/bash
+  register: lab_management_caller_copy
+  changed_when: false
+  no_log: true
+  when: lab_management_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_management_caller_copy.stdout
+
+- name: Warn when the broker caller token is not available yet
+  ansible.builtin.debug:
+    msg: >-
+      Gateway caller token not found ({{ lab_management_caller_source_namespace }}/{{ lab_management_caller_source_secret }}).
+      Deploy the HTTPS gateway, then re-run this playbook to enable FAIG actions.
+  when:
+    - lab_management_enabled | bool
+    - lab_management_caller_copy.stdout | default('') != 'copied'
+
 - name: Render lab management Helm values
   ansible.builtin.template:
     src: values.yaml.j2

@@ -9,3 +9,4 @@ catalogConfigMapName: {{ lab_management_catalog_configmap_name | to_json }}
 persistence:
   size: {{ lab_management_pvc_size | string | to_json }}
   storageClassName: {{ lab_management_storage_class | to_json }}
+callerSecretName: {{ lab_management_caller_secret_name | to_json }}

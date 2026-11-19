@@ -16,3 +16,5 @@ button { padding: .55rem .8rem; cursor: pointer; }
 input[type=number] { width: 5rem; }
 label { margin-right: 1rem; }
 @media (max-width: 640px) { header { flex-direction: column; padding: 1rem 1rem 0; } main { padding: 0 1rem 1rem; } }
+.status { font-weight: 600; } .status.done { color: var(--ok); } .status.failed, .status.needs-sign-in, .status.interrupted { color: var(--bad); } .status.blocked { color: var(--warn); }
+button:disabled { cursor: not-allowed; opacity: .6; }

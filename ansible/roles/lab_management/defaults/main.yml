@@ -25,3 +25,9 @@ lab_management_catalog_configmap_name: lab-catalog
 # X-Forwarded-Proto/-Host headers.
 lab_management_public_origin: ""
 lab_management_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"
+# Broker caller token: copied from the gateway's caller Secret (key
+# lab-management) into this namespace. Deploy the gateway first; without it the
+# page still starts but FAIG actions report "broker not configured".
+lab_management_caller_source_namespace: "{{ demo_https_gateway_namespace | default('demo-https-gateway') }}"
+lab_management_caller_source_secret: "{{ lab_gateway_caller_secret_name | default('lab-gateway-callers') }}"
+lab_management_caller_secret_name: lab-management-caller

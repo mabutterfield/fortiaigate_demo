@@ -54,6 +54,7 @@
           auth_request_set $lab_workspace_id $upstream_http_x_lab_workspace_id;
           auth_request_set $lab_ts $upstream_http_x_lab_ts;
           auth_request_set $lab_signature $upstream_http_x_lab_signature;
+          auth_request_set $lab_session $upstream_http_x_lab_session;
           error_page 401 = @lab_login;
           proxy_set_header X-Lab-User $lab_user;
           proxy_set_header X-Lab-Student $lab_student;
@@ -61,6 +62,7 @@
           proxy_set_header X-Lab-Workspace-Id $lab_workspace_id;
           proxy_set_header X-Lab-Ts $lab_ts;
           proxy_set_header X-Lab-Signature $lab_signature;
+          proxy_set_header X-Lab-Session $lab_session;
           # set must come before rewrite...break, which ends rewrite-module processing.
           set $proxy_upstream "{{ .upstream }}";
           rewrite ^{{ trimSuffix "/" .path }}/(.*)$ /$1 break;
@@ -78,6 +80,7 @@
           auth_request_set $lab_workspace_id $upstream_http_x_lab_workspace_id;
           auth_request_set $lab_ts $upstream_http_x_lab_ts;
           auth_request_set $lab_signature $upstream_http_x_lab_signature;
+          auth_request_set $lab_session $upstream_http_x_lab_session;
           error_page 401 = @lab_login;
           # Overwrite any client-supplied identity headers with the signed values.
           proxy_set_header X-Lab-User $lab_user;
@@ -86,6 +89,7 @@
           proxy_set_header X-Lab-Workspace-Id $lab_workspace_id;
           proxy_set_header X-Lab-Ts $lab_ts;
           proxy_set_header X-Lab-Signature $lab_signature;
+          proxy_set_header X-Lab-Session $lab_session;
           set $proxy_upstream "{{ $route.upstream }}";
           proxy_pass $proxy_upstream;
 {{- include "demo-https-gateway.proxyHeaders" . }}
@@ -145,4 +149,6 @@ data:
 {{- if .Values.labAuth.enabled }}
   lab_auth.py: |
 {{ .Files.Get "files/lab_auth.py" | indent 4 }}
+  lab_broker.py: |
+{{ .Files.Get "files/lab_broker.py" | indent 4 }}
 {{- end }}

@@ -58,15 +58,29 @@ async function refresh() {
   box.replaceChildren();
   if (state.catalog_error) box.append(text('p', state.catalog_error, 'warn'));
   state.catalog.forEach(s => box.append(scenarioSection(s, state.selected.includes(s.id))));
+  el('actions').textContent = state.faig_actions ? '' : 'FAIG actions are not configured yet: deploy the gateway, then redeploy lab management.';
+  el('models').disabled = !state.faig_actions;
   const list = el('jobs');
   list.replaceChildren();
   if (!state.jobs.length) list.append(text('p', 'No operations recorded.', 'muted'));
-  state.jobs.forEach(j => list.append(text('p',
-    j.kind + ' · ' + j.status + ' · ' + j.actor + ' · ' + new Date(j.created * 1000).toLocaleString() + ' · ' + j.detail + ' ' + j.request)));
+  state.jobs.forEach(j => {
+    const section = document.createElement('section');
+    section.append(text('p', j.kind + ' · ' + new Date(j.created * 1000).toLocaleString() + ' · ' + j.actor + ' · ', 'muted'));
+    section.firstChild.append(text('span', j.status, 'status ' + j.status));
+    section.append(text('pre', j.detail));
+    list.append(section);
+  });
+  return state;
+}
+
+let polling = null;
+function pollWhileRunning(state) {
+  const busy = state && state.jobs.some(j => j.status === 'queued' || j.status === 'running');
+  if (busy && !polling) polling = setInterval(() => refresh().then(s => { if (!s.jobs.some(j => j.status === 'queued' || j.status === 'running')) { clearInterval(polling); polling = null; } }).catch(() => {}), 2000);
 }
 
 async function run(fn) {
-  try { el('error').textContent = ''; await fn(); await refresh(); }
+  try { el('error').textContent = ''; await fn(); pollWhileRunning(await refresh()); }
   catch (e) { el('error').textContent = e.message; }
 }
 

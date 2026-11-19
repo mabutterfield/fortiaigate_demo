@@ -15,7 +15,8 @@
   <div id="approval" class="indicator" role="status" aria-live="polite">Auto-approval: …</div>
 </header>
 <main>
-  <p class="notice">Preview only. FAIG changes are not connected yet: requests below are recorded as <strong>blocked</strong> and make no changes to FAIG, students or keys.</p>
+  <p class="notice"><strong>Apply models</strong> changes FAIG using your own signed-in FAIG session. Student batches are still recorded as <strong>blocked</strong> and make no changes yet.</p>
+  <p id="actions" class="warn"></p>
   <div id="error" role="alert"></div>
 
   <h2>Scenarios</h2>
@@ -26,8 +27,8 @@
   </form>
 
   <h2>FAIG models for selected scenarios</h2>
-  <p>Adds or updates the selected scenarios' models and lab prices in FAIG, keeping other models.</p>
-  <button id="models" type="button">Record model request</button>
+  <p>Adds missing models and sets lab prices for the selected scenarios and pass-model on their FAIG provider. Other models and stored credentials are kept.</p>
+  <button id="models" type="button">Apply models to FAIG</button>
 
   <h2>Student batch</h2>
   <form id="students">

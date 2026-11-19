@@ -51,6 +51,8 @@ spec:
               value: {{ .Values.publicOrigin | quote }}
             - name: LAB_STATIC_DIR
               value: /app
+            - name: LAB_CALLER_TOKEN_FILE
+              value: /etc/lab-management/caller/token
           ports:
             - name: http
               containerPort: {{ .Values.port }}
@@ -82,6 +84,9 @@ spec:
               mountPath: /data
             - name: tmp
               mountPath: /tmp
+            - name: caller
+              mountPath: /etc/lab-management/caller
+              readOnly: true
       volumes:
         - name: app
           configMap:
@@ -94,3 +99,7 @@ spec:
             claimName: {{ include "lab-management.name" . }}-state
         - name: tmp
           emptyDir: {}
+        - name: caller
+          secret:
+            secretName: {{ .Values.callerSecretName }}
+            optional: true
