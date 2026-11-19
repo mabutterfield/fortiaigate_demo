@@ -8,6 +8,10 @@ straight to LiteLLM with the shared lab key, bypassing FortiAIGate, for
 comparison. MCP tools come from the standards endpoint through the shared
 agent loop (faig_agent.py). Super admins can act as any student.
 
+The Tests tab runs a scenario action's validation case with the student's
+key: one test at a time shows the payload sent, the payload returned, and the
+matching Traffic Log entry; "Run all tests" reports pass/fail only.
+
 Chat history lives only in the browser session.
 """
 from __future__ import annotations
@@ -146,6 +150,107 @@ def chat_tab(ctx: dict[str, Any] | None, entry: dict[str, Any] | None) -> None:
         st.rerun()
 
 
+def run_scenario_test(identity: dict[str, str], scenario: str, action: str, spec: dict[str, Any],
+                      key: dict[str, Any], with_details: bool) -> dict[str, Any]:
+    def fetch_logs(**query: Any) -> tuple[int, Any]:
+        return ls.internal_logs(CFG["auth_url"], identity, signing_key(), **query)
+
+    def agent(agent_spec: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return faig_agent.run_turn_sync(agent_spec)
+        except Exception as exc:  # network or MCP transport failure; never echo the key
+            return {"error": "agent_failed", "detail": type(exc).__name__, "reply": "", "tool_events": []}
+
+    return ls.run_test(agent, fetch_logs, scenario=scenario, action=action, spec=spec, key=key,
+                       faig_url=CFG["faig_url"], mcp_url=CFG["mcp_url"], max_tokens=CFG["max_tokens"],
+                       temperature=CFG["temperature"], with_details=with_details)
+
+
+def render_single_result(result: dict[str, Any]) -> None:
+    (st.success if result["passed"] else st.error)(
+        f"{'PASS' if result['passed'] else 'FAIL'}: {result['scenario']} / {result['action']} "
+        f"(observed {result['normalized'].get('scenario_verdict')}, Traffic Log "
+        f"{', '.join(result['verdicts']) if result['verdicts'] is not None else 'not checked'})")
+    for detail in result["details"]:
+        st.write("- " + detail)
+    exchanges, entries = result["exchanges"], result["log_entries"]
+    if result["log_error"]:
+        st.info("Traffic Log entries are shown for student sign-ins with an active FortiAIGate session. "
+                f"({result['log_error']})")
+    elif len(entries) != len(exchanges):
+        st.caption(f"{len(exchanges)} request(s) and {len(entries)} Traffic Log entr(ies); entries are matched in "
+                   "time order and another chat on the same key during the test can add rows.")
+    for index in range(max(len(exchanges), len(entries))):
+        st.markdown(f"#### Request {index + 1}")
+        sent, returned, logged = st.columns(3)
+        exchange = exchanges[index] if index < len(exchanges) else {}
+        with sent:
+            st.markdown("**Payload sent**")
+            st.json(exchange.get("request", {}), expanded=1)
+        with returned:
+            st.markdown(f"**Payload returned** (HTTP {exchange.get('status', '-')})")
+            st.json(exchange.get("response", {}), expanded=2)
+        with logged:
+            st.markdown("**Traffic Log entry**")
+            if index < len(entries):
+                st.json(entries[index], expanded=2)
+            else:
+                st.caption("No matching entry.")
+    if result["tool_events"]:
+        with st.expander("MCP tool calls"):
+            st.json(result["tool_events"], expanded=False)
+
+
+def tests_tab(identity: dict[str, str], keys: list[dict[str, Any]], pack: dict[str, Any],
+              ctx: dict[str, Any] | None) -> None:
+    if ctx is None:
+        st.info("No scenario keys are available for this student yet.")
+        return
+    st.subheader("Run one test")
+    st.write("Runs the selected scenario action's validation case with your FortiAIGate key and shows what was "
+             "sent, what came back, and what FortiAIGate logged. Change the scenario and action in the sidebar.")
+    test = ctx["spec"].get("test", {})
+    st.markdown(f"**{pack['scenarios'][ctx['scenario']].get('title', ctx['scenario'])} / {ctx['action']}** "
+                f"with key `{ctx['key']['keyName']}`")
+    st.markdown(f"- Prompt: _{test.get('prompt', '')}_\n"
+                f"- Expected result: `{test.get('expected_result', '')}`; Traffic Log verdict: "
+                f"`{test.get('expected_log_verdict', '')}`"
+                + (f"\n- Required tools: {', '.join(test['required_tools'])}" if test.get("required_tools") else "")
+                + (f"\n- Forbidden tools: {', '.join(test['forbidden_tools'])}" if test.get("forbidden_tools") else ""))
+    if st.button("Run this test", type="primary"):
+        with st.spinner("Running the test and waiting for the Traffic Log..."):
+            st.session_state.single_test = run_scenario_test(identity, ctx["scenario"], ctx["action"], ctx["spec"],
+                                                             ctx["key"], with_details=True)
+    last = st.session_state.get("single_test")
+    if last and (last["scenario"], last["action"]) == (ctx["scenario"], ctx["action"]):
+        render_single_result(last)
+
+    st.divider()
+    st.subheader("Run all tests")
+    st.write("Checks every scenario action you have a key for and reports pass or fail. Failed tests are retried "
+             "once (model answers vary). Use Run one test to see the details.")
+    if st.button("Run all tests"):
+        plan = [(s, a) for s, actions in ls.available(keys, pack).items() for a in actions]
+        progress = st.progress(0.0, text="Starting...")
+        rows = []
+        for index, (scenario, action) in enumerate(plan):
+            progress.progress(index / len(plan), text=f"{scenario} / {action}")
+            spec, key = pack["scenarios"][scenario]["actions"][action], ls.key_for(keys, scenario, action)
+            for _attempt in range(2):
+                result = run_scenario_test(identity, scenario, action, spec, key, with_details=False)
+                if result["passed"]:
+                    break
+            rows.append({"Scenario": pack["scenarios"][scenario].get("title", scenario), "Action": action,
+                         "Result": "PASS" if result["passed"] else "FAIL"})
+        progress.progress(1.0, text="Done")
+        st.session_state.all_tests = rows
+    if st.session_state.get("all_tests"):
+        rows = st.session_state.all_tests
+        passed = sum(r["Result"] == "PASS" for r in rows)
+        (st.success if passed == len(rows) else st.warning)(f"{passed} of {len(rows)} tests passed.")
+        st.dataframe(rows, hide_index=True, use_container_width=True)
+
+
 def keys_tab(identity: dict[str, str], student: str, keys: list[dict[str, Any]]) -> None:
     st.write("These are your FortiAIGate virtual keys, one per scenario action. The instructor seeds them; if you "
              "regenerate a key in FortiAIGate, paste the new value here. Changes stay in the lab chatbot and are "
@@ -209,7 +314,8 @@ def main() -> None:
             spec = entry["actions"][action]
             key = ls.key_for(keys, scenario, action)
             direct = path == PATH_DIRECT
-            ctx = {"path": path, "model": spec["model"], "system_prompt": spec.get("system_prompt", ""),
+            ctx = {"scenario": scenario, "action": action, "spec": spec, "key": key,
+                   "path": path, "model": spec["model"], "system_prompt": spec.get("system_prompt", ""),
                    "tools": spec.get("tools", []), "max_rounds": spec.get("max_rounds", 3),
                    "base_url": CFG["direct_url"] if direct else CFG["faig_url"],
                    "api_key": direct_key() if direct else key.get("secretKey", ""),
@@ -230,9 +336,11 @@ def main() -> None:
         st.markdown("[Sign out](/_lab/logout)")
 
     st.title(CFG["title"])
-    chat, my_keys = st.tabs(["Chat", "Keys"])
+    chat, tests, my_keys = st.tabs(["Chat", "Tests", "Keys"])
     with chat:
         chat_tab(ctx, entry)
+    with tests:
+        tests_tab(identity, keys, pack, ctx)
     with my_keys:
         keys_tab(identity, student, keys)
 

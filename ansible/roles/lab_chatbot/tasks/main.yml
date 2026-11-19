@@ -31,6 +31,7 @@
     that:
       - lab_chatbot_chart_local_path is directory
       - lab_chatbot_agent_local_path is file
+      - lab_chatbot_result_contract_local_path is file
       - lab_chatbot_students | length > 0
     fail_msg: >-
       The lab chatbot needs the chart, chatbot/agent/faig_agent.py, at least one
@@ -85,7 +86,7 @@
     mode: "0644"
   when: lab_chatbot_enabled | bool
 
-- name: Copy shared agent and scenario pack into the remote chart files
+- name: Copy shared agent, result contract and scenario pack into the remote chart files
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "{{ lab_chatbot_chart_remote_root }}/files/"
@@ -94,6 +95,7 @@
     mode: "0644"
   loop:
     - "{{ lab_chatbot_agent_local_path }}"
+    - "{{ lab_chatbot_result_contract_local_path }}"
     - "{{ lab_chatbot_local_stage.path }}/scenario-pack.json"
   when: lab_chatbot_enabled | bool
 

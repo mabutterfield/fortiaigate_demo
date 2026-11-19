@@ -9,6 +9,7 @@ lab_chatbot_service_port: 80
 lab_chatbot_title: FortiAIGate Lab Chatbot
 lab_chatbot_chart_local_path: "{{ (playbook_dir + '/../../chatbot/lab-chatbot/chart') | realpath }}"
 lab_chatbot_agent_local_path: "{{ (playbook_dir + '/../../chatbot/agent/faig_agent.py') | realpath }}"
+lab_chatbot_result_contract_local_path: "{{ (playbook_dir + '/../../functional_test/result_contract.py') | realpath }}"
 lab_chatbot_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
 lab_chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/lab-chatbot-chart"
 lab_chatbot_values_remote_path: "/home/{{ ansible_user }}/tmp/lab-chatbot-values.yaml"

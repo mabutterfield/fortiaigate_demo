@@ -11,6 +11,9 @@ Streamlit or a cluster:
   chatbot may update. Edits never write back to the instructor's files.
 - key checks: GET <gateway>/models with a key proves FortiAIGate accepts it
   (and shows which models it reaches) without sending a chat request.
+- scenario tests: run one scenario action's validation case, judge it with the
+  shared result contract (functional_test/result_contract.py, the same rules
+  as `functional_test baseline`), and match the turn's Traffic Log entries.
 """
 from __future__ import annotations
 
@@ -24,11 +27,20 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Callable
+
+try:  # in the pod, Ansible copies result_contract.py next to this file
+    import result_contract
+except ImportError:  # repository checkout (unit tests)
+    from functional_test import result_contract
 
 IDENTITY_FIELDS = ("user", "student", "role", "workspace_id", "ts")
 SIGNATURE_MAX_AGE = int(os.environ.get("LAB_SIGNATURE_MAX_AGE", "300"))
 SECRET_DATA_KEY = "keys.json"
+EXPECTED_LOG_VERDICT = {"alert": "Alert", "deny": "Block", "redact": "Redact", "passthrough": "Log"}
+VERDICT_SEVERITY = {"Log": 0, "Alert": 1, "Redact": 2, "Block": 3}
+LOG_SUMMARY_FIELDS = ("verdictLabel", "action", "guardType", "httpStatus", "model", "prompt", "response",
+                      "toolCalls", "tokens", "cost", "latency", "uuid")
 
 
 # ------------------------------------------------------------------ identity
@@ -161,12 +173,12 @@ class SecretStore:
                    content_type="application/merge-patch+json")
 
 
-def internal_logs(auth_url: str, identity: dict[str, str], key: bytes, *, student: str = "",
+def internal_logs(auth_url: str, identity: dict[str, str], key: bytes, *,
                   key_alias: str = "", since_ms: int = 0, uuid: str = "", limit: int = 50) -> tuple[int, Any]:
-    """Call the gateway's internal Traffic Log API with freshly signed identity headers."""
+    """Call the gateway's internal Traffic Log API with freshly signed identity headers.
+
+    Only student sign-ins have a Traffic Log view (admins get 403)."""
     query = {"uuid": uuid} if uuid else {"key": key_alias, "since": str(since_ms), "limit": str(limit)}
-    if student and identity.get("role") == "admin":
-        query["student"] = student
     request = urllib.request.Request(auth_url.rstrip("/") + "/_lab/internal/traffic-logs?" + urllib.parse.urlencode(query),
                                      headers=identity_headers(identity, key))
     try:
@@ -179,3 +191,74 @@ def internal_logs(auth_url: str, identity: dict[str, str], key: bytes, *, studen
             return exc.code, {"error": f"HTTP {exc.code}"}
     except (urllib.error.URLError, TimeoutError) as exc:
         return 0, {"error": str(exc)}
+
+
+# ------------------------------------------------------------------ scenario tests
+
+def log_summary(entry: dict[str, Any]) -> dict[str, Any]:
+    """The Traffic Log fields worth showing next to the payloads (drops tool definitions etc.)."""
+    return {f: entry.get(f) for f in LOG_SUMMARY_FIELDS if f in entry}
+
+
+def judge(scenario: str, action: str, test: dict[str, Any], raw: dict[str, Any],
+          verdicts: list[str] | None) -> tuple[bool, list[str], dict[str, Any]]:
+    """Same pass/fail rules as functional_test baseline; verdicts=None skips the Traffic Log check."""
+    normalized = result_contract.normalized_live_result(raw)
+    item = {"scenario": scenario, "required_tools": test.get("required_tools", []),
+            "forbidden_tools": test.get("forbidden_tools", [])}
+    expected = test.get("expected_result", "completed")
+    ok = result_contract.result_matches_expected(expected, item, normalized)
+    details = [] if ok else result_contract.expectation_failure_details(expected, item, normalized)
+    if raw.get("error"):
+        details.insert(0, f"{raw['error']}: {str(raw.get('detail'))[:300]}")
+    if verdicts is not None:
+        wanted = test.get("expected_log_verdict") or EXPECTED_LOG_VERDICT.get(action, "")
+        observed = max(verdicts, key=lambda v: VERDICT_SEVERITY.get(v, -1)) if verdicts else None
+        if wanted and observed != wanted:
+            ok = False
+            details.append(f"Traffic Log verdict {observed or 'missing'} (entries: {', '.join(verdicts) or 'none'}); "
+                           f"expected {wanted}")
+    return ok, details, normalized
+
+
+def run_test(agent: Callable[[dict[str, Any]], dict[str, Any]], fetch_logs: Callable[..., tuple[int, Any]], *,
+             scenario: str, action: str, spec: dict[str, Any], key: dict[str, Any], faig_url: str, mcp_url: str,
+             max_tokens: int = 2048, temperature: float = 0.0, with_details: bool = True,
+             polls: int = 6, delay: float = 2.0, sleep: Callable[[float], None] = time.sleep,
+             clock: Callable[[], float] = time.time) -> dict[str, Any]:
+    """Run one scenario action's validation case with the student's key and collect its Traffic Log entries.
+
+    Entries are matched by key alias and start time, so another chat on the
+    same key during the test can add rows. The key value is never returned.
+    """
+    test = spec["test"]
+    since = int(clock() * 1000) - 2000
+    raw = agent({"base_url": faig_url, "api_key": key.get("secretKey", ""), "model": spec["model"],
+                 "prompt": test["prompt"], "system_prompt": spec.get("system_prompt", ""), "mcp_url": mcp_url,
+                 "tools": spec.get("tools", []), "max_rounds": spec.get("max_rounds", 3), "max_tokens": max_tokens,
+                 "temperature": temperature, "record_exchanges": True})
+    wanted_rows = max(1, len(raw.get("exchanges") or []))
+    rows: list[dict[str, Any]] = []
+    log_error = None
+    for _ in range(max(1, polls)):
+        sleep(delay)
+        status, data = fetch_logs(key_alias=key.get("keyName", ""), since_ms=since)
+        if status != 200:
+            log_error = (data or {}).get("error") or f"HTTP {status}"
+            break
+        rows = sorted(data.get("items", []), key=lambda r: r.get("timeStamp", 0))
+        if len(rows) >= wanted_rows:
+            break
+    entries = []
+    if with_details and log_error is None:
+        for row in rows:
+            status, detail = fetch_logs(uuid=row.get("uuid", ""))
+            entries.append(log_summary(detail if status == 200 else row))
+    verdicts = None if log_error else [r.get("verdictLabel") for r in rows]
+    ok, details, normalized = judge(scenario, action, test, raw, verdicts)
+    if log_error:
+        details.append(f"Traffic Log not checked: {log_error}")
+    return {"scenario": scenario, "action": action, "key_name": key.get("keyName", ""), "test": test, "passed": ok,
+            "details": details, "normalized": normalized, "verdicts": verdicts, "log_error": log_error,
+            "exchanges": raw.get("exchanges", []), "log_entries": entries, "reply": raw.get("reply", ""),
+            "tool_events": raw.get("tool_events", [])}

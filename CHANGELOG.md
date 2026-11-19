@@ -15,6 +15,10 @@ a "what's new" guide rather than a raw commit log.
   - super admins can act as any student
   - `python3 -m functional_test scenario-pack` builds the secret-free
     scenario pack; deploy with `deploy_lab_chatbot.yml`
+  - a Tests tab: run one scenario test to see the payload sent, the payload
+    returned and the matching Traffic Log entry, or run all tests for a
+    pass/fail list; the pass/fail rules now live in
+    `functional_test/result_contract.py`, shared with the baseline
 
 - Added a lab login gateway to the nginx HTTPS gateway:
   - an auth sidecar signs students and FAIG super admins in with their

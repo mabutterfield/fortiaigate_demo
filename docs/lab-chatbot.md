@@ -23,6 +23,19 @@ chatbot (`chatbot/app`) is unchanged.
 - **Chat:** multi-turn chat with MCP tool calls through the standards MCP
   endpoint (shown in an expander under each reply), and sample attack and
   clean prompts from the scenario. History lives only in the browser session.
+- **Tests:**
+  - *Run one test* runs the selected scenario action's validation case (the
+    same case and pass/fail rules as `python3 -m functional_test baseline`)
+    with the student's key. It shows PASS/FAIL with reasons, then for each
+    request in the turn: the payload sent, the payload returned and the
+    matching FortiAIGate Traffic Log entry (verdict, action, guard type,
+    original and modified prompt and response, tool calls, tokens, cost).
+  - *Run all tests* runs every scenario action the student has a key for and
+    shows only PASS/FAIL per test and a total; a failed test is retried once.
+  - Traffic Log entries are read with the student's own FortiAIGate session
+    through the gateway's internal API, matched by key name and start time.
+    Another chat on the same key during a test can add rows. Admin sign-ins
+    have no Traffic Log view, so their tests are judged on the response only.
 - **Keys:** the student's keys (secrets masked), a check of every key against
   FortiAIGate, and a form to replace one key after regenerating it in
   FortiAIGate. A replacement is saved only if FortiAIGate accepts it for the
@@ -47,6 +60,11 @@ FortiAIGate /ai/openai/v1     LiteLLM /v1 (shared key)     MCP standards endpoin
   browser session with its copy of the signing key (`lab-chatbot-signing`,
   copied from `demo-https-gateway/lab-gateway-signing` on each deploy). Requests
   that do not come through the gateway get a "could not be verified" page.
+- **Pass/fail rules:** `functional_test/result_contract.py` is shared by
+  `functional_test` and the chatbot (Ansible copies it into the chart), so the
+  chatbot and the baseline judge results the same way. The Traffic Log check
+  requires the strongest verdict to match the action (alert → Alert,
+  deny → Block, redact → Redact, passthrough → Log).
 - **Scenario pack:** `python3 -m functional_test scenario-pack` builds a
   secret-free JSON from the installed scenarios and the key files: per scenario
   action, the model, system prompt, MCP tools, sample prompts and the
@@ -93,9 +111,15 @@ Observed on 2026-11-18 (Ohio lab):
   the record with the SSN and date of birth redacted. The same turn in Direct
   mode returned them unredacted.
 
+Tests (2026-11-19): the "Run all tests" code path for student02 passed 7 of
+8. The failure is Resume Deny, a known scenario-tuning issue (see
+[known issues](known-issues.md)): FortiAIGate blocks before `document_read`.
+The single test for `hr-tool-dlp`/`redact` paired its 2 requests with 2
+Traffic Log entries (input Log, output Redact), and no key value appeared in
+the result.
+
 ## Not Yet Built
 
-- Step 4: the single-test view (payload sent, payload returned, Traffic Log
-  entry) and "Run all tests" (pass/fail).
 - Step 5: the admin portal (FortiAIGate and fallback passwords, seeded keys).
-- Instructor all-students view (the admin student picker is the groundwork).
+- Instructor all-students view (the admin student picker is the groundwork;
+  Traffic Log views for admins acting as a student are out of scope).
