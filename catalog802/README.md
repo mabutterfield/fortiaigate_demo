@@ -83,3 +83,9 @@ change has been tested against a live FAIG deployment in this migration.
 observations, preserving the Traffic Log rows and failure reasons. It does not
 collect logs, identify evidence, or replace the existing live test runner; the
 caller must provide complete rows, evidence, and tools called.
+
+`python3 -m catalog802 mcp-runtime` compiles the currently cataloged tool
+contracts to the server's function format. This output contains only tools in
+the catalog, not every legacy or candidate tool; it is not installed or used
+by either MCP endpoint yet. Do not replace the existing server registry until
+non-catalog tools and both endpoints have a verified migration path.

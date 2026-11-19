@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 import shutil
@@ -5,6 +6,7 @@ import tempfile
 import unittest
 
 from catalog802 import loader
+from catalog802.mcp_compile import compile_registry
 from catalog802.vocabulary import ACTIONS, EXECUTIONS, VERDICTS, EVIDENCE, OUTCOMES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -96,6 +98,20 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.2', scenario_version='1.0.0', failed=False))
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
+
+    def test_mcp_compiler_matches_existing_contracts(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        tree = ast.parse((self.root / 'mcp/chart/files/server.py').read_text())
+        legacy = next(ast.literal_eval(node.value) for node in tree.body
+                      if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'TOOLS' for t in node.targets))
+        existing = {tool['function']['name']: tool for tool in legacy}
+        compiled = compile_registry(catalog)
+        self.assertEqual(len(compiled), 10)
+        for tool in compiled:
+            self.assertEqual(tool, existing[tool['function']['name']])
+        compiled[0]['function']['description'] = 'changed'
+        self.assertNotEqual(compiled[0]['function']['description'], catalog['tools'][compiled[0]['function']['name']]['description'])
 
     def test_resume_known_issue_and_fixture_hash(self):
         catalog, errors = loader.load(self.root)
