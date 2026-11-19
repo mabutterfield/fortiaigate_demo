@@ -33,6 +33,19 @@ def evidence_from_turn(raw, test, *, block_message=None):
     return sorted(evidence), tools
 
 
+def unavailable_evidence(raw, test, evidence):
+    """Do not infer that an unrecorded MCP text result contained no data."""
+    expect = test['expect']
+    events = raw.get('tool_events') or []
+    missing_result = any(isinstance(event, dict) and event.get('result') is None for event in events)
+    if not missing_result:
+        return []
+    item = 'sensitive-data-in-tool-result'
+    if item in expect['evidence_absent'] or (item in expect['evidence_present'] and item not in evidence):
+        return [item]
+    return []
+
+
 def request_count(raw):
     """Count attempts when the shared agent returned a reliable round count."""
     rounds = raw.get('rounds')
@@ -124,6 +137,10 @@ def main(argv):
     result = evaluate(execution=execution, verdict_rows=rows, requests_sent=requests_sent if requests_sent is not None else 0,
                       evidence=evidence, tools_called=tools, test=case['test'],
                       faig_version=args.faig_version, scenario_version=case['scenario_version'])
+    unavailable = unavailable_evidence(raw, case['test'], evidence)
+    if execution == 'completed' and unavailable:
+        result['outcome'] = 'incomplete'
+        result['reasons'].append('unavailable evidence: ' + ', '.join(unavailable))
     report = {'scenario': args.scenario, 'action': args.action, 'test': case['case_id'],
               'requests_sent': requests_sent, 'tools_called': tools, **result}
     if raw.get('error'):

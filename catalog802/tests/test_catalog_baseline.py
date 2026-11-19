@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from functional_test.catalog_baseline import evidence_from_turn, main, request_count
+from functional_test.catalog_baseline import evidence_from_turn, main, request_count, unavailable_evidence
 
 
 class CatalogBaselineTests(unittest.TestCase):
@@ -20,6 +20,13 @@ class CatalogBaselineTests(unittest.TestCase):
         self.assertIn('attack-tool-called', evidence)
         self.assertNotIn('sensitive-data-in-reply', evidence)
         self.assertEqual(tools, ['cloud_bucket_list_demo'])
+
+    def test_unavailable_tool_result_cannot_prove_absence(self):
+        raw = {'tool_events': [{'tool': 'example', 'result': None}]}
+        test = {'expect': {'evidence_present': [], 'evidence_absent': ['sensitive-data-in-tool-result']}}
+        self.assertEqual(unavailable_evidence(raw, test, []), ['sensitive-data-in-tool-result'])
+        test['expect'] = {'evidence_present': ['sensitive-data-in-tool-result'], 'evidence_absent': []}
+        self.assertEqual(unavailable_evidence(raw, test, ['sensitive-data-in-tool-result']), [])
 
     def test_request_count_for_http_errors_and_unknown_execution(self):
         self.assertEqual(request_count({'error': 'http_error', 'rounds': 0}), 1)
