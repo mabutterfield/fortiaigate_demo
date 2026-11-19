@@ -53,6 +53,10 @@ class LegacyAdapterParityTests(unittest.TestCase):
                             for d in [definitions[ref]] if d.get('kind') == 'dlp'
                             for category in d['categories']}
                 self.assertEqual(categories(old, legacy['detectors']), categories(new, shared['detectors']))
+                def ai_detectors(template, definitions):
+                    return {(d.get('source'), d.get('action')) for ref in template.get('detectors', [])
+                            for d in [definitions[ref]] if d.get('kind') == 'ai_copy'}
+                self.assertEqual(ai_detectors(old, legacy['detectors']), ai_detectors(new, shared['detectors']))
 
 
 
