@@ -558,6 +558,24 @@ passthrough path for baseline checks. Organization-level policies, if any,
 still apply to it. `python3 -m functional_test baseline` uses it alongside the
 scenario keys; see `docs/functional-validation.md`.
 
+## Admin password reset (observed)
+
+Capture `14-password-reset` (2026-11-18), from the admin Users page:
+
+1. `GET /api/v1/admin/users?offset=0&limit=25`: each user has `id`, `email`,
+   `orgRole`, `isActive`, `keyCount` and `workspaces[]` (`workspaceId`,
+   `workspaceName`, `membershipRole`, `spend`).
+2. `POST /api/v1/me/password/strength` with `{"password"}` returns
+   `lengthOk`, `uppercaseOk`, `lowercaseOk`, `digitOk`, `specialCharOk` and
+   `isStrong`; the UI calls it while the admin types.
+3. `POST /api/v1/admin/users/{userId}/password/reset` with `{"password"}`
+   returns 204. The student does not need to know the old password.
+
+The lab chatbot's Admin tab uses these calls through the lab gateway's
+sign-in service (see `docs/lab-gateway.md`). In this capture the reset went to
+student01 (user `ff97a48f…`), not student02; check the target user ID before
+reusing a captured request.
+
 ## Provider credential replacement
 
 `model_pricing.py --provider <id> --set-credential-file FILE --apply` replaces

@@ -76,7 +76,10 @@ lab_gateway_idle_minutes: 120
 # faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
-lab_gateway_fallback_secret_name: ""
+# Change 2026-11-19: always keep a fallback Secret so admin password resets
+# (lab chatbot Admin tab) store matching fallback hashes; mode stays faig.
+# lab_gateway_fallback_secret_name: ""
+lab_gateway_fallback_secret_name: lab-gateway-fallback
 # Serve the auth service's "who am I" page on the chatbot route instead of the
 # student lab chatbot (deploy_lab_chatbot.yml).
 # Change 2026-11-18: the lab chatbot exists now; placeholder follows lab_chatbot_enabled.

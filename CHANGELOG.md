@@ -19,6 +19,12 @@ a "what's new" guide rather than a raw commit log.
     returned and the matching Traffic Log entry, or run all tests for a
     pass/fail list; the pass/fail rules now live in
     `functional_test/result_contract.py`, shared with the baseline
+  - an Admin tab for super admins: the student list, password resets that
+    set FortiAIGate and the matching fallback hash together, and a
+    comparison of each student's keys with the instructor's seed, with
+    restore
+  - the gateway keeps a fallback password Secret by default, and its route
+    checks retry while NodePorts come up
 
 - Added a lab login gateway to the nginx HTTPS gateway:
   - an auth sidecar signs students and FAIG super admins in with their

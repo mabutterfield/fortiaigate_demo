@@ -5,7 +5,9 @@ Students and FAIG super admins sign in with their FortiAIGate account. The
 service keeps each student's FAIG session server-side, answers nginx's
 auth_request with HMAC-signed identity headers for the upstream app, and lets
 an upstream (the student chatbot) read that student's Traffic Log entries
-through an internal API without ever seeing the FAIG session.
+through an internal API without ever seeing the FAIG session. Super admins
+get admin-only internal calls (student list, password reset) that run with
+their own server-side FAIG session.
 
 Standard library only. Sessions live in memory (one replica); a restart signs
 everyone out. Fallback mode checks salted PBKDF2 password hashes from a
@@ -23,9 +25,13 @@ Environment:
   LAB_AUTH_MODE              "faig" (default) or "fallback"
   LAB_FALLBACK_FILE          JSON {username: {salt, hash, iterations, student, role}}
   LAB_STUDENT_PATTERN        workspace regex (default ^(student\\d{2,})_workspace$)
+  LAB_FALLBACK_SECRET        Secret holding LAB_FALLBACK_FILE (key fallback.json); when set, admin
+                             password resets also update the student's fallback hash there
+  LAB_NAMESPACE              namespace of LAB_FALLBACK_SECRET
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import html
@@ -52,6 +58,9 @@ SIGNATURE_MAX_AGE = int(os.environ.get("LAB_SIGNATURE_MAX_AGE", "300"))
 MODE = os.environ.get("LAB_AUTH_MODE", "faig")
 FALLBACK_FILE = os.environ.get("LAB_FALLBACK_FILE", "")
 STUDENT_PATTERN = re.compile(os.environ.get("LAB_STUDENT_PATTERN", r"^(student\d{2,})_workspace$"))
+FALLBACK_SECRET = os.environ.get("LAB_FALLBACK_SECRET", "")
+NAMESPACE = os.environ.get("LAB_NAMESPACE", "")
+FALLBACK_DATA_KEY = "fallback.json"
 COOKIE = "lab_session"
 IDENTITY_FIELDS = ("user", "student", "role", "workspace_id", "ts")
 
@@ -152,6 +161,59 @@ def fallback_login(username: str, password: str, path: str = None) -> dict | Non
         return None
     return {"user": username, "student": entry.get("student", ""), "role": entry.get("role", "student"),
             "workspace_id": entry.get("workspace_id", ""), "workspace": entry.get("workspace", "")}
+
+
+def fallback_entry(password: str, student: str, workspace_id: str = "", workspace: str = "",
+                   role: str = "student", iterations: int = 210000) -> dict:
+    salt = secrets.token_hex(16)
+    return {"salt": salt, "iterations": iterations, "hash": hash_password(password, salt, iterations),
+            "student": student, "role": role, "workspace_id": workspace_id, "workspace": workspace}
+
+
+class KubeSecret:
+    """Read and patch one Secret's JSON data key with the pod's service account (no client library)."""
+
+    TOKEN = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+    def __init__(self, namespace: str, name: str, data_key: str, api: str = "https://kubernetes.default.svc"):
+        self.url = f"{api}/api/v1/namespaces/{urllib.parse.quote(namespace)}/secrets/{urllib.parse.quote(name)}"
+        self.data_key = data_key
+
+    def _call(self, method: str, body=None):
+        token = open(self.TOKEN, encoding="utf-8").read().strip()
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/merge-patch+json"}
+        request = urllib.request.Request(self.url, data=json.dumps(body).encode() if body is not None else None,
+                                         headers=headers, method=method)
+        with urllib.request.urlopen(request, timeout=20, context=ssl.create_default_context(cafile=self.CA)) as response:
+            return json.loads(response.read())
+
+    def load(self) -> dict:
+        raw = (self._call("GET").get("data") or {}).get(self.data_key, "")
+        return json.loads(base64.b64decode(raw)) if raw else {}
+
+    def save(self, value: dict) -> None:
+        self._call("PATCH", {"data": {self.data_key: base64.b64encode(json.dumps(value, indent=1).encode()).decode()}})
+
+
+def student_rows(users: list) -> list:
+    """Lab students from FAIG's admin user list (one row per student workspace membership)."""
+    rows = []
+    for user in users:
+        for workspace in user.get("workspaces") or []:
+            match = STUDENT_PATTERN.match(workspace.get("workspaceName") or "")
+            if match:
+                rows.append({"student": match.group(1), "email": user.get("email", ""), "user_id": user.get("id", ""),
+                             "workspace": workspace.get("workspaceName", ""),
+                             "workspace_id": workspace.get("workspaceId", ""), "active": bool(user.get("isActive")),
+                             "keys": user.get("keyCount", 0), "spend": round(float(workspace.get("spend") or 0), 2)})
+    return sorted(rows, key=lambda r: r["student"])
+
+
+def weak_requirements(strength: dict) -> list:
+    names = {"lengthOk": "length", "uppercaseOk": "an uppercase letter", "lowercaseOk": "a lowercase letter",
+             "digitOk": "a digit", "specialCharOk": "a special character"}
+    return [label for field, label in names.items() if strength.get(field) is False]
 
 
 # ------------------------------------------------------------------ sessions
@@ -278,9 +340,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.whoami()
         if url.path == "/_lab/internal/traffic-logs":
             return self.internal_logs(query)
+        if url.path == "/_lab/internal/admin/students":
+            return self.admin_students()
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/password":
+            return self.admin_password()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -385,6 +451,79 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.respond(400, b'{"error":"bad query"}', content_type="application/json")
         return self.respond(200, json.dumps(data).encode(), content_type="application/json")
+
+
+    # admin-only internal API (signed admin identity + the admin's live FAIG session)
+    def json_reply(self, status: int, value) -> None:
+        self.respond(status, json.dumps(value).encode(), content_type="application/json")
+
+    def admin_session(self):
+        identity = verify_identity({k.lower(): v for k, v in self.headers.items()})
+        if not identity or identity["role"] != "admin":
+            self.json_reply(403, {"error": "invalid or expired admin identity"})
+            return None
+        session = SESSIONS.latest_for(identity["user"])
+        if not session:
+            self.json_reply(409, {"error": "no active FAIG admin session; sign in again"})
+            return None
+        return session
+
+    def faig_users(self, session) -> list:
+        users, offset = [], 0
+        while True:
+            page = session["faig"].call("GET", f"/api/v1/admin/users?offset={offset}&limit=100")
+            batch = items(page)
+            users += batch
+            offset += len(batch)
+            if not batch or offset >= int(page.get("total", offset) if isinstance(page, dict) else offset):
+                return users
+
+    def admin_students(self):
+        session = self.admin_session()
+        if not session:
+            return None
+        try:
+            return self.json_reply(200, {"items": student_rows(self.faig_users(session))})
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code}"})
+
+    def admin_password(self):
+        session = self.admin_session()
+        if not session:
+            return None
+        try:
+            length = min(int(self.headers.get("Content-Length", "0") or 0), 8192)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            student, password = str(body.get("student", "")), str(body.get("password", ""))
+        except ValueError:
+            return self.json_reply(400, {"error": "bad request body"})
+        if not student or not password:
+            return self.json_reply(400, {"error": "student and password are required"})
+        try:
+            target = next((r for r in student_rows(self.faig_users(session)) if r["student"] == student), None)
+            if not target:
+                return self.json_reply(404, {"error": f"no FAIG account administers {student}_workspace"})
+            strength = session["faig"].call("POST", "/api/v1/me/password/strength", {"password": password})
+            if not strength.get("isStrong"):
+                return self.json_reply(422, {"error": "FAIG rejects this password as weak",
+                                             "missing": weak_requirements(strength)})
+            session["faig"].call("POST", f"/api/v1/admin/users/{target['user_id']}/password/reset", {"password": password})
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code}"})
+        result = {"student": student, "email": target["email"], "faig": "reset", "fallback": "not configured"}
+        if FALLBACK_SECRET and NAMESPACE:
+            try:
+                store = KubeSecret(NAMESPACE, FALLBACK_SECRET, FALLBACK_DATA_KEY)
+                current = store.load()
+                current[target["email"]] = fallback_entry(password, student, target["workspace_id"], target["workspace"])
+                store.save(current)
+                result["fallback"] = "updated"
+            except (urllib.error.URLError, OSError, ValueError) as exc:
+                result["fallback"] = f"failed ({type(exc).__name__}); FAIG password was reset"
+        password = None
+        print(f"admin password reset for {student} by {session['identity']['user']}: fallback {result['fallback']}",
+              flush=True)
+        return self.json_reply(200, result)
 
 
 def main():

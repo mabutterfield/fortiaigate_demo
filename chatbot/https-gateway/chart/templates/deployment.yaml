@@ -22,6 +22,9 @@ spec:
         app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+{{- if and .Values.labAuth.enabled .Values.labAuth.fallbackSecretName }}
+      serviceAccountName: {{ include "demo-https-gateway.name" . }}-lab-auth
+{{- end }}
       containers:
         - name: nginx
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -82,6 +85,10 @@ spec:
 {{- if .Values.labAuth.fallbackSecretName }}
             - name: LAB_FALLBACK_FILE
               value: /etc/lab-auth/fallback/fallback.json
+            - name: LAB_FALLBACK_SECRET
+              value: {{ .Values.labAuth.fallbackSecretName | quote }}
+            - name: LAB_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
 {{- end }}
           ports:
             - name: lab-auth

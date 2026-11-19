@@ -194,6 +194,21 @@
   no_log: true
   when: lab_chatbot_enabled | bool
 
+- name: Write instructor seed copies of student keys (always refreshed)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
+    NAME="{{ lab_chatbot_seed_secret_prefix }}{{ item }}"
+    $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json | $K apply -f - >/dev/null
+    $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
+  args:
+    executable: /bin/bash
+    stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
+  loop: "{{ lab_chatbot_students }}"
+  changed_when: false
+  no_log: true
+  when: lab_chatbot_enabled | bool
+
 - name: Report key Secret seeding
   ansible.builtin.debug:
     msg: "{{ lab_chatbot_seed.results | map(attribute='item') | zip(lab_chatbot_seed.results | map(attribute='stdout')) | map('join', ': ') | list }}"

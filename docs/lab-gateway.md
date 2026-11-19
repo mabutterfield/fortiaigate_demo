@@ -39,9 +39,20 @@ browser ──► nginx (HTTP 30081 / HTTPS 30444) ──auth_request──► l
   end early if FortiAIGate rejects the stored session. Restarting the gateway
   signs everyone out.
 - Fallback mode (`lab_gateway_mode: fallback`) checks salted PBKDF2 hashes from
-  the Secret named by `lab_gateway_fallback_secret_name` (key `fallback.json`)
-  instead of FortiAIGate; Traffic Log views are unavailable in that mode. The
-  admin portal that will manage these passwords is not built yet.
+  the Secret named by `lab_gateway_fallback_secret_name` (default
+  `lab-gateway-fallback`, key `fallback.json`, created empty once) instead of
+  FortiAIGate; Traffic Log views are unavailable in that mode. Admin password
+  resets from the lab chatbot's Admin tab write the matching hash there, so
+  switching modes keeps the same passwords. A new hash reaches the sidecar
+  within about a minute (Kubernetes syncs mounted Secrets periodically). The
+  sidecar's service account may only `get` and `patch` that Secret.
+- Admin-only internal calls (signed `admin` identity plus the admin's live
+  FortiAIGate session in the sidecar): `GET /_lab/internal/admin/students`
+  lists the lab students from `/api/v1/admin/users`, and
+  `POST /_lab/internal/admin/password` (`{"student", "password"}`) checks
+  strength with `/api/v1/me/password/strength`, resets the FortiAIGate
+  password with `/api/v1/admin/users/{id}/password/reset`, and stores the
+  fallback hash. Passwords are never logged.
 
 The chatbot route serves the [student lab chatbot](lab-chatbot.md). With
 `lab_gateway_chatbot_placeholder: true` (the default when
@@ -63,7 +74,7 @@ lab_gateway_max_session_hours: 8
 lab_gateway_idle_minutes: 120
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
-lab_gateway_fallback_secret_name: ""
+lab_gateway_fallback_secret_name: lab-gateway-fallback
 lab_gateway_chatbot_placeholder: "{{ not (lab_chatbot_enabled | default(true) | bool) }}"
 ```
 

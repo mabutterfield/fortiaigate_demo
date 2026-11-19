@@ -229,6 +229,28 @@
   # - ansible.builtin.debug:
   #     var: lab_gateway_signing_secret.stdout
 
+- name: Create empty lab fallback password Secret once
+  # Admin password resets add salted PBKDF2 hashes here; redeploys keep them.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ demo_https_gateway_namespace }}"
+    if $K get secret {{ lab_gateway_fallback_secret_name }} >/dev/null 2>&1; then
+      echo exists
+    else
+      printf '{}' | $K create secret generic {{ lab_gateway_fallback_secret_name }} --from-file=fallback.json=/dev/stdin >/dev/null
+      echo created
+    fi
+  args:
+    executable: /bin/bash
+  register: lab_gateway_fallback_secret
+  changed_when: lab_gateway_fallback_secret.stdout == 'created'
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+    - lab_gateway_fallback_secret_name | length > 0
+  # - ansible.builtin.debug:
+  #     var: lab_gateway_fallback_secret.stdout
+
 - name: Deploy demo HTTPS gateway release
   ansible.builtin.command:
     argv:
@@ -290,6 +312,10 @@
   changed_when: false
   failed_when: false
   register: demo_https_gateway_route_checks
+  # NodePorts can refuse connections for a few seconds after the pod restarts.
+  until: demo_https_gateway_route_checks.stdout | default('000') != '000'
+  retries: 5
+  delay: 3
   when: demo_https_gateway_enabled | bool
   # - ansible.builtin.debug:
   #     var: demo_https_gateway_route_checks.results

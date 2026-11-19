@@ -12,6 +12,11 @@ The Tests tab runs a scenario action's validation case with the student's
 key: one test at a time shows the payload sent, the payload returned, and the
 matching Traffic Log entry; "Run all tests" reports pass/fail only.
 
+Super admins also get an Admin tab: the lab's students, password resets
+(FortiAIGate and the matching fallback hash, through the sign-in service with
+the admin's own FAIG session), and a comparison of each student's keys with
+the instructor's seed, with restore.
+
 Chat history lives only in the browser session.
 """
 from __future__ import annotations
@@ -35,6 +40,7 @@ CFG = {
     "pack_file": os.environ.get("LAB_PACK_FILE", "/app/scenario-pack.json"),
     "namespace": os.environ.get("LAB_NAMESPACE", "lab-chatbot"),
     "secret_prefix": os.environ.get("LAB_KEY_SECRET_PREFIX", "lab-keys-"),
+    "seed_prefix": os.environ.get("LAB_SEED_SECRET_PREFIX", "lab-seed-"),
     "students": [s for s in os.environ.get("LAB_STUDENTS", "").split(",") if s],
     "max_tokens": int(os.environ.get("LAB_MAX_TOKENS", "2048")),
     "temperature": float(os.environ.get("LAB_TEMPERATURE", "0.0")),
@@ -56,7 +62,7 @@ def scenario_pack() -> dict[str, Any]:
 
 @st.cache_resource
 def secret_store() -> ls.SecretStore:
-    return ls.SecretStore(CFG["namespace"], CFG["secret_prefix"])
+    return ls.SecretStore(CFG["namespace"], CFG["secret_prefix"], seed_prefix=CFG["seed_prefix"])
 
 
 def direct_key() -> str:
@@ -251,6 +257,69 @@ def tests_tab(identity: dict[str, str], keys: list[dict[str, Any]], pack: dict[s
         st.dataframe(rows, hide_index=True, use_container_width=True)
 
 
+def admin_tab(identity: dict[str, str], student: str) -> None:
+    def call(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
+        return ls.admin_call(CFG["auth_url"], identity, signing_key(), method, path, body)
+
+    st.subheader("Students")
+    status, data = call("GET", "/_lab/internal/admin/students")
+    rows = data.get("items", []) if status == 200 else []
+    if status != 200:
+        st.error(f"Could not list students: {data.get('error', status)}")
+    else:
+        st.dataframe(rows, hide_index=True, use_container_width=True,
+                     column_order=["student", "email", "workspace", "active", "keys", "spend"])
+
+    st.subheader("Set a student's password")
+    st.write("Sets the password in FortiAIGate and stores the matching fallback sign-in hash, so both sign-in "
+             "modes keep working. The student's existing lab sessions stay open until they expire.")
+    with st.form("set-password", clear_on_submit=True):
+        target = st.selectbox("Student", [r["student"] for r in rows] or CFG["students"])
+        typed = st.text_input("New password (leave empty to generate one)", type="password")
+        if st.form_submit_button("Set password"):
+            password = typed or ls.generate_password()
+            status, result = call("POST", "/_lab/internal/admin/password", {"student": target, "password": password})
+            if status == 200:
+                st.success(f"{result['email']}: FortiAIGate password reset; fallback {result['fallback']}.")
+                if not typed:
+                    st.write("Generated password (shown once):")
+                    st.code(password, language=None)
+                st.info(f"Update the instructor copy in .student-credentials/{target}.json; the portal cannot "
+                        "write files on the deployment machine.")
+            elif status == 422:
+                st.error(f"{result['error']}: add {', '.join(result.get('missing', [])) or 'complexity'}.")
+            else:
+                st.error(f"Password not changed: {result.get('error', status)}")
+            password = typed = None
+
+    st.subheader(f"Keys for {student} compared with the instructor's seed")
+    st.caption("Pick the student under Act as student in the sidebar.")
+    try:
+        current, seed = secret_store().load(student), secret_store().load_seed(student)
+    except Exception as exc:  # RBAC or API failure
+        st.error(f"Could not read key Secrets: {type(exc).__name__}")
+        return
+    if not seed:
+        st.info("No seed is stored for this student. Redeploy the lab chatbot to write the seed Secrets.")
+        return
+    drift = ls.key_drift(current, seed)
+    st.dataframe(drift, hide_index=True, use_container_width=True)
+    restorable = [r["key"] for r in drift if r["status"] in ("changed", "missing (seed only)")]
+    if not restorable:
+        st.success("All keys match the seed.")
+        return
+    with st.form("restore-keys"):
+        chosen = st.multiselect("Keys to restore from the seed", restorable, default=restorable)
+        if st.form_submit_button("Restore selected keys") and chosen:
+            try:
+                secret_store().save(student, ls.restore_keys(current, seed, chosen))
+                load_keys(student, force=True)
+            except Exception as exc:
+                st.error(f"Could not restore keys: {type(exc).__name__}")
+            else:
+                st.rerun()
+
+
 def keys_tab(identity: dict[str, str], student: str, keys: list[dict[str, Any]]) -> None:
     st.write("These are your FortiAIGate virtual keys, one per scenario action. The instructor seeds them; if you "
              "regenerate a key in FortiAIGate, paste the new value here. Changes stay in the lab chatbot and are "
@@ -336,13 +405,17 @@ def main() -> None:
         st.markdown("[Sign out](/_lab/logout)")
 
     st.title(CFG["title"])
-    chat, tests, my_keys = st.tabs(["Chat", "Tests", "Keys"])
-    with chat:
+    names = ["Chat", "Tests", "Keys"] + (["Admin"] if identity["role"] == "admin" else [])
+    tabs = st.tabs(names)
+    with tabs[0]:
         chat_tab(ctx, entry)
-    with tests:
+    with tabs[1]:
         tests_tab(identity, keys, pack, ctx)
-    with my_keys:
+    with tabs[2]:
         keys_tab(identity, student, keys)
+    if identity["role"] == "admin":
+        with tabs[3]:
+            admin_tab(identity, student)
 
 
 main()

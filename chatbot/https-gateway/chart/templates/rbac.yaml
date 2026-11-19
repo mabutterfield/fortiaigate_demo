@@ -1,0 +1,34 @@
+{{- if and .Values.labAuth.enabled .Values.labAuth.fallbackSecretName }}
+# The lab-auth sidecar may read and update only the fallback password Secret
+# (admin password resets keep fallback hashes in step with FortiAIGate).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-lab-auth
+  labels:
+    app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-lab-fallback
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "patch"]
+    resourceNames: [{{ .Values.labAuth.fallbackSecretName | quote }}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-lab-fallback
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "demo-https-gateway.name" . }}-lab-fallback
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "demo-https-gateway.name" . }}-lab-auth
+    namespace: {{ .Release.Namespace }}
+{{- end }}

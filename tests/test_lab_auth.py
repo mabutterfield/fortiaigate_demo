@@ -58,6 +58,33 @@ class AccountMappingTests(unittest.TestCase):
                                                       [{"workspaceName": "student02_workspace", "membershipRole": "member"}]))
 
 
+class AdminHelperTests(unittest.TestCase):
+    USERS = [
+        {"id": "u1", "email": "student01@fortiai.lab", "isActive": True, "keyCount": 9,
+         "workspaces": [{"workspaceId": "w1", "workspaceName": "student01_workspace", "spend": 12.345}]},
+        {"id": "u0", "email": "admin@example.com", "isActive": True, "workspaces": []},
+        {"id": "u9", "email": "x@lab", "workspaces": [{"workspaceId": "w9", "workspaceName": "finance_workspace"}]},
+    ]
+
+    def test_student_rows_only_lab_students(self):
+        rows = lab_auth.student_rows(self.USERS)
+        self.assertEqual([(r["student"], r["user_id"], r["workspace_id"], r["spend"]) for r in rows],
+                         [("student01", "u1", "w1", 12.35)])
+
+    def test_weak_requirements(self):
+        self.assertEqual(lab_auth.weak_requirements({"lengthOk": True, "specialCharOk": False, "digitOk": False}),
+                         ["a digit", "a special character"])
+
+    def test_fallback_entry_logs_in(self):
+        entry = lab_auth.fallback_entry("N3w!password", "student01", "w1", "student01_workspace", iterations=1000)
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            json.dump({"student01@fortiai.lab": entry}, handle)
+        identity = lab_auth.fallback_login("student01@fortiai.lab", "N3w!password", handle.name)
+        self.assertEqual((identity["student"], identity["workspace_id"]), ("student01", "w1"))
+        self.assertNotIn("N3w!password", json.dumps(entry))
+        Path(handle.name).unlink()
+
+
 class FallbackTests(unittest.TestCase):
     def test_pbkdf2_store(self):
         salt = "00" * 16

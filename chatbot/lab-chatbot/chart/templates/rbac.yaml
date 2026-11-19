@@ -1,5 +1,5 @@
-# The chatbot may read and update only the named per-student key Secrets.
-# It cannot list, create, or delete Secrets.
+# The chatbot may read and update only the named per-student key Secrets and
+# read the instructor seed copies. It cannot list, create, or delete Secrets.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -21,6 +21,13 @@ rules:
     resourceNames:
 {{- range .Values.students }}
       - {{ printf "%s%s" $.Values.keySecretPrefix . | quote }}
+{{- end }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+{{- range .Values.students }}
+      - {{ printf "%s%s" $.Values.seedSecretPrefix . | quote }}
 {{- end }}
 {{- else }}
   []

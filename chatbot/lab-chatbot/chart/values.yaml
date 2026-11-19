@@ -23,6 +23,8 @@ temperature: "0.0"
 signingSecretName: lab-chatbot-signing
 directKeySecretName: lab-chatbot-direct
 keySecretPrefix: lab-keys-
+# Instructor seed copies, rewritten by every deploy; the app may only read them.
+seedSecretPrefix: lab-seed-
 
 # Students the app may read and update keys for (RBAC resourceNames and the
 # admin "act as student" list).

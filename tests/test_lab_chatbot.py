@@ -151,6 +151,29 @@ class RunTestTests(unittest.TestCase):
         self.assertIn("expected redacted scenario verdict", result["details"])
 
 
+class AdminTests(unittest.TestCase):
+    def test_generated_passwords_cover_every_character_class(self):
+        for _ in range(50):
+            password = ls.generate_password()
+            self.assertEqual(len(password), 16)
+            self.assertTrue(any(c.isupper() for c in password) and any(c.islower() for c in password))
+            self.assertTrue(any(c.isdigit() for c in password) and any(c in ls.PASSWORD_SPECIALS for c in password))
+
+    def test_drift_and_restore(self):
+        seed = [dict(k) for k in KEYS]
+        current = [dict(KEYS[0], secretKey="student_replaced_value", updatedBy="student02@fortiai.lab")]
+        rows = {r["key"]: r for r in ls.key_drift(current + [{"keyName": "extra", "secretKey": "x"}], seed)}
+        self.assertEqual(rows["student02-hr-tool-dlp-redact"]["status"], "changed")
+        self.assertEqual(rows["student02-passthrough"]["status"], "missing (seed only)")
+        self.assertEqual(rows["extra"]["status"], "not in seed")
+        self.assertNotIn("secret", json.dumps(list(rows.values())).replace('"status"', ""))
+        restored = ls.restore_keys(current, seed, ["student02-hr-tool-dlp-redact", "student02-passthrough"])
+        self.assertEqual([k["secretKey"] for k in restored], [KEYS[0]["secretKey"], KEYS[1]["secretKey"]])
+        self.assertEqual({r["status"] for r in ls.key_drift(restored, seed)}, {"matches seed"})
+        with self.assertRaises(KeyError):
+            ls.restore_keys(current, seed, ["nope"])
+
+
 class ScenarioPackTests(unittest.TestCase):
     def test_pack_has_no_secrets_and_one_entry_per_action(self):
         from functional_test import scenario_pack

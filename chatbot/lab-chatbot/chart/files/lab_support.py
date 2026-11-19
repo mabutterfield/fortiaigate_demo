@@ -11,6 +11,9 @@ Streamlit or a cluster:
   chatbot may update. Edits never write back to the instructor's files.
 - key checks: GET <gateway>/models with a key proves FortiAIGate accepts it
   (and shows which models it reaches) without sending a chat request.
+- admin: list students and reset passwords through the gateway's admin-only
+  internal API, generate strong passwords, and compare or restore a student's
+  keys against the instructor's seed (`<seed prefix><student>`, read-only).
 - scenario tests: run one scenario action's validation case, judge it with the
   shared result contract (functional_test/result_contract.py, the same rules
   as `functional_test baseline`), and match the turn's Traffic Log entries.
@@ -21,6 +24,8 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
+import string
 import os
 import ssl
 import time
@@ -138,8 +143,9 @@ class SecretStore:
     TOKEN = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
-    def __init__(self, namespace: str, prefix: str, api: str = "https://kubernetes.default.svc"):
-        self.namespace, self.prefix, self.api = namespace, prefix, api.rstrip("/")
+    def __init__(self, namespace: str, prefix: str, api: str = "https://kubernetes.default.svc",
+                 seed_prefix: str = "lab-seed-"):
+        self.namespace, self.prefix, self.api, self.seed_prefix = namespace, prefix, api.rstrip("/"), seed_prefix
 
     def name(self, student: str) -> str:
         return self.prefix + student
@@ -154,12 +160,17 @@ class SecretStore:
         with urllib.request.urlopen(request, timeout=20, context=context) as response:
             return json.loads(response.read())
 
-    def _path(self, student: str) -> str:
-        return f"/api/v1/namespaces/{urllib.parse.quote(self.namespace)}/secrets/{urllib.parse.quote(self.name(student))}"
+    def _path(self, student: str, seed: bool = False) -> str:
+        name = (self.seed_prefix if seed else self.prefix) + student
+        return f"/api/v1/namespaces/{urllib.parse.quote(self.namespace)}/secrets/{urllib.parse.quote(name)}"
 
-    def load(self, student: str) -> list[dict[str, Any]]:
+    def load_seed(self, student: str) -> list[dict[str, Any]]:
+        """The instructor's seeded keys (rewritten by every deploy; the app can only read them)."""
+        return self.load(student, seed=True)
+
+    def load(self, student: str, seed: bool = False) -> list[dict[str, Any]]:
         try:
-            secret = self._call("GET", self._path(student))
+            secret = self._call("GET", self._path(student, seed))
         except urllib.error.HTTPError as exc:
             if exc.code in (403, 404):
                 return []
@@ -262,3 +273,68 @@ def run_test(agent: Callable[[dict[str, Any]], dict[str, Any]], fetch_logs: Call
             "details": details, "normalized": normalized, "verdicts": verdicts, "log_error": log_error,
             "exchanges": raw.get("exchanges", []), "log_entries": entries, "reply": raw.get("reply", ""),
             "tool_events": raw.get("tool_events", [])}
+
+
+# ------------------------------------------------------------------ admin
+
+PASSWORD_SPECIALS = "!@#$%^&*-_=+?"
+
+
+def generate_password(length: int = 16) -> str:
+    """Random password with upper, lower, digit and special characters (FAIG's strength rules)."""
+    pools = [string.ascii_uppercase, string.ascii_lowercase, string.digits, PASSWORD_SPECIALS]
+    chars = [secrets.choice(pool) for pool in pools]
+    chars += [secrets.choice("".join(pools)) for _ in range(max(length, 12) - len(chars))]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)
+
+
+def key_drift(current: list[dict[str, Any]], seed: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per key: does the student's stored key still match the instructor's seed? (No secrets returned.)"""
+    now = {k.get("keyName"): k for k in current}
+    seeded = {k.get("keyName"): k for k in seed}
+    rows = []
+    for name in sorted(set(now) | set(seeded)):
+        mine, original = now.get(name), seeded.get(name)
+        if mine and original:
+            status = "matches seed" if mine.get("secretKey") == original.get("secretKey") else "changed"
+        else:
+            status = "missing (seed only)" if original else "not in seed"
+        source = mine or original
+        rows.append({"key": name, "scenario": source.get("scenario", ""), "action": source.get("action", ""),
+                     "status": status, "changed by": (mine or {}).get("updatedBy", ""),
+                     "changed at": (mine or {}).get("updatedAt", "")})
+    return rows
+
+
+def restore_keys(current: list[dict[str, Any]], seed: list[dict[str, Any]], names: list[str]) -> list[dict[str, Any]]:
+    """Put the seeded value back for the named keys (re-adding seed-only keys); others are untouched."""
+    seeded = {k.get("keyName"): k for k in seed}
+    unknown = [n for n in names if n not in seeded]
+    if unknown:
+        raise KeyError(", ".join(unknown))
+    restored = [dict(seeded[k["keyName"]]) if k.get("keyName") in names else k for k in current]
+    present = {k.get("keyName") for k in current}
+    restored += [dict(seeded[n]) for n in names if n not in present]
+    return restored
+
+
+def admin_call(auth_url: str, identity: dict[str, str], key: bytes, method: str, path: str,
+               body: dict[str, Any] | None = None) -> tuple[int, Any]:
+    """Call an admin-only internal endpoint of the sign-in service with freshly signed headers."""
+    headers = identity_headers(identity, key)
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode()
+    request = urllib.request.Request(auth_url.rstrip("/") + path, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        try:
+            return exc.code, json.loads(exc.read())
+        except ValueError:
+            return exc.code, {"error": f"HTTP {exc.code}"}
+    except (urllib.error.URLError, TimeoutError) as exc:
+        return 0, {"error": str(exc)}

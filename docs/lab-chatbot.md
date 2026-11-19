@@ -41,7 +41,19 @@ chatbot (`chatbot/app`) is unchanged.
   FortiAIGate. A replacement is saved only if FortiAIGate accepts it for the
   scenario's model (`GET /ai/openai/v1/models` with the key; no chat cost).
 - **Super admins** sign in with their FortiAIGate account and pick any student
-  under **Act as student**; chat and key edits then use that student's keys.
+  under **Act as student**; chat, tests and key edits then use that student's
+  keys. They also get an **Admin** tab:
+  - *Students*: each lab student's account, workspace, active flag, key count
+    and spend, read with the admin's FortiAIGate session.
+  - *Set a student's password*: type one or generate one. FortiAIGate checks
+    its strength, then the password is set in FortiAIGate and the matching
+    fallback hash is stored. A generated password is shown once. The portal
+    cannot update `.student-credentials/studentNN.json` on the deployment
+    machine; update that copy by hand.
+  - *Keys compared with the instructor's seed*: each key of the selected
+    student shows `matches seed`, `changed` (with who and when), `missing
+    (seed only)` or `not in seed`, and changed or missing keys can be restored
+    from the seed.
 
 ## How It Is Built
 
@@ -75,8 +87,10 @@ FortiAIGate /ai/openai/v1     LiteLLM /v1 (shared key)     MCP standards endpoin
   Redeploys keep existing Secrets, so student edits survive; set
   `lab_chatbot_reseed_keys: true` to overwrite them from the files (this
   discards edits). Edits are never written back to the instructor's files.
-  The chatbot's service account may only `get` and `patch` those named
-  Secrets.
+  Every deploy also rewrites a read-only instructor copy per student,
+  `lab-seed-studentNN`, which the Admin tab compares and restores from. The
+  chatbot's service account may only `get` and `patch` the key Secrets and
+  `get` the seed Secrets.
 - **Direct key:** the shared LiteLLM virtual key (`lab-chatbot-direct`,
   copied from `litellm/litellm-shared-virtual-key`), never the master key.
 
@@ -118,8 +132,18 @@ The single test for `hr-tool-dlp`/`redact` paired its 2 requests with 2
 Traffic Log entries (input Log, output Redact), and no key value appeared in
 the result.
 
+Admin tab (2026-11-19):
+- The student list showed student01 and student02.
+- A student identity got 403 from the admin calls.
+- A weak password was refused with the missing requirements listed.
+- Resetting student01 (to its current password) succeeded in FortiAIGate and
+  wrote the fallback hash; the sidecar accepted it about 30 seconds later and
+  rejected a wrong password.
+- On student02, an edited key showed as `changed`, and a restore returned it
+  to `matches seed`.
+- No password appeared in the sidecar log.
+
 ## Not Yet Built
 
-- Step 5: the admin portal (FortiAIGate and fallback passwords, seeded keys).
 - Instructor all-students view (the admin student picker is the groundwork;
   Traffic Log views for admins acting as a student are out of scope).

@@ -51,6 +51,8 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: LAB_KEY_SECRET_PREFIX
               value: {{ .Values.keySecretPrefix | quote }}
+            - name: LAB_SEED_SECRET_PREFIX
+              value: {{ .Values.seedSecretPrefix | quote }}
             - name: LAB_STUDENTS
               value: {{ join "," .Values.students | quote }}
             - name: LAB_MAX_TOKENS

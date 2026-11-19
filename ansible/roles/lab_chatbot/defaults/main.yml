@@ -25,6 +25,9 @@ lab_chatbot_rollout_timeout: 420s
 lab_chatbot_student_credentials_dir: "{{ faig_workspace_root }}/.student-credentials"
 lab_chatbot_key_secret_prefix: lab-keys-
 lab_chatbot_reseed_keys: false
+# Read-only instructor copy per student (<seed prefix><student>), rewritten on
+# every deploy; the Admin tab compares and restores keys from it.
+lab_chatbot_seed_secret_prefix: lab-seed-
 
 # In-cluster endpoints.
 lab_chatbot_faig_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"
