@@ -370,10 +370,12 @@ class PrepopulationTests(unittest.TestCase):
         store.data["keys"] = {}
         plan = hr_plan()
         first = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", plan, lambda _: None)
-        self.assertEqual(len(faig.objects["detectors"]), 9)
-        self.assertEqual(len(faig.objects["guardrails"]), 3)
-        self.assertEqual(len(faig.objects["policies"]), 3)
-        self.assertEqual(len(faig.approved), 15)
+        # Counts come from the catalog plan (HR DLP detectors may change with the catalog).
+        detectors = {d["name"] for e in plan["entries"] for d in e["guard"]["detectors"]}
+        self.assertEqual(len(faig.objects["detectors"]), len(detectors))
+        self.assertEqual(len(faig.objects["guardrails"]), len(plan["entries"]))
+        self.assertEqual(len(faig.objects["policies"]), len(plan["entries"]))
+        self.assertEqual(len(faig.approved), len(detectors) + 2 * len(plan["entries"]))
         self.assertTrue(all(o["status"] == "active" for objs in faig.objects.values() for o in objs))
         self.assertEqual(sorted(k["keyName"] for k in faig.keys),
                          ["student03_hr-tool-dlp_alert", "student03_hr-tool-dlp_block",
