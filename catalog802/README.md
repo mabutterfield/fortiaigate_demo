@@ -89,3 +89,10 @@ contracts to the server's function format. This output contains only tools in
 the catalog, not every legacy or candidate tool; it is not installed or used
 by either MCP endpoint yet. Do not replace the existing server registry until
 non-catalog tools and both endpoints have a verified migration path.
+
+`python3 -m catalog802 litellm` builds the LiteLLM role's matrix subset from
+all cataloged models, deduplicated by backend alias. It validates shared alias
+targets/instructions and keeps pass-model free of injected instructions. The
+role defaults to this catalog output; set `litellm_use_catalog: false` to use
+the previous locally installed scenario matrix. This change is not yet live
+validated and does not implement the 8.0.2 FAIG re-entry provider.

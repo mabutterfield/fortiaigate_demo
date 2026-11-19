@@ -7,6 +7,7 @@ import unittest
 
 from catalog802 import loader
 from catalog802.mcp_compile import compile_registry
+from catalog802.litellm import build_litellm_matrix
 from catalog802.vocabulary import ACTIONS, EXECUTIONS, VERDICTS, EVIDENCE, OUTCOMES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +99,25 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.2', scenario_version='1.0.0', failed=False))
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
+
+    def test_litellm_uses_all_active_aliases_and_instruction_paths(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        matrix = build_litellm_matrix(catalog)
+        self.assertEqual({m['name'] for m in matrix['litellm_models']},
+                         {'pass-model', 'fortistore-injection', 'hr-tool-dlp', 'resume-tool-injection'})
+        self.assertEqual(matrix['litellm_model_instruction_profiles']['pass-model'], 'passthrough')
+        profiles = {p['name']: p for p in matrix['litellm_instruction_profiles']}
+        self.assertFalse(profiles['passthrough']['enabled'])
+        self.assertTrue(profiles['fortistore-injection']['source_path'].endswith('/instructions.txt'))
+        self.assertTrue(profiles['resume-tool-injection']['enabled'])
+
+    def test_litellm_rejects_alias_with_different_targets(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        catalog['models']['another'] = dict(catalog['models']['hr-tool-dlp'], target='different-target')
+        with self.assertRaisesRegex(ValueError, 'conflicting target'):
+            build_litellm_matrix(catalog)
 
     def test_mcp_compiler_matches_existing_contracts(self):
         catalog, errors = loader.load(self.root)
