@@ -4,13 +4,29 @@ Instructor page served by the lab login gateway at
 `https://<host>:<chatbot HTTPS port>/manage/` (30444 by default). It shares the
 chatbot's sign-in; only FAIG administrators get in, and students get a 403.
 
-**Current scope:**
+**Current scope** (updated 2026-11-19):
 - **Scenario preview:** models and lab prices, actions, tools, prompts and
   tests, from the rendered catalog.
 - **Saved scenario selection.**
-- **Request journal:** model and student-batch requests are recorded as
-  **blocked**. No FAIG changes, students, keys or approvals are made yet.
-  Auto-approval shows as unavailable.
+- **Apply models to FAIG:** adds missing catalog models (selected scenarios plus
+  `pass-model`) and sets lab prices on their provider, keeping other models and
+  stored credentials. It verifies by reading back.
+- **Create students:** creates or reconciles `studentNN@<domain>` accounts,
+  `studentNN_workspace` workspaces and one `studentNN_<scenario>` project per
+  selected scenario. Password modes:
+  - generated per student;
+  - one shared password;
+  - a base plus the student number.
+
+  Each password is checked against FAIG's rules and must differ from the
+  instructor's. Re-running the same numbers is safe. Existing accounts without
+  a stored password are flagged, never reset.
+- **Students list and share page:** optional lab-only display names (never
+  sent to FAIG). The share page (`/manage/share.html`) shows number, name,
+  email, password and sign-in URL for screen sharing.
+- **Operation journal:** records each job's status and result lines, never
+  passwords or keys.
+- **Not yet available:** prepopulation (keys, policies) and auto-approval.
 
 ## Deploy
 
@@ -51,6 +67,26 @@ shows "catalog unavailable" instead of failing.
 - **State:** SQLite in PVC `lab-management-state`. It survives pod restarts but
   not host termination. Back it up with a consistent copy of the database and
   WAL files while the pod is stopped.
+
+## Where FAIG actions run
+
+- **Who acts:** Lab Management never holds FAIG cookies or passwords. It calls
+  the gateway's sign-in service (`lab_auth`) with:
+  - its own caller token (Secret `lab-management-caller`, copied from
+    `lab-gateway-callers`);
+  - the instructor's session handle (`X-Lab-Session`).
+
+  `lab_auth` acts with that instructor's live FAIG session and allows only a
+  fixed list of FAIG calls.
+- **Where student data lives:** in namespace `lab-data`, in Secrets
+  `lab-roster` (names, workspace IDs) and `lab-credentials` (student
+  passwords). Only `lab_auth` can read or patch them. A password is written as
+  "pending" before FAIG creates the account, so a lost reply cannot lose it.
+- **When jobs stop:**
+  - if the instructor's session ends, the job stops as `needs-sign-in`;
+  - if Lab Management restarts, running jobs show `interrupted`.
+
+  In both cases the instructor re-runs the job after signing in.
 
 ## Not yet implemented
 

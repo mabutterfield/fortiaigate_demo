@@ -72,13 +72,14 @@ class JournalTests(unittest.TestCase):
             lm.create_job(self.db, "models", "admin@lab", {})  # nothing selected
         lm.select(self.db, ["hr-tool-dlp"], {"hr-tool-dlp"})
         lm.create_job(self.db, "models", "admin@lab", {})
-        lm.create_job(self.db, "students", "admin@lab", {"count": 2, "start_index": 1, "prepopulate": True})
-        # Model jobs run (queued); student batches have no executor yet (blocked).
-        self.assertEqual({j["kind"]: j["status"] for j in lm.jobs(self.db)}, {"models": "queued", "students": "blocked"})
-        for bad in ({"count": 2, "start_index": 1, "prepopulate": True, "password": "secret"},
-                    {"count": 0, "start_index": 1, "prepopulate": True},
-                    {"count": 2, "start_index": 100, "prepopulate": True},
-                    {"count": "2", "start_index": 1, "prepopulate": True}):
+        lm.create_job(self.db, "students", "admin@lab",
+                      {"count": 2, "start_index": 1, "prepopulate": False, "password_mode": "base"})
+        self.assertEqual({j["kind"]: j["status"] for j in lm.jobs(self.db)}, {"models": "queued", "students": "queued"})
+        ok = {"count": 2, "start_index": 1, "prepopulate": False, "password_mode": "generated"}
+        for bad in (dict(ok, password="secret"),          # passwords never reach the journal
+                    dict(ok, count=0), dict(ok, start_index=100), dict(ok, start_index=98, count=5),
+                    dict(ok, count="2"), dict(ok, password_mode="weak"),
+                    dict(ok, prepopulate=True)):           # not available yet
             with self.assertRaises(ValueError):
                 lm.create_job(self.db, "students", "admin@lab", bad)
         self.assertNotIn("secret", json.dumps(lm.jobs(self.db)))
@@ -300,3 +301,46 @@ class ExecuteTests(unittest.TestCase):
         with patch.object(lm, "caller_token", return_value="t" * 64), patch.object(lm, "AUTH_URL", "http://auth"):
             with self.assertRaises(lm.SessionLost):
                 lm.broker("", "GET", "/api/v1/admin/ai-providers")
+
+
+class StudentsJobTests(unittest.TestCase):
+    def setUp(self):
+        from catalog802.loader import build_views, load
+        catalog, errors = load(REPO_ROOT)
+        self.view = build_views(catalog)["faig"]
+
+    def test_each_student_is_ensured_with_policy_and_catalog_providers(self):
+        calls, lines = [], []
+        def ensure(body):
+            calls.append(body)
+            return {"account": "created", "password": "stored", "workspace": "created",
+                    "projects": {f"student{body['number']:02d}_hr-tool-dlp": "created"}, "verified": True, "notes": []}
+        request = {"count": 2, "start_index": 3, "password_mode": "base", "scenarios": ["hr-tool-dlp"]}
+        lm.run_students_job(ensure, self.view, request, "Base_Pass", lines.append)
+        self.assertEqual([c["number"] for c in calls], [3, 4])
+        self.assertEqual(calls[0]["password"], {"mode": "base", "value": "Base_Pass"})
+        self.assertEqual(calls[0]["providers"], ["litellm-direct"])
+        self.assertEqual(calls[0]["projects"], ["hr-tool-dlp"])
+        self.assertTrue(lines[0].startswith("student03: account created"))
+        self.assertNotIn("Base_Pass", " ".join(lines))
+
+    def test_generated_mode_sends_no_value_and_failures_are_reported(self):
+        calls, lines = [], []
+        def ensure(body):
+            calls.append(body)
+            if body["number"] == 2:
+                raise lm.BrokerError("FAIG rejects this password as weak: digitOk")
+            return {"account": "exists", "password": "stored", "workspace": "exists", "projects": {},
+                    "verified": True, "notes": []}
+        request = {"count": 2, "start_index": 1, "password_mode": "generated", "scenarios": ["hr-tool-dlp"]}
+        with self.assertRaises(lm.BrokerError):
+            lm.run_students_job(ensure, self.view, request, None, lines.append)
+        self.assertEqual(calls[0]["password"], {"mode": "generated"})
+        self.assertIn("student02: FAILED", lines[1])
+
+    def test_session_loss_stops_the_batch(self):
+        def ensure(body):
+            raise lm.SessionLost("sign in again")
+        with self.assertRaises(lm.SessionLost):
+            lm.run_students_job(ensure, self.view, {"count": 3, "start_index": 1, "password_mode": "generated",
+                                                    "scenarios": ["hr-tool-dlp"]}, None, lambda _: None)

@@ -65,3 +65,7 @@ labAuth:
   # Secret with per-caller bearer tokens for /_lab/internal/ broker calls
   # (key = caller name, e.g. lab-management). Created once by Ansible.
   callerSecretName: lab-gateway-callers
+  # Namespace holding lab-roster and lab-credentials (student data); empty disables
+  # student management. lab_auth gets get/patch on those two Secrets only.
+  labDataNamespace: ""
+  studentDomain: fortiai.lab

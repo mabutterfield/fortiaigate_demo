@@ -141,5 +141,148 @@ class ProxyTests(unittest.TestCase):
         self.assertIsNone(lab_auth.SESSIONS.by_handle(self.admin_handle, now=session["created"] + lab_auth.MAX_SESSION + 1))
 
 
+class Store:
+    def __init__(self):
+        self.data = {"credentials": {}, "roster": {}}
+        self.writes = []
+
+    def get(self, kind, student):
+        return dict(self.data[kind].get(student, {}))
+
+    def put(self, kind, student, value):
+        self.writes.append((kind, student, value.get("status")))
+        self.data[kind][student] = dict(value)
+
+    def all(self, kind):
+        return self.data[kind]
+
+
+class StudentFaig:
+    """Fake FAIG org for student creation (admin side)."""
+
+    def __init__(self, strong=True, accept_fails=False):
+        self.users, self.workspaces, self.projects, self.invites = [], [], [], {}
+        self.passwords, self.strong, self.accept_fails, self.calls = {}, strong, accept_fails, []
+
+    def call(self, method, path, payload=None):
+        self.calls.append((method, path.split("?")[0]))
+        if path.startswith("/api/v1/admin/users"):
+            return {"items": list(self.users), "total": len(self.users)}
+        if path == "/api/v1/me/password/strength":
+            return {"isStrong": self.strong, "digitOk": self.strong}
+        if path == "/api/v1/admin/user-invitations":
+            self.invites["inv1"] = payload["emails"][0]
+            return {"id": "inv1"}
+        if path == "/api/v1/admin/workspaces" and method == "GET":
+            return list(self.workspaces)
+        if path == "/api/v1/admin/workspaces":
+            ws = {"id": "ws-" + payload["workspaceName"], "workspaceName": payload["workspaceName"],
+                  "admins": payload["admins"]}
+            self.workspaces.append(ws)
+            return ws
+        if path.startswith("/api/v1/admin/ai-providers/"):
+            return {"providerId": "litellm-direct", "platform": "custom", "name": "litellm-direct",
+                    "apiKeys": [{"id": "k1", "name": "key"}]}
+        if path == "/api/v1/admin/projects" and method == "GET":
+            return list(self.projects)
+        if path == "/api/v1/admin/projects":
+            self.projects.append({"name": payload["name"], "workspaceId": payload["workspaceId"]})
+            return self.projects[-1]
+        raise AssertionError((method, path))
+
+    def session_factory(self):
+        org = self
+
+        class Anonymous:
+            def call(self, method, path, payload=None):
+                if path.endswith("/identify"):
+                    return {"outcome": "needs-registration"}
+                if path.endswith("/accept"):
+                    org.users.append({"id": "u-" + payload["email"], "email": payload["email"]})
+                    org.passwords[payload["email"]] = payload["password"]
+                    if org.accept_fails:
+                        raise TimeoutError("lost reply")
+                    return {"createdAccount": True}
+                if path == "/api/v1/me/workspaces":
+                    return [{"id": w["id"], "membershipRole": "admin"} for w in org.workspaces
+                            if {"id": "u-" + self.email} in w["admins"]]
+                return {}
+
+            def login(self, email, password):
+                assert org.passwords.get(email) == password, "wrong password"
+                self.email = email
+        return Anonymous
+
+
+REQUEST = {"number": 1, "password": {"mode": "base", "value": "Lab_Pass"}, "providers": ["litellm-direct"],
+           "projects": ["hr-tool-dlp", "fortistore-injection"]}
+
+
+class StudentTests(unittest.TestCase):
+    def test_passwords(self):
+        self.assertEqual(lab_broker.student_password({"mode": "base", "value": "Lab_"}, 7), "Lab_07")
+        self.assertEqual(lab_broker.student_password({"mode": "shared", "value": "Same_1"}, 7), "Same_1")
+        generated = lab_broker.student_password({"mode": "generated"}, 1)
+        self.assertEqual(len(generated), 24)
+        for bad in ({"mode": "shared"}, {"mode": "base", "value": "a\nb"}, {"mode": "other", "value": "x"}):
+            with self.assertRaises(ValueError):
+                lab_broker.student_password(bad, 1)
+        with self.assertRaises(ValueError):
+            lab_broker.student_names(100)
+
+    def test_create_then_rerun_is_idempotent(self):
+        faig, store = StudentFaig(), Store()
+        out = lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab")
+        self.assertEqual((out["account"], out["password"], out["workspace"], out["verified"]),
+                         ("created", "stored", "created", True))
+        self.assertEqual(set(out["projects"].values()), {"created"})
+        self.assertEqual(faig.passwords["student01@fortiai.lab"], "Lab_Pass01")
+        # password stored as pending BEFORE the account existed, then active
+        self.assertEqual([w for w in store.writes if w[0] == "credentials"],
+                         [("credentials", "student01", "pending"), ("credentials", "student01", "active")])
+        self.assertEqual(store.data["roster"]["student01"]["username"], "student01@fortiai.lab")
+        again = lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab")
+        self.assertEqual((again["account"], again["workspace"]), ("exists", "exists"))
+        self.assertEqual(set(again["projects"].values()), {"exists"})
+        self.assertEqual(len(faig.workspaces), 1)
+        self.assertEqual(sum(1 for c in faig.calls if c == ("POST", "/api/v1/admin/user-invitations")), 1)
+
+    def test_weak_or_instructor_password_creates_nothing(self):
+        faig, store = StudentFaig(strong=False), Store()
+        with self.assertRaises(ValueError):
+            lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab")
+        faig = StudentFaig()
+        with self.assertRaises(ValueError):
+            lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab",
+                                      same_as_instructor=lambda pw: pw == "Lab_Pass01")
+        self.assertEqual((faig.users, store.writes), ([], []))
+
+    def test_lost_accept_reply_is_reconciled_from_faig(self):
+        faig, store = StudentFaig(accept_fails=True), Store()
+        out = lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab")
+        self.assertEqual((out["account"], out["verified"]), ("created", True))
+        self.assertIn("did not confirm", out["notes"][0])
+        self.assertEqual(store.data["credentials"]["student01"]["status"], "active")
+
+    def test_existing_account_without_password_is_flagged_not_reset(self):
+        faig, store = StudentFaig(), Store()
+        faig.users.append({"id": "u-student01@fortiai.lab", "email": "student01@fortiai.lab"})
+        out = lab_broker.ensure_student(faig, faig.session_factory(), store, REQUEST, "admin@lab")
+        self.assertEqual((out["account"], out["password"], out["verified"]), ("exists", "unknown", False))
+        self.assertNotIn(("POST", "/api/v1/admin/user-invitations"), faig.calls)
+
+    def test_roster_hides_passwords_unless_revealed(self):
+        roster = {"student01": {"number": 1, "display_name": "Ana", "username": "student01@fortiai.lab"}}
+        creds = {"student01": {"password": "P_ss1234word"}}
+        faig_rows = [{"student": "student01", "email": "student01@fortiai.lab", "workspace": "student01_workspace",
+                      "active": True, "keys": 0}]
+        hidden = lab_broker.roster_rows(roster, creds, faig_rows, reveal=False)
+        self.assertNotIn("password", hidden[0])
+        self.assertTrue(hidden[0]["password_stored"])
+        self.assertEqual(lab_broker.roster_rows(roster, creds, faig_rows, reveal=True)[0]["password"], "P_ss1234word")
+        self.assertTrue(lab_broker.DISPLAY_NAME.fullmatch("Ana María"))
+        self.assertFalse(lab_broker.DISPLAY_NAME.fullmatch("<script>"))
+
+
 if __name__ == "__main__":
     unittest.main()

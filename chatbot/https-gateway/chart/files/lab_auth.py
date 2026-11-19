@@ -29,6 +29,8 @@ Environment:
                              password resets also update the student's fallback hash there
   LAB_NAMESPACE              namespace of LAB_FALLBACK_SECRET
   LAB_CALLER_TOKEN_DIR       directory of per-caller bearer tokens (lab_broker.py; default /etc/lab-auth/callers)
+  LAB_DATA_NAMESPACE         namespace of the lab-roster and lab-credentials Secrets (student data)
+  LAB_STUDENT_DOMAIN         email domain for studentNN accounts (default fortiai.lab)
 
 Change 2026-11-19: each sign-in also gets an opaque session handle, sent to
 upstreams as X-Lab-Session by nginx. In-cluster callers with their own token
@@ -71,6 +73,10 @@ FALLBACK_FILE = os.environ.get("LAB_FALLBACK_FILE", "")
 STUDENT_PATTERN = re.compile(os.environ.get("LAB_STUDENT_PATTERN", r"^(student\d{2,})_workspace$"))
 FALLBACK_SECRET = os.environ.get("LAB_FALLBACK_SECRET", "")
 NAMESPACE = os.environ.get("LAB_NAMESPACE", "")
+DATA_NAMESPACE = os.environ.get("LAB_DATA_NAMESPACE", "")
+DATA_SECRETS = {"credentials": "lab-credentials", "roster": "lab-roster"}
+# Per-process key for comparing student passwords with the instructor's without storing it.
+PASSWORD_CHECK_KEY = secrets.token_bytes(32)
 FALLBACK_DATA_KEY = "fallback.json"
 COOKIE = "lab_session"
 IDENTITY_FIELDS = ("user", "student", "role", "workspace_id", "ts")
@@ -211,6 +217,34 @@ class KubeSecret:
 
     def save(self, value: dict) -> None:
         self._call("PATCH", {"data": {self.data_key: base64.b64encode(json.dumps(value, indent=1).encode()).decode()}})
+
+
+class LabDataStore:
+    """Per-student JSON values in lab-data Secrets (one data key per student, merge-patched)."""
+
+    def __init__(self, namespace: str = None):
+        self.namespace = namespace or DATA_NAMESPACE
+
+    def _secret(self, kind: str) -> KubeSecret:
+        if not self.namespace or kind not in DATA_SECRETS:
+            raise ValueError("lab data store is not configured")
+        return KubeSecret(self.namespace, DATA_SECRETS[kind], "")
+
+    def all(self, kind: str) -> dict:
+        data = self._secret(kind)._call("GET").get("data") or {}
+        return {key: json.loads(base64.b64decode(value)) for key, value in data.items() if value}
+
+    def get(self, kind: str, student: str) -> dict:
+        return self.all(kind).get(student, {})
+
+    def put(self, kind: str, student: str, value: dict) -> None:
+        if not re.fullmatch(r"student\d{2}", student):
+            raise ValueError("invalid student key")
+        self._secret(kind)._call("PATCH", {"data": {student: base64.b64encode(json.dumps(value).encode()).decode()}})
+
+
+def password_check(password: str) -> str:
+    return hmac.new(PASSWORD_CHECK_KEY, password.encode(), hashlib.sha256).hexdigest()
 
 
 def student_rows(users: list) -> list:
@@ -369,6 +403,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.internal_logs(query)
         if url.path == "/_lab/internal/admin/students":
             return self.admin_students()
+        if url.path == "/_lab/internal/admin/roster":
+            return self.admin_roster(query.get("reveal") == "1")
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
@@ -376,6 +412,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_password()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/faig":
             return self.admin_faig_proxy()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/ensure":
+            return self.admin_student_ensure()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/roster/name":
+            return self.admin_roster_name()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -401,6 +441,10 @@ class Handler(BaseHTTPRequestHandler):
         if not identity:
             return self.login_form(next_path, error, status=401)
         token = SESSIONS.create(identity, faig)
+        if identity["role"] == "admin" and form.get("password"):
+            # Keyed hash only, so student passwords can be checked against the instructor's.
+            SESSIONS.data[token]["password_check"] = password_check(form["password"])
+        form = None
         cookie = f"{COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={int(MAX_SESSION)}"
         return self.redirect(next_path, {"Set-Cookie": cookie})
 
@@ -588,6 +632,100 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, OSError, ValueError) as exc:
             # Unknown outcome: the caller must re-read state before any retry.
             return self.json_reply(504, {"error": f"FAIG unreachable or timed out ({type(exc).__name__})"})
+
+    def broker_json(self, limit: int = 16384):
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        if not 0 < length <= limit:
+            raise ValueError("bad length")
+        body = json.loads(self.rfile.read(length))
+        if not isinstance(body, dict):
+            raise ValueError("bad body")
+        return body
+
+    def admin_student_ensure(self):
+        """Create or reconcile one student with the instructor's session (passwords stay in lab_auth)."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            request = self.broker_json()
+            if set(request) - {"number", "password", "providers", "projects"}:
+                raise ValueError("unexpected fields")
+        except ValueError:
+            return self.json_reply(400, {"error": "bad request body"})
+        check = session.get("password_check")
+        try:
+            result = lab_broker.ensure_student(
+                session["faig"], FaigSession, LabDataStore(), request, session["identity"]["user"],
+                same_as_instructor=lambda pw: bool(check) and hmac.compare_digest(check, password_check(pw)))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code}"})
+        except (ValueError, RuntimeError, KeyError) as exc:
+            return self.json_reply(422, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); re-run to reconcile"})
+        request = None
+        sync = self.sync_fallback(result)
+        result["fallback"] = sync
+        print(f"student {result['student']} ensured by {session['identity']['user']}: account {result['account']}, "
+              f"workspace {result['workspace']}, verified {result['verified']}", flush=True)
+        return self.json_reply(200, result)
+
+    def sync_fallback(self, result: dict) -> str:
+        """Keep the fallback sign-in store in step with a stored student password."""
+        if not (FALLBACK_SECRET and NAMESPACE) or result.get("password") != "stored":
+            return "not changed"
+        try:
+            stored = LabDataStore().get("credentials", result["student"])
+            store = KubeSecret(NAMESPACE, FALLBACK_SECRET, FALLBACK_DATA_KEY)
+            current = store.load()
+            current[result["email"]] = fallback_entry(stored["password"], result["student"],
+                                                      result.get("workspace_id", ""), result.get("workspace_name", ""))
+            store.save(current)
+            return "updated"
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            return f"failed ({type(exc).__name__})"
+
+    def admin_roster(self, reveal: bool):
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            store = LabDataStore()
+            rows = lab_broker.roster_rows(store.all("roster"), store.all("credentials") if reveal else
+                                          {k: {"password": bool(v.get("password"))} for k, v in store.all("credentials").items()},
+                                          student_rows(self.faig_users(session)), reveal)
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"HTTP {exc.code}"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"roster unavailable ({type(exc).__name__})"})
+        if reveal:
+            print(f"roster with passwords viewed by {session['identity']['user']}", flush=True)
+        return self.json_reply(200, {"items": rows})
+
+    def admin_roster_name(self):
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            body = self.broker_json(2048)
+            student, name = str(body.get("student", "")), body.get("display_name", "")
+            if not re.fullmatch(r"student\d{2}", student) or not isinstance(name, str) \
+                    or not lab_broker.DISPLAY_NAME.fullmatch(name):
+                raise ValueError("bad student or name")
+            store = LabDataStore()
+            entry = store.get("roster", student)
+            if not entry:
+                return self.json_reply(404, {"error": "student not in roster"})
+            store.put("roster", student, dict(entry, display_name=name.strip(), updated_at=int(time.time())))
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"roster unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, {"saved": True})
+
 
 
 def broker_session(handler, scope: str):

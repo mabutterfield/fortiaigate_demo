@@ -18,3 +18,12 @@ label { margin-right: 1rem; }
 @media (max-width: 640px) { header { flex-direction: column; padding: 1rem 1rem 0; } main { padding: 0 1rem 1rem; } }
 .status { font-weight: 600; } .status.done { color: var(--ok); } .status.failed, .status.needs-sign-in, .status.interrupted { color: var(--bad); } .status.blocked { color: var(--warn); }
 button:disabled { cursor: not-allowed; opacity: .6; }
+table { border-collapse: collapse; width: 100%; background: var(--card); }
+th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid #e3e7ea; vertical-align: middle; }
+td input { width: 10rem; }
+fieldset { border: 1px solid #d5dbdf; border-radius: .4rem; margin: .75rem 0; }
+.mono { font-family: ui-monospace, Menlo, monospace; }
+body.share main { max-width: 1100px; padding-top: 1.5rem; }
+body.share table { font-size: 1.35rem; }
+body.share h1 { margin-top: 0; }
+.warnbox { border-left-color: var(--bad); }

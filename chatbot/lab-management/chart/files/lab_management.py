@@ -15,7 +15,13 @@ the selected scenarios' models (plus pass-model) on their FAIG provider while
 keeping every other model and credential. It runs with the requesting
 instructor's own FAIG session through the gateway broker: this service sends
 its caller token plus the instructor's session handle (X-Lab-Session), never a
-password or FAIG cookie. Student batches are still recorded as "blocked".
+password or FAIG cookie.
+
+"students" creates or reconciles studentNN accounts, workspaces and scenario
+projects through the gateway (lab_auth), which generates or applies the
+password and keeps it in the lab-credentials Secret. A password typed by the
+instructor passes through this process in memory only; the journal records the
+password mode, never the value. Prepopulation is not implemented yet.
 
 Environment:
   LAB_MANAGEMENT_PORT     listen port (default 8080)
@@ -51,7 +57,10 @@ CALLER_TOKEN_FILE = os.environ.get('LAB_CALLER_TOKEN_FILE', '/etc/lab-management
 HEADERS = ('X-Lab-User', 'X-Lab-Student', 'X-Lab-Role', 'X-Lab-Workspace-Id', 'X-Lab-Ts', 'X-Lab-Signature')
 STATIC = {'/': ('index.html', 'text/html; charset=utf-8'),
           '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+          '/share.html': ('share.html', 'text/html; charset=utf-8'),
+          '/share.js': ('share.js', 'text/javascript; charset=utf-8'),
           '/style.css': ('style.css', 'text/css; charset=utf-8')}
+PASSWORD_MODES = ('generated', 'shared', 'base')
 AUTH_CACHE_SECONDS = 20
 _auth_cache = {}
 _auth_lock = threading.Lock()
@@ -125,11 +134,14 @@ def create_job(db, kind, actor, request):
             raise ValueError('unexpected fields')
         clean = {'scenarios': selected(db)}
     elif kind == 'students':
-        if (set(request) != {'count', 'start_index', 'prepopulate'}
+        if (set(request) != {'count', 'start_index', 'prepopulate', 'password_mode'}
                 or type(request['count']) is not int or type(request['start_index']) is not int
-                or type(request['prepopulate']) is not bool
-                or not 1 <= request['count'] <= 100 or not 1 <= request['start_index'] <= 99):
+                or type(request['prepopulate']) is not bool or request['password_mode'] not in PASSWORD_MODES
+                or not 1 <= request['count'] <= 99 or not 1 <= request['start_index'] <= 99
+                or request['start_index'] + request['count'] - 1 > 99):
             raise ValueError('invalid student batch')
+        if request['prepopulate']:
+            raise ValueError('prepopulation is not available yet; create students without it')
         clean = dict(request, scenarios=selected(db))
     else:
         raise ValueError('unknown operation')
@@ -177,27 +189,44 @@ def caller_token():
         return ''
 
 
-def broker(handle, method, path, body=None):
-    """One allowlisted FAIG call with the instructor's session; returns the FAIG JSON body."""
+def gateway(handle, path, body=None, timeout=60):
+    """Call a lab_auth broker endpoint as this caller for the instructor's session handle."""
     token = caller_token()
     if not token or not AUTH_URL:
         raise BrokerError('broker not configured (caller token missing); redeploy the gateway, then lab management')
     if not handle:
         raise SessionLost('no session handle')
-    payload = json.dumps({'method': method, 'path': path, 'body': body}).encode()
-    request = urllib.request.Request(AUTH_URL + '/_lab/internal/admin/faig', data=payload, method='POST', headers={
-        'Authorization': 'Bearer ' + token, 'X-Lab-Session': handle, 'Content-Type': 'application/json'})
+    headers = {'Authorization': 'Bearer ' + token, 'X-Lab-Session': handle}
+    data = None
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        data = json.dumps(body).encode()
+    request = urllib.request.Request(AUTH_URL + path, data=data, method='POST' if data else 'GET', headers=headers)
     try:
-        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=60) as response:
-            reply = json.load(response)
+        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
+            return json.load(response)
     except urllib.error.HTTPError as exc:
+        try:
+            error = json.load(exc).get('error', '')
+        except (ValueError, AttributeError):
+            error = ''
         if exc.code == 401:
-            raise SessionLost('sign in again') from None
+            raise SessionLost(error or 'sign in again') from None
         if exc.code == 504:
-            raise UnknownOutcome(f'{method} {path}: FAIG did not answer') from None
-        raise BrokerError(f'{method} {path}: broker refused (HTTP {exc.code})') from None
+            raise UnknownOutcome(error or 'gateway timed out') from None
+        raise BrokerError(error or f'gateway refused (HTTP {exc.code})') from None
     except (OSError, ValueError) as exc:
-        raise UnknownOutcome(f'{method} {path}: {type(exc).__name__}') from None
+        raise UnknownOutcome(f'{type(exc).__name__}') from None
+
+
+def broker(handle, method, path, body=None):
+    """One allowlisted FAIG call with the instructor's session; returns the FAIG JSON body."""
+    try:
+        reply = gateway(handle, '/_lab/internal/admin/faig', {'method': method, 'path': path, 'body': body})
+    except UnknownOutcome as exc:
+        raise UnknownOutcome(f'{method} {path}: {exc}') from None
+    except BrokerError as exc:
+        raise BrokerError(f'{method} {path}: {exc}') from None
     if reply.get('status') != 200:
         detail = reply.get('body') or {}
         message = detail.get('error') or detail.get('detail') or '' if isinstance(detail, dict) else ''
@@ -329,12 +358,43 @@ def run_models_job(call, view, scenario_ids, log):
         log(f'{provider_id}: saved and verified ({len(after.get("models", []))} models, credentials unchanged).')
 
 
-EXECUTABLE = {'models'}
+def catalog_providers(view, scenario_ids):
+    return sorted(desired_models(view, scenario_ids))
+
+
+def run_students_job(ensure, view, request, password, log):
+    """Create or reconcile each student in turn with `ensure(body)` (the gateway endpoint)."""
+    providers = catalog_providers(view, set(request['scenarios']))
+    policy = {'mode': request['password_mode']}
+    if request['password_mode'] != 'generated':
+        policy['value'] = password
+    failures = 0
+    for number in range(request['start_index'], request['start_index'] + request['count']):
+        student = f'student{number:02d}'
+        try:
+            result = ensure({'number': number, 'password': policy, 'providers': providers,
+                             'projects': sorted(request['scenarios'])})
+        except (BrokerError, UnknownOutcome) as exc:
+            failures += 1
+            log(f'{student}: FAILED — {exc}')
+            continue
+        projects = ', '.join(f'{k} {v}' for k, v in sorted(result.get('projects', {}).items())) or 'none'
+        log(f'{student}: account {result.get("account")}, password {result.get("password")}, '
+            f'workspace {result.get("workspace")}, projects: {projects}; '
+            f'{"verified by student sign-in" if result.get("verified") else "NOT verified"}'
+            + (f'; {"; ".join(result["notes"])}' if result.get('notes') else ''))
+        if not result.get('verified'):
+            failures += 1
+    if failures:
+        raise BrokerError(f'{failures} student(s) need attention; re-run the same batch to reconcile')
+
+
+EXECUTABLE = {'models', 'students'}
 _job_lock = threading.Lock()
 
 
-def execute(job, kind, request, handle, db_path=None):
-    """Run one job in a worker thread. The handle lives only in memory for this run."""
+def execute(job, kind, request, handle, db_path=None, password=None):
+    """Run one job in a worker thread. The handle and any password live only in memory for this run."""
     lines = []
     with _job_lock, connect(db_path) as db:
         def log(line):
@@ -345,6 +405,9 @@ def execute(job, kind, request, handle, db_path=None):
             if kind == 'models':
                 run_models_job(lambda m, p, b=None: broker(handle, m, p, b), load_faig_view(),
                                set(request['scenarios']), log)
+            elif kind == 'students':
+                run_students_job(lambda body: gateway(handle, '/_lab/internal/admin/students/ensure', body, timeout=180),
+                                 load_faig_view(), request, password, log)
             set_job(db, job, 'done', '\n'.join(lines) or 'Done.')
         except SessionLost:
             set_job(db, job, 'needs-sign-in', '\n'.join(lines + ['Your FAIG session ended; sign in again and re-run.']))
@@ -392,6 +455,12 @@ def authorize(headers, now=None):
         with _auth_lock:
             _auth_cache[cache_key] = now + AUTH_CACHE_SECONDS
     return ok
+
+
+def public_origin(headers):
+    if PUBLIC_ORIGIN:
+        return PUBLIC_ORIGIN
+    return f"{headers.get('X-Forwarded-Proto', 'https')}://{headers.get('X-Forwarded-Host', '')}"
 
 
 def origin_ok(headers):
@@ -442,6 +511,17 @@ class Handler(BaseHTTPRequestHandler):
         if path in STATIC:
             name, content_type = STATIC[path]
             return self.reply(200, (STATIC_DIR / name).read_bytes(), content_type)
+        if path in ('/api/roster', '/api/roster/share'):
+            try:
+                reply = gateway(self.headers.get('X-Lab-Session', ''),
+                                '/_lab/internal/admin/roster' + ('?reveal=1' if path.endswith('share') else ''))
+            except SessionLost:
+                return self.reply(401, {'error': 'Your FAIG session ended; sign in again.'})
+            except (BrokerError, UnknownOutcome) as exc:
+                return self.reply(503, {'error': str(exc)})
+            if path.endswith('share'):
+                reply['sign_in_url'] = public_origin(self.headers) + '/'
+            return self.reply(200, reply)
         if path == '/api/state':
             items, platform, error = load_catalog()
             with connect() as db:
@@ -474,6 +554,21 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(409, {'error': error})
                     select(db, body['ids'], {s['id'] for s in items})
                     return self.reply(200, {'saved': True})
+                if path == '/api/roster/name' and set(body) == {'student', 'display_name'}:
+                    try:
+                        gateway(self.headers.get('X-Lab-Session', ''), '/_lab/internal/admin/roster/name', body)
+                    except SessionLost:
+                        return self.reply(401, {'error': 'Your FAIG session ended; sign in again.'})
+                    except (BrokerError, UnknownOutcome) as exc:
+                        return self.reply(400, {'error': str(exc)})
+                    return self.reply(200, {'saved': True})
+                password = None
+                if path == '/api/jobs/students':
+                    password = body.pop('password', None)
+                    if body.get('password_mode') in ('shared', 'base') and (not isinstance(password, str) or not password):
+                        raise ValueError('enter a password for this mode')
+                    if body.get('password_mode') == 'generated' and password:
+                        raise ValueError('generated mode takes no password')
                 if path in ('/api/jobs/models', '/api/jobs/students'):
                     kind = path.rsplit('/', 1)[-1]
                     if kind in EXECUTABLE and not caller_token():
@@ -482,7 +577,9 @@ class Handler(BaseHTTPRequestHandler):
                     status = db.execute('SELECT status, request FROM jobs WHERE id=?', (job,)).fetchone()
                     if kind in EXECUTABLE:
                         threading.Thread(target=execute, daemon=True,
-                                         args=(job, kind, json.loads(status[1]), self.headers.get('X-Lab-Session', ''))).start()
+                                         args=(job, kind, json.loads(status[1]), self.headers.get('X-Lab-Session', '')),
+                                         kwargs={'password': password}).start()
+                    password = None
                     return self.reply(201, {'id': job, 'status': status[0]})
             self.reply(404, {'error': 'not found'})
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:

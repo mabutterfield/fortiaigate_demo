@@ -84,6 +84,10 @@ spec:
               value: /etc/lab-auth/signing/hmac-key
             - name: LAB_CALLER_TOKEN_DIR
               value: /etc/lab-auth/callers
+            - name: LAB_DATA_NAMESPACE
+              value: {{ .Values.labAuth.labDataNamespace | quote }}
+            - name: LAB_STUDENT_DOMAIN
+              value: {{ .Values.labAuth.studentDomain | quote }}
 {{- if .Values.labAuth.fallbackSecretName }}
             - name: LAB_FALLBACK_FILE
               value: /etc/lab-auth/fallback/fallback.json

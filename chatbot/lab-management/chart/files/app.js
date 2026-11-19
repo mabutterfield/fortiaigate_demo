@@ -76,7 +76,7 @@ async function refresh() {
 let polling = null;
 function pollWhileRunning(state) {
   const busy = state && state.jobs.some(j => j.status === 'queued' || j.status === 'running');
-  if (busy && !polling) polling = setInterval(() => refresh().then(s => { if (!s.jobs.some(j => j.status === 'queued' || j.status === 'running')) { clearInterval(polling); polling = null; } }).catch(() => {}), 2000);
+  if (busy && !polling) polling = setInterval(() => refresh().then(s => { if (!s.jobs.some(j => j.status === 'queued' || j.status === 'running')) { clearInterval(polling); polling = null; loadRoster(); } }).catch(() => {}), 2000);
 }
 
 async function run(fn) {
@@ -89,9 +89,41 @@ el('selection').addEventListener('submit', e => {
   run(() => api('api/selection', {ids: [...el('scenarios').querySelectorAll('input:checked')].map(x => x.value)}));
 });
 el('models').addEventListener('click', () => run(() => api('api/jobs/models', {})));
+function pwMode() { return document.querySelector('input[name=pwmode]:checked').value; }
+document.querySelectorAll('input[name=pwmode]').forEach(r => r.addEventListener('change', () => { el('pwlabel').hidden = pwMode() === 'generated'; }));
 el('students').addEventListener('submit', e => {
   e.preventDefault();
-  run(() => api('api/jobs/students', {count: Number(el('count').value), start_index: Number(el('start').value), prepopulate: el('prepopulate').checked}));
+  const body = {count: Number(el('count').value), start_index: Number(el('start').value), prepopulate: false, password_mode: pwMode()};
+  if (pwMode() !== 'generated') body.password = el('password').value;
+  run(async () => { await api('api/jobs/students', body); el('password').value = ''; });
 });
+
+async function loadRoster() {
+  const box = el('roster');
+  try {
+    const data = await api('api/roster');
+    box.replaceChildren();
+    if (!data.items.length) { box.append(text('p', 'No students yet.', 'muted')); return; }
+    const table = document.createElement('table');
+    const head = document.createElement('tr');
+    ['#', 'Name', 'Account', 'Workspace', 'In FAIG', 'Keys', 'Password stored', ''].forEach(h => head.append(text('th', h)));
+    table.append(head);
+    data.items.forEach(r => {
+      const tr = document.createElement('tr');
+      const name = document.createElement('input');
+      name.value = r.display_name; name.maxLength = 80; name.placeholder = 'optional';
+      const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save name';
+      save.addEventListener('click', () => run(async () => { await api('api/roster/name', {student: r.student, display_name: name.value}); await loadRoster(); }));
+      const nameCell = document.createElement('td'); nameCell.append(name);
+      tr.append(text('td', String(r.number)), nameCell, text('td', r.username), text('td', r.workspace),
+                text('td', r.in_faig ? 'yes' : 'no'), text('td', String(r.keys)), text('td', r.password_stored ? 'yes' : 'no'));
+      const actions = document.createElement('td'); actions.append(save); tr.append(actions);
+      table.append(tr);
+    });
+    box.append(table);
+  } catch (e) { box.replaceChildren(text('p', 'Student list unavailable: ' + e.message, 'warn')); }
+}
+
 run(async () => {});
+loadRoster();
 setInterval(() => api('api/state').then(s => showApproval(s.auto_approval || {})).catch(() => {}), 15000);
