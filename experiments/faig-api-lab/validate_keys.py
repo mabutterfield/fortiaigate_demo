@@ -19,7 +19,7 @@ import urllib.request
 from scenario_lab import REPO_ROOT, ApiError, Client, items
 from student_lab import private_file
 
-EXPECTED_VERDICT = {'alert': 'Alert', 'deny': 'Block', 'redact': 'Redact'}
+EXPECTED_VERDICT = {'alert': 'Alert', 'block': 'Block', 'redact': 'Redact'}
 SENSITIVE_FIELDS = ('date_of_birth', 'ssn', 'credit_card_number')
 TABLE_FIELDS = ('employee_id', 'name', 'location', 'date_of_birth', 'phone', 'ssn', 'email', 'credit_card_number')
 MCP_FIXTURE = REPO_ROOT / 'mcp/chart/files/tools.json'

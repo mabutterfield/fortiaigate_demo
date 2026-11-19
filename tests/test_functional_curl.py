@@ -48,14 +48,14 @@ class FunctionalCurlRendererTests(unittest.TestCase):
 
     def test_every_validation_case_renders_from_installed_metadata(self) -> None:
         expected_cases = {
-            "fortistore-injection": {"alert-attack", "deny-attack"},
-            "hr-tool-dlp": {"alert-attack", "deny-attack", "redact-attack"},
+            "fortistore-injection": {"alert-attack", "block-attack"},
+            "hr-tool-dlp": {"alert-attack", "block-attack", "redact-attack"},
             "hr-sensitive-lookup": {
                 "alert-date-of-birth",
-                "deny-ssn",
+                "block-ssn",
                 "redact-all-records",
             },
-            "resume-tool-injection": {"alert-attack", "deny-attack"},
+            "resume-tool-injection": {"alert-attack", "block-attack"},
         }
         with mock.patch.object(
             curl_renderer.scenario_local,
@@ -93,7 +93,7 @@ class FunctionalCurlRendererTests(unittest.TestCase):
             return_value=self.store,
         ):
             body, metadata = curl_renderer.render_request(
-                self.args("fortistore-injection", "deny", "deny-attack")
+                self.args("fortistore-injection", "block", "block-attack")
             )
         self.assertEqual(
             metadata["frontend_instruction_profile"],
@@ -109,7 +109,7 @@ class FunctionalCurlRendererTests(unittest.TestCase):
             return_value=self.store,
         ):
             body, _metadata = curl_renderer.render_request(
-                self.args("resume-tool-injection", "deny", "deny-attack")
+                self.args("resume-tool-injection", "block", "block-attack")
             )
         executed = [
             tool_call["function"]["name"]

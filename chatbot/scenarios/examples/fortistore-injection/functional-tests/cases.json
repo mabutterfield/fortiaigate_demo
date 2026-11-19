@@ -4,7 +4,7 @@
     "alert-attack": {
       "request": "attack-request.json"
     },
-    "deny-attack": {
+    "block-attack": {
       "request": "attack-request.json"
     }
   }

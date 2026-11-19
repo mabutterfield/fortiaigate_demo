@@ -1,131 +1,88 @@
-# FAIG 8.0.2 catalog — scenario migration draft
+# FAIG 8.0.2 scenario catalog
 
-This directory is a **migration draft**, not yet the active runtime source of
-truth and not an installer. It contains a scenario schema, a standard-library
-validator/loader, four secret-free generated views, and draft definitions for
-HR DLP, FortiStore, and Resume. Existing profiles and runtime consumers still
-use their previous sources; duplication remains until consumer migration.
-
-From the repository root:
+The catalog defines the three active scenarios (FortiStore Injection, HR Tool
+DLP and Resume Tool Injection), their model aliases and instruction files,
+reusable MCP tool contracts, FAIG detector/guardrail templates, sample prompts,
+and test expectations. `data/index.json` selects active definitions. Other
+candidate scenarios remain in the legacy scenario index and are not active in
+this catalog.
 
 ```bash
-python3 -m catalog802 student
-python3 -m catalog802 faig
-python3 -m catalog802 models
-python3 -m catalog802 mcp
-python3 -m unittest discover -s catalog802/tests -v
+python3 -m catalog802 student       # secret-free student-facing view
+python3 -m catalog802 faig          # provisioning view
+python3 -m catalog802 models        # model instructions for trusted consumers
+python3 -m catalog802 mcp           # resolved MCP contracts
+python3 -m catalog802 litellm       # LiteLLM Ansible matrix
+python3 -m catalog802 mcp-runtime   # MCP function definitions
+python3 -m unittest discover -s catalog802/tests
 ```
 
-`schema/scenario.schema.json` documents the scenario's outer structure;
-`loader.py` is the executable stdlib validator and additionally checks model,
-tool, guard, prompt and file references. Schema and loader must be brought to
-full parity during review before claiming general JSON Schema validation.
-The catalog covers three scenarios and their referenced tool contracts. It
-references tracked synthetic fixtures and the dispatcher; runtime MCP still
-uses its old `TOOLS` registry. The future MCP compiler and the
-migration/removal of the duplicate tool registry are not implemented here.
+The `student` and `faig` views include the platform hello-world, passthrough
+model, naming, labeled action/result vocabularies, and lab price units. Prices
+are artificial USD per million tokens. View headers carry a schema version,
+source revision and generation time; scenario and platform hashes exclude the
+timestamp and cover relevant definitions, model instructions and tool
+fixtures. A source hash does not prove the live configuration matches it.
+The student view excludes backend model instructions but includes the expressly
+labeled FortiStore compromised-frontend fixture; it is used only when a test or
+student explicitly selects it, never by default.
 
-The `student` and `faig` views expose a `platform` object with the shared
-hello-world case, resolved pass-model metadata, naming patterns, action, execution, verdict, evidence, and outcome
-vocabularies and lab price units. The observed platform passthrough
-key has no directly attached policy (`policyIds: []`); inherited policies and
-scanning status still need to be checked independently. The object has its
-own deterministic hash. `vocabulary.py` owns the current catalog constants;
-the existing `functional_test/result_contract.py` has not yet migrated to
-them. The proposed ConfigMap keys are `catalog-student.json` and
-`catalog-faig.json`; ConfigMap generation and delivery are not implemented.
+Prompt groups contain objects with scenario-unique `id` and `text` fields;
+tests refer to IDs rather than positions. Names use underscores between
+sections and hyphens within sections. HR Redact covers DOB, SSN, payment card,
+email and phone through reusable detectors. Broader groupings and support for
+regex/natural-language detector kinds require validation. The scenario JSON
+Schema documents structure; the standard-library loader additionally validates
+cross-references and rules. It is not a full JSON Schema validator.
 
-All paths resolve within the supplied checkout root; credentials, users and
-FAIG UUIDs are absent. The model view includes backend instruction text and is
-for trusted deployment consumers; the student view omits that text. SHA-256
-hashes cover canonical JSON of resolved scenario, model/instruction, tool
-contracts, referenced dispatcher/fixture hashes, guards/detectors, naming,
-hello-world and pricing metadata. View timestamps and source commit are not
-hashed. A matching source hash never proves a live deployment matches.
+## Deployment and transitional adapters
 
-Prices are decimal strings in USD per million tokens; conversion and FAIG API
-read-back are future provisioning adapter work. `known_failure_matches` is a
-pure predicate over normalized supplied results; no existing test runner has
-been changed and a matching predicate never changes or hides raw evidence.
+The LiteLLM role reads catalog aliases and instructions by default. Set
+`litellm_use_catalog: false` to restore its previous installed-scenario matrix.
+The 8.0.2 FAIG re-entry provider remains separate and unfinished; catalog mode
+rejects the legacy FAIG-chain option.
 
-Review questions: expected view/field names; schema and validator strictness;
-model/public/backend identity; naming; detector and template representation;
-MCP handler/fixture references and hashing; known-issue scope and predicates;
-source-to-ConfigMap packaging; and how later scenario editor drafts validate
-without Git write access. No live FAIG operation or vendor API support claim.
+The MCP role compiles the catalog definitions and mounts them in both server
+containers. Catalog contracts replace matching legacy entries; the remaining
+legacy tools are preserved. The duplicate legacy registry is a transitional
+adapter and parity tests detect drift for cataloged tool definitions. Set
+`mcp_use_catalog: false` for the old registry. The chart used without the role
+defaults the adapter off. Installing a new handler remains a development and
+redeployment task; a scenario cannot install executable code at runtime.
 
-The review contract separates execution status, the most severe observed Traffic
-Log verdict, client-observed evidence, and outcome. Missing or unreadable rows,
-or fewer rows than requests sent, make the verdict unknown; a required unknown
-verdict makes the outcome incomplete. A tool returning sensitive data to the
-chatbot does not establish that the model received it. A block-message marker
-should use an exact configured-message match where available; reply keywords
-are not a substitute for a Traffic Log verdict. The future runner must implement
-these outcome rules; this slice only validates expectations and issue predicates.
+The existing `functional_test scenario-pack`, `functional_test/result_contract.py`
+and `chatbot/agent/faig_agent.py` remain in place for the existing chatbot until
+its catalog reader lands. Transitional legacy scenario profiles and FAIG
+configuration templates remain editable files; `test_legacy_adapter_parity.py`
+checks the active profiles, prompts, tools, actions and guard behavior against
+the catalog to detect drift. These files and parity checks should be retired
+when their consumers are replaced; they are not a second long-term source of
+truth. Existing student keys with old `deny` names require reseeding; the new
+catalog and current templates use `block` and underscore-separated sections.
 
-Prompt groups contain objects with a scenario-unique `id` and `text`; tests
-reference the ID, so reordering prompts does not change the test. Object names
-use underscores between logical sections and hyphens inside a section.
-Guardrails can compose multiple reusable, scenario-independent detector
-categories. The HR example preserves its existing DOB, SSN, and payment-card
-categories while splitting them into independent detector definitions. Broader
-address and financial groupings require verification against FAIG's supported
-categories. Regex and natural-language kind-specific validation and
-provisioning have not yet been implemented or verified.
+## Testing
 
-FortiStore references its compromised frontend instruction file; the student
-view includes its contents and the scenario hash covers them. Resume document
-fixtures are separately referenced and hashed. Resume Block records the known
-early-block issue without suppressing failed-test evidence. Neither scenario
-change has been tested against a live FAIG deployment in this migration.
+`catalog802/result_contract.evaluate` evaluates supplied observations against a
+catalog test. Its imports include `catalog802.loader` and
+`catalog802.vocabulary`; package those dependencies together. It does not
+collect logs or independently verify evidence provenance. Execution, traffic
+verdict, client-observed evidence and outcome remain separate. Missing
+required Traffic Log rows produce an incomplete result. A tool result observed
+by the chatbot does not prove the model received it.
 
-`result_contract.evaluate` implements the approved outcome rules over supplied
-observations, preserving the Traffic Log rows and failure reasons. It does not
-collect logs, identify evidence, or replace the existing live test runner; the
-caller must provide complete rows, evidence, and tools called.
+`python3 -m functional_test evaluate-catalog` evaluates an observations JSON
+file; `python3 -m functional_test catalog-baseline --help` describes the live
+one-case runner. The live runner needs an owner-only virtual-key file and FAIG
+admin credentials. It uses a unique prompt marker and checks each matching
+Traffic Log detail; it does not print secrets or prompt/response content. An
+exact block-message file is required if a case checks block-message evidence.
+A missing or unreadable required row produces INCOMPLETE. The existing legacy
+baseline and chatbot are not yet switched to this runner.
 
-`python3 -m catalog802 mcp-runtime` compiles the currently cataloged tool
-contracts to the server's function format. This output contains only tools in
-the catalog, not every legacy or candidate tool; it is not installed or used
-by either MCP endpoint yet. Do not replace the existing server registry until
-non-catalog tools and both endpoints have a verified migration path.
-
-`python3 -m catalog802 litellm` builds the LiteLLM role's matrix subset from
-all cataloged models, deduplicated by backend alias. It validates shared alias
-targets/instructions and keeps pass-model free of injected instructions. The
-role defaults to this catalog output; set `litellm_use_catalog: false` to use
-the previous locally installed scenario matrix. This change is not yet live
-validated and does not implement the 8.0.2 FAIG re-entry provider.
-
-The MCP Ansible role stages the compiled registry by default and mounts it in
-both MCP containers. At startup, catalog definitions replace matching entries
-in the legacy server registry; the remaining legacy tools are preserved. This
-is an interim adapter: the legacy entries and catalog duplicates still need
-consolidation. Missing, duplicate, or unrecognized catalog tool names fail
-startup. Set `mcp_use_catalog: false` for the previous registry-only behavior.
-The Helm chart used independently defaults the adapter off unless its generated
-registry is explicitly staged. This workflow requires live validation.
-
-`python3 -m functional_test evaluate-catalog --scenario ID --test ID
---faig-version 8.0.2 --observations observations.json` evaluates already
-collected observations against a catalog test. The observations JSON must
-contain `execution`, `verdict_rows`, `requests_sent`, `evidence`, and
-`tools_called`. The command does not perform requests or verify evidence
-provenance; it reports incomplete when the required Traffic Log rows are
-missing. Existing live baseline and chatbot tests still use their legacy
-contract until a request-correlated Traffic Log collector is implemented.
-
-`python3 -m functional_test catalog-baseline --help` describes the live
-catalog runner. It requires an owner-only scenario key file and administrator
-credentials to check Traffic Log details. It adds a unique marker to the
-prompt, runs the shared in-cluster agent, and only accepts log rows with the
-same key and marker in `prompt.original`. Missing rows produce INCOMPLETE;
-results contain no key or prompt/response contents. The marker has been
-verified in a blocked FortiStore request, a two-request HR redaction turn,
-and a five-request Resume tool turn. This runner executes one test at a time;
-key metadata must match the current catalog action, and old `deny` metadata is
-not silently treated as `block`.
-
-The HR Redact catalog guardrail includes date of birth, SSN, payment card,
-email and phone. The currently deployed older lab policy may not yet include
-email or phone; verify the policy configuration before judging a live result.
+Live lab checks have exercised FortiStore Alert/Block, HR Alert/Block, Resume
+Alert, the opt-in compromised frontend, and Resume Block's scoped early-block
+known failure. A previous HR Redact run against the *older* policy correctly
+failed because it allowed email/phone. The catalog now includes those
+categories; validate the newly provisioned policy independently. The marker
+may itself affect a detector and is not guaranteed to survive every policy;
+when it does not, the runner must report incomplete.

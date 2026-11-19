@@ -43,9 +43,9 @@
         "required_for_release": false
       },
       {
-        "action": "deny",
-        "display_name": "Deny",
-        "guard_template": "output_dlp_deny",
+        "action": "block",
+        "display_name": "Block",
+        "guard_template": "output_dlp_block",
         "expected_behavior": "Block the model response when the matching synthetic employee record contains configured protected fields.",
         "required_for_release": false
       }
@@ -85,10 +85,10 @@
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "hr-sensitive-lookup-deny",
-        "display_name": "HR Sensitive Lookup - Deny",
+        "id": "hr-sensitive-lookup-block",
+        "display_name": "HR Sensitive Lookup - Block",
         "provider_path": "faig-static",
-        "entry_point_action": "deny",
+        "entry_point_action": "block",
         "context_mode": "consolidated",
         "context_window": 8,
         "frontend_instruction_profile": "none"
@@ -120,8 +120,8 @@
         "forbidden_tools": []
       },
       {
-        "id": "deny-ssn",
-        "action": "deny",
+        "id": "block-ssn",
+        "action": "block",
         "prompt_kind": "attack",
         "prompt_index": 1,
         "expected_result": "blocked",
@@ -149,7 +149,7 @@
     "The model can normalize a natural-language date into the tool's preferred YYYY-MM-DD representation; the MCP server also accepts documented date formats.",
     "The MCP server normalizes SSN separators before exact matching the synthetic fixture.",
     "Alert allows the sensitive tool result and final answer while recording output-DLP detections.",
-    "Deny blocks the protected model output after the read-only tool returns its synthetic record.",
+    "Block blocks the protected model output after the read-only tool returns its synthetic record.",
     "Redact replaces configured sensitive values in the protected model output while preserving safe employee context."
   ],
   "walkthrough": {
@@ -168,7 +168,7 @@
         "expected_tools": [
           "employee_sensitive_search_demo"
         ],
-        "expected_result": "The tool returns one controlled synthetic employee record. Alert allows it, Redact replaces configured output values, and Deny blocks the protected output."
+        "expected_result": "The tool returns one controlled synthetic employee record. Alert allows it, Redact replaces configured output values, and Block blocks the protected output."
       },
       {
         "id": "ssn",
@@ -207,11 +207,11 @@
         "expected_behavior": "Allow the response and log output-DLP alerts."
       },
       {
-        "route": "deny",
-        "flow": "/v1/hr-sensitive-lookup/deny/*",
-        "guard": "hr-sensitive-lookup_deny",
+        "route": "block",
+        "flow": "/v1/hr-sensitive-lookup/block/*",
+        "guard": "hr-sensitive-lookup_block",
         "request_model": "hr-sensitive-lookup",
-        "expected_behavior": "Deny protected model output after the synthetic lookup tool runs."
+        "expected_behavior": "Block protected model output after the synthetic lookup tool runs."
       },
       {
         "route": "redact",
@@ -230,7 +230,7 @@
     ],
     "validation_notes": [
       "This scenario uses dedicated exact-match and all-records MCP tools and does not modify the existing hr-tool-dlp tool profile or prompts.",
-      "The current Alert, Deny, and Redact paths use output-DLP guard templates. They demonstrate the sensitive user input passing through the tool workflow and protect the returned model output; they do not claim an input-blocking policy.",
+      "The current Alert, Block, and Redact paths use output-DLP guard templates. They demonstrate the sensitive user input passing through the tool workflow and protect the returned model output; they do not claim an input-blocking policy.",
       "The direct-flow curl requests contain preconstructed synthetic tool results. They test FAIG output behavior and do not prove a live MCP lookup or the model's argument formatting.",
       "MCP calls are made by the chatbot agent directly to the selected MCP transport after the model emits a tool call. They do not re-enter the FAIG LLM flow, so an input guard on the chatbot request does not inspect or redact MCP tool arguments."
     ]

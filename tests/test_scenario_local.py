@@ -52,9 +52,9 @@ class LocalScenarioStoreTests(unittest.TestCase):
                                 "required_for_release": True,
                             },
                             {
-                                "action": "deny",
-                                "display_name": "Deny",
-                                "guard_template": "inject_deny",
+                                "action": "block",
+                                "display_name": "Block",
+                                "guard_template": "inject_block",
                                 "expected_behavior": "Protect input.",
                                 "required_for_release": True,
                             },
@@ -247,7 +247,7 @@ class LocalScenarioStoreTests(unittest.TestCase):
             [entry["uri"] for entry in scenario["entry_points"]],
             [
                 "/v1/test-scenario/alert",
-                "/v1/test-scenario/deny",
+                "/v1/test-scenario/block",
             ],
         )
         self.assertNotIn("demo-a", json.dumps(matrix))

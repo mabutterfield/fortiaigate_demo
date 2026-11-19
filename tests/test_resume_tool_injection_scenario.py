@@ -37,11 +37,11 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
             entry["action"]: entry
             for entry in self.profile["matrix"]["entry_points"]
         }
-        self.assertEqual(set(entry_points), {"alert", "deny"})
+        self.assertEqual(set(entry_points), {"alert", "block"})
         self.assertEqual(entry_points["alert"]["guard_template"], "inject_alert")
-        self.assertEqual(entry_points["deny"]["guard_template"], "inject_deny")
+        self.assertEqual(entry_points["block"]["guard_template"], "inject_block")
         self.assertTrue(entry_points["alert"]["required_for_release"])
-        self.assertTrue(entry_points["deny"]["required_for_release"])
+        self.assertTrue(entry_points["block"]["required_for_release"])
 
     def test_simplified_profiles_hold_tools_constant_across_paths(self) -> None:
         profiles = self.profile["matrix"]["chatbot_profiles"]
@@ -97,7 +97,7 @@ class ResumeToolInjectionScenarioContractTests(unittest.TestCase):
 
     def test_expected_trace_requires_deny_before_cloud_tool(self) -> None:
         expected_trace = " ".join(self.profile["expected_trace"]).lower()
-        self.assertIn("deny", expected_trace)
+        self.assertIn("block", expected_trace)
         self.assertIn("before cloud_bucket_list_demo executes", expected_trace)
 
 

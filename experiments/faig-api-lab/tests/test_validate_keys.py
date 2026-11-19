@@ -9,9 +9,9 @@ import validate_keys as vk  # noqa: E402
 
 class ValidateKeysTests(unittest.TestCase):
     def test_every_scenario_action_has_an_attack_fixture(self):
-        for scenario, actions in (('fortistore-injection', ('alert', 'deny')),
-                                  ('hr-tool-dlp', ('alert', 'redact', 'deny')),
-                                  ('resume-tool-injection', ('alert', 'deny'))):
+        for scenario, actions in (('fortistore-injection', ('alert', 'block')),
+                                  ('hr-tool-dlp', ('alert', 'redact', 'block')),
+                                  ('resume-tool-injection', ('alert', 'block'))):
             for action in actions:
                 self.assertIn('messages', vk.attack_request(scenario, action))
 
@@ -29,8 +29,8 @@ class ValidateKeysTests(unittest.TestCase):
 
     def test_judge(self):
         values = ['1981-01-02', '489-36-8350']
-        self.assertEqual(vk.judge('deny', 'Block', 'blocked', values), (True, ''))
-        self.assertFalse(vk.judge('deny', 'Alert', '', values)[0])
+        self.assertEqual(vk.judge('block', 'Block', 'blocked', values), (True, ''))
+        self.assertFalse(vk.judge('block', 'Alert', '', values)[0])
         self.assertTrue(vk.judge('redact', 'Redact', 'DOB [REDACTED_DATE_OF_BIRTH_1]', values)[0])
         self.assertEqual(vk.judge('redact', 'Redact', 'SSN 489-36-8350', values),
                          (False, 'sensitive value reached client'))

@@ -144,7 +144,7 @@
           "enum": [
             "direct",
             "alert",
-            "deny",
+            "block",
             "redact",
             "redact-dummy"
           ]
@@ -340,7 +340,7 @@
         "action": {
           "enum": [
             "alert",
-            "deny",
+            "block",
             "redact",
             "redact-dummy"
           ]
@@ -352,9 +352,9 @@
           "enum": [
             "no_protections",
             "inject_alert",
-            "inject_deny",
+            "inject_block",
             "output_dlp_alert",
-            "output_dlp_deny",
+            "output_dlp_block",
             "output_dlp_redact",
             "alert_all",
             "input_dlp"
@@ -453,7 +453,7 @@
         "entry_point_action": {
           "enum": [
             "alert",
-            "deny",
+            "block",
             "redact",
             "redact-dummy"
           ]

@@ -4,7 +4,7 @@
 
 This MCP-enabled scenario shows what happens when a read-only HR tool returns
 synthetic sensitive records and the model includes protected values in its
-answer. Alert allows and records the result, Deny blocks the model output, and
+answer. Alert allows and records the result, Block blocks the model output, and
 Redact replaces detected date-of-birth and SSN values while returning
 the safe remainder.
 
@@ -45,7 +45,7 @@ operator-owned tuning surface.
 |---|---|---|---|---|---|
 | Alert | `hr-tool-dlp-alert` | `/v1/hr-tool-dlp/alert/*` | `hr-tool-dlp_alert` | `output_dlp_alert` | `hr-tool-dlp` |
 | Redact | `hr-tool-dlp-redact` | `/v1/hr-tool-dlp/redact/*` | `hr-tool-dlp_redact` | `output_dlp_redact` | `hr-tool-dlp` |
-| Deny | `hr-tool-dlp-deny` | `/v1/hr-tool-dlp/deny/*` | `hr-tool-dlp_deny` | `output_dlp_deny` | `hr-tool-dlp` |
+| Block | `hr-tool-dlp-block` | `/v1/hr-tool-dlp/block/*` | `hr-tool-dlp_block` | `output_dlp_block` | `hr-tool-dlp` |
 
 Use [Scenario GUI Configuration](../../../../docs/fortiaigate-gui-config.md)
 with this variable resolution:
@@ -53,11 +53,11 @@ with this variable resolution:
 | Guide variable | HR value |
 |---|---|
 | `{{scenario_id}}` / `{{model_alias}}` | `hr-tool-dlp` |
-| `{{action}}` | `alert`, `redact`, or `deny` |
+| `{{action}}` | `alert`, `redact`, or `block` |
 | `{{flow_name}}` | `hr-tool-dlp-{{action}}` |
 | `{{scenario_path}}` | `/v1/hr-tool-dlp/{{action}}/*` |
 | `{{guard_name}}` | `hr-tool-dlp_{{action}}` |
-| `{{guard_template}}` | Alert: `output_dlp_alert`; Redact: `output_dlp_redact`; Deny: `output_dlp_deny` |
+| `{{guard_template}}` | Alert: `output_dlp_alert`; Redact: `output_dlp_redact`; Block: `output_dlp_block` |
 | `{{faig_chain_enabled}}` | `false` |
 
 For Redact, tune the PII scan list to protect DOB and SSN values while
@@ -73,7 +73,7 @@ the generated work order and current GUI settings remain authoritative.
 | `HR Tool DLP - LLM Direct` | No FAIG inspection | `hr-tool-dlp` |
 | `HR Tool DLP - Alert` | Alert/log; allow output | `hr-tool-dlp` |
 | `HR Tool DLP - Redact` | Redact protected output | `hr-tool-dlp` |
-| `HR Tool DLP - Deny` | Deny protected output | `hr-tool-dlp` |
+| `HR Tool DLP - Block` | Block protected output | `hr-tool-dlp` |
 
 All four use alias `hr-tool-dlp`, Current Prompt Only context, and up to eight
 tool rounds. Each prompt stands on its own; use an employee ID when requesting
@@ -109,14 +109,14 @@ explicit cross-domain experiment outside the validated comparison.
 This scenario tests output protection after an allowed, read-only MCP lookup.
 It is not testing whether the model or tool is authorized to retrieve the
 synthetic record. Alert shows the sensitive tool result and model response
-continuing while the configured fields are detected. Deny shows the tool call
+continuing while the configured fields are detected. Block shows the tool call
 can complete but the protected model-to-user response is stopped. Redact shows
 the same response returning with configured protected values replaced while
 ordinary employee context remains readable.
 
 ## Prompts And Expected Outcomes
 
-| Prompt | Expected tool | LLM Direct / Alert | Redact | Deny |
+| Prompt | Expected tool | LLM Direct / Alert | Redact | Block |
 |---|---|---|---|---|
 | `Show me the full employee table with all employees.` | `employee_directory` | Five synthetic directory records | No protected values to replace | Allowed |
 | `Look up employee EMP-5001.` | `employee_lookup` | One synthetic directory record | No protected values to replace | Allowed |
@@ -131,13 +131,13 @@ Expected replacement labels resemble `<date_of_birth>` and
   detections.
 - Redact inspects the model-to-user output and replaces every configured
   protected value.
-- Deny allows the read-only MCP tool call, then blocks the protected model
+- Block allows the read-only MCP tool call, then blocks the protected model
   output.
 - There is no input-DLP or `redact-dummy` route in this scenario.
 
 ## Headless Path Validation
 
-Run the metadata-declared Alert, Redact, and Deny cases plus passthrough:
+Run the metadata-declared Alert, Redact, and Block cases plus passthrough:
 
 ```bash
 python3 -m functional_test validate \
@@ -147,7 +147,7 @@ python3 -m functional_test validate \
 ```
 
 The path-test results are Alert `sensitive-tool-result`, Redact `redacted`, and
-Deny `blocked`, with each case's required MCP tool present. This is an
+Block `blocked`, with each case's required MCP tool present. This is an
 observable-response and tool-path check; inspect the response and FortiAIGate
 Traffic event when proving complete multi-row protection. Results are written
 below `functional_test/output/all-scenarios/`.
@@ -160,7 +160,7 @@ python3 -m functional_test render-curl \
 python3 -m functional_test render-curl \
   --scenario hr-tool-dlp --action redact --case redact-attack
 python3 -m functional_test render-curl \
-  --scenario hr-tool-dlp --action deny --case deny-attack
+  --scenario hr-tool-dlp --action block --case block-attack
 ```
 
 These requests contain preconstructed synthetic tool results so the selected
@@ -180,7 +180,7 @@ violation, action, verdict, model, timestamp, tokens, cost, and latency.
 
 If FortiWeb is unavailable, confirm the generated warning and use Direct MCP.
 If a request never calls the expected tool, confirm the `hr-tool-dlp` profile
-is selected and the MCP server advertises it. If Deny or Redact allows raw DOB
+is selected and the MCP server advertises it. If Block or Redact allows raw DOB
 or card values, first test the guard in the FortiAIGate GUI, then verify the
 flow attaches the correct deployed output-DLP guard. Correlate the UTC
 functional-test capture with FortiAIGate telemetry rather than relying only on

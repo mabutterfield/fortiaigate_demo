@@ -18,10 +18,10 @@ MATRIX = {
         {"id": "hr-tool-dlp-redact", "scenario_id": "hr-tool-dlp", "provider_path": "faig-static",
          "route": "hr-tool-dlp-redact", "mcp_enabled": True, "mcp_tool_profile": "hr-tool-dlp",
          "mcp_max_tool_rounds": 8, "frontend_instruction_profile": "none"},
-        {"id": "fortistore-injection-deny-no-frontend", "scenario_id": "fortistore-injection",
-         "provider_path": "faig-static", "route": "fortistore-injection-deny", "mcp_enabled": False},
-        {"id": "fortistore-injection-deny", "scenario_id": "fortistore-injection", "provider_path": "faig-static",
-         "route": "fortistore-injection-deny", "mcp_enabled": False,
+        {"id": "fortistore-injection-block-no-frontend", "scenario_id": "fortistore-injection",
+         "provider_path": "faig-static", "route": "fortistore-injection-block", "mcp_enabled": False},
+        {"id": "fortistore-injection-block", "scenario_id": "fortistore-injection", "provider_path": "faig-static",
+         "route": "fortistore-injection-block", "mcp_enabled": False,
          "frontend_instruction_profile": "fortistore-injection-compromised"},
     ],
     "chatbot_mcp_tool_profiles": [{"name": "hr-tool-dlp", "tools": ["employee_lookup", "employee_sensitive_lookup"]}],
@@ -42,8 +42,8 @@ class BaselinePlanningTests(unittest.TestCase):
                 self.assertEqual(explicit.key_dir, [Path("/private/alternate")])
 
     def test_action_profile_prefers_canonical_id(self):
-        self.assertEqual(baseline.action_profile(MATRIX, "fortistore-injection", "deny")["id"],
-                         "fortistore-injection-deny")
+        self.assertEqual(baseline.action_profile(MATRIX, "fortistore-injection", "block")["id"],
+                         "fortistore-injection-block")
         with self.assertRaises(SystemExit):
             baseline.action_profile(MATRIX, "fortistore-injection", "redact")
 

@@ -511,7 +511,7 @@ def expected_result(item: dict[str, Any]) -> str:
     prompt_kind = str(item["prompt_kind"])
     if prompt_kind != "attack":
         return "completed"
-    if action == "deny":
+    if action == "block":
         return "blocked"
     if action == "redact":
         return "redacted"

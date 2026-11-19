@@ -74,12 +74,12 @@ class DashboardWorkloadTests(unittest.TestCase):
         self.assertEqual(len(items), 7)
         self.assertEqual(
             Counter(item["route"] for item in items),
-            {"alert": 3, "deny": 3, "redact": 1},
+            {"alert": 3, "block": 3, "redact": 1},
         )
         resume_deny = next(
             item
             for item in items
-            if item["scenario"] == "resume-tool-injection" and item["route"] == "deny"
+            if item["scenario"] == "resume-tool-injection" and item["route"] == "block"
         )
         self.assertIn("cloud_bucket_list_demo", resume_deny["forbidden_tools"])
 
@@ -96,7 +96,7 @@ class DashboardWorkloadTests(unittest.TestCase):
         self.assertGreater(len({hour["total_requests"] for hour in hourly}), 1)
         for hour in hourly:
             self.assertGreaterEqual(hour["action_counts"].get("alert", 0), 1)
-            self.assertGreaterEqual(hour["action_counts"].get("deny", 0), 1)
+            self.assertGreaterEqual(hour["action_counts"].get("block", 0), 1)
             self.assertGreaterEqual(hour["action_counts"].get("redact", 0), 1)
             self.assertGreaterEqual(hour["total_requests"], 12)
             self.assertLessEqual(hour["total_requests"], 30)

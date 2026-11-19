@@ -42,8 +42,8 @@
     "hr-dlp-redact": {
       "kind": "dlp",
       "disposition": "redact",
-      "categories": ["Date of birth", "SSN", "Credit/debit card"],
-      "description": "HR DLP: redact date of birth, SSN and payment card"
+      "categories": ["Date of birth", "SSN", "Credit/debit card", "Email address", "Phone number"],
+      "description": "HR DLP: redact date of birth, SSN, payment card, email and phone"
     },
     "hr-dlp-block": {
       "kind": "dlp",
@@ -58,7 +58,7 @@
       "direction": "input",
       "deny_suspicious_characters": false
     },
-    "inject_deny": {
+    "inject_block": {
       "builtin_detectors": ["owasp-agentic-top-10", "owasp-llm-top-10-2025"],
       "direction": "input",
       "deny_suspicious_characters": true
@@ -73,7 +73,7 @@
       "direction": "output",
       "deny_suspicious_characters": false
     },
-    "output_dlp_deny": {
+    "output_dlp_block": {
       "detectors": ["hr-dlp-block"],
       "direction": "output",
       "deny_suspicious_characters": false

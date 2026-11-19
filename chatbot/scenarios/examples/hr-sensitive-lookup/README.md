@@ -8,7 +8,7 @@
 This candidate explores a user supplying a synthetic exact date of birth or
 SSN to locate a synthetic employee, or requesting all controlled sensitive
 employee records. The shared read-only MCP server returns the matching record
-or all permitted records. Its Alert, Redact, Deny, and optional FAIG Chain
+or all permitted records. Its Alert, Redact, Block, and optional FAIG Chain
 objects are design material that require future validation before this becomes
 a supported demo.
 
@@ -67,7 +67,7 @@ salary fields.
 
 - Validate the chatbot's natural-language tool selection and exact-match
   behavior against the current model.
-- Validate Alert, Redact, Deny, and FAIG Chain objects end-to-end.
+- Validate Alert, Redact, Block, and FAIG Chain objects end-to-end.
 - Decide whether an input-DLP path is required for the user-provided lookup
   value.
 - Tune multi-record output protection before promoting the scenario.

@@ -15,7 +15,7 @@
     "normal_ratio_maximum": 0.9,
     "hourly_action_floor": {
       "alert": 1,
-      "deny": 1,
+      "block": 1,
       "redact": 1
     }
   },
