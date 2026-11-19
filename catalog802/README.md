@@ -105,3 +105,12 @@ consolidation. Missing, duplicate, or unrecognized catalog tool names fail
 startup. Set `mcp_use_catalog: false` for the previous registry-only behavior.
 The Helm chart used independently defaults the adapter off unless its generated
 registry is explicitly staged. This workflow requires live validation.
+
+`python3 -m functional_test evaluate-catalog --scenario ID --test ID
+--faig-version 8.0.2 --observations observations.json` evaluates already
+collected observations against a catalog test. The observations JSON must
+contain `execution`, `verdict_rows`, `requests_sent`, `evidence`, and
+`tools_called`. The command does not perform requests or verify evidence
+provenance; it reports incomplete when the required Traffic Log rows are
+missing. Existing live baseline and chatbot tests still use their legacy
+contract until a request-correlated Traffic Log collector is implemented.

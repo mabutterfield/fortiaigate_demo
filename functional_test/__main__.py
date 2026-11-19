@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from functional_test import baseline, curl_renderer, scenario_pack, validation
+from functional_test import baseline, catalog_evaluate, curl_renderer, scenario_pack, validation
 
 
 USAGE = """usage: python3 -m functional_test <command> [options]
@@ -13,6 +13,7 @@ USAGE = """usage: python3 -m functional_test <command> [options]
 With no command, validation runs as a transition convenience.
 
 commands:
+  evaluate-catalog  Evaluate saved observations against a catalog case
   baseline  Run 8.0.2 per-student key validation without the chatbot
   scenario-pack  Build the secret-free lab chatbot scenario pack
   validate  Run live scenario validation through the deployed chatbot
@@ -23,6 +24,8 @@ Run `python3 -m functional_test <command> --help` for command options.
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "evaluate-catalog":
+        return catalog_evaluate.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "baseline":
         return baseline.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "scenario-pack":
