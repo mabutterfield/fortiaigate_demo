@@ -92,6 +92,191 @@
       "dataset": "mcp/chart/files/tools.json",
       "side_effects": "none",
       "open_world": false
+    },
+    "document_upload_simulation": {
+      "version": "1",
+      "description": "Report that a pre-staged synthetic document fixture is available as if uploaded. This does not write files or fake exploit results.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Document ID to make available for the scenario."
+          },
+          "include_attack": {
+            "type": "boolean",
+            "description": "Set true only for explicit attack-fixture demos."
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:document_upload_simulation",
+      "dataset": "mcp/chart/files/documents/documents.json",
+      "side_effects": "none",
+      "open_world": false,
+      "dataset_files": [
+        "mcp/chart/files/documents/resume_alex_morgan.txt",
+        "mcp/chart/files/documents/resume_jordan_lee.txt",
+        "mcp/chart/files/documents/resume_casey_jordan_poisoned.txt"
+      ]
+    },
+    "document_read": {
+      "version": "1",
+      "description": "Read one synthetic demo document by document_id. Attack fixtures require include_attack=true.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Document ID such as RESUME-1001 or POLICY-1001."
+          },
+          "include_attack": {
+            "type": "boolean",
+            "description": "Set true only for explicit attack-fixture demos."
+          },
+          "max_chars": {
+            "type": "integer",
+            "description": "Maximum content characters to return."
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:document_read",
+      "dataset": "mcp/chart/files/documents/documents.json",
+      "side_effects": "none",
+      "open_world": false,
+      "dataset_files": [
+        "mcp/chart/files/documents/resume_alex_morgan.txt",
+        "mcp/chart/files/documents/resume_jordan_lee.txt",
+        "mcp/chart/files/documents/resume_casey_jordan_poisoned.txt"
+      ]
+    },
+    "document_injection_check": {
+      "version": "1",
+      "description": "Check text or a synthetic document for common prompt-injection indicators.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to check when document_id is not provided."
+          },
+          "document_id": {
+            "type": "string",
+            "description": "Optional document ID to check."
+          },
+          "include_attack": {
+            "type": "boolean",
+            "description": "Set true to check an attack fixture document."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:document_injection_check",
+      "dataset": "mcp/chart/files/documents/documents.json",
+      "side_effects": "none",
+      "open_world": false,
+      "dataset_files": [
+        "mcp/chart/files/documents/resume_alex_morgan.txt",
+        "mcp/chart/files/documents/resume_jordan_lee.txt",
+        "mcp/chart/files/documents/resume_casey_jordan_poisoned.txt"
+      ]
+    },
+    "resume_search": {
+      "version": "1",
+      "description": "Search synthetic resume documents and return metadata plus snippets. Attack resumes require include_attack=true.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search text such as Python, Kubernetes, security, or cloud."
+          },
+          "include_attack": {
+            "type": "boolean",
+            "description": "Set true only for explicit attack-fixture demos."
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results, up to 20."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:resume_search",
+      "dataset": "mcp/chart/files/documents/documents.json",
+      "side_effects": "none",
+      "open_world": false,
+      "dataset_files": [
+        "mcp/chart/files/documents/resume_alex_morgan.txt",
+        "mcp/chart/files/documents/resume_jordan_lee.txt",
+        "mcp/chart/files/documents/resume_casey_jordan_poisoned.txt"
+      ]
+    },
+    "resume_summary": {
+      "version": "1",
+      "description": "Return deterministic summaries for synthetic resume documents. Use document_read when exact retrieved text is needed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Optional resume document ID such as RESUME-1001."
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional search text when document_id is omitted."
+          },
+          "include_attack": {
+            "type": "boolean",
+            "description": "Set true only for explicit attack-fixture demos."
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of resume summaries when searching."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:resume_summary",
+      "dataset": "mcp/chart/files/documents/documents.json",
+      "side_effects": "none",
+      "open_world": false,
+      "dataset_files": [
+        "mcp/chart/files/documents/resume_alex_morgan.txt",
+        "mcp/chart/files/documents/resume_jordan_lee.txt",
+        "mcp/chart/files/documents/resume_casey_jordan_poisoned.txt"
+      ]
+    },
+    "cloud_bucket_list_demo": {
+      "version": "1",
+      "description": "Return narrow synthetic read-only cloud bucket inventory for excessive-agency and prompt-injection pivot demos. This is not an AWS CLI executor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional text filter for synthetic bucket metadata."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:cloud_bucket_list_demo",
+      "dataset": "mcp/chart/files/tools.json",
+      "side_effects": "none",
+      "open_world": false
     }
   }
 }

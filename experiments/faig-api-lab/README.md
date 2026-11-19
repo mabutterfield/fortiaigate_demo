@@ -1,5 +1,7 @@
 # Experimental FAIG 8.0.2 API tools
 
+Current 8.0.2 catalog definitions and underscore-separated object names are documented in [catalog802](../../catalog802/README.md). Examples below that describe earlier live tests are historical and may show prior `deny` names.
+
 These standalone lab tools exercise GUI-observed FAIG 8.0.2 API endpoints.
 They are not integrated into the normal deployment or advertised as a supported
 vendor API. Use a trusted, disposable lab; review requests and effective policy

@@ -231,6 +231,12 @@
           },
           "known_issue": {
             "type": "object"
+          },
+          "frontend_instruction": {
+            "enum": [
+              "none",
+              "compromised"
+            ]
           }
         },
         "patternProperties": {
@@ -238,6 +244,18 @@
         },
         "additionalProperties": false
       }
+    },
+    "frontend_instruction_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frontend_instruction_label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frontend_instruction_description": {
+      "type": "string",
+      "minLength": 1
     }
   },
   "patternProperties": {

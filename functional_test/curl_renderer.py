@@ -193,7 +193,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Render one operator-shell curl request from installed validation metadata."
     )
     parser.add_argument("--scenario", required=True, help="Installed scenario ID.")
-    parser.add_argument("--action", required=True, help="Scenario action such as alert, deny, or redact.")
+    parser.add_argument("--action", required=True, help="Scenario action such as alert, block, or redact.")
     parser.add_argument("--case", required=True, dest="case_id", help="Validation case ID from profile.json.")
     parser.add_argument(
         "--output",

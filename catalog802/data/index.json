@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "scenarios": [
-    "scenarios/hr-tool-dlp.json"
+    "scenarios/hr-tool-dlp.json",
+    "scenarios/fortistore-injection.json",
+    "scenarios/resume-tool-injection.json"
   ]
 }

@@ -20,13 +20,13 @@ PASS_MODEL = {'uuid': 'm-0', 'modelId': 'pass-model', 'publicName': 'pass-model'
 class CatalogTests(unittest.TestCase):
     def test_actions_come_from_scenario_profiles(self):
         pairs = {(e['scenario'], e['action']) for e in CATALOG['entries']}
-        self.assertEqual(pairs, {('fortistore-injection', 'alert'), ('fortistore-injection', 'deny'),
-                                 ('hr-tool-dlp', 'alert'), ('hr-tool-dlp', 'redact'), ('hr-tool-dlp', 'deny'),
-                                 ('resume-tool-injection', 'alert'), ('resume-tool-injection', 'deny')})
+        self.assertEqual(pairs, {('fortistore-injection', 'alert'), ('fortistore-injection', 'block'),
+                                 ('hr-tool-dlp', 'alert'), ('hr-tool-dlp', 'redact'), ('hr-tool-dlp', 'block'),
+                                 ('resume-tool-injection', 'alert'), ('resume-tool-injection', 'block')})
 
     def test_partial_selection_and_unknown_values(self):
-        chosen = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['deny'])
-        self.assertEqual([(e['scenario'], e['action']) for e in chosen], [('fortistore-injection', 'deny')])
+        chosen = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['block'])
+        self.assertEqual([(e['scenario'], e['action']) for e in chosen], [('fortistore-injection', 'block')])
         with self.assertRaises(ValueError):
             lab.select_entries(CATALOG['entries'], ['missing'], None)
 
@@ -34,14 +34,14 @@ class CatalogTests(unittest.TestCase):
         entries = lab.select_entries(CATALOG['entries'], None, ['alert'])
         self.assertEqual(lab.needed_detectors(CATALOG, entries),
                          ['owasp-agentic-alert', 'owasp-llm-alert', 'hr-dlp-alert'])
-        deny = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['deny'])
-        self.assertEqual(lab.needed_detectors(CATALOG, deny), [])
+        block = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['block'])
+        self.assertEqual(lab.needed_detectors(CATALOG, block), [])
 
     def test_names_are_one_policy_per_key(self):
         entry = {'scenario': 'hr-tool-dlp', 'action': 'redact'}
         self.assertEqual(lab.object_names('student02', entry),
-                         {'guardrail': 'student02-hr-tool-dlp-redact-guardrail',
-                          'policy': 'student02-hr-tool-dlp-redact-policy', 'key': 'student02-hr-tool-dlp-redact',
+                         {'guardrail': 'student02_hr-tool-dlp_redact_guardrail',
+                          'policy': 'student02_hr-tool-dlp_redact_policy', 'key': 'student02_hr-tool-dlp_redact',
                           'project': 'student02_hr-tool-dlp'})
 
 
@@ -155,8 +155,8 @@ class PrepopulateTests(unittest.TestCase):
     def test_alert_and_deny_build_layers_in_order(self):
         entries = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], None)
         created, client, store, files, secret = self.run_lab(entries)
-        self.assertEqual(created, ['student02-fortistore-injection-alert', 'student02-fortistore-injection-deny',
-                                   'student02-passthrough'])
+        self.assertEqual(created, ['student02_fortistore-injection_alert', 'student02_fortistore-injection_block',
+                                   'student02_passthrough'])
         passthrough = client.keys[-1]
         self.assertEqual((passthrough['policyIds'], passthrough['projectId']), ([], None))
         self.assertEqual([m['modelId'] for m in passthrough['providerAccess'][0]['models']], ['pass-model'])
@@ -166,14 +166,14 @@ class PrepopulateTests(unittest.TestCase):
         approvals = [p for m, p in client.calls if p.endswith('/approve')]
         self.assertTrue(approvals[0].startswith('/api/v1/admin/detectors/'))
         self.assertTrue(approvals[-1].startswith('/api/v1/admin/policies/'))
-        deny_guard = next(o for o in store.values() if o['name'].endswith('-deny-guardrail'))
+        deny_guard = next(o for o in store.values() if o['name'].endswith('_block_guardrail'))
         self.assertEqual(deny_guard['payload']['detectorIds'], ['owasp-agentic-top-10', 'owasp-llm-top-10-2025'])
         self.assertEqual(secret['basePath'], '/ai/openai/v1')
-        self.assertEqual(files, ['student02-fortistore-injection-alert.json', 'student02-fortistore-injection-deny.json',
-                                 'student02-passthrough.json'])
+        self.assertEqual(files, ['student02_fortistore-injection_alert.json', 'student02_fortistore-injection_block.json',
+                                 'student02_passthrough.json'])
 
     def test_rerun_skips_active_objects(self):
-        entries = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['deny'])
+        entries = lab.select_entries(CATALOG['entries'], ['fortistore-injection'], ['block'])
         store = {}
         self.run_lab(entries, store)
         before = len(store)
@@ -184,7 +184,7 @@ class PrepopulateTests(unittest.TestCase):
     def test_missing_model_is_skipped(self):
         entries = lab.select_entries(CATALOG['entries'], ['hr-tool-dlp'], None)
         created, client, store, files, _ = self.run_lab(entries)
-        self.assertEqual((created, store, files), (['student02-passthrough'], {}, ['student02-passthrough.json']))
+        self.assertEqual((created, store, files), (['student02_passthrough'], {}, ['student02_passthrough.json']))
 
 
 class AutoApproveTests(unittest.TestCase):

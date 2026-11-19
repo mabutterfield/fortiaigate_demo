@@ -151,7 +151,7 @@ def live_statistics(
         "remaining_requests": max(0, len(plan) - submitted_requests),
         "outcome_counts": dict(outcome_counts),
         "suspicious_requests": sum(
-            outcome_counts.get(action, 0) for action in ("alert", "deny", "redact")
+            outcome_counts.get(action, 0) for action in ("alert", "block", "redact")
         ),
         "normal_requests": outcome_counts.get("success", 0),
         "expected_results": sum(int(event["result_matches_expected"]) for event in events),

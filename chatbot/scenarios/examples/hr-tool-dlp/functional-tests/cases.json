@@ -4,7 +4,7 @@
     "alert-attack": {
       "request": "sensitive-record-request.json"
     },
-    "deny-attack": {
+    "block-attack": {
       "request": "sensitive-record-request.json"
     },
     "redact-attack": {

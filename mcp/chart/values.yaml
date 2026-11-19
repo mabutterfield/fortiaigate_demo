@@ -10,6 +10,8 @@ service:
   port: 8000
   nodePort: 30084
 
+catalogRegistryEnabled: false
+
 containerPort: 8000
 
 resources: {}

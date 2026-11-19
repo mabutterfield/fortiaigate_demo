@@ -53,14 +53,14 @@
     {
       "id": "redact",
       "display_name": "Redact",
-      "expected_behavior": "Redact detected DOB and SSN values before sensitive model output reaches the user.",
+      "expected_behavior": "Redact detected date of birth, SSN, payment card, email address and phone number values before model output reaches the user.",
       "guard_template_ref": "output_dlp_redact",
       "model_ref": "hr-tool-dlp"
     },
     {
       "id": "block",
       "display_name": "Block",
-      "expected_behavior": "Deny model output when the configured DLP guard detects protected HR data.",
+      "expected_behavior": "Block model output when the configured DLP guard detects protected HR data.",
       "guard_template_ref": "output_dlp_block",
       "model_ref": "hr-tool-dlp"
     }

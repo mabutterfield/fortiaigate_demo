@@ -1,5 +1,7 @@
 # Scenario Authoring
 
+For 8.0.2, author active scenarios in the [catalog](../catalog802/README.md). This page documents the transitional legacy scenario-profile workflow used by the existing chatbot until its catalog reader is integrated.
+
 This guide owns the technical contract for creating, changing, documenting,
 and promoting scenario packages. Use [Scenario Management](scenario-management.md)
 for the operator install lifecycle and the
@@ -78,7 +80,7 @@ Define only actions used by the security story:
 | Action | Guard intent |
 |---|---|
 | `alert` | Record without enforcement; uses `inject_alert`, `output_dlp_alert`, or composite `alert_all` |
-| `deny` | Block protected input or output; uses `inject_deny` or `output_dlp_deny` |
+| `block` | Block protected input or output; uses `inject_block` or `output_dlp_block` |
 | `redact` | Replace protected output and return the safe remainder; uses `output_dlp_redact` |
 | `redact-dummy` | Reserved for a future input-DLP replacement scenario |
 

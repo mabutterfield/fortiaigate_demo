@@ -143,25 +143,25 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
                 "FortiStore Injection - LLM Direct",
                 "FortiStore Injection - Baseline",
                 "FortiStore Injection - Alert",
-                "FortiStore Injection - Deny (No Frontend Instructions)",
-                "FortiStore Injection - Deny",
+                "FortiStore Injection - Block (No Frontend Instructions)",
+                "FortiStore Injection - Block",
             ],
             "hr-sensitive-lookup": [
                 "HR Sensitive Lookup - LLM Direct",
                 "HR Sensitive Lookup - Alert",
                 "HR Sensitive Lookup - Redact",
-                "HR Sensitive Lookup - Deny",
+                "HR Sensitive Lookup - Block",
             ],
             "hr-tool-dlp": [
                 "HR Tool DLP - LLM Direct",
                 "HR Tool DLP - Alert",
                 "HR Tool DLP - Redact",
-                "HR Tool DLP - Deny",
+                "HR Tool DLP - Block",
             ],
             "resume-tool-injection": [
                 "Resume Tool Injection - LLM Direct",
                 "Resume Tool Injection - Alert",
-                "Resume Tool Injection - Deny",
+                "Resume Tool Injection - Block",
             ],
         }
         for scenario_id, labels in expected.items():
@@ -234,14 +234,14 @@ class ScenarioProfileSchemaTests(unittest.TestCase):
     def test_guard_template_must_match_action(self) -> None:
         profile_path, profile = self.load_baseline("hr-tool-dlp")
         profile = copy.deepcopy(profile)
-        deny = next(
+        block = next(
             entry
             for entry in profile["matrix"]["entry_points"]
-            if entry["action"] == "deny"
+            if entry["action"] == "block"
         )
-        deny["guard_template"] = "output_dlp_redact"
+        block["guard_template"] = "output_dlp_redact"
         errors = self.validate("hr-tool-dlp", profile_path, profile)
-        self.assertTrue(any("invalid for action deny" in error for error in errors), errors)
+        self.assertTrue(any("invalid for action block" in error for error in errors), errors)
 
     def test_alert_all_is_valid_only_for_an_alert_action(self) -> None:
         profile_path, profile = self.load_baseline("hr-tool-dlp")

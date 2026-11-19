@@ -734,7 +734,7 @@ def event_from_result(args: argparse.Namespace, item: dict[str, Any], result: di
         "prompt_kind": item["prompt_kind"],
         "outcome": (
             str(path_config["action"])
-            if path_config["action"] in {"alert", "deny", "redact"}
+            if path_config["action"] in {"alert", "block", "redact"}
             else "success"
         ),
         "model_alias": args.model or path_config["model"],

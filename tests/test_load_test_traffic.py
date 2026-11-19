@@ -224,7 +224,7 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
         base_item = {
             "scenario": "hr-tool-dlp",
             "prompt_kind": "attack",
-            "path_config": {"action": "deny"},
+            "path_config": {"action": "block"},
         }
         blocked_result = {
             "status": "ok",
@@ -264,14 +264,14 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
     def test_path_results_report_expected_over_total_for_each_provider_route(self) -> None:
         events = [
             {
-                "provider_route": "hr-tool-dlp-deny",
+                "provider_route": "hr-tool-dlp-block",
                 "scenario_id": "hr-tool-dlp",
                 "expected_result": "blocked",
                 "actual_result": "blocked",
                 "result_matches_expected": True,
             },
             {
-                "provider_route": "hr-tool-dlp-deny",
+                "provider_route": "hr-tool-dlp-block",
                 "scenario_id": "hr-tool-dlp",
                 "expected_result": "blocked",
                 "actual_result": "no-sensitive-output",
@@ -286,8 +286,8 @@ class TrafficGeneratorMatrixTests(unittest.TestCase):
             },
         ]
         rows = statistics.path_result_rows(events)
-        self.assertEqual(rows["hr-tool-dlp-deny"]["expected_results"], 1)
-        self.assertEqual(rows["hr-tool-dlp-deny"]["total_results"], 2)
+        self.assertEqual(rows["hr-tool-dlp-block"]["expected_results"], 1)
+        self.assertEqual(rows["hr-tool-dlp-block"]["total_results"], 2)
         self.assertEqual(rows["hr-tool-dlp-redact"]["expected_results"], 1)
         self.assertEqual(rows["hr-tool-dlp-redact"]["total_results"], 1)
 

@@ -156,13 +156,13 @@ def select_entries(entries, scenarios=None, actions=None):
 
 
 def object_names(student, entry):
-    base = f'{student}-{entry["scenario"]}-{entry["action"]}'
-    return {'guardrail': base + '-guardrail', 'policy': base + '-policy', 'key': base,
+    base = f'{student}_{entry["scenario"]}_{entry["action"]}'
+    return {'guardrail': base + '_guardrail', 'policy': base + '_policy', 'key': base,
             'project': f'{student}_{entry["scenario"]}'}
 
 
 def detector_name(student, detector_key):
-    return f'{student}-{detector_key}'
+    return f'{student}_{detector_key}'
 
 
 def needed_detectors(catalog, entries):
@@ -283,7 +283,7 @@ class Prepopulate:
         if spec['model'] not in models:
             self.out(f'  skip passthrough: model {spec["model"]} is not available')
             return []
-        name = f'{self.student["student"]}-passthrough'
+        name = f'{self.student["student"]}_passthrough'
         path = self.key_dir / (name + '.json')
         if name in {k.get('keyName') for k in items(self.user.call('GET', '/api/v1/me/virtual-keys'))}:
             self.out(f'  key {name} exists' + ('' if path.exists() else ' (no local secret file)'))

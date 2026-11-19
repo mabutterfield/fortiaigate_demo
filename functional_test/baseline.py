@@ -6,7 +6,7 @@ validation case through FortiAIGate's `/ai/openai/v1` gateway with live tool
 calls over the standards MCP endpoint, then check the expected result and
 required/forbidden tools with the same contract as `validate`. With
 `--admin-credentials`, also read the FAIG Traffic Log and require the verdict
-that the action implies (alert -> Alert, deny -> Block, redact -> Redact,
+that the action implies (alert -> Alert, block -> Block, redact -> Redact,
 passthrough -> Log).
 
 The agent runs inside the cluster (`baseline_agent.py` in the mcp-standard
@@ -38,7 +38,7 @@ AGENT_PATH = Path(__file__).with_name("baseline_agent.py")
 SHARED_AGENT_PATH = REPO_ROOT / "chatbot" / "agent" / "faig_agent.py"
 REMOTE_DIR = "/tmp/faig-baseline"
 REMOTE_AGENT_PATH = f"{REMOTE_DIR}/baseline_agent.py"
-EXPECTED_LOG_VERDICT = {"alert": "Alert", "deny": "Block", "redact": "Redact", "passthrough": "Log"}
+EXPECTED_LOG_VERDICT = {"alert": "Alert", "block": "Block", "redact": "Redact", "passthrough": "Log"}
 VERDICT_SEVERITY = {"Log": 0, "Alert": 1, "Redact": 2, "Block": 3}
 PASSTHROUGH_PROMPT = "Reply with one short sentence confirming you are reachable."
 

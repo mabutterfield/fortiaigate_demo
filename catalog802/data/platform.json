@@ -95,6 +95,34 @@
         "Credit/debit card"
       ],
       "description": "Block on Credit/debit card"
+    },
+    "owasp-agentic-alert": {
+      "kind": "ai_copy",
+      "source": "owasp-agentic-top-10",
+      "action": "alert",
+      "description": "Alert-only copy of owasp-agentic-top-10"
+    },
+    "owasp-llm-alert": {
+      "kind": "ai_copy",
+      "source": "owasp-llm-top-10-2025",
+      "action": "alert",
+      "description": "Alert-only copy of owasp-llm-top-10-2025"
+    },
+    "contact-email-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "Email address"
+      ],
+      "description": "Redact email address"
+    },
+    "contact-phone-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "Phone number"
+      ],
+      "description": "Redact phone number"
     }
   },
   "guard_templates": {
@@ -111,7 +139,9 @@
       "detectors": [
         "identity-dob-redact",
         "identity-ssn-redact",
-        "payment-card-redact"
+        "payment-card-redact",
+        "contact-email-redact",
+        "contact-phone-redact"
       ],
       "direction": "output",
       "deny_suspicious_characters": false
@@ -124,6 +154,22 @@
       ],
       "direction": "output",
       "deny_suspicious_characters": false
+    },
+    "inject_alert": {
+      "detectors": [
+        "owasp-agentic-alert",
+        "owasp-llm-alert"
+      ],
+      "direction": "input",
+      "deny_suspicious_characters": false
+    },
+    "inject_block": {
+      "builtin_detectors": [
+        "owasp-agentic-top-10",
+        "owasp-llm-top-10-2025"
+      ],
+      "direction": "input",
+      "deny_suspicious_characters": true
     }
   }
 }

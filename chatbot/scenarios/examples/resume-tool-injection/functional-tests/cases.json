@@ -4,7 +4,7 @@
     "alert-attack": {
       "request": "poisoned-document-request.json"
     },
-    "deny-attack": {
+    "block-attack": {
       "request": "poisoned-document-request.json"
     }
   }

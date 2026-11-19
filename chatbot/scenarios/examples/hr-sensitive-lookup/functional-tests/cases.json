@@ -4,7 +4,7 @@
     "alert-date-of-birth": {
       "request": "date-of-birth-request.json"
     },
-    "deny-ssn": {
+    "block-ssn": {
       "request": "ssn-request.json"
     },
     "redact-all-records": {

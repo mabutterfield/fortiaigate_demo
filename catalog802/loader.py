@@ -1,6 +1,6 @@
 """Read-only catalog loader and deterministic view builder; standard library only.
 
-This initial HR-only schema is a review artifact, not an integrated installer.
+This catalog is a review artifact, not yet an integrated installer.
 No live FAIG, Kubernetes, or credentials are read or modified.
 """
 from __future__ import annotations
@@ -66,9 +66,18 @@ def safe_file(root, name):
     return target
 
 
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'duplicate JSON key: {key}')
+        result[key] = value
+    return result
+
+
 def read_json(path):
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        return json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=_unique_object)
     except (OSError, ValueError) as exc:
         raise ValueError(f'{path}: {exc}') from exc
 
@@ -130,7 +139,11 @@ def load(root):
                 except InvalidOperation as exc:
                     raise ValueError(f'{name}.{field}: invalid decimal price') from exc
         for name, tool in tools.items():
-            fields(tool, ('version', 'description', 'input_schema', 'output_schema', 'handler', 'dataset', 'side_effects', 'open_world'))
+            fields(tool, ('version', 'description', 'input_schema', 'output_schema', 'handler', 'dataset', 'side_effects', 'open_world'), ('dataset_files',))
+            if not isinstance(tool.get('dataset_files', []), list):
+                raise ValueError(f'{name}: dataset_files must be a list')
+            for fixture in tool.get('dataset_files', []):
+                safe_file(root, fixture)
             parts = tool['handler'].split(':')
             if len(parts) != 3 or parts[1:] != ['run_tool', name]:
                 raise ValueError(f'{name}: invalid handler reference')
@@ -144,7 +157,13 @@ def load(root):
             scenario_file = safe_file(data, entry)
             scenario = read_json(scenario_file); _version(scenario, entry)
             fields(scenario, ('schema_version', 'id', 'scenario_version', 'display_name', 'description', 'learning',
-                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'))
+                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'), ('frontend_instruction_file', 'frontend_instruction_label', 'frontend_instruction_description'))
+            if 'frontend_instruction_file' in scenario:
+                safe_file(root, scenario['frontend_instruction_file'])
+                if any(not isinstance(scenario.get(key), str) or not scenario[key].strip() for key in ('frontend_instruction_label', 'frontend_instruction_description')):
+                    raise ValueError('frontend instruction requires a label and description')
+            elif 'frontend_instruction_label' in scenario or 'frontend_instruction_description' in scenario:
+                raise ValueError('frontend instruction metadata requires a fixture')
             sid = scenario['id']
             if sid in scenarios:
                 raise ValueError(f'{entry}: duplicate scenario ID {sid}')
@@ -158,9 +177,21 @@ def load(root):
                 fields(block, ('type', 'content'))
                 if block['type'] != 'text' or not isinstance(block['content'], str):
                     raise ValueError(f'{sid}: this schema supports text learning blocks only')
+            if not isinstance(scenario['tools'], list) or any(not isinstance(x, str) or not x for x in scenario['tools']):
+                raise ValueError(f'{sid}: tools must be a list of IDs')
+            if len(set(scenario['tools'])) != len(scenario['tools']):
+                raise ValueError(f'{sid}: duplicate tool ID')
+            if not isinstance(scenario['extended_tool_sets'], list):
+                raise ValueError(f'{sid}: extended_tool_sets must be a list')
             all_tools = list(scenario['tools'])
+            extended_ids = set()
             for ext in scenario['extended_tool_sets']:
                 fields(ext, ('id', 'display_name', 'tools'))
+                if not isinstance(ext['id'], str) or not ext['id'] or ext['id'] in extended_ids:
+                    raise ValueError(f'{sid}: invalid or duplicate extended tool set ID')
+                extended_ids.add(ext['id'])
+                if not isinstance(ext['tools'], list) or any(not isinstance(x, str) or not x for x in ext['tools']) or len(set(ext['tools'])) != len(ext['tools']):
+                    raise ValueError(f'{sid}: invalid or duplicate extended tool ID')
                 all_tools.extend(ext['tools'])
             if any(name not in tools for name in all_tools):
                 raise ValueError(f'{sid}: unknown tool reference')
@@ -188,11 +219,18 @@ def load(root):
                 if any(d not in platform['detectors'] for d in guard.get('detectors', [])):
                     raise ValueError(f'{sid}: guard references an unknown detector')
                 actions[aid] = action
+            test_ids = set()
             for test in scenario['tests']:
+                if not isinstance(test, dict) or not isinstance(test.get('id'), str) or not test['id'] or test['id'] in test_ids:
+                    raise ValueError(f'{sid}: invalid or duplicate test ID')
+                test_ids.add(test['id'])
                 for retired in ('expected_result', 'expected_log_verdict'):
                     if retired in test:
                         raise ValueError(f'{retired} was renamed to {RETIRED[retired]}')
-                fields(test, ('id', 'action', 'prompt_ref', 'expect', 'required_tools', 'forbidden_tools', 'attack_tools'), ('known_issue',))
+                fields(test, ('id', 'action', 'prompt_ref', 'expect', 'required_tools', 'forbidden_tools', 'attack_tools'), ('known_issue', 'frontend_instruction'))
+                frontend = test.get('frontend_instruction', 'none')
+                if frontend not in ('none', 'compromised') or (frontend == 'compromised' and not scenario.get('frontend_instruction_file')):
+                    raise ValueError('invalid or unavailable frontend instruction selection')
                 if test['action'] not in actions:
                     raise ValueError(f'{sid}.{test["id"]}: unknown action')
                 validate_expect(test['expect'])
@@ -263,6 +301,7 @@ def build_views(catalog, source_commit=None, generated_at=None):
         for field in ('dataset', 'handler'):
             path = tool[field].split(':')[0]
             tool[field + '_sha256'] = hashlib.sha256(safe_file(root, path).read_bytes()).hexdigest()
+        tool['dataset_files_sha256'] = {path: hashlib.sha256(safe_file(root, path).read_bytes()).hexdigest() for path in tool.get('dataset_files', [])}
         return tool
     def header(name, items):
         return {'view': name, 'view_version': 1, 'catalog_schema_version': SCHEMA,
@@ -289,10 +328,16 @@ def build_views(catalog, source_commit=None, generated_at=None):
                    'actions': resolved_actions, 'hello_world': platform['hello_world'],
                    'naming': platform['naming'], 'currency': platform['currency'], 'unit': platform['unit'],
                    'faig_version': platform['faig_version']}
+        if scenario.get('frontend_instruction_file'):
+            payload['frontend_instruction'] = safe_file(root, scenario['frontend_instruction_file']).read_text(encoding='utf-8')
         content_hash = digest(payload)
         # Student views contain reference metadata, never backend instruction text or fixtures.
         visible_models = [{k: v for k, v in model.items() if k not in ('instruction', 'instruction_file')} for model in resolved_models]
         entry = {k: deepcopy(scenario[k]) for k in ('id', 'scenario_version', 'display_name', 'description', 'learning', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'tests')}
+        if 'frontend_instruction' in payload:
+            entry['frontend_instruction'] = payload['frontend_instruction']
+            entry['frontend_instruction_label'] = scenario['frontend_instruction_label']
+            entry['frontend_instruction_description'] = scenario['frontend_instruction_description']
         entry.update({'content_hash': content_hash, 'models': visible_models, 'actions': deepcopy(scenario['actions'])})
         student.append(entry)
         provisioning.append({'id': sid, 'scenario_version': scenario['scenario_version'], 'content_hash': content_hash,

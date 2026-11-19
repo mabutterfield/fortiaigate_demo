@@ -26,6 +26,32 @@
         "cache_read": null,
         "cache_write": null
       }
+    },
+    "fortistore-injection": {
+      "public_name": "fortistore-injection",
+      "backend_alias": "fortistore-injection",
+      "provider": "litellm-direct",
+      "target": "llm-default",
+      "instruction_file": "chatbot/scenarios/examples/fortistore-injection/instructions.txt",
+      "prices": {
+        "input": "4000",
+        "output": "9000",
+        "cache_read": null,
+        "cache_write": null
+      }
+    },
+    "resume-tool-injection": {
+      "public_name": "resume-tool-injection",
+      "backend_alias": "resume-tool-injection",
+      "provider": "litellm-direct",
+      "target": "llm-default",
+      "instruction_file": "chatbot/scenarios/examples/resume-tool-injection/instructions.txt",
+      "prices": {
+        "input": "6000",
+        "output": "12000",
+        "cache_read": null,
+        "cache_write": null
+      }
     }
   }
 }

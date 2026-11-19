@@ -18,9 +18,9 @@ PASSTHROUGH_GUARD_TEMPLATE = "no_protections"
 GUARD_TEMPLATE_COMPONENTS = {
     "no_protections": [],
     "inject_alert": ["inject_alert"],
-    "inject_deny": ["inject_deny"],
+    "inject_block": ["inject_block"],
     "output_dlp_alert": ["output_dlp_alert"],
-    "output_dlp_deny": ["output_dlp_deny"],
+    "output_dlp_block": ["output_dlp_block"],
     "output_dlp_redact": ["output_dlp_redact"],
     "alert_all": ["inject_alert", "output_dlp_alert"],
     "input_dlp": ["input_dlp"],

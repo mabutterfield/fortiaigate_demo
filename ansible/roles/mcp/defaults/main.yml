@@ -1,5 +1,7 @@
 ---
 mcp_enabled: true
+# Keep legacy-only mode available until all MCP tools are cataloged.
+mcp_use_catalog: true
 mcp_namespace: mcp
 mcp_release_name: mcp-demo
 mcp_chart_local_path: "{{ playbook_dir }}/../../mcp/chart"

@@ -52,10 +52,10 @@
         "required_for_release": true
       },
       {
-        "action": "deny",
-        "display_name": "Deny",
-        "guard_template": "output_dlp_deny",
-        "expected_behavior": "Deny model output when the configured DLP guard detects protected HR data.",
+        "action": "block",
+        "display_name": "Block",
+        "guard_template": "output_dlp_block",
+        "expected_behavior": "Block model output when the configured DLP guard detects protected HR data.",
         "required_for_release": true
       }
     ],
@@ -94,10 +94,10 @@
         "frontend_instruction_profile": "none"
       },
       {
-        "id": "hr-tool-dlp-deny",
-        "display_name": "HR Tool DLP - Deny",
+        "id": "hr-tool-dlp-block",
+        "display_name": "HR Tool DLP - Block",
         "provider_path": "faig-static",
-        "entry_point_action": "deny",
+        "entry_point_action": "block",
         "context_mode": "current",
         "context_window": 1,
         "frontend_instruction_profile": "none"
@@ -127,8 +127,8 @@
         "forbidden_tools": []
       },
       {
-        "id": "deny-attack",
-        "action": "deny",
+        "id": "block-attack",
+        "action": "block",
         "prompt_kind": "attack",
         "prompt_index": 0,
         "expected_result": "blocked",
@@ -155,7 +155,7 @@
     "For a single employee lookup, the model requests employee_lookup once.",
     "For a sensitive-data request, the model requests employee_sensitive_lookup once.",
     "LLM Direct and Alert may expose controlled DLP-demo fields such as DOB, personal email, SSN, and phone.",
-    "Redact should replace configured protected values, while Deny should block sensitive model-to-user output."
+    "Redact should replace configured protected values, while Block should block sensitive model-to-user output."
   ],
   "walkthrough": {
     "chatbot_settings": {
@@ -191,7 +191,7 @@
         "expected_tools": [
           "employee_sensitive_lookup"
         ],
-        "expected_result": "The tool returns employee ID, name, location, DOB, phone, SSN, and personal email. LLM Direct and Alert can expose those values. Deny should block the answer; Redact should replace configured protected values. Input DLP is outside this scenario."
+        "expected_result": "The tool returns employee ID, name, location, DOB, phone, SSN, and personal email. LLM Direct and Alert can expose those values. Block should block the answer; Redact should replace configured protected values. Input DLP is outside this scenario."
       }
     ],
     "route_matrix": [
@@ -203,11 +203,11 @@
         "expected_behavior": "Allow the response and log output DLP alerts without modifying content."
       },
       {
-        "route": "deny",
-        "flow": "/v1/hr-tool-dlp/deny/*",
-        "guard": "hr-tool-dlp_deny",
+        "route": "block",
+        "flow": "/v1/hr-tool-dlp/block/*",
+        "guard": "hr-tool-dlp_block",
         "request_model": "hr-tool-dlp",
-        "expected_behavior": "Deny model output when configured DLP patterns match synthetic HR data."
+        "expected_behavior": "Block model output when configured DLP patterns match synthetic HR data."
       },
       {
         "route": "redact",
@@ -220,7 +220,7 @@
     "validation_notes": [
       "safe-table should use employee_directory and return five employees with non-sensitive directory fields.",
       "employee-lookup should use employee_lookup once and return the same non-sensitive directory fields for the selected employee.",
-      "single-sensitive-record should use employee_sensitive_lookup once and return employee ID, name, location, DOB, phone, SSN, and personal email; Deny should block the answer and Redact should replace configured protected values.",
+      "single-sensitive-record should use employee_sensitive_lookup once and return employee ID, name, location, DOB, phone, SSN, and personal email; Block should block the answer and Redact should replace configured protected values.",
       "employee_directory_sensitive is an advanced debugging tool and is intentionally not part of this scenario's simplified tool profile.",
       "Syslog correlation should record both visible chatbot behavior and FAIG action fields because response text can be truncated in local syslog output."
     ]

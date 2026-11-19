@@ -702,16 +702,16 @@ def baseline_profile_validation(
     valid_guard_templates = {
         "no_protections",
         "inject_alert",
-        "inject_deny",
+        "inject_block",
         "output_dlp_alert",
-        "output_dlp_deny",
+        "output_dlp_block",
         "output_dlp_redact",
         "alert_all",
         "input_dlp",
     }
     valid_templates_by_action = {
         "alert": {"inject_alert", "output_dlp_alert", "alert_all"},
-        "deny": {"inject_deny", "output_dlp_deny"},
+        "block": {"inject_block", "output_dlp_block"},
         "redact": {"output_dlp_redact"},
         "redact-dummy": {"input_dlp"},
     }
@@ -734,7 +734,7 @@ def baseline_profile_validation(
         )
         action = str(entry_point.get("action") or "")
         entry_actions.append(action)
-        if action not in {"alert", "deny", "redact", "redact-dummy"}:
+        if action not in {"alert", "block", "redact", "redact-dummy"}:
             errors.append(f"matrix.entry_points[{index}].action is invalid")
         if not isinstance(entry_point.get("display_name"), str) or not entry_point["display_name"].strip():
             errors.append(f"matrix.entry_points[{index}].display_name must be non-empty")
@@ -742,7 +742,7 @@ def baseline_profile_validation(
         if guard_template not in valid_guard_templates:
             errors.append(
                 f"matrix.entry_points[{index}].guard_template "
-                f"{guard_template!r} is invalid; use a current Alert, Deny, or "
+                f"{guard_template!r} is invalid; use a current Alert, Block, or "
                 "Redact guard template"
             )
         elif guard_template not in valid_templates_by_action.get(action, set()):
