@@ -188,11 +188,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--inventory", default=os.environ.get("FAIG_INVENTORY", "cloud"))
     parser.add_argument("--host-alias", default=os.environ.get("FAIG_HOST_ALIAS", "faig-aws"))
-    parser.add_argument("--key-dir", type=Path, action="append", required=True,
+    parser.add_argument("--key-dir", type=Path, action="append",
                         help="Owner-only studentNN-keys directory from scenario_lab.py (repeatable)")
     parser.add_argument("--scenario", action="append", help="Limit to scenario (repeatable; 'passthrough' allowed)")
     parser.add_argument("--action", action="append", help="Limit to action (repeatable)")
     parser.add_argument("--admin-credentials", type=Path,
+                        default=Path(os.environ["FAIG_ENV_DIR"]) / "admin-login.json" if os.environ.get("FAIG_ENV_DIR") else None,
                         help="Owner-only FAIG admin login file; enables Traffic Log verdict checks")
     parser.add_argument("--faig-url", help="Public FAIG HTTPS origin for the admin API (default https://<host>)")
     parser.add_argument("--insecure", action="store_true", help="Skip TLS verification for the admin API (lab only)")
@@ -206,7 +207,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=2048)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--output-root", type=Path, default=validation.DEFAULT_OUTPUT_ROOT)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if not args.key_dir:
+        environment = os.environ.get("FAIG_ENV_DIR")
+        if environment:
+            args.key_dir = sorted((Path(environment) / "students").glob("student*-keys"))
+        if not args.key_dir:
+            parser.error("provide --key-dir or set FAIG_ENV_DIR to an environment with student key directories")
+    return args
 
 
 def main(argv: list[str]) -> int:

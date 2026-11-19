@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -28,6 +29,18 @@ MATRIX = {
 
 
 class BaselinePlanningTests(unittest.TestCase):
+    def test_environment_selects_student_key_directories_and_admin(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "students" / "student01-keys").mkdir(parents=True)
+            (root / "students" / "student02-keys").mkdir()
+            with patch.dict("os.environ", {"FAIG_ENV_DIR": temp}):
+                args = baseline.parse_args([])
+                self.assertEqual(args.key_dir, [root / "students/student01-keys", root / "students/student02-keys"])
+                self.assertEqual(args.admin_credentials, root / "admin-login.json")
+                explicit = baseline.parse_args(["--key-dir", "/private/alternate"])
+                self.assertEqual(explicit.key_dir, [Path("/private/alternate")])
+
     def test_action_profile_prefers_canonical_id(self):
         self.assertEqual(baseline.action_profile(MATRIX, "fortistore-injection", "deny")["id"],
                          "fortistore-injection-deny")

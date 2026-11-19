@@ -526,7 +526,8 @@ def main():
         p = sub.add_parser(name, help=helptext)
         p.add_argument('--template', type=Path, default=DEFAULT_TEMPLATE)
         p.add_argument('--url')
-        p.add_argument('--admin-credentials', type=Path)
+        p.add_argument('--admin-credentials', type=Path,
+                       default=Path(os.environ['FAIG_ENV_DIR']) / 'admin-login.json' if os.environ.get('FAIG_ENV_DIR') else None)
         p.add_argument('--insecure', action='store_true', help='Skip TLS verification (isolated lab only)')
         p.add_argument('--apply', action='store_true', help='Make changes; default is preview')
     pre = sub.choices['prepopulate']
@@ -536,6 +537,7 @@ def main():
     pre.add_argument('--scenario', action='append', help='Limit to a scenario (repeatable); default all')
     pre.add_argument('--action', action='append', help='Limit to an action (repeatable); default all')
     pre.add_argument('--credentials-dir', type=Path,
+                     default=Path(os.environ['FAIG_ENV_DIR']) / 'students' if os.environ.get('FAIG_ENV_DIR') else None,
                      help='Owner-only directory with studentNN.json; keys go to studentNN-keys/')
     auto = sub.choices['auto-approve']
     auto.add_argument('--types', nargs='+', default=['detector', 'guardrail', 'policy'],

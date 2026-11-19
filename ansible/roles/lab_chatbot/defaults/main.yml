@@ -22,7 +22,7 @@ lab_chatbot_rollout_timeout: 420s
 # Secret <prefix><student>; existing Secrets are kept because students may
 # have replaced keys in the chatbot. Set lab_chatbot_reseed_keys: true to
 # overwrite them from the files (this discards student edits).
-lab_chatbot_student_credentials_dir: "{{ faig_workspace_root }}/.student-credentials"
+lab_chatbot_student_credentials_dir: "{{ (faig_env_dir ~ '/students') if faig_env_dir | default('') | length > 0 else (faig_workspace_root ~ '/.student-credentials') }}"
 lab_chatbot_key_secret_prefix: lab-keys-
 lab_chatbot_reseed_keys: false
 # Read-only instructor copy per student (<seed prefix><student>), rewritten on

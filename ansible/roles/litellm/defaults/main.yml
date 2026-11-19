@@ -19,7 +19,7 @@ litellm_image_pull_policy: IfNotPresent
 litellm_shared_virtual_key_enabled: true
 litellm_shared_virtual_key_alias: faig-lab-shared
 litellm_shared_virtual_key_secret_name: litellm-shared-virtual-key
-litellm_shared_virtual_key_local_file: "{{ faig_workspace_root }}/.litellm_shared_virtual_key.json"
+litellm_shared_virtual_key_local_file: "{{ (faig_env_dir ~ '/litellm-shared-key.json') if faig_env_dir | default('') | length > 0 else (faig_workspace_root ~ '/.litellm_shared_virtual_key.json') }}"
 litellm_shared_virtual_key_regenerate: false
 litellm_service_type: NodePort
 litellm_service_port: 4000

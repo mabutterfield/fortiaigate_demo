@@ -18,6 +18,9 @@
 
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
+# Existing owner-only environment directory holding admin-login.json,
+# litellm-shared-key.json and students/. Do not commit the real value.
+# faig_env_dir: /path/to/FAIG/.secrets/my-lab
 
 # Installed local scenarios are the single LiteLLM/chatbot configuration
 # source.

@@ -196,8 +196,10 @@ def main():
     p.add_argument('--start', type=int, default=1)
     p.add_argument('--apply', action='store_true', help='Create resources; default is offline preview')
     p.add_argument('--url')
-    p.add_argument('--admin-credentials', type=Path)
-    p.add_argument('--credentials-dir', type=Path)
+    p.add_argument('--admin-credentials', type=Path,
+                   default=Path(os.environ['FAIG_ENV_DIR']) / 'admin-login.json' if os.environ.get('FAIG_ENV_DIR') else None)
+    p.add_argument('--credentials-dir', type=Path,
+                   default=Path(os.environ['FAIG_ENV_DIR']) / 'students' if os.environ.get('FAIG_ENV_DIR') else None)
     p.add_argument('--password-file', type=Path, help='Optional private one-line password shared by newly created users')
     p.add_argument('--insecure', action='store_true')
     args = p.parse_args()

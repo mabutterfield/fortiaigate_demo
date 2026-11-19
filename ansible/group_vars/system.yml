@@ -10,6 +10,9 @@
 # files when available.
 ansible_user: ubuntu
 faig_workspace_root: "{{ lookup('env', 'FAIG_WORKSPACE_ROOT') | default((playbook_dir + '/../../..') | realpath, true) }}"
+# Optional private environment directory. Keep empty to retain legacy paths;
+# set in ignored user.yml or FAIG_ENV_DIR for an explicitly selected lab.
+faig_env_dir: "{{ lookup('env', 'FAIG_ENV_DIR') | default('', true) }}"
 registry_type: ecr
 local_registry: localhost:5000
 local_registry_scheme: http
@@ -184,7 +187,7 @@ litellm_release_name: litellm
 litellm_shared_virtual_key_enabled: true
 litellm_shared_virtual_key_alias: faig-lab-shared
 litellm_shared_virtual_key_secret_name: litellm-shared-virtual-key
-litellm_shared_virtual_key_local_file: "{{ faig_workspace_root }}/.litellm_shared_virtual_key.json"
+litellm_shared_virtual_key_local_file: "{{ (faig_env_dir ~ '/litellm-shared-key.json') if faig_env_dir | length > 0 else (faig_workspace_root ~ '/.litellm_shared_virtual_key.json') }}"
 litellm_shared_virtual_key_regenerate: false
 # Port values normally come from terraform/aws-ec2-k3s generated
 # ansible/group_vars/ports.generated.yml. The defaults keep local-only
@@ -451,7 +454,8 @@ demo_home_ingress_host: ""
 # === Student lab chatbot (8.0.2): ansible/playbooks/deploy_lab_chatbot.yml ===
 # Cluster-internal Streamlit app behind the lab login gateway (chatbot route,
 # HTTPS 30444 / HTTP 30081). Seeds one key Secret per student from
-# .student-credentials/studentNN-keys and keeps student edits on redeploy.
+# The selected environment's students/studentNN-keys (or the legacy
+# .student-credentials directory when no environment is selected) seed keys.
 lab_chatbot_enabled: true
 lab_chatbot_reseed_keys: false
 
