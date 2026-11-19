@@ -1,11 +1,13 @@
-# The chatbot may read and update only the named per-student key Secrets and
-# read the instructor seed copies. It cannot list, create, or delete Secrets.
+# Change 2026-11-19: the chatbot no longer reads or writes Kubernetes Secrets; keys
+# come from the gateway's key endpoints. The Role below is kept only while
+# legacyKeySecrets is true (old per-namespace lab-keys-*/lab-seed-* model).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "lab-chatbot.name" . }}
   labels:
 {{ include "lab-chatbot.labels" . | indent 4 }}
+{{- if .Values.legacyKeySecrets }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -47,3 +49,4 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "lab-chatbot.name" . }}
     namespace: {{ .Release.Namespace }}
+{{- end }}

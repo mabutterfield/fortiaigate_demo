@@ -1,5 +1,23 @@
 # Student Lab Chatbot (8.0.2)
 
+> **Change 2026-11-19 (catalog switch):**
+> - **Where data comes from:** scenarios, actions, prompts and tests come from
+>   the catalog student view (ConfigMap `lab-catalog`). Keys come from the
+>   gateway's key endpoints, stored in `lab-data/lab-keys`. The chatbot no longer
+>   reads or writes Kubernetes Secrets, and `scenario-pack.json` and the
+>   `lab-keys-*`/`lab-seed-*` Secrets in `lab-chatbot` are retired.
+> - **Keys tab:** refresh from FortiAIGate, map a key to a scenario and action,
+>   paste its value (checked against the key ID), hello-world, rotate.
+> - **Tests:** graded by `catalog802.result_contract.evaluate` from evidence and
+>   Traffic Log rows matched by a unique prompt marker: PASS / FAIL / KNOWN FAIL
+>   / INCOMPLETE.
+> - **Debug options:** "Direct to LiteLLM" (off by default, needs confirmation)
+>   and "Simulate compromised frontend".
+> - **Admin tab:** password reset plus a link to Lab Management (`/manage/`).
+>   Seed comparison and restore are retired.
+> - **The previous app** is kept for reference in
+>   `chatbot/lab-chatbot/legacy/lab_chatbot_v1.py`.
+
 One shared Streamlit chatbot for every student, reached through the
 [lab login gateway](lab-gateway.md) on the chatbot route (HTTPS 30444, HTTP
 30081 redirects to HTTPS for sign-in). Each student chats with their own

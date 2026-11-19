@@ -15,4 +15,5 @@ directKeySecretName: {{ lab_chatbot_direct_secret_name | to_json }}
 callerSecretName: {{ lab_chatbot_caller_secret_name | to_json }}
 keySecretPrefix: {{ lab_chatbot_key_secret_prefix | to_json }}
 seedSecretPrefix: {{ lab_chatbot_seed_secret_prefix | to_json }}
-students: {{ lab_chatbot_students | to_json }}
+# Change 2026-11-19: students are no longer listed here (keys via the gateway).
+students: []

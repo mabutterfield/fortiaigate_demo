@@ -1,0 +1,27 @@
+# Change 2026-11-19: secret-free catalog student view rendered at deploy time
+# (python3 -m catalog802 student). Empty is valid: the app reports "catalog unavailable".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.catalogConfigMapName }}
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "catalog/*.json" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+---
+# The shared catalog evaluator package (catalog802: loader, vocabulary,
+# result_contract), copied from the repository at deploy time.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "lab-chatbot.name" . }}-catalog802
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "pylib/catalog802/*.py" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
