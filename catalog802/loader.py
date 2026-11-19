@@ -148,9 +148,13 @@ def load(root):
             scenario_file = safe_file(data, entry)
             scenario = read_json(scenario_file); _version(scenario, entry)
             fields(scenario, ('schema_version', 'id', 'scenario_version', 'display_name', 'description', 'learning',
-                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'), ('frontend_instruction_file',))
+                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'), ('frontend_instruction_file', 'frontend_instruction_label', 'frontend_instruction_description'))
             if 'frontend_instruction_file' in scenario:
                 safe_file(root, scenario['frontend_instruction_file'])
+                if any(not isinstance(scenario.get(key), str) or not scenario[key].strip() for key in ('frontend_instruction_label', 'frontend_instruction_description')):
+                    raise ValueError('frontend instruction requires a label and description')
+            elif 'frontend_instruction_label' in scenario or 'frontend_instruction_description' in scenario:
+                raise ValueError('frontend instruction metadata requires a fixture')
             sid = scenario['id']
             if sid in scenarios:
                 raise ValueError(f'{entry}: duplicate scenario ID {sid}')
@@ -198,7 +202,10 @@ def load(root):
                 for retired in ('expected_result', 'expected_log_verdict'):
                     if retired in test:
                         raise ValueError(f'{retired} was renamed to {RETIRED[retired]}')
-                fields(test, ('id', 'action', 'prompt_ref', 'expect', 'required_tools', 'forbidden_tools', 'attack_tools'), ('known_issue',))
+                fields(test, ('id', 'action', 'prompt_ref', 'expect', 'required_tools', 'forbidden_tools', 'attack_tools'), ('known_issue', 'frontend_instruction'))
+                frontend = test.get('frontend_instruction', 'none')
+                if frontend not in ('none', 'compromised') or (frontend == 'compromised' and not scenario.get('frontend_instruction_file')):
+                    raise ValueError('invalid or unavailable frontend instruction selection')
                 if test['action'] not in actions:
                     raise ValueError(f'{sid}.{test["id"]}: unknown action')
                 validate_expect(test['expect'])
@@ -304,6 +311,8 @@ def build_views(catalog, source_commit=None, generated_at=None):
         entry = {k: deepcopy(scenario[k]) for k in ('id', 'scenario_version', 'display_name', 'description', 'learning', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'tests')}
         if 'frontend_instruction' in payload:
             entry['frontend_instruction'] = payload['frontend_instruction']
+            entry['frontend_instruction_label'] = scenario['frontend_instruction_label']
+            entry['frontend_instruction_description'] = scenario['frontend_instruction_description']
         entry.update({'content_hash': content_hash, 'models': visible_models, 'actions': deepcopy(scenario['actions'])})
         student.append(entry)
         provisioning.append({'id': sid, 'scenario_version': scenario['scenario_version'], 'content_hash': content_hash,

@@ -86,7 +86,8 @@
         "verdict": "alert",
         "evidence_present": [],
         "evidence_absent": []
-      }
+      },
+      "frontend_instruction": "none"
     },
     {
       "id": "block-attack",
@@ -99,8 +100,11 @@
         "verdict": "block",
         "evidence_present": [],
         "evidence_absent": []
-      }
+      },
+      "frontend_instruction": "none"
     }
   ],
-  "frontend_instruction_file": "chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt"
+  "frontend_instruction_file": "chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt",
+  "frontend_instruction_label": "Simulate compromised frontend",
+  "frontend_instruction_description": "Injects a deliberately compromised frontend instruction for the exercise; leave off for normal tests."
 }

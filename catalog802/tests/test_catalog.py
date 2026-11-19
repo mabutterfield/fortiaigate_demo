@@ -146,11 +146,17 @@ class CatalogTests(unittest.TestCase):
         later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == resume['id'])
         self.assertNotEqual(resume['content_hash'], later['content_hash'])
 
+    def test_frontend_selection_needs_a_fixture(self):
+        self.update_scenario(lambda d: d['tests'][0].update(frontend_instruction='compromised'))
+        self.assertIn('invalid or unavailable frontend', loader.load(self.root)[1][0])
+
     def test_frontend_fixture_is_in_student_view_and_hash(self):
         catalog, errors = loader.load(self.root)
         self.assertEqual(errors, [])
         first = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == 'fortistore-injection')
         self.assertIn('frontend_instruction', first)
+        self.assertEqual(first['frontend_instruction_label'], 'Simulate compromised frontend')
+        self.assertTrue(all(t.get('frontend_instruction', 'none') == 'none' for t in first['tests']))
         fixture = self.root / 'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt'
         fixture.write_text(fixture.read_text() + '\nchanged')
         later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == first['id'])
