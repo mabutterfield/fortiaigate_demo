@@ -34,6 +34,26 @@ class CatalogBaselineTests(unittest.TestCase):
         evidence, _ = evidence_from_turn({'reply': 'I said blocked.', 'tool_events': []}, test, block_message='Request blocked.')
         self.assertNotIn('block-message-in-reply', evidence)
 
+    def test_revoked_key_is_incomplete_with_http_status(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            key = root / 'key.json'; key.write_text(json.dumps({'scenario': 'hr-tool-dlp', 'action': 'redact',
+                'model': 'hr-tool-dlp', 'secretKey': 'test', 'keyName': 'test-key'})); key.chmod(0o600)
+            creds = root / 'admin.json'; creds.write_text(json.dumps({'username': 'test', 'password': 'test'})); creds.chmod(0o600)
+            args = ['--scenario', 'hr-tool-dlp', '--action', 'redact', '--key-file', str(key),
+                    '--admin-credentials', str(creds), '--inventory', str(root / 'inventory'),
+                    '--faig-url', 'https://faig.invalid']
+            with patch('functional_test.catalog_baseline.validation.parse_inventory', return_value={}), \
+                 patch('functional_test.catalog_baseline.baseline.FaigAdmin') as admin, \
+                 patch('functional_test.catalog_baseline.baseline.kubectl_exec') as execute, \
+                 patch('functional_test.catalog_baseline.baseline.run_case', return_value={'error': 'http_error', 'http_status': 401, 'rounds': 0}), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                execute.return_value.returncode = 0
+                self.assertEqual(main(args), 1)
+                result = json.loads(output.getvalue())
+                self.assertEqual((result['outcome'], result['http_status'], result['requests_sent']), ('incomplete', 401, 1))
+                admin.return_value.get.assert_not_called()
+
     def test_missing_logs_are_incomplete(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
