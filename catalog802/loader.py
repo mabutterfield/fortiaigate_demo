@@ -1,6 +1,6 @@
 """Read-only catalog loader and deterministic view builder; standard library only.
 
-This initial HR-only schema is a review artifact, not an integrated installer.
+This catalog is a review artifact, not yet an integrated installer.
 No live FAIG, Kubernetes, or credentials are read or modified.
 """
 from __future__ import annotations
@@ -130,7 +130,11 @@ def load(root):
                 except InvalidOperation as exc:
                     raise ValueError(f'{name}.{field}: invalid decimal price') from exc
         for name, tool in tools.items():
-            fields(tool, ('version', 'description', 'input_schema', 'output_schema', 'handler', 'dataset', 'side_effects', 'open_world'))
+            fields(tool, ('version', 'description', 'input_schema', 'output_schema', 'handler', 'dataset', 'side_effects', 'open_world'), ('dataset_files',))
+            if not isinstance(tool.get('dataset_files', []), list):
+                raise ValueError(f'{name}: dataset_files must be a list')
+            for fixture in tool.get('dataset_files', []):
+                safe_file(root, fixture)
             parts = tool['handler'].split(':')
             if len(parts) != 3 or parts[1:] != ['run_tool', name]:
                 raise ValueError(f'{name}: invalid handler reference')
@@ -144,7 +148,9 @@ def load(root):
             scenario_file = safe_file(data, entry)
             scenario = read_json(scenario_file); _version(scenario, entry)
             fields(scenario, ('schema_version', 'id', 'scenario_version', 'display_name', 'description', 'learning',
-                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'))
+                              'models', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'actions', 'tests'), ('frontend_instruction_file',))
+            if 'frontend_instruction_file' in scenario:
+                safe_file(root, scenario['frontend_instruction_file'])
             sid = scenario['id']
             if sid in scenarios:
                 raise ValueError(f'{entry}: duplicate scenario ID {sid}')
@@ -263,6 +269,7 @@ def build_views(catalog, source_commit=None, generated_at=None):
         for field in ('dataset', 'handler'):
             path = tool[field].split(':')[0]
             tool[field + '_sha256'] = hashlib.sha256(safe_file(root, path).read_bytes()).hexdigest()
+        tool['dataset_files_sha256'] = {path: hashlib.sha256(safe_file(root, path).read_bytes()).hexdigest() for path in tool.get('dataset_files', [])}
         return tool
     def header(name, items):
         return {'view': name, 'view_version': 1, 'catalog_schema_version': SCHEMA,
@@ -289,10 +296,14 @@ def build_views(catalog, source_commit=None, generated_at=None):
                    'actions': resolved_actions, 'hello_world': platform['hello_world'],
                    'naming': platform['naming'], 'currency': platform['currency'], 'unit': platform['unit'],
                    'faig_version': platform['faig_version']}
+        if scenario.get('frontend_instruction_file'):
+            payload['frontend_instruction'] = safe_file(root, scenario['frontend_instruction_file']).read_text(encoding='utf-8')
         content_hash = digest(payload)
         # Student views contain reference metadata, never backend instruction text or fixtures.
         visible_models = [{k: v for k, v in model.items() if k not in ('instruction', 'instruction_file')} for model in resolved_models]
         entry = {k: deepcopy(scenario[k]) for k in ('id', 'scenario_version', 'display_name', 'description', 'learning', 'tools', 'extended_tool_sets', 'max_rounds', 'prompts', 'tests')}
+        if 'frontend_instruction' in payload:
+            entry['frontend_instruction'] = payload['frontend_instruction']
         entry.update({'content_hash': content_hash, 'models': visible_models, 'actions': deepcopy(scenario['actions'])})
         student.append(entry)
         provisioning.append({'id': sid, 'scenario_version': scenario['scenario_version'], 'content_hash': content_hash,

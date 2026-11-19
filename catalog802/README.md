@@ -1,12 +1,10 @@
-# FAIG 8.0.2 catalog — initial HR DLP schema review
+# FAIG 8.0.2 catalog — scenario migration draft
 
-This directory is the **first review slice**, not the active runtime source of
-truth and not an installer. It contains a concrete scenario schema, a
-standard-library validator/loader, four secret-free generated views, and an HR
-DLP example with model and MCP tool references. Existing scenario profiles,
-LiteLLM and MCP runtime consumers remain unchanged until the owner and Agent2
-review the exact schema. Their current data is temporarily duplicated in this
-review slice; it must be consolidated when migration is approved.
+This directory is a **migration draft**, not yet the active runtime source of
+truth and not an installer. It contains a scenario schema, a standard-library
+validator/loader, four secret-free generated views, and draft definitions for
+HR DLP, FortiStore, and Resume. Existing profiles and runtime consumers still
+use their previous sources; duplication remains until consumer migration.
 
 From the repository root:
 
@@ -22,9 +20,9 @@ python3 -m unittest discover -s catalog802/tests -v
 `loader.py` is the executable stdlib validator and additionally checks model,
 tool, guard, prompt and file references. Schema and loader must be brought to
 full parity during review before claiming general JSON Schema validation.
-The initial catalog covers HR DLP and only its four referenced tool contracts.
-It references the existing tracked synthetic fixture and dispatcher; runtime
-MCP still uses its old `TOOLS` registry. The future MCP compiler and the
+The catalog covers three scenarios and their referenced tool contracts. It
+references tracked synthetic fixtures and the dispatcher; runtime MCP still
+uses its old `TOOLS` registry. The future MCP compiler and the
 migration/removal of the duplicate tool registry are not implemented here.
 
 The `student` and `faig` views expose a `platform` object with the shared
@@ -74,3 +72,9 @@ categories while splitting them into independent detector definitions. Broader
 address and financial groupings require verification against FAIG's supported
 categories. Regex and natural-language kind-specific validation and
 provisioning have not yet been implemented or verified.
+
+FortiStore references its compromised frontend instruction file; the student
+view includes its contents and the scenario hash covers them. Resume document
+fixtures are separately referenced and hashed. Resume Block records the known
+early-block issue without suppressing failed-test evidence. Neither scenario
+change has been tested against a live FAIG deployment in this migration.

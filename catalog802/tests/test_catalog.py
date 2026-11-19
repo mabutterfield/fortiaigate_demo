@@ -16,7 +16,14 @@ class CatalogTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         shutil.copytree(ROOT / 'catalog802/data', self.root / 'catalog802/data')
         for name in ('chatbot/scenarios/examples/hr-tool-dlp/instructions.txt',
-                     'mcp/chart/files/server.py', 'mcp/chart/files/tools.json'):
+                     'mcp/chart/files/server.py', 'mcp/chart/files/tools.json',
+                     'chatbot/scenarios/examples/fortistore-injection/instructions.txt',
+                     'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt',
+                     'chatbot/scenarios/examples/resume-tool-injection/instructions.txt',
+                     'mcp/chart/files/documents/documents.json',
+                     'mcp/chart/files/documents/resume_alex_morgan.txt',
+                     'mcp/chart/files/documents/resume_jordan_lee.txt',
+                     'mcp/chart/files/documents/resume_casey_jordan_poisoned.txt'):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
@@ -36,13 +43,13 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(errors, [])
         first = loader.build_views(catalog, source_commit='one', generated_at='one')
         later = loader.build_views(catalog, source_commit='two', generated_at='two')
-        student = first['student']['items'][0]
+        student = next(x for x in first['student']['items'] if x['id'] == 'hr-tool-dlp')
         self.assertEqual([a['id'] for a in student['actions']], ['alert', 'redact', 'block'])
-        self.assertEqual(student['content_hash'], later['student']['items'][0]['content_hash'])
+        self.assertEqual(student['content_hash'], next(x for x in later['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash'])
         self.assertNotIn('instruction', student['models'][0])
-        self.assertEqual(first['faig']['items'][0]['content_hash'], student['content_hash'])
-        self.assertEqual(len(first['mcp']['items']), 4)
-        self.assertEqual(first['models']['items'][0]['id'], 'hr-tool-dlp')
+        self.assertEqual(next(x for x in first['faig']['items'] if x['id'] == 'hr-tool-dlp')['content_hash'], student['content_hash'])
+        self.assertEqual(len(first['mcp']['items']), 10)
+        self.assertEqual(first['models']['items'][0]['id'], 'fortistore-injection')
         for view in ('student', 'faig'):
             platform = first[view]['platform']
             self.assertEqual(platform['hello_world']['expect']['verdict'], 'log')
@@ -60,14 +67,14 @@ class CatalogTests(unittest.TestCase):
 
     def test_instruction_and_tool_fixture_change_affect_hash(self):
         cat, _ = loader.load(self.root)
-        before = loader.build_views(cat)['student']['items'][0]['content_hash']
+        before = next(x for x in loader.build_views(cat)['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash']
         path = self.root / 'chatbot/scenarios/examples/hr-tool-dlp/instructions.txt'
         path.write_text(path.read_text() + '\nchanged')
-        changed = loader.build_views(cat)['student']['items'][0]['content_hash']
+        changed = next(x for x in loader.build_views(cat)['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash']
         self.assertNotEqual(before, changed)
         path = self.root / 'mcp/chart/files/tools.json'
         path.write_text(path.read_text() + ' ')
-        self.assertNotEqual(changed, loader.build_views(cat)['student']['items'][0]['content_hash'])
+        self.assertNotEqual(changed, next(x for x in loader.build_views(cat)['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash'])
 
     def test_invalid_references_and_deny_are_rejected(self):
         self.update_scenario(lambda d: d['actions'][0].update(id='deny'))
@@ -90,6 +97,29 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
 
+    def test_resume_known_issue_and_fixture_hash(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        views = loader.build_views(catalog)
+        resume = next(x for x in views['student']['items'] if x['id'] == 'resume-tool-injection')
+        block = next(x for x in resume['tests'] if x['action'] == 'block')
+        observed = {'verdict': 'block', 'tools_called': ['document_upload_simulation'], 'missing_required_tools': ['document_read']}
+        self.assertTrue(loader.known_failure_matches(block['known_issue'], observed, faig_version='8.0.2', scenario_version='1.0.0', failed=True))
+        fixture = self.root / 'mcp/chart/files/documents/resume_casey_jordan_poisoned.txt'
+        fixture.write_text(fixture.read_text() + '\nchanged')
+        later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == resume['id'])
+        self.assertNotEqual(resume['content_hash'], later['content_hash'])
+
+    def test_frontend_fixture_is_in_student_view_and_hash(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        first = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == 'fortistore-injection')
+        self.assertIn('frontend_instruction', first)
+        fixture = self.root / 'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt'
+        fixture.write_text(fixture.read_text() + '\nchanged')
+        later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == first['id'])
+        self.assertNotEqual(first['content_hash'], later['content_hash'])
+
     def test_prompt_ids_must_be_unique_and_references_valid(self):
         self.update_scenario(lambda d: d['prompts']['clean'].append(dict(d['prompts']['attack'][0])))
         self.assertIn('IDs unique', loader.load(self.root)[1][0])
@@ -100,7 +130,7 @@ class CatalogTests(unittest.TestCase):
     def test_guardrails_compose_reusable_detectors(self):
         catalog, errors = loader.load(self.root)
         self.assertEqual(errors, [])
-        guard = loader.build_views(catalog)['faig']['items'][0]['actions'][0]['guard']
+        guard = next(x for x in loader.build_views(catalog)['faig']['items'] if x['id'] == 'hr-tool-dlp')['actions'][0]['guard']
         self.assertEqual(len(guard['resolved_detectors']), 3)
 
     def test_retired_evidence_and_expectations_are_rejected(self):
