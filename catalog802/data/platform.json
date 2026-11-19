@@ -107,6 +107,22 @@
       "source": "owasp-llm-top-10-2025",
       "action": "alert",
       "description": "Alert-only copy of owasp-llm-top-10-2025"
+    },
+    "contact-email-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "Email address"
+      ],
+      "description": "Redact email address"
+    },
+    "contact-phone-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "Phone number"
+      ],
+      "description": "Redact phone number"
     }
   },
   "guard_templates": {
@@ -123,7 +139,9 @@
       "detectors": [
         "identity-dob-redact",
         "identity-ssn-redact",
-        "payment-card-redact"
+        "payment-card-redact",
+        "contact-email-redact",
+        "contact-phone-redact"
       ],
       "direction": "output",
       "deny_suspicious_characters": false

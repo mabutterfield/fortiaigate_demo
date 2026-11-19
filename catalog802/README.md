@@ -126,8 +126,6 @@ and a five-request Resume tool turn. This runner executes one test at a time;
 key metadata must match the current catalog action, and old `deny` metadata is
 not silently treated as `block`.
 
-The HR Redact case currently expects no sensitive data in the reply, whereas
-its DLP definition covers date of birth, SSN, and payment card only. A live
-run returned a redaction marker but left email and phone visible, so this case
-correctly failed under its present expectation. Reconcile the expected outcome
-and detector categories before treating that test as a release gate.
+The HR Redact catalog guardrail includes date of birth, SSN, payment card,
+email and phone. The currently deployed older lab policy may not yet include
+email or phone; verify the policy configuration before judging a live result.

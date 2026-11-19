@@ -187,6 +187,10 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(errors, [])
         guard = next(x for x in loader.build_views(catalog)['faig']['items'] if x['id'] == 'hr-tool-dlp')['actions'][0]['guard']
         self.assertEqual(len(guard['resolved_detectors']), 3)
+        actions = next(x for x in loader.build_views(catalog)['faig']['items'] if x['id'] == 'hr-tool-dlp')['actions']
+        redact = next(x for x in actions if x['id'] == 'redact')['guard']['resolved_detectors']
+        self.assertIn('Email address', redact['contact-email-redact']['categories'])
+        self.assertIn('Phone number', redact['contact-phone-redact']['categories'])
 
     def test_retired_evidence_and_expectations_are_rejected(self):
         self.update_scenario(lambda d: d['tests'][0]['expect']['evidence_present'].append('sensitive-tool-result'))
