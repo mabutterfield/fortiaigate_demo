@@ -69,7 +69,7 @@
     {
       "id": "block",
       "display_name": "Block",
-      "expected_behavior": "Deny or stop explicit instruction-control prompts before the compromised frontend instruction layer causes disclosure or unrelated token spend.",
+      "expected_behavior": "Block or stop explicit instruction-control prompts before the compromised frontend instruction layer causes disclosure or unrelated token spend.",
       "guard_template_ref": "inject_block",
       "model_ref": "fortistore-injection"
     }

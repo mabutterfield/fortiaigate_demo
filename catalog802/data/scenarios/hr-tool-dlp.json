@@ -60,7 +60,7 @@
     {
       "id": "block",
       "display_name": "Block",
-      "expected_behavior": "Deny model output when the configured DLP guard detects protected HR data.",
+      "expected_behavior": "Block model output when the configured DLP guard detects protected HR data.",
       "guard_template_ref": "output_dlp_block",
       "model_ref": "hr-tool-dlp"
     }
