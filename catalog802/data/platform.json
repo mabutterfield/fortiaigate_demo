@@ -6,11 +6,11 @@
   "naming": {
     "workspace": "{student}_workspace",
     "project": "{student}_{scenario}",
-    "key": "{student}-{scenario}-{action}",
-    "policy": "{student}-{scenario}-{action}-policy",
-    "guardrail": "{student}-{scenario}-{action}-guardrail",
-    "detector": "{student}-{detector}",
-    "passthrough_key": "{student}-passthrough"
+    "key": "{student}_{scenario}_{action}",
+    "policy": "{student}_{scenario}_{action}_policy",
+    "guardrail": "{student}_{scenario}_{action}_guardrail",
+    "detector": "{student}_{detector}",
+    "passthrough_key": "{student}_passthrough"
   },
   "hello_world": {
     "prompt": "Reply with exactly: Hello.",
@@ -24,55 +24,103 @@
     }
   },
   "detectors": {
-    "hr-dlp-alert": {
+    "identity-dob-alert": {
       "kind": "dlp",
       "disposition": "alert",
       "categories": [
-        "Date of birth",
-        "SSN",
+        "Date of birth"
+      ],
+      "description": "Alert on Date of birth"
+    },
+    "identity-ssn-alert": {
+      "kind": "dlp",
+      "disposition": "alert",
+      "categories": [
+        "SSN"
+      ],
+      "description": "Alert on SSN"
+    },
+    "payment-card-alert": {
+      "kind": "dlp",
+      "disposition": "alert",
+      "categories": [
         "Credit/debit card"
       ],
-      "description": "HR DLP: alert on date of birth, SSN and payment card"
+      "description": "Alert on Credit/debit card"
     },
-    "hr-dlp-redact": {
+    "identity-dob-redact": {
       "kind": "dlp",
       "disposition": "redact",
       "categories": [
-        "Date of birth",
-        "SSN",
+        "Date of birth"
+      ],
+      "description": "Redact on Date of birth"
+    },
+    "identity-ssn-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "SSN"
+      ],
+      "description": "Redact on SSN"
+    },
+    "payment-card-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
         "Credit/debit card"
       ],
-      "description": "HR DLP: redact date of birth, SSN and payment card"
+      "description": "Redact on Credit/debit card"
     },
-    "hr-dlp-block": {
+    "identity-dob-block": {
       "kind": "dlp",
       "disposition": "block",
       "categories": [
-        "Date of birth",
-        "SSN",
+        "Date of birth"
+      ],
+      "description": "Block on Date of birth"
+    },
+    "identity-ssn-block": {
+      "kind": "dlp",
+      "disposition": "block",
+      "categories": [
+        "SSN"
+      ],
+      "description": "Block on SSN"
+    },
+    "payment-card-block": {
+      "kind": "dlp",
+      "disposition": "block",
+      "categories": [
         "Credit/debit card"
       ],
-      "description": "HR DLP: block date of birth, SSN and payment card"
+      "description": "Block on Credit/debit card"
     }
   },
   "guard_templates": {
     "output_dlp_alert": {
       "detectors": [
-        "hr-dlp-alert"
+        "identity-dob-alert",
+        "identity-ssn-alert",
+        "payment-card-alert"
       ],
       "direction": "output",
       "deny_suspicious_characters": false
     },
     "output_dlp_redact": {
       "detectors": [
-        "hr-dlp-redact"
+        "identity-dob-redact",
+        "identity-ssn-redact",
+        "payment-card-redact"
       ],
       "direction": "output",
       "deny_suspicious_characters": false
     },
     "output_dlp_block": {
       "detectors": [
-        "hr-dlp-block"
+        "identity-dob-block",
+        "identity-ssn-block",
+        "payment-card-block"
       ],
       "direction": "output",
       "deny_suspicious_characters": false

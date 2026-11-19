@@ -54,7 +54,7 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(platform['outcomes_vocabulary'], OUTCOMES)
             self.assertEqual(platform['verdicts_vocabulary'], VERDICTS)
             self.assertEqual((platform['currency'], platform['unit']), ('USD', 'per_1m_tokens'))
-            self.assertEqual(platform['naming']['policy'], '{student}-{scenario}-{action}-policy')
+            self.assertEqual(platform['naming']['policy'], '{student}_{scenario}_{action}_policy')
             self.assertEqual(platform['content_hash'], later[view]['platform']['content_hash'])
             self.assertNotIn('instruction', platform['passthrough_model'])
 
@@ -89,6 +89,19 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.2', scenario_version='1.0.0', failed=False))
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
+
+    def test_prompt_ids_must_be_unique_and_references_valid(self):
+        self.update_scenario(lambda d: d['prompts']['clean'].append(dict(d['prompts']['attack'][0])))
+        self.assertIn('IDs unique', loader.load(self.root)[1][0])
+        self.update_scenario(lambda d: d['prompts']['clean'].pop())
+        self.update_scenario(lambda d: d['tests'][0].update(prompt_ref='attack:0'))
+        self.assertIn('invalid prompt reference', loader.load(self.root)[1][0])
+
+    def test_guardrails_compose_reusable_detectors(self):
+        catalog, errors = loader.load(self.root)
+        self.assertEqual(errors, [])
+        guard = loader.build_views(catalog)['faig']['items'][0]['actions'][0]['guard']
+        self.assertEqual(len(guard['resolved_detectors']), 3)
 
     def test_retired_evidence_and_expectations_are_rejected(self):
         self.update_scenario(lambda d: d['tests'][0]['expect']['evidence_present'].append('sensitive-tool-result'))

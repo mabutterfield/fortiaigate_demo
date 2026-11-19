@@ -75,13 +75,43 @@
         "clean": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           }
         },
         "attack": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           }
         }
       },

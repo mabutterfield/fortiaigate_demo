@@ -64,3 +64,13 @@ chatbot does not establish that the model received it. A block-message marker
 should use an exact configured-message match where available; reply keywords
 are not a substitute for a Traffic Log verdict. The future runner must implement
 these outcome rules; this slice only validates expectations and issue predicates.
+
+Prompt groups contain objects with a scenario-unique `id` and `text`; tests
+reference the ID, so reordering prompts does not change the test. Object names
+use underscores between logical sections and hyphens inside a section.
+Guardrails can compose multiple reusable, scenario-independent detector
+categories. The HR example preserves its existing DOB, SSN, and payment-card
+categories while splitting them into independent detector definitions. Broader
+address and financial groupings require verification against FAIG's supported
+categories. Regex and natural-language kind-specific validation and
+provisioning have not yet been implemented or verified.

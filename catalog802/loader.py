@@ -165,6 +165,15 @@ def load(root):
             if any(name not in tools for name in all_tools):
                 raise ValueError(f'{sid}: unknown tool reference')
             fields(scenario['prompts'], ('clean', 'attack'))
+            prompt_ids = set()
+            for group in ('clean', 'attack'):
+                if not isinstance(scenario['prompts'][group], list):
+                    raise ValueError(f'{sid}: prompt group must be a list')
+                for prompt in scenario['prompts'][group]:
+                    fields(prompt, ('id', 'text'))
+                    if not all(isinstance(prompt[k], str) and prompt[k].strip() for k in ('id', 'text')) or prompt['id'] in prompt_ids:
+                        raise ValueError(f'{sid}: prompt IDs and text must be nonempty and IDs unique')
+                    prompt_ids.add(prompt['id'])
             actions = {}
             for action in scenario['actions']:
                 fields(action, ('id', 'display_name', 'expected_behavior', 'guard_template_ref', 'model_ref'))
@@ -189,12 +198,8 @@ def load(root):
                 validate_expect(test['expect'])
                 if 'attack-tool-called' in test['expect']['evidence_present'] + test['expect']['evidence_absent'] and not test['attack_tools']:
                     raise ValueError('attack-tool-called requires attack_tools')
-                try:
-                    kind, pos = test['prompt_ref'].split(':'); prompt = scenario['prompts'][kind][int(pos)]
-                    if not isinstance(prompt, str) or int(pos) < 0:
-                        raise ValueError()
-                except (KeyError, IndexError, ValueError, TypeError) as exc:
-                    raise ValueError(f'{sid}.{test["id"]}: invalid prompt reference') from exc
+                if test['prompt_ref'] not in prompt_ids:
+                    raise ValueError(f'{sid}.{test["id"]}: invalid prompt reference')
                 if any(not isinstance(test[k], list) or any(not isinstance(x, str) for x in test[k]) for k in ('required_tools', 'forbidden_tools', 'attack_tools')):
                     raise ValueError('test tool references must be lists of IDs')
                 if any(x not in all_tools for x in test['required_tools'] + test['forbidden_tools'] + test['attack_tools']):
