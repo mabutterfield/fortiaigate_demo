@@ -3,22 +3,215 @@
   "title": "FAIG lab scenario review schema v1",
   "description": "Review-slice schema; the stdlib loader enforces cross-document references and additional rules.",
   "type": "object",
-  "required": ["schema_version", "id", "scenario_version", "display_name", "description", "learning", "models", "tools", "extended_tool_sets", "max_rounds", "prompts", "actions", "tests"],
+  "required": [
+    "schema_version",
+    "id",
+    "scenario_version",
+    "display_name",
+    "description",
+    "learning",
+    "models",
+    "tools",
+    "extended_tool_sets",
+    "max_rounds",
+    "prompts",
+    "actions",
+    "tests"
+  ],
   "properties": {
-    "schema_version": {"const": 1},
-    "id": {"type": "string", "minLength": 1},
-    "scenario_version": {"type": "string", "minLength": 1},
-    "display_name": {"type": "string"},
-    "description": {"type": "string"},
-    "learning": {"type": "array", "items": {"type": "object"}},
-    "models": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-    "tools": {"type": "array", "items": {"type": "string"}},
-    "extended_tool_sets": {"type": "array", "items": {"type": "object"}},
-    "max_rounds": {"type": "integer", "minimum": 1},
-    "prompts": {"type": "object", "required": ["clean", "attack"], "properties": {"clean": {"type": "array", "items": {"type": "string"}}, "attack": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
-    "actions": {"type": "array", "items": {"type": "object", "required": ["id", "display_name", "expected_behavior", "guard_template_ref", "model_ref"], "properties": {"id": {"enum": ["alert", "block", "redact"]}, "display_name": {"type": "string"}, "expected_behavior": {"type": "string"}, "guard_template_ref": {"type": "string"}, "model_ref": {"type": "string"}}, "additionalProperties": false}},
-    "tests": {"type": "array", "items": {"type": "object"}}
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "learning": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "extended_tool_sets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "prompts": {
+      "type": "object",
+      "required": [
+        "clean",
+        "attack"
+      ],
+      "properties": {
+        "clean": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "expected_behavior",
+          "guard_template_ref",
+          "model_ref"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "alert",
+              "block",
+              "redact"
+            ]
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "expected_behavior": {
+            "type": "string"
+          },
+          "guard_template_ref": {
+            "type": "string"
+          },
+          "model_ref": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "prompt_ref",
+          "expect",
+          "required_tools",
+          "forbidden_tools",
+          "attack_tools"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "alert",
+              "redact",
+              "block"
+            ]
+          },
+          "prompt_ref": {
+            "type": "string"
+          },
+          "expect": {
+            "type": "object",
+            "required": [
+              "verdict",
+              "evidence_present",
+              "evidence_absent"
+            ],
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "log",
+                  "alert",
+                  "redact",
+                  "block",
+                  null
+                ]
+              },
+              "evidence_present": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "evidence_absent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "required_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "forbidden_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "known_issue": {
+            "type": "object"
+          }
+        },
+        "patternProperties": {
+          "^x_": {}
+        },
+        "additionalProperties": false
+      }
+    }
   },
-  "patternProperties": {"^x_": {}},
+  "patternProperties": {
+    "^x_": {}
+  },
   "additionalProperties": false
 }

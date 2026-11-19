@@ -8,12 +8,20 @@
     "project": "{student}_{scenario}",
     "key": "{student}-{scenario}-{action}",
     "policy": "{student}-{scenario}-{action}-policy",
-    "guardrail": "{student}-{scenario}-{action}-guardrail"
+    "guardrail": "{student}-{scenario}-{action}-guardrail",
+    "detector": "{student}-{detector}",
+    "passthrough_key": "{student}-passthrough"
   },
   "hello_world": {
     "prompt": "Reply with exactly: Hello.",
-    "expected_result": "completed",
-    "expected_log_verdict": "Log"
+    "expect": {
+      "verdict": "log",
+      "evidence_present": [],
+      "evidence_absent": [
+        "sensitive-data-in-reply",
+        "block-message-in-reply"
+      ]
+    }
   },
   "detectors": {
     "hr-dlp-alert": {

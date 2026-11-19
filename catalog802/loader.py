@@ -13,14 +13,31 @@ import hashlib
 import json
 from pathlib import Path
 
-from .vocabulary import ACTION_IDS, EXPECTED_RESULTS, LOG_VERDICTS
+from .vocabulary import ACTIONS, EXECUTIONS, VERDICTS, EVIDENCE, OUTCOMES, VERDICT_PRIORITY, RETIRED
 
 SCHEMA = 1
-ACTIONS = frozenset(ACTION_IDS)
-RESULTS = frozenset(EXPECTED_RESULTS)
-VERDICTS = frozenset(LOG_VERDICTS)
-KNOWN_WHEN = {'result_in', 'log_verdicts_any', 'log_verdicts_all', 'tools_called_include',
-              'missing_required_tools_include', 'forbidden_tools_called_include'}
+KNOWN_WHEN = {'execution', 'verdict', 'evidence_present', 'tools_called_include', 'missing_required_tools_include'}
+
+
+def evidence_list(value):
+    if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+        raise ValueError('evidence must be a list of IDs')
+    for item in value:
+        if item in RETIRED:
+            raise ValueError(f'{item} was renamed to {RETIRED[item]}')
+        if item not in EVIDENCE:
+            raise ValueError(f'unknown evidence ID {item}')
+    if len(set(value)) != len(value):
+        raise ValueError('duplicate evidence ID')
+
+
+def validate_expect(expect):
+    fields(expect, ('verdict', 'evidence_present', 'evidence_absent'))
+    if expect['verdict'] is not None and expect['verdict'] not in VERDICT_PRIORITY:
+        raise ValueError('invalid expected verdict')
+    evidence_list(expect['evidence_present']); evidence_list(expect['evidence_absent'])
+    if set(expect['evidence_present']) & set(expect['evidence_absent']):
+        raise ValueError('evidence cannot be both present and absent')
 
 
 def canonical(value):
@@ -81,6 +98,7 @@ def load(root):
         fields(platform, ('schema_version', 'faig_version', 'currency', 'unit', 'naming', 'hello_world', 'detectors', 'guard_templates'))
         if (platform['currency'], platform['unit']) != ('USD', 'per_1m_tokens'):
             raise ValueError('platform prices must use USD per 1M tokens')
+        validate_expect(platform['hello_world']['expect'])
         models_doc = read_json(data / 'models.json'); _version(models_doc, 'models.json')
         fields(models_doc, ('schema_version', 'models')); models = models_doc['models']
         tools_doc = read_json(data / 'tools/catalog.json'); _version(tools_doc, 'tools/catalog.json')
@@ -162,24 +180,38 @@ def load(root):
                     raise ValueError(f'{sid}: guard references an unknown detector')
                 actions[aid] = action
             for test in scenario['tests']:
-                fields(test, ('id', 'action', 'prompt_ref', 'expected_result', 'expected_log_verdict', 'required_tools', 'forbidden_tools'), ('known_issue',))
-                if test['action'] not in actions or test['expected_result'] not in RESULTS or test['expected_log_verdict'] not in VERDICTS:
-                    raise ValueError(f'{sid}.{test["id"]}: unknown action, expected result, or log verdict')
+                for retired in ('expected_result', 'expected_log_verdict'):
+                    if retired in test:
+                        raise ValueError(f'{retired} was renamed to {RETIRED[retired]}')
+                fields(test, ('id', 'action', 'prompt_ref', 'expect', 'required_tools', 'forbidden_tools', 'attack_tools'), ('known_issue',))
+                if test['action'] not in actions:
+                    raise ValueError(f'{sid}.{test["id"]}: unknown action')
+                validate_expect(test['expect'])
+                if 'attack-tool-called' in test['expect']['evidence_present'] + test['expect']['evidence_absent'] and not test['attack_tools']:
+                    raise ValueError('attack-tool-called requires attack_tools')
                 try:
                     kind, pos = test['prompt_ref'].split(':'); prompt = scenario['prompts'][kind][int(pos)]
                     if not isinstance(prompt, str) or int(pos) < 0:
                         raise ValueError()
                 except (KeyError, IndexError, ValueError, TypeError) as exc:
                     raise ValueError(f'{sid}.{test["id"]}: invalid prompt reference') from exc
-                if any(x not in all_tools for x in test['required_tools'] + test['forbidden_tools']):
+                if any(not isinstance(test[k], list) or any(not isinstance(x, str) for x in test[k]) for k in ('required_tools', 'forbidden_tools', 'attack_tools')):
+                    raise ValueError('test tool references must be lists of IDs')
+                if any(x not in all_tools for x in test['required_tools'] + test['forbidden_tools'] + test['attack_tools']):
                     raise ValueError(f'{sid}.{test["id"]}: test references undeclared tools')
                 if 'known_issue' in test:
                     issue = test['known_issue']; fields(issue, ('id', 'summary', 'scope', 'when'))
                     if not isinstance(issue['when'], dict) or not issue['when'] or set(issue['when']) - KNOWN_WHEN:
                         raise ValueError(f'{sid}.{test["id"]}: invalid known-issue predicate')
-                    if any(not isinstance(v, list) or not v or any(not isinstance(x, str) for x in v)
-                           for v in issue['when'].values()):
-                        raise ValueError(f'{sid}.{test["id"]}: predicate values must be nonempty string lists')
+                    for key, value in issue['when'].items():
+                        if key == 'execution' and value not in EXECUTIONS:
+                            raise ValueError('invalid known-issue execution')
+                        if key == 'verdict' and value not in VERDICTS:
+                            raise ValueError('invalid known-issue verdict')
+                        if key == 'evidence_present':
+                            evidence_list(value)
+                        if key in ('tools_called_include', 'missing_required_tools_include') and (not isinstance(value, list) or not value or any(v not in all_tools for v in value)):
+                            raise ValueError('invalid known-issue tool references')
                     fields(issue['scope'], ('faig_version', 'scenario_version'))
                     if (not isinstance(issue['scope']['faig_version'], list) or not issue['scope']['faig_version']
                             or any(not isinstance(v, str) or not v for v in issue['scope']['faig_version'])
@@ -203,12 +235,11 @@ def known_failure_matches(issue, observed, *, faig_version, scenario_version, fa
     if not when or set(when) - KNOWN_WHEN:
         return False
     checks = {
-        'result_in': lambda v: observed.get('result') in v,
-        'log_verdicts_any': lambda v: bool(set(v) & set(observed.get('log_verdicts', []))),
-        'log_verdicts_all': lambda v: set(v).issubset(observed.get('log_verdicts', [])),
+        'execution': lambda v: observed.get('execution') == v,
+        'verdict': lambda v: observed.get('verdict') == v,
+        'evidence_present': lambda v: set(v).issubset(observed.get('evidence', [])),
         'tools_called_include': lambda v: set(v).issubset(observed.get('tools_called', [])),
         'missing_required_tools_include': lambda v: set(v).issubset(observed.get('missing_required_tools', [])),
-        'forbidden_tools_called_include': lambda v: set(v).issubset(observed.get('forbidden_tools_called', [])),
     }
     return all(checks[key](value) for key, value in when.items())
 
@@ -269,9 +300,12 @@ def build_views(catalog, source_commit=None, generated_at=None):
         # Observed FAIG 8.0.2 behavior: direct model access, no policyIds.
         'passthrough_direct_policy_count': 0,
         'naming': deepcopy(platform['naming']),
-        'actions_vocabulary': list(ACTION_IDS),
-        'expected_results_vocabulary': list(EXPECTED_RESULTS),
-        'verdicts_vocabulary': list(LOG_VERDICTS),
+        'actions_vocabulary': dict(ACTIONS),
+        'execution_vocabulary': dict(EXECUTIONS),
+        'verdicts_vocabulary': dict(VERDICTS),
+        'evidence_vocabulary': dict(EVIDENCE),
+        'outcomes_vocabulary': dict(OUTCOMES),
+        'verdict_priority': list(VERDICT_PRIORITY),
         'currency': platform['currency'],
         'unit': platform['unit'],
         'pricing_note': 'Artificial FAIG lab prices; not actual AWS charges.',

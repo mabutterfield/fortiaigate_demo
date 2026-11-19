@@ -28,8 +28,8 @@ MCP still uses its old `TOOLS` registry. The future MCP compiler and the
 migration/removal of the duplicate tool registry are not implemented here.
 
 The `student` and `faig` views expose a `platform` object with the shared
-hello-world case, resolved pass-model metadata, naming patterns, action/result/
-verdict vocabularies and lab price units. The observed platform passthrough
+hello-world case, resolved pass-model metadata, naming patterns, action, execution, verdict, evidence, and outcome
+vocabularies and lab price units. The observed platform passthrough
 key has no directly attached policy (`policyIds: []`); inherited policies and
 scanning status still need to be checked independently. The object has its
 own deterministic hash. `vocabulary.py` owns the current catalog constants;
@@ -55,3 +55,12 @@ model/public/backend identity; naming; detector and template representation;
 MCP handler/fixture references and hashing; known-issue scope and predicates;
 source-to-ConfigMap packaging; and how later scenario editor drafts validate
 without Git write access. No live FAIG operation or vendor API support claim.
+
+The review contract separates execution status, the most severe observed Traffic
+Log verdict, client-observed evidence, and outcome. Missing or unreadable rows,
+or fewer rows than requests sent, make the verdict unknown; a required unknown
+verdict makes the outcome incomplete. A tool returning sensitive data to the
+chatbot does not establish that the model received it. A block-message marker
+should use an exact configured-message match where available; reply keywords
+are not a substitute for a Traffic Log verdict. The future runner must implement
+these outcome rules; this slice only validates expectations and issue predicates.

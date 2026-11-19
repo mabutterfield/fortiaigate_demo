@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from catalog802 import loader
-from catalog802.vocabulary import ACTION_IDS, EXPECTED_RESULTS, LOG_VERDICTS
+from catalog802.vocabulary import ACTIONS, EXECUTIONS, VERDICTS, EVIDENCE, OUTCOMES
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,12 +45,14 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(first['models']['items'][0]['id'], 'hr-tool-dlp')
         for view in ('student', 'faig'):
             platform = first[view]['platform']
-            self.assertEqual(platform['hello_world']['expected_log_verdict'], 'Log')
+            self.assertEqual(platform['hello_world']['expect']['verdict'], 'log')
             self.assertEqual(platform['passthrough_model']['id'], 'pass-model')
             self.assertEqual(platform['passthrough_direct_policy_count'], 0)
-            self.assertEqual(platform['actions_vocabulary'], list(ACTION_IDS))
-            self.assertEqual(platform['expected_results_vocabulary'], list(EXPECTED_RESULTS))
-            self.assertEqual(platform['verdicts_vocabulary'], list(LOG_VERDICTS))
+            self.assertEqual(platform['actions_vocabulary'], ACTIONS)
+            self.assertEqual(platform['execution_vocabulary'], EXECUTIONS)
+            self.assertEqual(platform['evidence_vocabulary'], EVIDENCE)
+            self.assertEqual(platform['outcomes_vocabulary'], OUTCOMES)
+            self.assertEqual(platform['verdicts_vocabulary'], VERDICTS)
             self.assertEqual((platform['currency'], platform['unit']), ('USD', 'per_1m_tokens'))
             self.assertEqual(platform['naming']['policy'], '{student}-{scenario}-{action}-policy')
             self.assertEqual(platform['content_hash'], later[view]['platform']['content_hash'])
@@ -78,15 +80,26 @@ class CatalogTests(unittest.TestCase):
 
     def test_known_failure_requires_all_evidence_and_scope(self):
         issue = {'scope': {'faig_version': ['8.0.2'], 'scenario_version': '1.x'},
-                 'when': {'result_in': ['blocked'], 'log_verdicts_any': ['Block'],
+                 'when': {'verdict': 'block',
                           'tools_called_include': ['document_upload_simulation'],
                           'missing_required_tools_include': ['document_read']}}
-        observed = {'result': 'blocked', 'log_verdicts': ['Block'],
+        observed = {'verdict': 'block',
                     'tools_called': ['document_upload_simulation'], 'missing_required_tools': ['document_read']}
         self.assertTrue(loader.known_failure_matches(issue, observed, faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.2', scenario_version='1.0.0', failed=False))
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
+
+    def test_retired_evidence_and_expectations_are_rejected(self):
+        self.update_scenario(lambda d: d['tests'][0]['expect']['evidence_present'].append('sensitive-tool-result'))
+        self.assertIn('renamed to sensitive-data-in-tool-result', loader.load(self.root)[1][0])
+        self.update_scenario(lambda d: d['tests'][0]['expect']['evidence_present'].pop())
+        self.update_scenario(lambda d: d['tests'][0].update(expected_result='old'))
+        self.assertIn('expected_result was renamed to expect', loader.load(self.root)[1][0])
+
+    def test_attack_evidence_requires_declared_attack_tools(self):
+        self.update_scenario(lambda d: d['tests'][0]['expect']['evidence_present'].append('attack-tool-called'))
+        self.assertIn('requires attack_tools', loader.load(self.root)[1][0])
 
     def test_unknown_fields_and_unsafe_path_are_rejected(self):
         self.update_scenario(lambda d: d.update(unexpected=True))
