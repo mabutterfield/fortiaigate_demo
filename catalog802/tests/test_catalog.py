@@ -168,7 +168,8 @@ class CatalogTests(unittest.TestCase):
         first = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == 'fortistore-injection')
         self.assertIn('frontend_instruction', first)
         self.assertEqual(first['frontend_instruction_label'], 'Simulate compromised frontend')
-        self.assertTrue(all(t.get('frontend_instruction', 'none') == 'none' for t in first['tests']))
+        self.assertTrue(all(t.get('frontend_instruction', 'none') == 'none' for t in first['tests'] if t['id'].endswith('-attack')))
+        self.assertTrue(any(t.get('frontend_instruction') == 'compromised' for t in first['tests']))
         fixture = self.root / 'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt'
         fixture.write_text(fixture.read_text() + '\nchanged')
         later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == first['id'])

@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 
-def plan_case(catalog, scenario_id, action):
+def plan_case(catalog, scenario_id, action, *, test_id=None):
     scenario = catalog['scenarios'].get(scenario_id)
     if scenario is None:
         raise ValueError(f'unknown scenario: {scenario_id}')
     action_spec = next((item for item in scenario['actions'] if item['id'] == action), None)
     tests = [item for item in scenario['tests'] if item['action'] == action]
+    if test_id is not None:
+        tests = [item for item in tests if item['id'] == test_id]
+    elif len(tests) > 1:
+        tests = [item for item in tests if item['id'] == action + '-attack']
     if action_spec is None or len(tests) != 1:
-        raise ValueError(f'expected one test for {scenario_id}/{action}; found {len(tests)}')
+        raise ValueError(f'could not select one test for {scenario_id}/{action}; specify a valid test ID')
     test = tests[0]
     prompt = next((prompt for group in scenario['prompts'].values() for prompt in group
                    if prompt['id'] == test['prompt_ref']), None)

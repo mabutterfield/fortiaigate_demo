@@ -26,6 +26,15 @@ class CatalogPlanTests(unittest.TestCase):
         self.assertEqual(plan_case(self.catalog, 'fortistore-injection', 'block')['system_prompt'], '')
         self.assertNotIn('employee_directory_sensitive', plan_case(self.catalog, 'hr-tool-dlp', 'redact')['tools'])
 
+    def test_compromised_fixture_requires_explicit_test_selection(self):
+        normal = plan_case(self.catalog, 'fortistore-injection', 'alert')
+        compromised = plan_case(self.catalog, 'fortistore-injection', 'alert', test_id='alert-compromised')
+        self.assertEqual(normal['system_prompt'], '')
+        self.assertTrue(compromised['system_prompt'])
+        self.assertEqual(compromised['test']['frontend_instruction'], 'compromised')
+        with self.assertRaises(ValueError):
+            plan_case(self.catalog, 'fortistore-injection', 'block', test_id='alert-compromised')
+
     def test_missing_action_fails(self):
         with self.assertRaises(ValueError):
             plan_case(self.catalog, 'fortistore-injection', 'redact')

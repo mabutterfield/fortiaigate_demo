@@ -52,6 +52,7 @@ def parse_args(argv):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--scenario', required=True)
     p.add_argument('--action', required=True, choices=('alert', 'block', 'redact'))
+    p.add_argument('--test', help='Explicit catalog test ID; defaults to the normal attack test')
     p.add_argument('--key-file', required=True, type=Path)
     p.add_argument('--admin-credentials', required=True, type=Path)
     p.add_argument('--faig-version', default='8.0.2')
@@ -79,7 +80,7 @@ def main(argv):
     if errors:
         raise SystemExit('; '.join(errors))
     try:
-        case = plan_case(catalog, args.scenario, args.action)
+        case = plan_case(catalog, args.scenario, args.action, test_id=args.test)
         key = read_private(args.key_file)
         credentials = read_private(args.admin_credentials)
         if key.get('scenario') != args.scenario or key.get('action') != args.action or key.get('model') != case['model']:
