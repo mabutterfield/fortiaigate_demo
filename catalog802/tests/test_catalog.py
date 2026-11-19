@@ -100,6 +100,18 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(loader.known_failure_matches(issue, dict(observed, tools_called=[]), faig_version='8.0.2', scenario_version='1.0.0', failed=True))
         self.assertFalse(loader.known_failure_matches(issue, observed, faig_version='8.0.3', scenario_version='1.0.0', failed=True))
 
+    def test_duplicate_json_keys_are_rejected(self):
+        path = self.root / 'catalog802/data/models.json'
+        path.write_text('{"schema_version":1,"schema_version":1,"models":{}}')
+        self.assertIn('duplicate JSON key', loader.load(self.root)[1][0])
+
+    def test_duplicate_test_and_tool_ids_are_rejected(self):
+        self.update_scenario(lambda d: d['tests'].append(dict(d['tests'][0])))
+        self.assertIn('duplicate test ID', loader.load(self.root)[1][0])
+        self.update_scenario(lambda d: d['tests'].pop())
+        self.update_scenario(lambda d: d['tools'].append(d['tools'][0]))
+        self.assertIn('duplicate tool ID', loader.load(self.root)[1][0])
+
     def test_litellm_uses_all_active_aliases_and_instruction_paths(self):
         catalog, errors = loader.load(self.root)
         self.assertEqual(errors, [])

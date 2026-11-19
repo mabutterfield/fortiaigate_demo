@@ -66,9 +66,18 @@ def safe_file(root, name):
     return target
 
 
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'duplicate JSON key: {key}')
+        result[key] = value
+    return result
+
+
 def read_json(path):
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        return json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=_unique_object)
     except (OSError, ValueError) as exc:
         raise ValueError(f'{path}: {exc}') from exc
 
@@ -168,9 +177,21 @@ def load(root):
                 fields(block, ('type', 'content'))
                 if block['type'] != 'text' or not isinstance(block['content'], str):
                     raise ValueError(f'{sid}: this schema supports text learning blocks only')
+            if not isinstance(scenario['tools'], list) or any(not isinstance(x, str) or not x for x in scenario['tools']):
+                raise ValueError(f'{sid}: tools must be a list of IDs')
+            if len(set(scenario['tools'])) != len(scenario['tools']):
+                raise ValueError(f'{sid}: duplicate tool ID')
+            if not isinstance(scenario['extended_tool_sets'], list):
+                raise ValueError(f'{sid}: extended_tool_sets must be a list')
             all_tools = list(scenario['tools'])
+            extended_ids = set()
             for ext in scenario['extended_tool_sets']:
                 fields(ext, ('id', 'display_name', 'tools'))
+                if not isinstance(ext['id'], str) or not ext['id'] or ext['id'] in extended_ids:
+                    raise ValueError(f'{sid}: invalid or duplicate extended tool set ID')
+                extended_ids.add(ext['id'])
+                if not isinstance(ext['tools'], list) or any(not isinstance(x, str) or not x for x in ext['tools']) or len(set(ext['tools'])) != len(ext['tools']):
+                    raise ValueError(f'{sid}: invalid or duplicate extended tool ID')
                 all_tools.extend(ext['tools'])
             if any(name not in tools for name in all_tools):
                 raise ValueError(f'{sid}: unknown tool reference')
@@ -198,7 +219,11 @@ def load(root):
                 if any(d not in platform['detectors'] for d in guard.get('detectors', [])):
                     raise ValueError(f'{sid}: guard references an unknown detector')
                 actions[aid] = action
+            test_ids = set()
             for test in scenario['tests']:
+                if not isinstance(test, dict) or not isinstance(test.get('id'), str) or not test['id'] or test['id'] in test_ids:
+                    raise ValueError(f'{sid}: invalid or duplicate test ID')
+                test_ids.add(test['id'])
                 for retired in ('expected_result', 'expected_log_verdict'):
                     if retired in test:
                         raise ValueError(f'{retired} was renamed to {RETIRED[retired]}')
