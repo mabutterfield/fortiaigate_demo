@@ -156,6 +156,7 @@ class AdminTests(unittest.TestCase):
         for _ in range(50):
             password = ls.generate_password()
             self.assertEqual(len(password), 16)
+            self.assertRegex(password, r'^[A-Za-z0-9_]+$')
             self.assertTrue(any(c.isupper() for c in password) and any(c.islower() for c in password))
             self.assertTrue(any(c.isdigit() for c in password) and any(c in ls.PASSWORD_SPECIALS for c in password))
 

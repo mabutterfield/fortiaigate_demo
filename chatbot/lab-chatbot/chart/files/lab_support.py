@@ -277,7 +277,7 @@ def run_test(agent: Callable[[dict[str, Any]], dict[str, Any]], fetch_logs: Call
 
 # ------------------------------------------------------------------ admin
 
-PASSWORD_SPECIALS = "!@#$%^&*-_=+?"
+PASSWORD_SPECIALS = "_"  # FAIG accepts underscore; common word selection includes it.
 
 
 def generate_password(length: int = 16) -> str:

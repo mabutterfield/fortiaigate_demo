@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import string
 
 
 def student_email(number, domain='fortiai.lab'):
@@ -15,7 +16,13 @@ def student_email(number, domain='fortiai.lab'):
 
 def select_password(path=None):
     if path is None:
-        return 'Aa1!' + secrets.token_urlsafe(27)
+        # Underscore meets FAIG's special-character rule and stays in a
+        # double-click word selection in common terminals and browsers.
+        pools = (string.ascii_uppercase, string.ascii_lowercase, string.digits, '_')
+        chars = [secrets.choice(pool) for pool in pools]
+        chars.extend(secrets.choice(''.join(pools)) for _ in range(20))
+        secrets.SystemRandom().shuffle(chars)
+        return ''.join(chars)
     path = Path(path)
     if path.stat().st_mode & 0o077:
         raise ValueError('Password file must be owner-only (chmod 600)')

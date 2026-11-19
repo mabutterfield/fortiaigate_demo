@@ -13,6 +13,14 @@ spec.loader.exec_module(credentials)
 
 
 class CredentialTests(unittest.TestCase):
+    def test_generated_password_is_selectable_and_meets_character_requirements(self):
+        for _ in range(50):
+            password = credentials.select_password()
+            self.assertEqual(len(password), 24)
+            self.assertRegex(password, r'^[A-Za-z0-9_]+$')
+            for pattern in (r'[A-Z]', r'[a-z]', r'[0-9]', r'_'):
+                self.assertRegex(password, pattern)
+
     def test_student_numbering(self):
         self.assertEqual(credentials.student_email(1), 'student01@fortiai.lab')
         self.assertEqual(credentials.student_email(100), 'student100@fortiai.lab')
