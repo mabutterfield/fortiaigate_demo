@@ -2,7 +2,6 @@
 from __future__ import annotations
 import argparse
 import json
-import os
 from pathlib import Path
 import time
 import uuid
@@ -15,7 +14,7 @@ from functional_test.catalog_plan import plan_case
 from functional_test.result_contract import contains_sensitive
 
 
-def evidence_from_turn(raw, test):
+def evidence_from_turn(raw, test, *, block_message=None):
     """Classify client-observable evidence without guessing a FAIG verdict."""
     evidence = set()
     reply = str(raw.get('reply') or '')
@@ -24,6 +23,8 @@ def evidence_from_turn(raw, test):
         evidence.add('sensitive-data-in-reply')
     if any(isinstance(e, dict) and contains_sensitive(e.get('result')) for e in events):
         evidence.add('sensitive-data-in-tool-result')
+    if block_message is not None and reply.strip() == block_message.strip():
+        evidence.add('block-message-in-reply')
     if '[REDACTED_' in reply.upper():
         evidence.add('redaction-marker-in-reply')
     tools = [str(e.get('tool') or e.get('name')) for e in events if isinstance(e, dict)]
@@ -57,6 +58,7 @@ def parse_args(argv):
     p.add_argument('--max-tokens', type=int, default=2048)
     p.add_argument('--temperature', type=float, default=0.0)
     p.add_argument('--log-wait', type=int, default=20)
+    p.add_argument('--block-message-file', type=Path, help='File containing the exact FAIG block message, required when a case checks it')
     return p.parse_args(argv)
 
 
@@ -73,6 +75,10 @@ def main(argv):
         credentials = read_private(args.admin_credentials)
         if key.get('scenario') != args.scenario or key.get('action') != args.action or key.get('model') != case['model']:
             raise ValueError('key metadata must match scenario, action and catalog model')
+        required_evidence = set(case['test']['expect']['evidence_present'] + case['test']['expect']['evidence_absent'])
+        block_message = args.block_message_file.read_text(encoding='utf-8') if args.block_message_file else None
+        if 'block-message-in-reply' in required_evidence and (block_message is None or not block_message.strip()):
+            raise ValueError('a nonempty exact block-message file is required for this case')
         if not key.get('secretKey') or not key.get('keyName'):
             raise ValueError('key file is missing keyName or secretKey')
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -92,7 +98,7 @@ def main(argv):
     execution = 'error' if raw.get('error') else 'completed'
     rounds = raw.get('rounds')
     requests_sent = rounds + 1 if execution == 'completed' and isinstance(rounds, int) and rounds >= 0 else 0
-    evidence, tools = evidence_from_turn(raw, case['test'])
+    evidence, tools = evidence_from_turn(raw, case['test'], block_message=block_message)
     rows = []
     deadline = time.monotonic() + args.log_wait
     while requests_sent:

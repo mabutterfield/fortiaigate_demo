@@ -21,6 +21,13 @@ class CatalogBaselineTests(unittest.TestCase):
         self.assertNotIn('sensitive-data-in-reply', evidence)
         self.assertEqual(tools, ['cloud_bucket_list_demo'])
 
+    def test_block_message_uses_exact_configured_match(self):
+        test = {'attack_tools': []}
+        evidence, _ = evidence_from_turn({'reply': 'Request blocked.', 'tool_events': []}, test, block_message='Request blocked.')
+        self.assertIn('block-message-in-reply', evidence)
+        evidence, _ = evidence_from_turn({'reply': 'I said blocked.', 'tool_events': []}, test, block_message='Request blocked.')
+        self.assertNotIn('block-message-in-reply', evidence)
+
     def test_missing_logs_are_incomplete(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
