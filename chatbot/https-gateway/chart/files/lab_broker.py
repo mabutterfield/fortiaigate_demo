@@ -20,7 +20,7 @@ from pathlib import Path
 
 CALLER_TOKEN_DIR = os.environ.get("LAB_CALLER_TOKEN_DIR", "/etc/lab-auth/callers")
 # Caller name -> scope. Only listed callers are accepted, whatever files exist.
-CALLER_SCOPES = {"lab-management": "admin"}
+CALLER_SCOPES = {"lab-management": "admin", "lab-chatbot": "student"}
 MAX_PROXY_BODY = 256 * 1024
 
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
@@ -559,3 +559,101 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
         secret = None
     log(summary)
     return summary
+
+
+
+# ---------------------------------------------------------------- student keys (Change 2026-11-19)
+#
+# The chatbot reads and manages a student's own keys through lab_auth. Key
+# records live in lab-data/lab-keys (one data key per student):
+#   {faig_key_id, key_name, scenario_id, action, origin, secret, model,
+#    policy_ids, status, verified_at, updated_at}
+# Mapping a key to a scenario/action is the student's choice; FAIG facts
+# (name, policies, models) are refreshed from FAIG with the student's session.
+
+KEY_ACTIONS = ("alert", "redact", "block", "passthrough")
+KEY_STATUSES = ("untested", "ok", "invalid", "denied", "unavailable", "error", "unmapped", "missing",
+                "rotation-pending", "rotation-unsaved", "rotation-unknown")
+UUID_RE = re.compile(_UUID)
+
+
+def public_key(record: dict) -> dict:
+    """A key record safe to show in a browser: no secret, only whether one is stored."""
+    out = {k: v for k, v in record.items() if k != "secret"}
+    out["has_secret"] = bool(record.get("secret"))
+    return out
+
+
+def faig_facts(faig_key: dict) -> dict:
+    models = [m.get("modelId") for p in faig_key.get("providerAccess") or [] for m in p.get("models") or []]
+    return {"key_name": faig_key.get("keyName", ""), "policy_ids": list(faig_key.get("policyIds") or []),
+            "models": models, "faig_status": faig_key.get("status", "")}
+
+
+def merge_refresh(records: list, faig_keys: list, now: int = None) -> list:
+    """Update stored records with FAIG facts; add unknown keys as unmapped; mark vanished ones missing."""
+    now = int(_time.time()) if now is None else now
+    by_id = {r.get("faig_key_id"): dict(r) for r in records if r.get("faig_key_id")}
+    seen = set()
+    for key in faig_keys:
+        kid = key.get("id")
+        if not kid:
+            continue
+        seen.add(kid)
+        facts = faig_facts(key)
+        record = by_id.get(kid) or {"faig_key_id": kid, "scenario_id": "", "action": "", "origin": "student",
+                                    "secret": "", "status": "unmapped", "verified_at": None}
+        record.update(facts)
+        record["model"] = facts["models"][0] if len(facts["models"]) == 1 else ""
+        if record.get("status") == "missing":
+            record["status"] = "untested" if record.get("scenario_id") else "unmapped"
+        record["updated_at"] = now
+        by_id[kid] = record
+    for kid, record in by_id.items():
+        if kid not in seen and record.get("status") != "missing":
+            record["status"], record["updated_at"] = "missing", now
+    return sorted(by_id.values(), key=lambda r: (r.get("key_name") or "", r.get("faig_key_id")))
+
+
+def mapping_warnings(record: dict, expected_model: str = "") -> list:
+    """Warnings for the owner's 1 key -> 1 policy -> 1 model rule (never a silent rejection)."""
+    warnings = []
+    policies, models = record.get("policy_ids") or [], record.get("models") or []
+    if record.get("action") == "passthrough":
+        if policies:
+            warnings.append("passthrough key has a policy")
+    elif len(policies) != 1:
+        warnings.append(f"key has {len(policies)} policies; this lab expects exactly 1")
+    if len(models) != 1:
+        warnings.append(f"key allows {len(models)} models; this lab expects exactly 1")
+    elif expected_model and models[0] != expected_model:
+        warnings.append(f"key model {models[0]} is not this scenario's model {expected_model}")
+    return warnings
+
+
+def apply_mapping(records: list, faig_key_id: str, scenario_id: str, action: str, secret: str = None,
+                  expected_model: str = "", now: int = None) -> tuple[list, dict]:
+    """Map one known key to a scenario/action and optionally store its pasted secret."""
+    if not UUID_RE.fullmatch(faig_key_id or ""):
+        raise ValueError("bad key id")
+    if not (scenario_id == "passthrough" or SCENARIO_ID.fullmatch(scenario_id or "")) or action not in KEY_ACTIONS:
+        raise ValueError("bad scenario or action")
+    if (scenario_id == "passthrough") != (action == "passthrough"):
+        raise ValueError("passthrough keys map to scenario 'passthrough' and action 'passthrough'")
+    if secret is not None:
+        secret = secret.strip()
+        if not re.fullmatch(r"faig_[A-Za-z0-9_-]{20,200}", secret):
+            raise ValueError("that is not a FAIG key value")
+        if faig_key_id.replace("-", "").lower() not in secret.lower():
+            raise ValueError("that key value belongs to a different key")
+    now = int(_time.time()) if now is None else now
+    records = [dict(r) for r in records]
+    record = next((r for r in records if r.get("faig_key_id") == faig_key_id), None)
+    if record is None:
+        raise KeyError("unknown key; refresh first")
+    record.update(scenario_id=scenario_id, action=action, updated_at=now)
+    if secret:
+        record.update(secret=secret, status="untested", verified_at=None)
+    elif record.get("status") == "unmapped":
+        record["status"] = "untested"
+    return records, {"warnings": mapping_warnings(record, expected_model), "key": public_key(record)}

@@ -408,5 +408,118 @@ class PrepopulationTests(unittest.TestCase):
             lab_broker.validate_plan("student03", plan)
 
 
+KID = "1b65f1df-d00f-45d4-abba-7ade33eeb8be"
+SECRET = "faig_" + KID.replace("-", "") + "x" * 44
+FAIG_KEY = {"id": KID, "keyName": "student03_hr-tool-dlp_alert", "status": "active", "policyIds": ["p1"],
+            "providerAccess": [{"models": [{"modelId": "hr-tool-dlp"}]}]}
+
+
+class KeyRecordTests(unittest.TestCase):
+    def test_refresh_adds_unmapped_updates_and_marks_missing(self):
+        stored = [{"faig_key_id": "gone-1", "key_name": "old", "scenario_id": "hr-tool-dlp", "action": "alert",
+                   "secret": "s", "status": "ok"}]
+        merged = lab_broker.merge_refresh(stored, [FAIG_KEY], now=5)
+        by_id = {r["faig_key_id"]: r for r in merged}
+        self.assertEqual(by_id["gone-1"]["status"], "missing")
+        new = by_id[KID]
+        self.assertEqual((new["status"], new["origin"], new["model"], new["secret"]), ("unmapped", "student", "hr-tool-dlp", ""))
+        self.assertEqual(new["key_name"], "student03_hr-tool-dlp_alert")
+
+    def test_mapping_checks_secret_belongs_to_key_and_warns(self):
+        records = lab_broker.merge_refresh([], [FAIG_KEY])
+        records, result = lab_broker.apply_mapping(records, KID, "hr-tool-dlp", "alert", SECRET, "hr-tool-dlp")
+        self.assertEqual(result["warnings"], [])
+        self.assertNotIn("secret", result["key"])
+        self.assertTrue(result["key"]["has_secret"])
+        self.assertEqual(records[0]["secret"], SECRET)
+        other = "faig_" + "0" * 32 + "x" * 44
+        with self.assertRaises(ValueError):
+            lab_broker.apply_mapping(records, KID, "hr-tool-dlp", "alert", other)
+        with self.assertRaises(ValueError):
+            lab_broker.apply_mapping(records, KID, "hr-tool-dlp", "deny")
+        with self.assertRaises(ValueError):
+            lab_broker.apply_mapping(records, KID, "passthrough", "alert")
+        with self.assertRaises(KeyError):
+            lab_broker.apply_mapping(records, "2b65f1df-d00f-45d4-abba-7ade33eeb8be", "hr-tool-dlp", "alert")
+        multi = dict(FAIG_KEY, policyIds=["p1", "p2"], providerAccess=[{"models": [{"modelId": "a"}, {"modelId": "b"}]}])
+        _, result = lab_broker.apply_mapping(lab_broker.merge_refresh([], [multi]), KID, "hr-tool-dlp", "alert",
+                                             expected_model="hr-tool-dlp")
+        self.assertEqual(len(result["warnings"]), 2)
+
+
+class KeyEndpointTests(unittest.TestCase):
+    """The chatbot caller acts only for its own student; admins may only read (Act-as)."""
+
+    def setUp(self):
+        lab_auth.SESSIONS.data.clear()
+        self.faig = FakeFaig()
+        self.faig_keys = [dict(FAIG_KEY)]
+        self.faig.call = self.student_call
+        token = lab_auth.SESSIONS.create({"user": "s3@lab", "student": "student03", "role": "student",
+                                          "workspace_id": "w3", "workspace": "student03_workspace"}, self.faig)
+        self.student = lab_auth.SESSIONS.data[token]["handle"]
+        token = lab_auth.SESSIONS.create({"user": "admin@lab", "student": "", "role": "admin", "workspace_id": "",
+                                          "workspace": ""}, FakeFaig())
+        self.admin = lab_auth.SESSIONS.data[token]["handle"]
+        self.store = {"student03": []}
+        patches = [patch.object(lab_broker, "load_caller_tokens", return_value={TOKEN: "lab-chatbot", "m" * 64: "lab-management"}),
+                   patch.object(lab_auth.Handler, "load_keys", lambda h, st: [dict(r) for r in self.store.get(st, [])]),
+                   patch.object(lab_auth.Handler, "save_keys", lambda h, st, recs: self.store.__setitem__(st, recs))]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def student_call(self, method, path, payload=None):
+        if path == "/api/v1/me/virtual-keys":
+            return list(self.faig_keys)
+        if path.endswith("/rotate"):
+            return {"id": KID, "secretKey": "faig_" + KID.replace("-", "") + "y" * 44}
+        raise AssertionError(path)
+
+    def call(self, route, handle, body=None, token=TOKEN, query=""):
+        names = ("key_session", "broker_json", "load_keys", "save_keys", "keys_list", "keys_refresh", "keys_map",
+                 "keys_status", "keys_rotate")
+        cls = type("KeyHandler", (FakeHandler,), {n: getattr(lab_auth.Handler, n) for n in names})
+        handler = cls({"Authorization": "Bearer " + token, "X-Lab-Session": handle}, body or {})
+        if route == "list":
+            handler.keys_list(query)
+        else:
+            getattr(handler, "keys_" + route)()
+        return handler.replies[-1]
+
+    def test_refresh_map_list_rotate_flow(self):
+        status, value = self.call("refresh", self.student)
+        self.assertEqual((status, value["keys"][0]["status"]), (200, "unmapped"))
+        status, value = self.call("map", self.student, {"faig_key_id": KID, "scenario_id": "hr-tool-dlp",
+                                                        "action": "alert", "secret": SECRET})
+        self.assertEqual(status, 200)
+        self.assertNotIn(SECRET, json.dumps(value))
+        status, value = self.call("list", self.student)
+        self.assertEqual(value["keys"][0]["secret"], SECRET)  # server-side caller gets the value
+        status, value = self.call("rotate", self.student, {"faig_key_id": KID})
+        self.assertEqual((status, value["saved"]), (200, True))
+        self.assertNotIn("secret_once", value)
+        self.assertTrue(self.store["student03"][0]["secret"].endswith("y" * 44))
+
+    def test_wrong_caller_or_role_is_refused(self):
+        self.assertEqual(self.call("refresh", self.student, token="m" * 64)[0], 403)  # management token
+        self.assertEqual(self.call("refresh", self.admin)[0], 403)                  # admins can't act as a student
+        self.assertEqual(self.call("list", self.student, query="student04")[0], 403)
+        self.assertEqual(self.call("list", self.admin)[0], 403)                     # admin read needs ?student=
+        self.assertEqual(self.call("list", self.admin, query="student03")[0], 200)  # Act-as read
+        self.assertEqual(self.call("refresh", "made-up")[0], 401)
+
+    def test_rotation_timeout_marks_unknown(self):
+        self.call("refresh", self.student)
+        def slow(method, path, payload=None):
+            if path.endswith("/rotate"):
+                raise TimeoutError("slow")
+            return self.student_call(method, path, payload)
+        self.faig.call = slow
+        status, _ = self.call("rotate", self.student, {"faig_key_id": KID})
+        self.assertEqual(status, 504)
+        self.assertEqual(self.store["student03"][0]["status"], "rotation-unknown")
+
+
 if __name__ == "__main__":
     unittest.main()

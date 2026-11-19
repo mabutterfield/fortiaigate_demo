@@ -147,6 +147,26 @@
   no_log: true
   when: lab_chatbot_enabled | bool
 
+- name: Copy the broker caller token into the chatbot namespace
+  # Change 2026-11-19: piped between kubectl calls on the host, never printed.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    SRC_NS="{{ lab_chatbot_signing_source_namespace }}"
+    if ! $K -n "$SRC_NS" get secret {{ lab_chatbot_caller_source_secret }} >/dev/null 2>&1; then echo missing; exit 0; fi
+    DOC="$($K -n "$SRC_NS" get secret {{ lab_chatbot_caller_source_secret }} -o json \
+      | python3 -c 'import json, sys; s = json.load(sys.stdin); v = (s.get("data") or {}).get("lab-chatbot"); print(json.dumps({"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": sys.argv[1], "namespace": sys.argv[2], "labels": {"app.kubernetes.io/part-of": "lab-chatbot"}}, "data": {"token": v}}) if v else "")' \
+        {{ lab_chatbot_caller_secret_name }} {{ lab_chatbot_namespace }})"
+    if [ -n "$DOC" ]; then printf '%s' "$DOC" | $K apply -f - >/dev/null; echo copied; else echo missing; fi
+  args:
+    executable: /bin/bash
+  register: lab_chatbot_caller_copy
+  changed_when: false
+  no_log: true
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_caller_copy.stdout
+
 - name: Find student key files on the controller
   ansible.builtin.find:
     paths: "{{ lab_chatbot_key_dir_paths }}"

@@ -63,6 +63,8 @@ spec:
               value: /etc/lab-chatbot/signing/hmac-key
             - name: LAB_DIRECT_KEY_FILE
               value: /etc/lab-chatbot/direct/api-key
+            - name: LAB_CALLER_TOKEN_FILE
+              value: /etc/lab-chatbot/caller/token
           ports:
             - name: http
               containerPort: {{ .Values.port }}
@@ -94,6 +96,9 @@ spec:
             - name: direct
               mountPath: /etc/lab-chatbot/direct
               readOnly: true
+            - name: caller
+              mountPath: /etc/lab-chatbot/caller
+              readOnly: true
       volumes:
         - name: app
           configMap:
@@ -104,4 +109,8 @@ spec:
         - name: direct
           secret:
             secretName: {{ .Values.directKeySecretName }}
+            optional: true
+        - name: caller
+          secret:
+            secretName: {{ .Values.callerSecretName }}
             optional: true

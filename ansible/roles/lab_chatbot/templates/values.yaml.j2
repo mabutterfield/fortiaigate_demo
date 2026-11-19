@@ -12,6 +12,7 @@ maxTokens: {{ lab_chatbot_max_tokens }}
 temperature: {{ lab_chatbot_temperature | string | to_json }}
 signingSecretName: {{ lab_chatbot_signing_secret_name | to_json }}
 directKeySecretName: {{ lab_chatbot_direct_secret_name | to_json }}
+callerSecretName: {{ lab_chatbot_caller_secret_name | to_json }}
 keySecretPrefix: {{ lab_chatbot_key_secret_prefix | to_json }}
 seedSecretPrefix: {{ lab_chatbot_seed_secret_prefix | to_json }}
 students: {{ lab_chatbot_students | to_json }}

@@ -22,6 +22,8 @@ temperature: "0.0"
 # Secrets created by Ansible in the release namespace (not Helm-managed).
 signingSecretName: lab-chatbot-signing
 directKeySecretName: lab-chatbot-direct
+# Bearer token for gateway broker calls (key: token); optional.
+callerSecretName: lab-chatbot-caller
 keySecretPrefix: lab-keys-
 # Instructor seed copies, rewritten by every deploy; the app may only read them.
 seedSecretPrefix: lab-seed-

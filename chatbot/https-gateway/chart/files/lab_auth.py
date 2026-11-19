@@ -405,6 +405,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_students()
         if url.path == "/_lab/internal/admin/roster":
             return self.admin_roster(query.get("reveal") == "1")
+        if url.path == "/_lab/internal/keys":
+            return self.keys_list(query.get("student", ""))
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
@@ -418,6 +420,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_roster_name()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/prepopulate":
             return self.admin_student_prepopulate()
+        key_routes = {"/_lab/internal/keys/refresh": self.keys_refresh, "/_lab/internal/keys/map": self.keys_map,
+                      "/_lab/internal/keys/rotate": self.keys_rotate, "/_lab/internal/keys/status": self.keys_status}
+        if urllib.parse.urlsplit(self.path).path in key_routes:
+            return key_routes[urllib.parse.urlsplit(self.path).path]()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -766,6 +772,145 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, OSError) as exc:
             return self.json_reply(503, {"error": f"roster unavailable ({type(exc).__name__})"})
         return self.json_reply(200, {"saved": True})
+
+
+    # ---- student keys (chatbot caller; Change 2026-11-19)
+    def key_session(self, allow_admin_read: bool = False, requested: str = ""):
+        """(session, student) for the chatbot caller; admins may only read another student's keys."""
+        session = broker_session(self, "student")
+        if not session:
+            return None, None
+        identity = session["identity"]
+        if identity.get("role") == "student":
+            if requested and requested != identity["student"]:
+                self.json_reply(403, {"error": "students may only use their own keys"})
+                return None, None
+            return session, identity["student"]
+        if identity.get("role") == "admin" and allow_admin_read and re.fullmatch(r"student\d{2}", requested or ""):
+            return session, requested
+        self.json_reply(403, {"error": "student session required"})
+        return None, None
+
+    def load_keys(self, student: str) -> list:
+        return (LabDataStore().get("keys", student) or {}).get("keys", [])
+
+    def save_keys(self, student: str, records: list) -> None:
+        LabDataStore().put("keys", student, {"schema": 1, "keys": records})
+
+    def keys_list(self, requested: str):
+        session, student = self.key_session(allow_admin_read=True, requested=requested)
+        if not session:
+            return None
+        try:
+            return self.json_reply(200, {"student": student, "keys": self.load_keys(student)})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+
+    def keys_refresh(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            faig_keys = items(session["faig"].call("GET", "/api/v1/me/virtual-keys"))
+            records = lab_broker.merge_refresh(self.load_keys(student), faig_keys)
+            self.save_keys(student, records)
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG returned HTTP {exc.code}"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"refresh failed ({type(exc).__name__})"})
+        return self.json_reply(200, {"keys": [lab_broker.public_key(r) for r in records]})
+
+    def keys_map(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            body = self.broker_json(4096)
+            if set(body) - {"faig_key_id", "scenario_id", "action", "secret", "expected_model"}:
+                raise ValueError("unexpected fields")
+            records, result = lab_broker.apply_mapping(
+                self.load_keys(student), str(body.get("faig_key_id", "")), str(body.get("scenario_id", "")),
+                str(body.get("action", "")), body.get("secret"), str(body.get("expected_model", "")))
+            body = None
+            self.save_keys(student, records)
+        except KeyError as exc:
+            return self.json_reply(404, {"error": str(exc).strip("'")})
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, result)
+
+    def keys_status(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            body = self.broker_json(1024)
+            kid, status = str(body.get("faig_key_id", "")), str(body.get("status", ""))
+            if status not in ("untested", "ok", "invalid", "denied", "unavailable", "error"):
+                raise ValueError("bad status")
+            records = self.load_keys(student)
+            record = next((r for r in records if r.get("faig_key_id") == kid), None)
+            if not record:
+                return self.json_reply(404, {"error": "unknown key"})
+            record.update(status=status, verified_at=int(time.time()) if status == "ok" else record.get("verified_at"),
+                          updated_at=int(time.time()))
+            self.save_keys(student, records)
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, {"saved": True})
+
+    def keys_rotate(self):
+        """Rotate the student's own key; the new one-time secret is stored before replying."""
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            kid = str(self.broker_json(1024).get("faig_key_id", ""))
+            if not lab_broker.UUID_RE.fullmatch(kid):
+                raise ValueError("bad key id")
+            records = self.load_keys(student)
+            record = next((r for r in records if r.get("faig_key_id") == kid), None)
+            if not record:
+                return self.json_reply(404, {"error": "unknown key; refresh first"})
+            previous = record.get("status")
+            record.update(status="rotation-pending", updated_at=int(time.time()))
+            self.save_keys(student, records)  # write-ahead marker
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__}); nothing rotated"})
+        try:
+            response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate")
+        except urllib.error.HTTPError as exc:
+            record["status"] = previous
+            self.save_keys(student, records)
+            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG refused the rotation (HTTP {exc.code})"})
+        except (urllib.error.URLError, OSError):
+            record["status"] = "rotation-unknown"
+            self.save_keys(student, records)
+            return self.json_reply(504, {"error": "rotation outcome unknown; if the old value stops working within "
+                                                  "about a minute, rotate again"})
+        secret = response.get("secretKey", "")
+        if kid.replace("-", "") not in secret:
+            record["status"] = "rotation-unknown"
+            self.save_keys(student, records)
+            return self.json_reply(502, {"error": "FAIG returned no usable new key value; rotate again"})
+        record.update(secret=secret, status="untested", verified_at=None, updated_at=int(time.time()))
+        for _ in range(3):
+            try:
+                self.save_keys(student, records)
+                secret = None
+                return self.json_reply(200, {"key": lab_broker.public_key(record), "saved": True})
+            except (urllib.error.URLError, OSError):
+                time.sleep(2)
+        # Could not store it: show it once to the student so it is not lost.
+        print(f"key rotation for {student} could not be saved; value returned once to the student", flush=True)
+        return self.json_reply(200, {"key": dict(lab_broker.public_key(record), status="rotation-unsaved"),
+                                     "saved": False, "secret_once": secret})
 
 
 

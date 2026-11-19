@@ -93,6 +93,7 @@ lab_gateway_signing_secret_name: lab-gateway-signing
 lab_gateway_caller_secret_name: lab-gateway-callers
 lab_gateway_callers:
   - lab-management
+  - lab-chatbot
 # Change 2026-11-19: student roster and passwords live in two Secrets in this
 # namespace, readable and patchable only by lab_auth. Students are
 # student<NN>@<domain>.
