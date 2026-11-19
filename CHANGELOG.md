@@ -5,6 +5,17 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Added the 8.0.2 student lab chatbot behind the lab login gateway:
+  - one shared Streamlit app; students pick a scenario and action and chat
+    with their own FortiAIGate key at `/ai/openai/v1`, or send the same turn
+    directly to LiteLLM to compare
+  - MCP tools through the standards endpoint and the shared agent loop
+  - per-student key Secrets seeded from scenario_lab key files; students can
+    replace a key after FortiAIGate accepts it, and redeploys keep their edits
+  - super admins can act as any student
+  - `python3 -m functional_test scenario-pack` builds the secret-free
+    scenario pack; deploy with `deploy_lab_chatbot.yml`
+
 - Added a lab login gateway to the nginx HTTPS gateway:
   - an auth sidecar signs students and FAIG super admins in with their
     FortiAIGate account, redirects HTTP logins to HTTPS, and passes HMAC-signed

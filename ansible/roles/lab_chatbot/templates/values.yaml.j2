@@ -1,0 +1,16 @@
+nameOverride: {{ lab_chatbot_release_name | to_json }}
+image:
+  repository: {{ lab_chatbot_image_repository | to_json }}
+  tag: {{ lab_chatbot_image_tag | string | to_json }}
+servicePort: {{ lab_chatbot_service_port }}
+title: {{ lab_chatbot_title | to_json }}
+faigUrl: {{ lab_chatbot_faig_url | to_json }}
+directUrl: {{ lab_chatbot_direct_url | to_json }}
+mcpUrl: {{ lab_chatbot_mcp_url | to_json }}
+authUrl: {{ lab_chatbot_auth_url | to_json }}
+maxTokens: {{ lab_chatbot_max_tokens }}
+temperature: {{ lab_chatbot_temperature | string | to_json }}
+signingSecretName: {{ lab_chatbot_signing_secret_name | to_json }}
+directKeySecretName: {{ lab_chatbot_direct_secret_name | to_json }}
+keySecretPrefix: {{ lab_chatbot_key_secret_prefix | to_json }}
+students: {{ lab_chatbot_students | to_json }}

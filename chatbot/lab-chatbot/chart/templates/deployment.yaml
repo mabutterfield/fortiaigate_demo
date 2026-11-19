@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lab-chatbot.name" . }}
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+{{ include "lab-chatbot.labels" . | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+{{ include "lab-chatbot.labels" . | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "lab-chatbot.name" . }}
+      containers:
+        - name: chatbot
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /app
+          command: ["sh", "-c"]
+          args:
+            - >-
+              pip install --no-cache-dir --disable-pip-version-check -q -r /app/requirements.txt &&
+              exec streamlit run /app/lab_chatbot.py --server.port={{ .Values.port }} --server.address=0.0.0.0
+              --server.headless=true --browser.gatherUsageStats=false
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: LAB_TITLE
+              value: {{ .Values.title | quote }}
+            - name: LAB_FAIG_URL
+              value: {{ .Values.faigUrl | quote }}
+            - name: LAB_DIRECT_URL
+              value: {{ .Values.directUrl | quote }}
+            - name: LAB_MCP_URL
+              value: {{ .Values.mcpUrl | quote }}
+            - name: LAB_AUTH_URL
+              value: {{ .Values.authUrl | quote }}
+            - name: LAB_PACK_FILE
+              value: /app/scenario-pack.json
+            - name: LAB_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: LAB_KEY_SECRET_PREFIX
+              value: {{ .Values.keySecretPrefix | quote }}
+            - name: LAB_STUDENTS
+              value: {{ join "," .Values.students | quote }}
+            - name: LAB_MAX_TOKENS
+              value: {{ .Values.maxTokens | quote }}
+            - name: LAB_TEMPERATURE
+              value: {{ .Values.temperature | quote }}
+            - name: LAB_SIGNING_KEY_FILE
+              value: /etc/lab-chatbot/signing/hmac-key
+            - name: LAB_DIRECT_KEY_FILE
+              value: /etc/lab-chatbot/direct/api-key
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          startupProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            periodSeconds: 30
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+            - name: signing
+              mountPath: /etc/lab-chatbot/signing
+              readOnly: true
+            - name: direct
+              mountPath: /etc/lab-chatbot/direct
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: {{ include "lab-chatbot.name" . }}
+        - name: signing
+          secret:
+            secretName: {{ .Values.signingSecretName }}
+        - name: direct
+          secret:
+            secretName: {{ .Values.directKeySecretName }}
+            optional: true

@@ -1,0 +1,42 @@
+---
+# FortiAIGate 8.0.2 student lab chatbot (chatbot/lab-chatbot/chart).
+# Cluster-internal Streamlit app reached only through the lab login gateway
+# (demo_https_gateway with lab_gateway_enabled). See docs/lab-chatbot.md.
+lab_chatbot_enabled: true
+lab_chatbot_namespace: lab-chatbot
+lab_chatbot_release_name: lab-chatbot
+lab_chatbot_service_port: 80
+lab_chatbot_title: FortiAIGate Lab Chatbot
+lab_chatbot_chart_local_path: "{{ (playbook_dir + '/../../chatbot/lab-chatbot/chart') | realpath }}"
+lab_chatbot_agent_local_path: "{{ (playbook_dir + '/../../chatbot/agent/faig_agent.py') | realpath }}"
+lab_chatbot_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
+lab_chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/lab-chatbot-chart"
+lab_chatbot_values_remote_path: "/home/{{ ansible_user }}/tmp/lab-chatbot-values.yaml"
+lab_chatbot_image_repository: python
+lab_chatbot_image_tag: "3.12-slim"
+lab_chatbot_rollout_timeout: 420s
+
+# Student key files from experiments/faig-api-lab/scenario_lab.py
+# (<dir>/studentNN-keys/*.json, owner-only). Each student directory seeds one
+# Secret <prefix><student>; existing Secrets are kept because students may
+# have replaced keys in the chatbot. Set lab_chatbot_reseed_keys: true to
+# overwrite them from the files (this discards student edits).
+lab_chatbot_student_credentials_dir: "{{ faig_workspace_root }}/.student-credentials"
+lab_chatbot_key_secret_prefix: lab-keys-
+lab_chatbot_reseed_keys: false
+
+# In-cluster endpoints.
+lab_chatbot_faig_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"
+lab_chatbot_direct_url: "http://{{ litellm_release_name | default('litellm') }}.{{ litellm_namespace | default('litellm') }}.svc.cluster.local:{{ litellm_service_port | default(4000) }}/v1"
+lab_chatbot_mcp_url: "{{ mcp_standard_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8001/mcp') }}"
+lab_chatbot_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"
+lab_chatbot_max_tokens: 2048
+lab_chatbot_temperature: "0.0"
+
+# Secrets copied into the chatbot namespace on every deploy.
+lab_chatbot_signing_source_namespace: "{{ demo_https_gateway_namespace | default('demo-https-gateway') }}"
+lab_chatbot_signing_source_secret: "{{ lab_gateway_signing_secret_name | default('lab-gateway-signing') }}"
+lab_chatbot_signing_secret_name: lab-chatbot-signing
+lab_chatbot_direct_source_namespace: "{{ litellm_namespace | default('litellm') }}"
+lab_chatbot_direct_source_secret: "{{ litellm_shared_virtual_key_secret_name | default('litellm-shared-virtual-key') }}"
+lab_chatbot_direct_secret_name: lab-chatbot-direct

@@ -25,6 +25,7 @@ changes directories.
 | Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 | Sign students in to the shared lab chatbot | [Lab Login Gateway](lab-gateway.md) |
+| Run the 8.0.2 student lab chatbot | [Student Lab Chatbot](lab-chatbot.md) |
 
 The automated quickstart is the only normal installation journey. Detailed
 Terraform and Ansible command sequences are reference and recovery material,

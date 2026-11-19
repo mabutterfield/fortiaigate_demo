@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from functional_test import baseline, curl_renderer, validation
+from functional_test import baseline, curl_renderer, scenario_pack, validation
 
 
 USAGE = """usage: python3 -m functional_test <command> [options]
@@ -14,6 +14,7 @@ With no command, validation runs as a transition convenience.
 
 commands:
   baseline  Run 8.0.2 per-student key validation without the chatbot
+  scenario-pack  Build the secret-free lab chatbot scenario pack
   validate  Run live scenario validation through the deployed chatbot
   render-curl  Render one metadata-checked direct FAIG request
 
@@ -24,6 +25,8 @@ Run `python3 -m functional_test <command> --help` for command options.
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "baseline":
         return baseline.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "scenario-pack":
+        return scenario_pack.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "render-curl":
         return curl_renderer.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "validate":

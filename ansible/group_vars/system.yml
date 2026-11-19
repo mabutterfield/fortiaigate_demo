@@ -448,6 +448,13 @@ demo_home_node_port: "{{ demo_home_http_port | default(30082) }}"
 demo_home_page_title: FortiAIGate Demo Home
 demo_home_ingress_host: ""
 
+# === Student lab chatbot (8.0.2): ansible/playbooks/deploy_lab_chatbot.yml ===
+# Cluster-internal Streamlit app behind the lab login gateway (chatbot route,
+# HTTPS 30444 / HTTP 30081). Seeds one key Secret per student from
+# .student-credentials/studentNN-keys and keeps student edits on redeploy.
+lab_chatbot_enabled: true
+lab_chatbot_reseed_keys: false
+
 # === Optional HTTPS gateway: ansible/playbooks/deploy_demo_https_gateway.yml ===
 # Enabled by default. The nginx gateway exposes HTTPS NodePorts and proxies
 # to the existing internal HTTP services. Keep internal cluster traffic HTTP;

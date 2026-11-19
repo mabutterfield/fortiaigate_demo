@@ -35,10 +35,17 @@ demo_https_gateway_routes:
     # Lab login gateway: HTTP listener on the chatbot HTTP port, sign-in required.
     plain_port: "{{ lab_gateway_http_port if lab_gateway_enabled | bool else '' }}"
     auth: "{{ lab_gateway_enabled | bool }}"
+    # Change 2026-11-18: with the lab gateway on, the route serves the 8.0.2
+    # student lab chatbot (or the "who am I" placeholder); the 8.0.1 chatbot
+    # upstream remains for lab_gateway_enabled: false.
     upstream: >-
       {{
         ('http://127.0.0.1:' ~ lab_gateway_auth_port)
         if (lab_gateway_enabled | bool and lab_gateway_chatbot_placeholder | bool)
+        else ('http://' ~ (lab_chatbot_release_name | default('lab-chatbot')) ~ '.'
+              ~ (lab_chatbot_namespace | default('lab-chatbot')) ~ '.svc.cluster.local:'
+              ~ (lab_chatbot_service_port | default(80)))
+        if lab_gateway_enabled | bool
         else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
               ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
       }}
@@ -70,7 +77,9 @@ lab_gateway_idle_minutes: 120
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
 lab_gateway_fallback_secret_name: ""
-# Until the 8.0.2 student chatbot exists, serve the auth service's "who am I"
-# page on the chatbot route. Set false once the chatbot is deployed.
-lab_gateway_chatbot_placeholder: true
+# Serve the auth service's "who am I" page on the chatbot route instead of the
+# student lab chatbot (deploy_lab_chatbot.yml).
+# Change 2026-11-18: the lab chatbot exists now; placeholder follows lab_chatbot_enabled.
+# lab_gateway_chatbot_placeholder: true
+lab_gateway_chatbot_placeholder: "{{ not (lab_chatbot_enabled | default(true) | bool) }}"
 

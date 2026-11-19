@@ -1,0 +1,3 @@
+# Copied in by Ansible at deploy time; not tracked.
+files/faig_agent.py
+files/scenario-pack.json

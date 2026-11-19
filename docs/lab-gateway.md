@@ -43,10 +43,11 @@ browser ──► nginx (HTTP 30081 / HTTPS 30444) ──auth_request──► l
   instead of FortiAIGate; Traffic Log views are unavailable in that mode. The
   admin portal that will manage these passwords is not built yet.
 
-Until the 8.0.2 student chatbot exists, `lab_gateway_chatbot_placeholder: true`
-serves the sidecar's "who am I" page on the chatbot route. It shows the signed
--in account, student, workspace and the latest Traffic Log rows read with the
-student's FortiAIGate session.
+The chatbot route serves the [student lab chatbot](lab-chatbot.md). With
+`lab_gateway_chatbot_placeholder: true` (the default when
+`lab_chatbot_enabled: false`) it serves the sidecar's "who am I" page instead,
+showing the signed-in account, student, workspace and the latest Traffic Log
+rows read with the student's FortiAIGate session.
 
 ## Settings
 
@@ -63,7 +64,7 @@ lab_gateway_idle_minutes: 120
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
 lab_gateway_fallback_secret_name: ""
-lab_gateway_chatbot_placeholder: true
+lab_gateway_chatbot_placeholder: "{{ not (lab_chatbot_enabled | default(true) | bool) }}"
 ```
 
 The gateway now uses the nginx stable line `1.30-alpine`. Because it takes HTTP

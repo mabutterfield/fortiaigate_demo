@@ -1,0 +1,42 @@
+# The chatbot may read and update only the named per-student key Secrets.
+# It cannot list, create, or delete Secrets.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "lab-chatbot.name" . }}
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "lab-chatbot.name" . }}-student-keys
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+rules:
+{{- if .Values.students }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "patch"]
+    resourceNames:
+{{- range .Values.students }}
+      - {{ printf "%s%s" $.Values.keySecretPrefix . | quote }}
+{{- end }}
+{{- else }}
+  []
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "lab-chatbot.name" . }}-student-keys
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "lab-chatbot.name" . }}-student-keys
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "lab-chatbot.name" . }}
+    namespace: {{ .Release.Namespace }}

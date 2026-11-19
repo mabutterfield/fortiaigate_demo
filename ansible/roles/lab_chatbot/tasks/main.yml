@@ -1,0 +1,261 @@
+---
+- name: Skip lab chatbot when disabled
+  ansible.builtin.debug:
+    msg: "lab_chatbot_enabled=false; skipping the student lab chatbot."
+  when: not lab_chatbot_enabled | bool
+
+- name: Find student key directories on the controller
+  ansible.builtin.find:
+    paths: "{{ lab_chatbot_student_credentials_dir }}"
+    patterns: "student*-keys"
+    file_type: directory
+  delegate_to: localhost
+  become: false
+  register: lab_chatbot_key_dirs
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_key_dirs.files | map(attribute='path') | list
+
+- name: Set lab chatbot student list
+  ansible.builtin.set_fact:
+    lab_chatbot_key_dir_paths: "{{ lab_chatbot_key_dirs.files | map(attribute='path') | sort }}"
+    lab_chatbot_students: >-
+      {{ lab_chatbot_key_dirs.files | map(attribute='path') | map('basename')
+         | map('regex_replace', '-keys$', '') | sort }}
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_students
+
+- name: Validate lab chatbot settings
+  ansible.builtin.assert:
+    that:
+      - lab_chatbot_chart_local_path is directory
+      - lab_chatbot_agent_local_path is file
+      - lab_chatbot_students | length > 0
+    fail_msg: >-
+      The lab chatbot needs the chart, chatbot/agent/faig_agent.py, at least one
+      {{ lab_chatbot_student_credentials_dir }}/studentNN-keys directory (scenario_lab.py prepopulate).
+      The lab login gateway must be deployed first (its signing Secret is copied below).
+  when: lab_chatbot_enabled | bool
+
+- name: Create controller staging directory for the scenario pack
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: lab-chatbot
+  delegate_to: localhost
+  become: false
+  register: lab_chatbot_local_stage
+  when: lab_chatbot_enabled | bool
+
+- name: Build the secret-free scenario pack from installed scenarios
+  ansible.builtin.command:
+    argv: >-
+      {{ ['python3', '-m', 'functional_test', 'scenario-pack', '--output', lab_chatbot_local_stage.path ~ '/scenario-pack.json']
+         + (lab_chatbot_key_dir_paths | map('regex_replace', '^(.*)$', '--key-dir=\1') | list) }}
+    chdir: "{{ lab_chatbot_repo_root }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: lab_chatbot_pack_build
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_pack_build.stdout_lines
+
+- name: Remove previous remote lab chatbot chart staging directory
+  ansible.builtin.file:
+    path: "{{ lab_chatbot_chart_remote_root }}"
+    state: absent
+  when: lab_chatbot_enabled | bool
+
+- name: Create remote lab chatbot chart staging directory
+  ansible.builtin.file:
+    path: "{{ lab_chatbot_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: lab_chatbot_enabled | bool
+
+- name: Copy lab chatbot Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ lab_chatbot_chart_local_path }}/"
+    dest: "{{ lab_chatbot_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: lab_chatbot_enabled | bool
+
+- name: Copy shared agent and scenario pack into the remote chart files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ lab_chatbot_chart_remote_root }}/files/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  loop:
+    - "{{ lab_chatbot_agent_local_path }}"
+    - "{{ lab_chatbot_local_stage.path }}/scenario-pack.json"
+  when: lab_chatbot_enabled | bool
+
+- name: Remove controller scenario pack staging directory
+  ansible.builtin.file:
+    path: "{{ lab_chatbot_local_stage.path }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when: lab_chatbot_enabled | bool
+
+- name: Render lab chatbot Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ lab_chatbot_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  when: lab_chatbot_enabled | bool
+
+- name: Ensure lab chatbot namespace exists
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get namespace {{ lab_chatbot_namespace }} >/dev/null 2>&1 \
+      || /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml create namespace {{ lab_chatbot_namespace }}
+  changed_when: false
+  when: lab_chatbot_enabled | bool
+
+- name: Copy gateway signing key and shared LiteLLM key into the chatbot namespace
+  # Secret data is piped between kubectl calls on the host and never printed.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    $K -n {{ item.source_namespace }} get secret {{ item.source_secret }} -o json \
+      | python3 -c 'import json, sys; s = json.load(sys.stdin); print(json.dumps({"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": sys.argv[1], "namespace": sys.argv[2], "labels": {"app.kubernetes.io/part-of": "lab-chatbot"}}, "data": s["data"]}))' \
+        {{ item.target_secret }} {{ lab_chatbot_namespace }} \
+      | $K apply -f - >/dev/null
+  args:
+    executable: /bin/bash
+  loop:
+    - source_namespace: "{{ lab_chatbot_signing_source_namespace }}"
+      source_secret: "{{ lab_chatbot_signing_source_secret }}"
+      target_secret: "{{ lab_chatbot_signing_secret_name }}"
+    - source_namespace: "{{ lab_chatbot_direct_source_namespace }}"
+      source_secret: "{{ lab_chatbot_direct_source_secret }}"
+      target_secret: "{{ lab_chatbot_direct_secret_name }}"
+  loop_control:
+    label: "{{ item.target_secret }}"
+  changed_when: false
+  no_log: true
+  when: lab_chatbot_enabled | bool
+
+- name: Find student key files on the controller
+  ansible.builtin.find:
+    paths: "{{ lab_chatbot_key_dir_paths }}"
+    patterns: "*.json"
+  delegate_to: localhost
+  become: false
+  register: lab_chatbot_key_files
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_key_files.files | map(attribute='path') | list
+
+- name: Read student key files on the controller
+  ansible.builtin.set_fact:
+    lab_chatbot_seed_keys: >-
+      {{ lab_chatbot_seed_keys | default({}) | combine({
+           (item | dirname | basename | regex_replace('-keys$', '')):
+             (lab_chatbot_seed_keys | default({})).get(item | dirname | basename | regex_replace('-keys$', ''), [])
+             + [lookup('ansible.builtin.file', item) | from_json]
+         }) }}
+  loop: "{{ lab_chatbot_key_files.files | map(attribute='path') | sort }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  no_log: true
+  when: lab_chatbot_enabled | bool
+
+- name: Seed per-student key Secrets (kept when present unless reseeding)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
+    NAME="{{ lab_chatbot_key_secret_prefix }}{{ item }}"
+    if $K get secret "$NAME" >/dev/null 2>&1 && [ "{{ lab_chatbot_reseed_keys | bool | lower }}" != "true" ]; then
+      echo kept
+    else
+      $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json \
+        | $K apply -f - >/dev/null
+      $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
+      echo seeded
+    fi
+  args:
+    executable: /bin/bash
+    stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
+  loop: "{{ lab_chatbot_students }}"
+  register: lab_chatbot_seed
+  changed_when: "'seeded' in lab_chatbot_seed.stdout"
+  no_log: true
+  when: lab_chatbot_enabled | bool
+
+- name: Report key Secret seeding
+  ansible.builtin.debug:
+    msg: "{{ lab_chatbot_seed.results | map(attribute='item') | zip(lab_chatbot_seed.results | map(attribute='stdout')) | map('join', ': ') | list }}"
+  when: lab_chatbot_enabled | bool
+
+- name: Deploy lab chatbot release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ lab_chatbot_release_name }}"
+      - "{{ lab_chatbot_chart_remote_root }}"
+      - --namespace
+      - "{{ lab_chatbot_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ lab_chatbot_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: lab_chatbot_helm_deploy
+  changed_when: "'deployed' in lab_chatbot_helm_deploy.stdout or 'upgraded' in lab_chatbot_helm_deploy.stdout"
+  when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_helm_deploy.stdout_lines
+
+- name: Wait for lab chatbot rollout (dependencies install at pod start)
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ lab_chatbot_namespace }}"
+      - rollout
+      - status
+      - "deployment/{{ lab_chatbot_release_name }}"
+      - "--timeout={{ lab_chatbot_rollout_timeout }}"
+  changed_when: false
+  when: lab_chatbot_enabled | bool
+
+- name: Check lab chatbot health inside the cluster
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ lab_chatbot_namespace }}"
+      - exec
+      - "deployment/{{ lab_chatbot_release_name }}"
+      - --
+      - python
+      - -c
+      - "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=10).read().decode())"
+  register: lab_chatbot_health
+  changed_when: false
+  when: lab_chatbot_enabled | bool
+
+- name: Show lab chatbot status
+  ansible.builtin.debug:
+    msg:
+      - "Lab chatbot health: {{ lab_chatbot_health.stdout | default('') }}"
+      - "Students: {{ lab_chatbot_students | join(', ') }}"
+      - "{{ lab_chatbot_pack_build.stdout | default('') }}"
+      - "Users reach it through the lab login gateway (chatbot route); redeploy the gateway if it still shows the placeholder page."
+  when: lab_chatbot_enabled | bool

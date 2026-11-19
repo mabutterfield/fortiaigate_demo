@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "lab-chatbot.name" . }}
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

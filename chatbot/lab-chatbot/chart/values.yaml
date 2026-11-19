@@ -1,0 +1,36 @@
+# Defaults for the student lab chatbot. Ansible (roles/lab_chatbot) renders
+# the real values; faig_agent.py and scenario-pack.json are copied into
+# files/ on the target host before install and are not tracked here.
+nameOverride: lab-chatbot
+
+image:
+  repository: python
+  tag: "3.12-slim"
+  pullPolicy: IfNotPresent
+
+port: 8501
+servicePort: 80
+title: FortiAIGate Lab Chatbot
+
+faigUrl: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1
+directUrl: http://litellm.litellm.svc.cluster.local:4000/v1
+mcpUrl: http://mcp-demo.mcp.svc.cluster.local:8001/mcp
+authUrl: http://demo-https-gateway-auth.demo-https-gateway.svc.cluster.local:8090
+maxTokens: 2048
+temperature: "0.0"
+
+# Secrets created by Ansible in the release namespace (not Helm-managed).
+signingSecretName: lab-chatbot-signing
+directKeySecretName: lab-chatbot-direct
+keySecretPrefix: lab-keys-
+
+# Students the app may read and update keys for (RBAC resourceNames and the
+# admin "act as student" list).
+students: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi

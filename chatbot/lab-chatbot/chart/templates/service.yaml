@@ -1,0 +1,15 @@
+# Cluster-internal only; users reach the app through the lab login gateway.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lab-chatbot.name" . }}
+  labels:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+{{ include "lab-chatbot.labels" . | indent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.servicePort }}
+      targetPort: http
