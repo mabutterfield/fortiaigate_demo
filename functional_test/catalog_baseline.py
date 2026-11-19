@@ -33,6 +33,15 @@ def evidence_from_turn(raw, test, *, block_message=None):
     return sorted(evidence), tools
 
 
+def request_count(raw):
+    """Count attempts when the shared agent returned a reliable round count."""
+    rounds = raw.get('rounds')
+    count_known = not raw.get('error') or raw.get('error') == 'http_error'
+    if count_known and isinstance(rounds, int) and not isinstance(rounds, bool) and rounds >= 0:
+        return rounds + 1
+    return None
+
+
 def read_private(path):
     if not path.is_file() or path.stat().st_mode & 0o077:
         raise ValueError(f'credential file must exist and be owner-only: {path}')
@@ -96,12 +105,11 @@ def main(argv):
     since = int(time.time() * 1000) - 2000
     raw = baseline.run_case(args, host, case, key)
     execution = 'error' if raw.get('error') else 'completed'
-    rounds = raw.get('rounds')
-    requests_sent = rounds + 1 if execution == 'completed' and isinstance(rounds, int) and rounds >= 0 else 0
+    requests_sent = request_count(raw)
     evidence, tools = evidence_from_turn(raw, case['test'], block_message=block_message)
     rows = []
     deadline = time.monotonic() + args.log_wait
-    while requests_sent:
+    while execution == 'completed' and requests_sent:
         try:
             response = admin.get('/api/v1/admin/traffic-logs?limit=100&offset=0')
             summaries = response.get('items', []) if isinstance(response, dict) else response
@@ -112,7 +120,7 @@ def main(argv):
         if len(rows) >= requests_sent or time.monotonic() >= deadline:
             break
         time.sleep(min(2, max(0, deadline - time.monotonic())))
-    result = evaluate(execution=execution, verdict_rows=rows, requests_sent=requests_sent,
+    result = evaluate(execution=execution, verdict_rows=rows, requests_sent=requests_sent if requests_sent is not None else 0,
                       evidence=evidence, tools_called=tools, test=case['test'],
                       faig_version=args.faig_version, scenario_version=case['scenario_version'])
     report = {'scenario': args.scenario, 'action': args.action, 'test': case['case_id'],

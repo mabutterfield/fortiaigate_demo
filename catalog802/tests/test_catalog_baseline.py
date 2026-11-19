@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from functional_test.catalog_baseline import evidence_from_turn, main
+from functional_test.catalog_baseline import evidence_from_turn, main, request_count
 
 
 class CatalogBaselineTests(unittest.TestCase):
@@ -20,6 +20,12 @@ class CatalogBaselineTests(unittest.TestCase):
         self.assertIn('attack-tool-called', evidence)
         self.assertNotIn('sensitive-data-in-reply', evidence)
         self.assertEqual(tools, ['cloud_bucket_list_demo'])
+
+    def test_request_count_for_http_errors_and_unknown_execution(self):
+        self.assertEqual(request_count({'error': 'http_error', 'rounds': 0}), 1)
+        self.assertEqual(request_count({'rounds': 2}), 3)
+        self.assertIsNone(request_count({'error': 'agent_exec_failed'}))
+        self.assertIsNone(request_count({'rounds': True}))
 
     def test_block_message_uses_exact_configured_match(self):
         test = {'attack_tools': []}
