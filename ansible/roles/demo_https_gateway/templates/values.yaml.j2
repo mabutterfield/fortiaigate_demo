@@ -23,6 +23,13 @@ routes:
 {% endif %}
     auth: {{ (route.auth | default(false) | bool) | ternary('true', 'false') }}
     upstream: "{{ route.upstream | trim }}"
+{% if route.prefix_routes | default([]) | length > 0 %}
+    prefixRoutes:
+{% for prefix in route.prefix_routes %}
+      - path: {{ prefix.path | to_json }}
+        upstream: {{ prefix.upstream | trim | to_json }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 
 labAuth:

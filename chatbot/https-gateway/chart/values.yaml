@@ -25,6 +25,11 @@ routes:
     # Require a lab sign-in (labAuth below) before proxying.
     auth: true
     upstream: http://chatbot.chatbot.svc.cluster.local:80
+    # Optional signed-in path prefixes on this route, each proxied to its own
+    # upstream with the prefix stripped (auth routes only), e.g.:
+    # prefixRoutes:
+    #   - path: /manage/
+    #     upstream: http://lab-management.lab-management.svc.cluster.local:80
   - name: demo-home
     displayName: Demo Home
     externalPort: 30445

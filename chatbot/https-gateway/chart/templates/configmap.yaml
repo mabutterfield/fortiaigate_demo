@@ -25,6 +25,12 @@
           proxy_set_header X-Forwarded-Proto $lab_scheme;
         }
 
+        # Change 2026-11-19: internal broker endpoints are for in-cluster callers
+        # (auth service port) only, never through the public gateway.
+        location /_lab/internal/ {
+          return 404;
+        }
+
         location /_lab/ {
           proxy_pass http://127.0.0.1:{{ $root.Values.labAuth.port }};
 {{- include "demo-https-gateway.proxyHeaders" . }}
@@ -33,6 +39,36 @@
         location @lab_login {
           return 302 /_lab/login?next=$request_uri;
         }
+{{- range $route.prefixRoutes }}
+
+        # Signed-in path prefix served by another upstream (prefix stripped).
+        location = {{ trimSuffix "/" .path }} {
+          return 301 {{ .path }};
+        }
+
+        location {{ .path }} {
+          auth_request /_lab_auth;
+          auth_request_set $lab_user $upstream_http_x_lab_user;
+          auth_request_set $lab_student $upstream_http_x_lab_student;
+          auth_request_set $lab_role $upstream_http_x_lab_role;
+          auth_request_set $lab_workspace_id $upstream_http_x_lab_workspace_id;
+          auth_request_set $lab_ts $upstream_http_x_lab_ts;
+          auth_request_set $lab_signature $upstream_http_x_lab_signature;
+          error_page 401 = @lab_login;
+          proxy_set_header X-Lab-User $lab_user;
+          proxy_set_header X-Lab-Student $lab_student;
+          proxy_set_header X-Lab-Role $lab_role;
+          proxy_set_header X-Lab-Workspace-Id $lab_workspace_id;
+          proxy_set_header X-Lab-Ts $lab_ts;
+          proxy_set_header X-Lab-Signature $lab_signature;
+          # set must come before rewrite...break, which ends rewrite-module processing.
+          set $proxy_upstream "{{ .upstream }}";
+          rewrite ^{{ trimSuffix "/" .path }}/(.*)$ /$1 break;
+          proxy_pass $proxy_upstream;
+{{- include "demo-https-gateway.proxyHeaders" . }}
+          proxy_redirect ~^http://[^/]+(/.*)$ $lab_scheme://$http_host{{ trimSuffix "/" .path }}$1;
+        }
+{{- end }}
 
         location / {
           auth_request /_lab_auth;

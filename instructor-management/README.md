@@ -1,5 +1,7 @@
 # Instructor management: standalone integration contract
 
+> **Change 2026-11-19:** superseded by `chatbot/lab-management/` (Helm chart, served at `/manage/`; see `docs/lab-management.md`). This prototype is kept for reference only and is not deployed.
+
 This is a preview and durable request journal, not a complete Milestone 2 deployment. It reads active code-owned scenario profiles and their instruction files, displays sample prompts, tests and dependencies, saves scenario selection, and records deployment or student batch requests as **blocked**. It does not execute those requests, create accounts, register models, issue credentials, approve changes, or modify existing work. Auto-approval is always off. No student count, key directory or prior selection is needed to start it.
 
 ## Deploy independently

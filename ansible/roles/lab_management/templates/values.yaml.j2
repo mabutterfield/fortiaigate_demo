@@ -1,0 +1,11 @@
+nameOverride: {{ lab_management_release_name | to_json }}
+image:
+  repository: {{ lab_management_image_repository | to_json }}
+  tag: {{ lab_management_image_tag | string | to_json }}
+servicePort: {{ lab_management_service_port }}
+authUrl: {{ lab_management_auth_url | to_json }}
+publicOrigin: {{ lab_management_public_origin | to_json }}
+catalogConfigMapName: {{ lab_management_catalog_configmap_name | to_json }}
+persistence:
+  size: {{ lab_management_pvc_size | string | to_json }}
+  storageClassName: {{ lab_management_storage_class | to_json }}

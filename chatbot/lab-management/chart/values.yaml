@@ -1,0 +1,31 @@
+# Defaults for the lab management page. Ansible (roles/lab_management) renders
+# the real values and copies the rendered catalog views into catalog/ on the
+# target host before install; they are not tracked here.
+nameOverride: lab-management
+
+image:
+  repository: python
+  tag: "3.12-slim"
+  pullPolicy: IfNotPresent
+
+port: 8080
+servicePort: 80
+
+# Gateway auth service (lab_auth) used to check each request's signed identity.
+authUrl: http://demo-https-gateway-auth.demo-https-gateway.svc.cluster.local:8090
+# Optional exact browser origin for POSTs; empty = derive from X-Forwarded-* set by the gateway.
+publicOrigin: ""
+
+# Rendered catalog views (ConfigMap name shared by convention with the chatbot).
+catalogConfigMapName: lab-catalog
+
+persistence:
+  size: 1Gi
+  storageClassName: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

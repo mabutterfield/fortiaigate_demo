@@ -1,0 +1,173 @@
+"""Unit and render tests for the lab management page (chatbot/lab-management)."""
+from __future__ import annotations
+
+import importlib.util
+import json
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CHART = REPO_ROOT / "chatbot/lab-management/chart"
+GATEWAY_CHART = REPO_ROOT / "chatbot/https-gateway/chart"
+
+spec = importlib.util.spec_from_file_location("lab_management", CHART / "files/lab_management.py")
+lm = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(lm)
+
+
+def student_view():
+    from catalog802.loader import build_views, load
+    catalog, errors = load(REPO_ROOT)
+    assert not errors, errors
+    return build_views(catalog)["student"]
+
+
+class CatalogTests(unittest.TestCase):
+    def test_preview_from_rendered_student_view(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "catalog-student.json").write_text(json.dumps(student_view()))
+            items, platform, error = lm.load_catalog(tmp)
+        self.assertIsNone(error)
+        hr = next(i for i in items if i["id"] == "hr-tool-dlp")
+        self.assertEqual([a["id"] for a in hr["actions"]], ["alert", "redact", "block"])
+        self.assertTrue(hr["prompts"]["attack"][0]["text"])
+        self.assertEqual(hr["models"][0]["public_name"], "hr-tool-dlp")
+        self.assertEqual(platform["currency"], "USD")
+        # Backend instructions are not part of the instructor preview.
+        self.assertFalse({"instruction", "instruction_text", "backend_instruction"} & set(hr))
+
+    def test_missing_or_invalid_catalog_is_reported_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(lm.load_catalog(tmp)[2], "catalog unavailable: catalog-student.json not found")
+            Path(tmp, "catalog-student.json").write_text('{"view": "faig", "items": []}')
+            items, _, error = lm.load_catalog(tmp)
+        self.assertEqual(items, [])
+        self.assertIn("catalog unavailable", error)
+
+
+class JournalTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = str(Path(self.tmp.name) / "journal.sqlite3")
+        self.db = lm.connect(self.path)
+
+    def tearDown(self):
+        self.db.close()
+        self.tmp.cleanup()
+
+    def test_selection_is_validated_and_survives_restart(self):
+        lm.select(self.db, ["hr-tool-dlp"], {"hr-tool-dlp"})
+        with self.assertRaises(ValueError):
+            lm.select(self.db, ["unknown"], {"hr-tool-dlp"})
+        self.db.close()
+        self.db = lm.connect(self.path)
+        self.assertEqual(lm.selected(self.db), ["hr-tool-dlp"])
+
+    def test_jobs_are_blocked_and_reject_extra_fields(self):
+        with self.assertRaises(ValueError):
+            lm.create_job(self.db, "models", "admin@lab", {})  # nothing selected
+        lm.select(self.db, ["hr-tool-dlp"], {"hr-tool-dlp"})
+        lm.create_job(self.db, "models", "admin@lab", {})
+        lm.create_job(self.db, "students", "admin@lab", {"count": 2, "start_index": 1, "prepopulate": True})
+        self.assertEqual({j["status"] for j in lm.jobs(self.db)}, {"blocked"})
+        for bad in ({"count": 2, "start_index": 1, "prepopulate": True, "password": "secret"},
+                    {"count": 0, "start_index": 1, "prepopulate": True},
+                    {"count": 2, "start_index": 100, "prepopulate": True},
+                    {"count": "2", "start_index": 1, "prepopulate": True}):
+            with self.assertRaises(ValueError):
+                lm.create_job(self.db, "students", "admin@lab", bad)
+        self.assertNotIn("secret", json.dumps(lm.jobs(self.db)))
+
+
+class AuthorizationTests(unittest.TestCase):
+    ADMIN = {"X-Lab-Role": "admin", "X-Lab-User": "admin@lab", "X-Lab-Ts": "1", "X-Lab-Signature": "sig"}
+
+    def setUp(self):
+        lm._auth_cache.clear()
+
+    def test_non_admin_or_incomplete_identity_denied_without_calling_gateway(self):
+        with patch.object(lm, "AUTH_URL", "http://auth"), patch("urllib.request.build_opener") as opener:
+            self.assertFalse(lm.authorize({"X-Lab-Role": "student"}))
+            self.assertFalse(lm.authorize({"X-Lab-Role": "admin"}))
+            opener.assert_not_called()
+
+    def test_gateway_failure_denies(self):
+        with patch.object(lm, "AUTH_URL", "http://auth"), \
+                patch("urllib.request.build_opener", side_effect=OSError("offline")):
+            self.assertFalse(lm.authorize(self.ADMIN))
+
+    def test_positive_result_is_cached_briefly(self):
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self, *a): return b'{"items": []}'
+        with patch.object(lm, "AUTH_URL", "http://auth"), patch("urllib.request.build_opener") as opener:
+            opener.return_value.open.return_value = Response()
+            self.assertTrue(lm.authorize(self.ADMIN, now=100))
+            self.assertTrue(lm.authorize(self.ADMIN, now=110))
+            self.assertEqual(opener.return_value.open.call_count, 1)
+            self.assertTrue(lm.authorize(self.ADMIN, now=200))
+            self.assertEqual(opener.return_value.open.call_count, 2)
+
+    def test_origin_must_match_gateway_forwarded_host(self):
+        base = {"X-Forwarded-Proto": "https", "X-Forwarded-Host": "lab.example:30444", "X-Lab-Request": "1"}
+        with patch.object(lm, "PUBLIC_ORIGIN", ""):
+            self.assertTrue(lm.origin_ok(dict(base, Origin="https://lab.example:30444")))
+            self.assertFalse(lm.origin_ok(dict(base, Origin="https://evil.example")))
+            self.assertFalse(lm.origin_ok({**base, "Origin": "https://lab.example:30444", "X-Lab-Request": ""}))
+            self.assertFalse(lm.origin_ok({"Origin": "https://lab.example:30444", "X-Lab-Request": "1"}))
+        with patch.object(lm, "PUBLIC_ORIGIN", "https://fixed.example"):
+            self.assertTrue(lm.origin_ok(dict(base, Origin="https://fixed.example")))
+
+
+class StaticPageTests(unittest.TestCase):
+    def test_page_uses_relative_urls_for_the_manage_prefix(self):
+        html = (CHART / "files/index.html").read_text()
+        js = (CHART / "files/app.js").read_text()
+        self.assertNotIn('href="/', html)
+        self.assertNotIn('src="/', html)
+        self.assertNotIn("api('/", js)
+
+
+@unittest.skipUnless(shutil.which("helm"), "helm not installed")
+class RenderTests(unittest.TestCase):
+    def helm(self, chart, *args):
+        return subprocess.run(["helm", "template", "t", str(chart), *args],
+                              check=True, capture_output=True, text=True).stdout
+
+    def test_management_chart_has_no_token_and_one_writer(self):
+        out = self.helm(CHART)
+        self.assertIn("automountServiceAccountToken: false", out)
+        self.assertIn("type: Recreate", out)
+        self.assertIn("name: lab-catalog", out)
+        self.assertIn("readOnlyRootFilesystem: true", out)
+        self.assertNotIn("kind: Secret", out)
+
+    def test_gateway_prefix_route_and_internal_block(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml") as values:
+            values.write(
+                "routes:\n"
+                "  - name: chatbot\n    externalPort: 30444\n    auth: true\n"
+                "    upstream: http://lab-chatbot.lab-chatbot.svc.cluster.local:80\n"
+                "    prefixRoutes:\n      - path: /manage/\n"
+                "        upstream: http://lab-management.lab-management.svc.cluster.local:80\n"
+                "labAuth:\n  enabled: true\n")
+            values.flush()
+            out = self.helm(GATEWAY_CHART, "-f", values.name, "--show-only", "templates/configmap.yaml")
+        self.assertIn("location /_lab/internal/ {\n          return 404;", out)
+        self.assertIn("location = /manage {", out)
+        block = out[out.index("location /manage/ {"):]
+        block = block[:block.index("location / {")]
+        self.assertIn("auth_request /_lab_auth;", block)
+        self.assertIn("proxy_set_header X-Lab-Signature $lab_signature;", block)
+        # set must precede rewrite ... break or the upstream variable stays empty.
+        self.assertLess(block.index("set $proxy_upstream"), block.index("rewrite ^/manage/"))
+
+
+if __name__ == "__main__":
+    unittest.main()

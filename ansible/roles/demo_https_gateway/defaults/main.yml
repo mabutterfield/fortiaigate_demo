@@ -49,6 +49,17 @@ demo_https_gateway_routes:
         else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
               ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
       }}
+    # Change 2026-11-19: instructor Lab Management page at /manage/ on the
+    # same signed-in address (prefix stripped before proxying).
+    prefix_routes: >-
+      {{
+        [{'path': '/manage/',
+          'upstream': 'http://' ~ (lab_management_release_name | default('lab-management')) ~ '.'
+                      ~ (lab_management_namespace | default('lab-management')) ~ '.svc.cluster.local:'
+                      ~ (lab_management_service_port | default(80))}]
+        if (lab_gateway_enabled | bool and lab_management_enabled | default(true) | bool)
+        else []
+      }}
   - name: demo-home
     display_name: Demo Home
     external_port: "{{ demo_https_gateway_demo_home_https_port }}"

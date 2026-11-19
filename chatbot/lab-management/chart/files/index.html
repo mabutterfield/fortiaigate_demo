@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Management</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>Lab Management</h1>
+    <p class="who">Signed in as <span id="user"></span> · <a href="../">Student chatbot</a> · <a href="../_lab/logout">Sign out</a></p>
+  </div>
+  <div id="approval" class="indicator" role="status" aria-live="polite">Auto-approval: …</div>
+</header>
+<main>
+  <p class="notice">Preview only. FAIG changes are not connected yet: requests below are recorded as <strong>blocked</strong> and make no changes to FAIG, students or keys.</p>
+  <div id="error" role="alert"></div>
+
+  <h2>Scenarios</h2>
+  <p id="pricing" class="muted"></p>
+  <form id="selection">
+    <div id="scenarios"></div>
+    <button type="submit">Save selection</button>
+  </form>
+
+  <h2>FAIG models for selected scenarios</h2>
+  <p>Adds or updates the selected scenarios' models and lab prices in FAIG, keeping other models.</p>
+  <button id="models" type="button">Record model request</button>
+
+  <h2>Student batch</h2>
+  <form id="students">
+    <label>Count <input type="number" id="count" min="1" max="100" value="2" required></label>
+    <label>Start number <input type="number" id="start" min="1" max="99" value="1" required></label>
+    <label><input type="checkbox" id="prepopulate"> Prepopulate keys and policies</label>
+    <button type="submit">Record batch request</button>
+  </form>
+
+  <h2>Operation journal</h2>
+  <div id="jobs"></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

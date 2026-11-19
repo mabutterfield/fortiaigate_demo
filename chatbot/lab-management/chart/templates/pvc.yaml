@@ -1,0 +1,16 @@
+# Selection and request journal (SQLite). Survives pod restarts, not host
+# termination; see docs/lab-management.md for backup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lab-management.name" . }}-state
+  labels:
+{{ include "lab-management.labels" . | indent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+{{- if .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+{{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
