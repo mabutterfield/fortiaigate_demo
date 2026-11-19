@@ -14,6 +14,8 @@ service:
   nodePort: null
 {% endif %}
 
+catalogRegistryEnabled: {{ (mcp_use_catalog | bool) | ternary('true', 'false') }}
+
 containerPort: {{ mcp_container_port }}
 
 resources: {}

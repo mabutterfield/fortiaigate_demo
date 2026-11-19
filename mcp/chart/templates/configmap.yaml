@@ -14,6 +14,10 @@ data:
   requirements-standard.txt: |
 {{ .Files.Get "files/requirements-standard.txt" | indent 4 }}
 {{- end }}
+{{- if .Values.catalogRegistryEnabled }}
+  catalog-tools.json: |
+{{ required "catalog registry missing from staged chart" (.Files.Get "files/catalog-tools.json") | indent 4 }}
+{{- end }}
   tools.json: |
 {{ .Files.Get "files/tools.json" | indent 4 }}
   documents.json: |

@@ -96,3 +96,12 @@ targets/instructions and keeps pass-model free of injected instructions. The
 role defaults to this catalog output; set `litellm_use_catalog: false` to use
 the previous locally installed scenario matrix. This change is not yet live
 validated and does not implement the 8.0.2 FAIG re-entry provider.
+
+The MCP Ansible role stages the compiled registry by default and mounts it in
+both MCP containers. At startup, catalog definitions replace matching entries
+in the legacy server registry; the remaining legacy tools are preserved. This
+is an interim adapter: the legacy entries and catalog duplicates still need
+consolidation. Missing, duplicate, or unrecognized catalog tool names fail
+startup. Set `mcp_use_catalog: false` for the previous registry-only behavior.
+The Helm chart used independently defaults the adapter off unless its generated
+registry is explicitly staged. This workflow requires live validation.

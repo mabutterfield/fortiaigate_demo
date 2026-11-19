@@ -1611,6 +1611,32 @@ TOOLS = [
 ]
 
 
+# Catalog-backed definitions replace matching legacy entries. The remaining
+# legacy entries are retained until their contracts have been migrated.
+def apply_catalog_registry(existing, catalog):
+    if not isinstance(catalog, list):
+        raise ValueError("catalog MCP registry must be a list")
+    available = {entry["function"]["name"] for entry in existing}
+    replacements = {}
+    for entry in catalog:
+        if not isinstance(entry, dict) or entry.get("type") != "function" or not isinstance(entry.get("function"), dict):
+            raise ValueError("invalid catalog MCP tool definition")
+        function = entry["function"]
+        name = function.get("name")
+        if not isinstance(name, str) or name not in available or name in replacements:
+            raise ValueError("catalog MCP tool is duplicate or lacks a registered handler")
+        if not isinstance(function.get("description"), str) or not isinstance(function.get("parameters"), dict):
+            raise ValueError("catalog MCP tool is missing description or parameters")
+        replacements[name] = entry
+    return [replacements.get(entry["function"]["name"], entry) for entry in existing]
+
+
+_catalog_registry_path = os.environ.get("MCP_CATALOG_REGISTRY_PATH", "")
+if _catalog_registry_path:
+    with open(_catalog_registry_path, encoding="utf-8") as _catalog_registry_file:
+        TOOLS = apply_catalog_registry(TOOLS, json.load(_catalog_registry_file))
+
+
 class McpDemoHandler(BaseHTTPRequestHandler):
     server_version = "mcp-demo/0.4.0"
 
