@@ -114,3 +114,20 @@ contain `execution`, `verdict_rows`, `requests_sent`, `evidence`, and
 provenance; it reports incomplete when the required Traffic Log rows are
 missing. Existing live baseline and chatbot tests still use their legacy
 contract until a request-correlated Traffic Log collector is implemented.
+
+`python3 -m functional_test catalog-baseline --help` describes the live
+catalog runner. It requires an owner-only scenario key file and administrator
+credentials to check Traffic Log details. It adds a unique marker to the
+prompt, runs the shared in-cluster agent, and only accepts log rows with the
+same key and marker in `prompt.original`. Missing rows produce INCOMPLETE;
+results contain no key or prompt/response contents. The marker has been
+verified in a blocked FortiStore request, a two-request HR redaction turn,
+and a five-request Resume tool turn. This runner executes one test at a time;
+key metadata must match the current catalog action, and old `deny` metadata is
+not silently treated as `block`.
+
+The HR Redact case currently expects no sensitive data in the reply, whereas
+its DLP definition covers date of birth, SSN, and payment card only. A live
+run returned a redaction marker but left email and phone visible, so this case
+correctly failed under its present expectation. Reconcile the expected outcome
+and detector categories before treating that test as a release gate.
