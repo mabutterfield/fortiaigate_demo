@@ -93,9 +93,14 @@ function pwMode() { return document.querySelector('input[name=pwmode]:checked').
 document.querySelectorAll('input[name=pwmode]').forEach(r => r.addEventListener('change', () => { el('pwlabel').hidden = pwMode() === 'generated'; }));
 el('students').addEventListener('submit', e => {
   e.preventDefault();
-  const body = {count: Number(el('count').value), start_index: Number(el('start').value), prepopulate: false, password_mode: pwMode()};
+  const body = {count: Number(el('count').value), start_index: Number(el('start').value), prepopulate: el('prepopulate').checked, password_mode: pwMode()};
   if (pwMode() !== 'generated') body.password = el('password').value;
   run(async () => { await api('api/jobs/students', body); el('password').value = ''; });
+});
+
+el('prepop').addEventListener('submit', e => {
+  e.preventDefault();
+  run(() => api('api/jobs/prepopulate', {count: Number(el('pcount').value), start_index: Number(el('pstart').value)}));
 });
 
 async function loadRoster() {

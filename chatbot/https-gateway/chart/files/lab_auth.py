@@ -74,7 +74,7 @@ STUDENT_PATTERN = re.compile(os.environ.get("LAB_STUDENT_PATTERN", r"^(student\d
 FALLBACK_SECRET = os.environ.get("LAB_FALLBACK_SECRET", "")
 NAMESPACE = os.environ.get("LAB_NAMESPACE", "")
 DATA_NAMESPACE = os.environ.get("LAB_DATA_NAMESPACE", "")
-DATA_SECRETS = {"credentials": "lab-credentials", "roster": "lab-roster"}
+DATA_SECRETS = {"credentials": "lab-credentials", "roster": "lab-roster", "keys": "lab-keys"}
 # Per-process key for comparing student passwords with the instructor's without storing it.
 PASSWORD_CHECK_KEY = secrets.token_bytes(32)
 FALLBACK_DATA_KEY = "fallback.json"
@@ -416,6 +416,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_student_ensure()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/roster/name":
             return self.admin_roster_name()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/prepopulate":
+            return self.admin_student_prepopulate()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -687,6 +689,45 @@ class Handler(BaseHTTPRequestHandler):
             return "updated"
         except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             return f"failed ({type(exc).__name__})"
+
+    def admin_student_prepopulate(self):
+        """Create one student's detectors, guardrails, policies and keys as that student."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            request = self.broker_json(256 * 1024)
+            if set(request) != {"number", "plan"}:
+                raise ValueError("unexpected fields")
+            names = lab_broker.student_names(request["number"])
+        except (ValueError, KeyError):
+            return self.json_reply(400, {"error": "bad request body"})
+        student = names["student"]
+        try:
+            store = LabDataStore()
+            credentials = store.get("credentials", student)
+            if not credentials.get("password"):
+                return self.json_reply(409, {"error": f"{student} has no stored password; create or import it first"})
+            student_session = FaigSession()
+            student_session.login(credentials["username"], credentials["password"])
+            credentials = None
+            summary = lab_broker.prepopulate_student(session["faig"], student_session, store, student,
+                                                     request["plan"], lambda _: None)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
+            try:
+                detail = json.loads(exc.read() or b"{}").get("error", "")
+            except ValueError:
+                detail = ""
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code} {detail}".strip()})
+        except (ValueError, RuntimeError, KeyError) as exc:
+            return self.json_reply(422, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); re-run to reconcile"})
+        print(f"prepopulated {student} by {session['identity']['user']}: {len(summary['created'])} created, "
+              f"{len(summary['approved'])} approved, {len(summary['keys_saved'])} key secrets saved", flush=True)
+        return self.json_reply(200, dict(summary, student=student))
 
     def admin_roster(self, reveal: bool):
         session = broker_session(self, "admin")

@@ -143,7 +143,7 @@ class ProxyTests(unittest.TestCase):
 
 class Store:
     def __init__(self):
-        self.data = {"credentials": {}, "roster": {}}
+        self.data = {"credentials": {}, "roster": {}, "keys": {}}
         self.writes = []
 
     def get(self, kind, student):
@@ -282,6 +282,130 @@ class StudentTests(unittest.TestCase):
         self.assertEqual(lab_broker.roster_rows(roster, creds, faig_rows, reveal=True)[0]["password"], "P_ss1234word")
         self.assertTrue(lab_broker.DISPLAY_NAME.fullmatch("Ana María"))
         self.assertFalse(lab_broker.DISPLAY_NAME.fullmatch("<script>"))
+
+
+class PrepopFaig:
+    """Fake FAIG for prepopulation: one student workspace with approval."""
+
+    def __init__(self):
+        self.objects = {"detectors": [], "guardrails": [], "policies": []}
+        self.keys, self.projects, self.approved, self.calls, self.queue = [], [], [], [], []
+        self.counter = 0
+
+    def _id(self):
+        self.counter += 1
+        return f"id{self.counter}"
+
+    # student session
+    def call(self, method, path, payload=None):
+        self.calls.append((method, path))
+        if path == "/api/v1/me/workspaces":
+            return [{"id": "w3", "workspaceName": "student03_workspace", "membershipRole": "admin"}]
+        if path.endswith("/grantable-providers"):
+            return {"providers": [{"providerId": "litellm-direct", "platform": "custom", "name": "litellm-direct",
+                                   "models": [{"uuid": "m1", "modelId": "hr-tool-dlp", "publicName": "hr-tool-dlp"},
+                                              {"uuid": "m2", "modelId": "pass-model", "publicName": "pass-model"}]}]}
+        for kind in self.objects:
+            collection = f"/api/v1/workspaces/w3/{kind}"
+            if path == collection and method == "GET":
+                return list(self.objects[kind])
+            if path == collection and method == "POST":
+                obj = dict(payload, id=self._id(), status="draft")
+                self.objects[kind].append(obj)
+                return obj
+            if path.startswith(collection + "/") and path.endswith("/submit"):
+                oid = path.split("/")[-2]
+                obj = next(o for o in self.objects[kind] if o["id"] == oid)
+                obj["status"] = "pending"
+                self.queue.append({"id": oid, "type": {"detectors": "detector", "guardrails": "guardrail", "policies": "policy"}[kind]})
+                return obj
+        if path == "/api/v1/me/virtual-keys" and method == "GET":
+            return list(self.keys)
+        if path == "/api/v1/me/virtual-keys":
+            key = {"id": self._id(), "keyName": payload["keyName"], "policyIds": payload["policyIds"]}
+            self.keys.append(key)
+            return dict(key, secretKey="faig_" + key["id"] + "_secret")
+        raise AssertionError((method, path))
+
+
+class PrepopAdmin:
+    def __init__(self, faig):
+        self.faig = faig
+
+    def call(self, method, path, payload=None):
+        if path == "/api/v1/admin/projects" and method == "GET":
+            return list(self.faig.projects)
+        if path == "/api/v1/admin/projects":
+            project = {"id": "p-" + payload["name"], "name": payload["name"], "workspaceId": payload["workspaceId"]}
+            self.faig.projects.append(project)
+            return project
+        if path == "/api/v1/admin/review-queue":
+            return {"items": list(self.faig.queue)}
+        if path.endswith("/approve"):
+            oid = path.split("/")[-2]
+            for objs in self.faig.objects.values():
+                for obj in objs:
+                    if obj["id"] == oid:
+                        obj["status"] = "active"
+            self.faig.queue = [q for q in self.faig.queue if q["id"] != oid]
+            self.faig.approved.append(oid)
+            return {}
+        raise AssertionError((method, path))
+
+
+def hr_plan():
+    from catalog802.loader import build_views, load
+    root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root))
+    spec2 = importlib.util.spec_from_file_location("lab_management_plan", root / "chatbot/lab-management/chart/files/lab_management.py")
+    lm = importlib.util.module_from_spec(spec2)
+    spec2.loader.exec_module(lm)
+    catalog, _ = load(root)
+    return lm.prepopulation_plan(build_views(catalog)["faig"], {"hr-tool-dlp"}, "student03")
+
+
+class PrepopulationTests(unittest.TestCase):
+    def test_creates_approves_and_saves_keys_then_rerun_changes_nothing(self):
+        faig, store = PrepopFaig(), Store()
+        store.data["keys"] = {}
+        plan = hr_plan()
+        first = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", plan, lambda _: None)
+        self.assertEqual(len(faig.objects["detectors"]), 9)
+        self.assertEqual(len(faig.objects["guardrails"]), 3)
+        self.assertEqual(len(faig.objects["policies"]), 3)
+        self.assertEqual(len(faig.approved), 15)
+        self.assertTrue(all(o["status"] == "active" for objs in faig.objects.values() for o in objs))
+        self.assertEqual(sorted(k["keyName"] for k in faig.keys),
+                         ["student03_hr-tool-dlp_alert", "student03_hr-tool-dlp_block",
+                          "student03_hr-tool-dlp_redact", "student03_passthrough"])
+        saved = store.data["keys"]["student03"]["keys"]
+        self.assertEqual(len(saved), 4)
+        self.assertEqual({k["action"] for k in saved}, {"alert", "redact", "block", "passthrough"})
+        self.assertTrue(all(k["secret"].startswith("faig_") and k["origin"] == "seeded" for k in saved))
+        self.assertEqual(next(k for k in faig.keys if k["keyName"].endswith("_passthrough"))["policyIds"], [])
+        self.assertEqual(len(first["keys_saved"]), 4)
+        before = len(faig.calls)
+        second = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", plan, lambda _: None)
+        self.assertEqual(second["created"], [])
+        self.assertEqual(second["notes"], [])
+        self.assertFalse([c for c in faig.calls[before:] if c[0] == "POST"])
+
+    def test_existing_key_without_secret_is_reported(self):
+        faig, store = PrepopFaig(), Store()
+        store.data["keys"] = {}
+        faig.keys.append({"id": "old", "keyName": "student03_passthrough", "policyIds": []})
+        out = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", hr_plan(), lambda _: None)
+        self.assertTrue(any("student03_passthrough exists in FAIG without a stored secret" in n for n in out["notes"]))
+
+    def test_plan_names_must_belong_to_the_student(self):
+        plan = hr_plan()
+        plan["entries"][0]["key"] = "student04_hr-tool-dlp_alert"
+        with self.assertRaises(ValueError):
+            lab_broker.validate_plan("student03", plan)
+        plan = hr_plan()
+        plan["entries"][0]["action"] = "deny"
+        with self.assertRaises(ValueError):
+            lab_broker.validate_plan("student03", plan)
 
 
 if __name__ == "__main__":

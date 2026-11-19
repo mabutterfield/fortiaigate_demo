@@ -36,8 +36,8 @@ subjects:
 {{- end }}
 {{- if and .Values.labAuth.enabled .Values.labAuth.labDataNamespace }}
 ---
-# Change 2026-11-19: student roster and passwords (lab-data namespace). Only the
-# lab-auth sidecar may read or update these two Secrets; no list, create or delete.
+# Change 2026-11-19: student roster, passwords and key secrets (lab-data namespace).
+# Only the lab-auth sidecar may read or update these Secrets; no list, create or delete.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -47,7 +47,7 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "patch"]
-    resourceNames: ["lab-roster", "lab-credentials"]
+    resourceNames: ["lab-roster", "lab-credentials", "lab-keys"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

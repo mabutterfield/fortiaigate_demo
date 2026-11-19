@@ -159,7 +159,13 @@ def provider_access(providers: list) -> tuple[list, list, list]:
 
 
 def _items(response):
-    return response.get("items", response) if isinstance(response, dict) else response
+    """List payload of a FAIG response: a bare list, or {"items"|"providers"|"data": [...]}."""
+    if isinstance(response, dict):
+        for key in ("items", "providers", "data"):
+            if isinstance(response.get(key), list):
+                return response[key]
+        return []
+    return response if isinstance(response, list) else []
 
 
 def _all_users(admin) -> list:
@@ -307,3 +313,249 @@ def roster_rows(roster: dict, credentials: dict, faig_rows: list, reveal: bool) 
 
 
 DISPLAY_NAME = re.compile(r"[^\x00-\x1f<>]{0,80}")
+
+
+# ---------------------------------------------------------------- prepopulation (Change 2026-11-19)
+#
+# Creates one student's detectors, guardrails, policies and keys from the
+# catalog plan, acting AS THE STUDENT (workspace objects must be created by a
+# workspace admin) and approving each layer with the instructor's session.
+# Ported from experiments/faig-api-lab/scenario_lab.py (Prepopulate).
+# New key secrets are written to the lab-keys Secret as soon as FAIG returns
+# them; FAIG shows a secret only once.
+
+OBJECT_NAME = re.compile(r"student\d{2}[_-][a-z0-9][a-z0-9_-]{0,120}")
+APPROVE = {"detector": "/api/v1/admin/detectors/{}/approve",
+           "guardrail": "/api/v1/admin/guardrails/{}/approve",
+           "policy": "/api/v1/admin/policies/{}/approve"}
+LAYER_PATH = {"detector": "/detectors", "guardrail": "/guardrails", "policy": "/policies"}
+
+
+def _rid():
+    return "policy-" + _secrets.token_hex(5)
+
+
+def ai_copy_body(builtin: dict, name: str, description: str, action: str) -> dict:
+    """Copy a built-in AI detector's rules, as the GUI's duplicate flow does."""
+    ai_rules, flat = [], []
+    for rule in builtin["rules"]:
+        conditions = [{"id": _rid(), "description": text} for text in rule.get("violateIf", [])]
+        flat.extend({"id": _rid(), "description": c["description"]} for c in conditions)
+        ai_rules.append({"id": _rid(), "name": rule["name"], "description": rule.get("description", ""),
+                         "enabled": rule.get("enabled", True), "violateIf": list(rule.get("violateIf", [])),
+                         "exemptIf": list(rule.get("exemptIf", [])), "conditions": conditions})
+    return {"name": name, "description": description, "inputGuards": ["AI descriptions"],
+            "outputGuards": ["AI descriptions"], "sensitivity": None, "detectorType": "ai",
+            "managedEngine": None, "action": action, "regexRules": None, "aiRules": ai_rules, "rules": flat}
+
+
+def dlp_body(name: str, description: str, disposition: str, categories: list) -> dict:
+    rules = []
+    for number, category in enumerate(categories, 1):
+        rule = {"id": f"r{number}", "disposition": disposition, "category": category, "threshold": 0.7}
+        if disposition == "redact":
+            rule["replacement"] = "[REDACTED_" + re.sub(r"[^A-Z0-9]+", "_", category.upper()).strip("_") + "]"
+        rules.append(rule)
+    return {"name": name, "description": description, "inputGuards": list(categories),
+            "outputGuards": list(categories), "sensitivity": None, "detectorType": "managed",
+            "managedEngine": "dlp", "action": None, "rules": rules, "regexRules": None, "aiRules": None}
+
+
+def _model_access(provider: dict, model: dict, with_keys: bool) -> dict:
+    access = {"providerId": provider["providerId"], "platform": provider["platform"], "name": provider["name"],
+              "allModels": False, "blockedModelUuids": [],
+              "models": [{"uuid": model["uuid"], "modelId": model["modelId"],
+                          "publicName": model.get("publicName", model["modelId"]), "enabled": True}]}
+    if with_keys:
+        access.update({"allKeys": True, "keys": [], "excludedKeyIds": []})
+    return access
+
+
+def _key_body(name, workspace_id, project_id, policy_id, provider, model):
+    return {"keyName": name, "keyType": "user", "scope": "workspace", "workspaceId": workspace_id,
+            "projectId": project_id, "policyIds": [policy_id] if policy_id else [],
+            "providerAccess": [_model_access(provider, model, True)], "modelGroups": [],
+            "budgetWindows": {"hourly": None, "daily": None, "weekly": None, "monthly": None},
+            "tpm": None, "rpm": None, "expiresAt": None}
+
+
+def _oid(obj):
+    return obj.get("uuid") or obj.get("id")
+
+
+def _status(obj):
+    status = obj.get("status") or obj.get("approvalStatus")
+    return "active" if status == "approved" else status
+
+
+def validate_plan(student: str, plan: dict) -> None:
+    """Reject anything outside the expected shape before touching FAIG."""
+    if not isinstance(plan, dict) or set(plan) - {"entries", "passthrough"}:
+        raise ValueError("bad plan")
+    names = []
+    for entry in plan.get("entries") or []:
+        for field in ("scenario", "action", "model", "provider", "project", "key", "policy", "guardrail", "guard"):
+            if field not in entry:
+                raise ValueError(f"plan entry missing {field}")
+        if not SCENARIO_ID.fullmatch(entry["scenario"]) or entry["action"] not in ("alert", "redact", "block"):
+            raise ValueError("bad scenario or action")
+        names += [entry["project"], entry["key"], entry["policy"], entry["guardrail"]]
+        names += [d["name"] for d in entry["guard"].get("detectors", [])]
+        if entry["guard"].get("direction") not in ("input", "output", "both"):
+            raise ValueError("bad guard direction")
+    passthrough = plan.get("passthrough")
+    if passthrough:
+        names.append(passthrough["key"])
+    for name in names:
+        if not OBJECT_NAME.fullmatch(name) or not name.startswith(student):
+            raise ValueError(f"object name {name!r} is not a valid name for {student}")
+
+
+def prepopulate_student(admin, student_session, store, student: str, plan: dict, log) -> dict:
+    """Create and approve one student's objects and keys; returns a summary."""
+    validate_plan(student, plan)
+    workspace = next((w for w in _items(student_session.call("GET", "/api/v1/me/workspaces"))
+                      if w.get("workspaceName") == f"{student}_workspace"), None)
+    if not workspace:
+        raise RuntimeError(f"{student} is not a member of {student}_workspace")
+    base = f"/api/v1/workspaces/{workspace['id']}"
+    grantable = {p.get("providerId"): p for p in _items(student_session.call("GET", base + "/grantable-providers"))}
+
+    def model_for(provider_id, model_id):
+        provider = grantable.get(provider_id)
+        models = {m["modelId"]: m for m in (provider or {}).get("models", [])
+                  if m.get("effectiveEnabled", m.get("enabled", True)) is not False}
+        return provider, models.get(model_id)
+
+    summary = {"created": [], "existing": [], "approved": [], "skipped": [], "keys_saved": [], "notes": []}
+    entries = []
+    for entry in plan.get("entries") or []:
+        provider, model = model_for(entry["provider"], entry["model"])
+        if not model:
+            summary["skipped"].append(f"{entry['scenario']}/{entry['action']} (model {entry['model']} not available)")
+        else:
+            entries.append(dict(entry, _provider=provider, _model=model))
+
+    # Projects (admin-owned).
+    projects = {p.get("name"): p for p in _items(admin.call("GET", "/api/v1/admin/projects"))
+                if p.get("workspaceId") == workspace["id"]}
+    for name in dict.fromkeys(e["project"] for e in entries):
+        if name not in projects:
+            provider = entries[[e["project"] for e in entries].index(name)]["_provider"]
+            projects[name] = admin.call("POST", "/api/v1/admin/projects", {
+                "name": name, "description": "Student scenario project", "workspaceId": workspace["id"],
+                "providerAccess": [{"providerId": provider["providerId"], "platform": provider["platform"],
+                                    "name": provider["name"], "allModels": True, "models": [], "blockedModelUuids": []}],
+                "modelGroups": [], "budget": None, "policyIds": []})
+            summary["created"].append("project " + name)
+
+    def ensure_layer(kind, specs):
+        """specs: [(key, name, body)] -> {key: id}; create/submit as student, approve as instructor."""
+        collection = base + LAYER_PATH[kind]
+        existing = {o.get("name"): o for o in _items(student_session.call("GET", collection))}
+        result, pending = {}, {}
+        for key, name, body in specs:
+            obj = existing.get(name)
+            if obj is None:
+                obj = student_session.call("POST", collection, body)
+                summary["created"].append(f"{kind} {name}")
+            else:
+                summary["existing"].append(f"{kind} {name}")
+            status = _status(obj)
+            if status == "rejected":
+                raise RuntimeError(f"{kind} {name} was rejected: {obj.get('rejectionReason')}")
+            if status == "draft":
+                obj = student_session.call("POST", f"{collection}/{_oid(obj)}/submit")
+                status = _status(obj)
+            if status == "pending" or obj.get("hasPendingChange"):
+                pending[_oid(obj)] = name
+            elif status != "active":
+                raise RuntimeError(f"{kind} {name} has unexpected status {status}")
+            result[key] = _oid(obj)
+        if pending:
+            queue = {i.get("id") for i in _items(admin.call("GET", "/api/v1/admin/review-queue")) if i.get("type") == kind}
+            for oid, name in pending.items():
+                if oid not in queue:
+                    raise RuntimeError(f"{kind} {name} is pending but not in the review queue")
+                admin.call("POST", APPROVE[kind].format(oid))
+                summary["approved"].append(f"{kind} {name}")
+        return result
+
+    # Detectors (deduplicated by name across entries).
+    builtins, detector_specs = None, {}
+    for entry in entries:
+        for det in entry["guard"].get("detectors", []):
+            if det["name"] in detector_specs:
+                continue
+            if det["kind"] == "ai_copy":
+                if builtins is None:
+                    builtins = {b["id"]: b for b in _items(student_session.call("GET", base + "/built-in-detectors"))}
+                if det["source"] not in builtins:
+                    raise RuntimeError("built-in detector not found: " + det["source"])
+                body = ai_copy_body(builtins[det["source"]], det["name"], det.get("description", ""), det["action"])
+            elif det["kind"] == "dlp":
+                body = dlp_body(det["name"], det.get("description", ""), det["disposition"], det["categories"])
+            else:
+                raise ValueError("unsupported detector kind: " + str(det["kind"]))
+            detector_specs[det["name"]] = (det["name"], det["name"], body)
+    detectors = ensure_layer("detector", list(detector_specs.values())) if detector_specs else {}
+
+    guardrails = ensure_layer("guardrail", [
+        (e["guardrail"], e["guardrail"], {
+            "name": e["guardrail"], "description": f"{e['scenario']} {e['action']}",
+            "detectorIds": [detectors[d["name"]] for d in e["guard"].get("detectors", [])]
+                           + list(e["guard"].get("builtin_detectors", [])),
+            "denySuspiciousCharacters": bool(e["guard"].get("deny_suspicious_characters"))})
+        for e in entries]) if entries else {}
+
+    policies = ensure_layer("policy", [
+        (e["policy"], e["policy"], {
+            "name": e["policy"], "description": f"{e['scenario']} {e['action']}",
+            "inputGuardrailIds": [guardrails[e["guardrail"]]] if e["guard"]["direction"] in ("input", "both") else [],
+            "outputGuardrailIds": [guardrails[e["guardrail"]]] if e["guard"]["direction"] in ("output", "both") else [],
+            "responseScanMode": "post_stream", "providerAccess": [_model_access(e["_provider"], e["_model"], False)]})
+        for e in entries]) if entries else {}
+
+    # Keys: one per scenario action, plus the passthrough key (no policy).
+    existing_keys = {k.get("keyName"): k for k in _items(student_session.call("GET", "/api/v1/me/virtual-keys"))}
+    stored = {k.get("faig_key_id"): k for k in (store.get("keys", student) or {}).get("keys", [])}
+    wanted = [(e["key"], e["scenario"], e["action"], e["model"], projects[e["project"]]["id"], policies[e["policy"]],
+               e["_provider"], e["_model"]) for e in entries]
+    passthrough = plan.get("passthrough")
+    if passthrough:
+        provider, model = model_for(passthrough["provider"], passthrough["model"])
+        if model:
+            wanted.append((passthrough["key"], "passthrough", "passthrough", passthrough["model"], None, None,
+                           provider, model))
+        else:
+            summary["skipped"].append(f"passthrough (model {passthrough['model']} not available)")
+    for name, scenario, action, model_id, project_id, policy_id, provider, model in wanted:
+        current = existing_keys.get(name)
+        if current:
+            if current.get("id") in stored and stored[current["id"]].get("secret"):
+                summary["existing"].append("key " + name)
+            else:
+                summary["existing"].append("key " + name)
+                summary["notes"].append(f"key {name} exists in FAIG without a stored secret; restore (rotate) it to use it")
+            continue
+        response = student_session.call("POST", "/api/v1/me/virtual-keys",
+                                        _key_body(name, workspace["id"], project_id, policy_id, provider, model))
+        secret = response.get("secretKey")
+        if not secret:
+            raise RuntimeError(f"FAIG did not return a secret for {name}")
+        record = {"faig_key_id": response.get("id"), "key_name": name, "scenario_id": scenario, "action": action,
+                  "origin": "seeded", "secret": secret, "model": model_id,
+                  "policy_ids": [policy_id] if policy_id else [], "status": "untested", "verified_at": None,
+                  "updated_at": int(_time.time())}
+        try:
+            keys = (store.get("keys", student) or {}).get("keys", [])
+            keys = [k for k in keys if k.get("faig_key_id") != record["faig_key_id"]] + [record]
+            store.put("keys", student, {"schema": 1, "keys": keys})
+            summary["keys_saved"].append(name)
+        except Exception as exc:  # noqa: BLE001 - FAIG shows the secret once; report clearly
+            summary["notes"].append(f"key {name} created but its secret could not be saved ({type(exc).__name__}); "
+                                    "restore (rotate) it to recover")
+        summary["created"].append("key " + name)
+        secret = None
+    log(summary)
+    return summary

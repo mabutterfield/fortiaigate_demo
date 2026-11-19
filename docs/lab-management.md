@@ -24,9 +24,20 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
 - **Students list and share page:** optional lab-only display names (never
   sent to FAIG). The share page (`/manage/share.html`) shows number, name,
   email, password and sign-in URL for screen sharing.
+- **Prepopulate:** for each student with a stored password, and for the
+  selected scenarios, creates as that student:
+  - detectors, guardrails and policies;
+  - one key per action, plus a `studentNN_passthrough` key with no policy.
+
+  Each layer is approved with the instructor's session. Names follow the
+  catalog naming, e.g. `student03_hr-tool-dlp_redact`. Key secrets (shown by
+  FAIG only once) are saved in the `lab-keys` Secret in `lab-data`. Existing
+  objects and keys are kept. A key that exists without a stored secret is
+  reported; restoring it by rotation is not built yet. Run it from "Create
+  students" (checkbox) or "Prepopulate existing students".
 - **Operation journal:** records each job's status and result lines, never
   passwords or keys.
-- **Not yet available:** prepopulation (keys, policies) and auto-approval.
+- **Not yet available:** auto-approval, seeded-key restore, and the chatbot reading keys from `lab-keys`. The chatbot still reads the older `lab-keys-<student>` Secrets in `lab-chatbot`.
 
 ## Deploy
 
@@ -79,8 +90,8 @@ shows "catalog unavailable" instead of failing.
   `lab_auth` acts with that instructor's live FAIG session and allows only a
   fixed list of FAIG calls.
 - **Where student data lives:** in namespace `lab-data`, in Secrets
-  `lab-roster` (names, workspace IDs) and `lab-credentials` (student
-  passwords). Only `lab_auth` can read or patch them. A password is written as
+  `lab-roster` (names, workspace IDs), `lab-credentials` (student
+  passwords) and `lab-keys` (prepopulated key secrets). Only `lab_auth` can read or patch them. A password is written as
   "pending" before FAIG creates the account, so a lost reply cannot lose it.
 - **When jobs stop:**
   - if the instructor's session ends, the job stops as `needs-sign-in`;

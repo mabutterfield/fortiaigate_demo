@@ -260,14 +260,15 @@
   #     var: lab_gateway_caller_secret.stdout_lines
 
 - name: Create the lab data namespace and empty student Secrets once
-  # Change 2026-11-19: lab-roster (names, workspace IDs) and lab-credentials
-  # (student passwords) start empty and are filled by Lab Management jobs.
+  # Change 2026-11-19: lab-roster (names, workspace IDs), lab-credentials
+  # (student passwords) and lab-keys (prepopulated key secrets, one data key per
+  # student) start empty and are filled by Lab Management jobs.
   # Existing data is never replaced.
   ansible.builtin.shell: |
     set -euo pipefail
     K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
     $K get namespace {{ lab_data_namespace }} >/dev/null 2>&1 || { $K create namespace {{ lab_data_namespace }} >/dev/null; echo "created namespace"; }
-    for NAME in lab-roster lab-credentials; do
+    for NAME in lab-roster lab-credentials lab-keys; do
       if ! $K -n {{ lab_data_namespace }} get secret "$NAME" >/dev/null 2>&1; then
         $K -n {{ lab_data_namespace }} create secret generic "$NAME" >/dev/null
         $K -n {{ lab_data_namespace }} label secret "$NAME" app.kubernetes.io/part-of=lab-management >/dev/null

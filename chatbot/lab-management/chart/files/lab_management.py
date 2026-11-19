@@ -21,7 +21,13 @@ password or FAIG cookie.
 projects through the gateway (lab_auth), which generates or applies the
 password and keeps it in the lab-credentials Secret. A password typed by the
 instructor passes through this process in memory only; the journal records the
-password mode, never the value. Prepopulation is not implemented yet.
+password mode, never the value.
+
+"prepopulate" (or "students" with prepopulate on) creates each student's
+detectors, guardrails, policies and one key per selected scenario action plus a
+passthrough key, from the catalog. lab_auth signs in as the student with the
+stored password, approves each layer with the instructor's session and saves
+new key secrets in the lab-keys Secret.
 
 Environment:
   LAB_MANAGEMENT_PORT     listen port (default 8080)
@@ -140,8 +146,12 @@ def create_job(db, kind, actor, request):
                 or not 1 <= request['count'] <= 99 or not 1 <= request['start_index'] <= 99
                 or request['start_index'] + request['count'] - 1 > 99):
             raise ValueError('invalid student batch')
-        if request['prepopulate']:
-            raise ValueError('prepopulation is not available yet; create students without it')
+        clean = dict(request, scenarios=selected(db))
+    elif kind == 'prepopulate':
+        if (set(request) != {'count', 'start_index'} or type(request['count']) is not int
+                or type(request['start_index']) is not int or not 1 <= request['count'] <= 99
+                or not 1 <= request['start_index'] <= 99 or request['start_index'] + request['count'] - 1 > 99):
+            raise ValueError('invalid prepopulation batch')
         clean = dict(request, scenarios=selected(db))
     else:
         raise ValueError('unknown operation')
@@ -389,7 +399,68 @@ def run_students_job(ensure, view, request, password, log):
         raise BrokerError(f'{failures} student(s) need attention; re-run the same batch to reconcile')
 
 
-EXECUTABLE = {'models', 'students'}
+def prepopulation_plan(view, scenario_ids, student):
+    """Concrete object names and guard definitions for one student, from the FAIG catalog view."""
+    platform = view.get('platform', {})
+    naming = platform['naming']
+    entries = []
+    for item in view.get('items', []):
+        if item['id'] not in scenario_ids:
+            continue
+        models = {m['id']: m for m in item.get('models', [])}
+        for action in item.get('actions', []):
+            model = models[action['model_ref']]
+            guard = action['guard']
+            fields = {'student': student, 'scenario': item['id'], 'action': action['id']}
+            entries.append({
+                'scenario': item['id'], 'action': action['id'], 'model': model['backend_alias'],
+                'provider': model['provider'],
+                'project': naming['project'].format(**fields), 'key': naming['key'].format(**fields),
+                'policy': naming['policy'].format(**fields), 'guardrail': naming['guardrail'].format(**fields),
+                'guard': {'direction': guard['direction'],
+                          'deny_suspicious_characters': bool(guard.get('deny_suspicious_characters')),
+                          'builtin_detectors': list(guard.get('builtin_detectors', [])),
+                          'detectors': [dict(guard['resolved_detectors'][key],
+                                             name=naming['detector'].format(student=student, detector=key))
+                                        for key in guard.get('detectors', [])]}})
+    plan = {'entries': entries}
+    passthrough = platform.get('passthrough_model')
+    if passthrough:
+        plan['passthrough'] = {'key': naming['passthrough_key'].format(student=student),
+                               'model': passthrough['backend_alias'], 'provider': passthrough['provider']}
+    return plan
+
+
+def summarize_prepopulation(student, result):
+    parts = [f'{len(result.get("created", []))} created', f'{len(result.get("approved", []))} approved',
+             f'{len(result.get("existing", []))} already present', f'{len(result.get("keys_saved", []))} key secrets saved']
+    line = f'{student}: prepopulated — ' + ', '.join(parts)
+    if result.get('skipped'):
+        line += '; skipped ' + '; '.join(result['skipped'])
+    if result.get('notes'):
+        line += '; ' + '; '.join(result['notes'])
+    return line
+
+
+def run_prepopulate_job(prepopulate, view, request, log):
+    scenarios = set(request['scenarios'])
+    failures = 0
+    for number in range(request['start_index'], request['start_index'] + request['count']):
+        student = f'student{number:02d}'
+        try:
+            result = prepopulate({'number': number, 'plan': prepopulation_plan(view, scenarios, student)})
+        except (BrokerError, UnknownOutcome) as exc:
+            failures += 1
+            log(f'{student}: prepopulation FAILED — {exc}')
+            continue
+        log(summarize_prepopulation(student, result))
+        if result.get('notes'):
+            failures += 1
+    if failures:
+        raise BrokerError(f'{failures} student(s) need attention; re-run the same batch to reconcile')
+
+
+EXECUTABLE = {'models', 'students', 'prepopulate'}
 _job_lock = threading.Lock()
 
 
@@ -406,8 +477,16 @@ def execute(job, kind, request, handle, db_path=None, password=None):
                 run_models_job(lambda m, p, b=None: broker(handle, m, p, b), load_faig_view(),
                                set(request['scenarios']), log)
             elif kind == 'students':
+                view = load_faig_view()
                 run_students_job(lambda body: gateway(handle, '/_lab/internal/admin/students/ensure', body, timeout=180),
-                                 load_faig_view(), request, password, log)
+                                 view, request, password, log)
+                password = None
+                if request.get('prepopulate'):
+                    run_prepopulate_job(lambda body: gateway(handle, '/_lab/internal/admin/students/prepopulate', body,
+                                                             timeout=600), view, request, log)
+            elif kind == 'prepopulate':
+                run_prepopulate_job(lambda body: gateway(handle, '/_lab/internal/admin/students/prepopulate', body,
+                                                         timeout=600), load_faig_view(), request, log)
             set_job(db, job, 'done', '\n'.join(lines) or 'Done.')
         except SessionLost:
             set_job(db, job, 'needs-sign-in', '\n'.join(lines + ['Your FAIG session ended; sign in again and re-run.']))
@@ -569,7 +648,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('enter a password for this mode')
                     if body.get('password_mode') == 'generated' and password:
                         raise ValueError('generated mode takes no password')
-                if path in ('/api/jobs/models', '/api/jobs/students'):
+                if path in ('/api/jobs/models', '/api/jobs/students', '/api/jobs/prepopulate'):
                     kind = path.rsplit('/', 1)[-1]
                     if kind in EXECUTABLE and not caller_token():
                         return self.reply(409, {'error': 'FAIG actions are not configured yet (no broker caller token).'})

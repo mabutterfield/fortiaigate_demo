@@ -78,8 +78,7 @@ class JournalTests(unittest.TestCase):
         ok = {"count": 2, "start_index": 1, "prepopulate": False, "password_mode": "generated"}
         for bad in (dict(ok, password="secret"),          # passwords never reach the journal
                     dict(ok, count=0), dict(ok, start_index=100), dict(ok, start_index=98, count=5),
-                    dict(ok, count="2"), dict(ok, password_mode="weak"),
-                    dict(ok, prepopulate=True)):           # not available yet
+                    dict(ok, count="2"), dict(ok, password_mode="weak"), dict(ok, prepopulate="yes")):
             with self.assertRaises(ValueError):
                 lm.create_job(self.db, "students", "admin@lab", bad)
         self.assertNotIn("secret", json.dumps(lm.jobs(self.db)))
@@ -344,3 +343,37 @@ class StudentsJobTests(unittest.TestCase):
         with self.assertRaises(lm.SessionLost):
             lm.run_students_job(ensure, self.view, {"count": 3, "start_index": 1, "password_mode": "generated",
                                                     "scenarios": ["hr-tool-dlp"]}, None, lambda _: None)
+
+
+class PrepopulationPlanTests(unittest.TestCase):
+    def test_plan_uses_catalog_naming_and_resolved_guards(self):
+        from catalog802.loader import build_views, load
+        catalog, _ = load(REPO_ROOT)
+        view = build_views(catalog)["faig"]
+        plan = lm.prepopulation_plan(view, {"hr-tool-dlp"}, "student03")
+        self.assertEqual([e["action"] for e in plan["entries"]], ["alert", "redact", "block"])
+        redact = plan["entries"][1]
+        self.assertEqual(redact["key"], "student03_hr-tool-dlp_redact")
+        self.assertEqual(redact["policy"], "student03_hr-tool-dlp_redact_policy")
+        self.assertEqual(redact["project"], "student03_hr-tool-dlp")
+        self.assertEqual(redact["guard"]["direction"], "output")
+        self.assertEqual({d["disposition"] for d in redact["guard"]["detectors"]}, {"redact"})
+        self.assertTrue(all(d["name"].startswith("student03_") for d in redact["guard"]["detectors"]))
+        self.assertEqual(plan["passthrough"], {"key": "student03_passthrough", "model": "pass-model",
+                                               "provider": "litellm-direct"})
+        self.assertEqual(lm.prepopulation_plan(view, set(), "student03")["entries"], [])
+
+    def test_prepopulate_job_reports_each_student(self):
+        from catalog802.loader import build_views, load
+        catalog, _ = load(REPO_ROOT)
+        view = build_views(catalog)["faig"]
+        calls, lines = [], []
+        def prepopulate(body):
+            calls.append(body)
+            return {"created": ["key a"], "approved": ["policy p"], "existing": [], "keys_saved": ["a"],
+                    "skipped": [], "notes": []}
+        lm.run_prepopulate_job(prepopulate, view, {"count": 2, "start_index": 3, "scenarios": ["hr-tool-dlp"]},
+                               lines.append)
+        self.assertEqual([c["number"] for c in calls], [3, 4])
+        self.assertTrue(lines[0].startswith("student03: prepopulated — 1 created, 1 approved"))
+        self.assertNotIn("secret", json.dumps(calls).lower())

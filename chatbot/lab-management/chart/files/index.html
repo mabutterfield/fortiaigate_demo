@@ -15,7 +15,7 @@
   <div id="approval" class="indicator" role="status" aria-live="polite">Auto-approval: …</div>
 </header>
 <main>
-  <p class="notice">Actions here change FAIG using your own signed-in FAIG session. Prepopulation of keys and policies is not available yet.</p>
+  <p class="notice">Actions here change FAIG using your own signed-in FAIG session.</p>
   <p id="actions" class="warn"></p>
   <div id="error" role="alert"></div>
 
@@ -43,7 +43,16 @@
       <label id="pwlabel" hidden>Password <input type="password" id="password" autocomplete="new-password" maxlength="128"></label>
       <p class="muted">Checked against FAIG's password rules before any account is created. Must differ from your own password.</p>
     </fieldset>
+    <label><input type="checkbox" id="prepopulate"> Also prepopulate: detectors, guardrails, policies and one key per action for the selected scenarios, plus a passthrough key</label><br>
     <button type="submit">Create students</button>
+  </form>
+
+  <h2>Prepopulate existing students</h2>
+  <p>For students that already exist with a stored password. Creates what is missing for the selected scenarios; existing objects and keys are kept. Each layer is approved with your session.</p>
+  <form id="prepop">
+    <label>First number <input type="number" id="pstart" min="1" max="99" value="1" required></label>
+    <label>How many <input type="number" id="pcount" min="1" max="99" value="1" required></label>
+    <button type="submit">Prepopulate</button>
   </form>
 
   <h2>Students</h2>
