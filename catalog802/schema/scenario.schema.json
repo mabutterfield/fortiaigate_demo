@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FAIG lab scenario review schema v1",
+  "description": "Review-slice schema; the stdlib loader enforces cross-document references and additional rules.",
+  "type": "object",
+  "required": ["schema_version", "id", "scenario_version", "display_name", "description", "learning", "models", "tools", "extended_tool_sets", "max_rounds", "prompts", "actions", "tests"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "scenario_version": {"type": "string", "minLength": 1},
+    "display_name": {"type": "string"},
+    "description": {"type": "string"},
+    "learning": {"type": "array", "items": {"type": "object"}},
+    "models": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "tools": {"type": "array", "items": {"type": "string"}},
+    "extended_tool_sets": {"type": "array", "items": {"type": "object"}},
+    "max_rounds": {"type": "integer", "minimum": 1},
+    "prompts": {"type": "object", "required": ["clean", "attack"], "properties": {"clean": {"type": "array", "items": {"type": "string"}}, "attack": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
+    "actions": {"type": "array", "items": {"type": "object", "required": ["id", "display_name", "expected_behavior", "guard_template_ref", "model_ref"], "properties": {"id": {"enum": ["alert", "block", "redact"]}, "display_name": {"type": "string"}, "expected_behavior": {"type": "string"}, "guard_template_ref": {"type": "string"}, "model_ref": {"type": "string"}}, "additionalProperties": false}},
+    "tests": {"type": "array", "items": {"type": "object"}}
+  },
+  "patternProperties": {"^x_": {}},
+  "additionalProperties": false
+}

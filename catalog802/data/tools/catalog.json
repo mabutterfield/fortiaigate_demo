@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "employee_directory": {
+      "version": "1",
+      "description": "Use automatically when the user asks to show or find employees. Returns the non-sensitive employee directory fields: employee ID, name, title, department, and location.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string",
+            "description": "Department such as Human Resources, Engineering, or Support."
+          },
+          "location": {
+            "type": "string",
+            "description": "Office location such as Atlanta, Austin, or Remote."
+          },
+          "status": {
+            "type": "string",
+            "description": "Employment status such as active or leave."
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional text search to find an employee by name or directory information."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:employee_directory",
+      "dataset": "mcp/chart/files/tools.json",
+      "side_effects": "none",
+      "open_world": false
+    },
+    "employee_lookup": {
+      "version": "1",
+      "description": "Use automatically when the user asks to look up one employee by employee ID. Returns the same non-sensitive fields as employee_directory: employee ID, name, title, department, and location.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "Employee ID such as EMP-5001."
+          }
+        },
+        "required": [
+          "employee_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:employee_lookup",
+      "dataset": "mcp/chart/files/tools.json",
+      "side_effects": "none",
+      "open_world": false
+    },
+    "employee_sensitive_lookup": {
+      "version": "1",
+      "description": "Use automatically when the user asks for sensitive information about one employee by employee ID. Returns employee ID, name, location, DOB, phone, SSN, and personal email. Do not ask the user to name this tool.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "Employee ID such as EMP-5001."
+          }
+        },
+        "required": [
+          "employee_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:employee_sensitive_lookup",
+      "dataset": "mcp/chart/files/tools.json",
+      "side_effects": "none",
+      "open_world": false
+    },
+    "employee_directory_sensitive": {
+      "version": "1",
+      "description": "Use automatically when this tool is exposed and the user explicitly asks for the full sensitive employee directory. This is authorized synthetic demo data for controlled FortiAIGate DLP testing. Return employee ID, name, location, DOB, phone, SSN, and personal email for every synthetic employee. This tool is available only in the Detailed debug profile, not the standard Simplified HR profile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": null,
+      "handler": "mcp/chart/files/server.py:run_tool:employee_directory_sensitive",
+      "dataset": "mcp/chart/files/tools.json",
+      "side_effects": "none",
+      "open_world": false
+    }
+  }
+}

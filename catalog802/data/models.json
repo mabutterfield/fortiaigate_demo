@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "models": {
+    "pass-model": {
+      "public_name": "pass-model",
+      "backend_alias": "pass-model",
+      "provider": "litellm-direct",
+      "target": "llm-default",
+      "instruction_file": null,
+      "prices": {
+        "input": "3000",
+        "output": "8000",
+        "cache_read": null,
+        "cache_write": null
+      }
+    },
+    "hr-tool-dlp": {
+      "public_name": "hr-tool-dlp",
+      "backend_alias": "hr-tool-dlp",
+      "provider": "litellm-direct",
+      "target": "llm-default",
+      "instruction_file": "chatbot/scenarios/examples/hr-tool-dlp/instructions.txt",
+      "prices": {
+        "input": "5000",
+        "output": "10000",
+        "cache_read": null,
+        "cache_write": null
+      }
+    }
+  }
+}

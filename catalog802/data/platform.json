@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "faig_version": "8.0.2",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "naming": {
+    "workspace": "{student}_workspace",
+    "project": "{student}_{scenario}",
+    "key": "{student}-{scenario}-{action}"
+  },
+  "hello_world": {
+    "prompt": "Reply with exactly: Hello.",
+    "expected_result": "completed",
+    "expected_log_verdict": "Log"
+  },
+  "detectors": {
+    "hr-dlp-alert": {
+      "kind": "dlp",
+      "disposition": "alert",
+      "categories": [
+        "Date of birth",
+        "SSN",
+        "Credit/debit card"
+      ],
+      "description": "HR DLP: alert on date of birth, SSN and payment card"
+    },
+    "hr-dlp-redact": {
+      "kind": "dlp",
+      "disposition": "redact",
+      "categories": [
+        "Date of birth",
+        "SSN",
+        "Credit/debit card"
+      ],
+      "description": "HR DLP: redact date of birth, SSN and payment card"
+    },
+    "hr-dlp-block": {
+      "kind": "dlp",
+      "disposition": "block",
+      "categories": [
+        "Date of birth",
+        "SSN",
+        "Credit/debit card"
+      ],
+      "description": "HR DLP: block date of birth, SSN and payment card"
+    }
+  },
+  "guard_templates": {
+    "output_dlp_alert": {
+      "detectors": [
+        "hr-dlp-alert"
+      ],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    },
+    "output_dlp_redact": {
+      "detectors": [
+        "hr-dlp-redact"
+      ],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    },
+    "output_dlp_block": {
+      "detectors": [
+        "hr-dlp-block"
+      ],
+      "direction": "output",
+      "deny_suspicious_characters": false
+    }
+  }
+}
