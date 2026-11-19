@@ -3,6 +3,19 @@
 > **8.0.2:** The full quickstart and application deployment are not yet ported.
 > For a GPU host and k3s only, use [AWS k3s Foundation](aws-k3s-foundation.md).
 
+The 8.0.2 application guard remains in place: neither initialization choice
+deploys applications or calls experimental APIs yet. On the first application
+attempt, quickstart asks whether experimental initialization should eventually
+be used and saves the choice as `quickstart_experimental_faig_init` in ignored
+`ansible/group_vars/user.yml`. A later `--yolo` run requires that choice or an
+explicit `--experimental-faig-init` / `--no-experimental-faig-init` flag. A
+flag affects only that run. Profile export/import includes the saved choice.
+For unattended AWS runs, set `aws_profile`, `aws_region`, `ssh_key_name` and
+`ssh_private_key_file` in ignored `terraform/user.tfvars` and refresh the AWS
+SSO session first. `--init` is interactive and cannot be combined with `--yolo`.
+The foundation-only path can still apply infrastructure; do not point it at a
+live lab without reviewing its Terraform plan and workspace.
+
 This is the single supported first-run deployment guide for the repository.
 Use the guided script for both AWS and local Ubuntu deployments. Individual
 Terraform and Ansible commands are operations and recovery tools, not a second

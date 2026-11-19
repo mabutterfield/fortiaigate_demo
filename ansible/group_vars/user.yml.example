@@ -12,6 +12,10 @@
 # aws_profile: AdministratorAccess-123456789012
 # aws_region: us-east-1
 
+# Saved quickstart choice. Explicit CLI flags override this for one run.
+# Experimental initialization is not yet implemented by quickstart.
+# quickstart_experimental_faig_init: false
+
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
 

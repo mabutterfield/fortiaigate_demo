@@ -364,12 +364,14 @@ def choose_aws_login_method(profile: str) -> str:
         print("Choose aws sso login, aws login, or skip.")
 
 
-def ensure_aws_login(profile: str) -> None:
+def ensure_aws_login(profile: str, *, noninteractive: bool = False) -> None:
     print_header("Checking AWS Login")
     result = run_command(["aws", "sts", "get-caller-identity", "--profile", profile], check=False)
     if result.returncode == 0:
         return
     print("AWS caller identity check failed.")
+    if noninteractive:
+        raise SystemExit(f"AWS authentication failed for profile {profile}; refresh the SSO session and retry.")
     method = choose_aws_login_method(profile)
     if method == "skip":
         raise SystemExit("AWS login is required before Terraform can run.")
@@ -2127,6 +2129,8 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
         action = run_profile_import(args.import_profile, yes=args.yolo)
 
     if args.init_profile:
+        if args.yolo:
+            raise SystemExit("--init requires interactive onboarding; initialize the profile before using --yolo.")
         if any((REPO_ROOT / path).exists() for path in profile_tool.REQUIRED_PROFILE_FILES):
             if args.yolo:
                 raise SystemExit("--init with --yolo refuses to overwrite existing profile files.")
@@ -2164,6 +2168,31 @@ def ensure_user_profile(args: argparse.Namespace) -> str:
         print("Choose import, init, or exit.")
 
 
+def select_experimental_init(override: bool | None, *, noninteractive: bool) -> bool:
+    """Use a transient CLI override or a saved, explicit operator choice."""
+    if override is not None:
+        return override
+    path = REPO_ROOT / "ansible/group_vars/user.yml"
+    content = read_file(path)
+    value = get_yaml_scalar(content, "quickstart_experimental_faig_init", "").lower()
+    if value:
+        if value not in {"true", "false"}:
+            raise SystemExit("Set quickstart_experimental_faig_init to true or false in ansible/group_vars/user.yml.")
+        return value == "true"
+    if noninteractive:
+        raise SystemExit("Missing quickstart_experimental_faig_init in ansible/group_vars/user.yml; set true or false, or supply an explicit initialization flag.")
+    selected = prompt_yes_no("Execute experimental FAIG initialization when supported?", False)
+    write_file(path, set_yaml_scalar(content, "quickstart_experimental_faig_init", str(selected).lower()))
+    return selected
+
+
+def validate_yolo_aws_profile(content: str) -> None:
+    missing = [key for key in ("aws_profile", "aws_region", "ssh_key_name", "ssh_private_key_file")
+               if not get_tf_string(content, key).strip()]
+    if missing:
+        raise SystemExit("Missing required values in terraform/user.tfvars for --yolo: " + ", ".join(missing))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Guided Terraform bootstrap for the FortiAIGate demo.")
     parser.add_argument(
@@ -2192,6 +2221,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Pass -auto-approve to Terraform apply. Default is interactive Terraform approval.",
     )
+    init_options = parser.add_mutually_exclusive_group()
+    init_options.add_argument("--experimental-faig-init", dest="experimental_faig_init", action="store_true", default=None,
+                              help="Request experimental FAIG initialization for this run (currently blocked).")
+    init_options.add_argument("--no-experimental-faig-init", dest="experimental_faig_init", action="store_false",
+                              help="Leave FAIG first-time setup pending for this run.")
     parser.add_argument(
         "--init",
         dest="init_profile",
@@ -2338,10 +2372,14 @@ def main() -> None:
     profile_action = ensure_user_profile(args)
     if profile_action == "export":
         return
+    if args.yolo and args.target == "aws":
+        validate_yolo_aws_profile(read_file(REPO_ROOT / "terraform/user.tfvars"))
     # CHANGED for 8.0.2: do not run the unported legacy application flow.
     if not args.skip_ansible:
+        experimental_init = select_experimental_init(args.experimental_faig_init, noninteractive=args.yolo)
         raise SystemExit(
             "The full 8.0.2 Ansible deployment is not ready. "
+            f"Experimental initialization {'requested' if experimental_init else 'disabled'}; no application calls were made. "
             "Use docs/aws-k3s-foundation.md for foundation bootstrap only."
         )
     profile_tool.warn_legacy_files()
@@ -2406,7 +2444,7 @@ def main() -> None:
         print(f"Using aws_profile from terraform/user.tfvars: {profile}")
     else:
         profile = choose_aws_profile(default_profile)
-    ensure_aws_login(profile)
+    ensure_aws_login(profile, noninteractive=args.yolo)
 
     if args.yolo:
         region = get_tf_string(current_user_tfvars, "aws_region")
