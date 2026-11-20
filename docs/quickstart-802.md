@@ -81,3 +81,19 @@ Terraform actions; review the workspace and effective profile first. EIP
 release uses a saved plan that must contain only that IP's deletion. An EC2
 failure stops before the IP is released. GPU termination may take several
 minutes; the VPC remains until AWS releases its dependencies.
+
+**Known limitations (v1.0):**
+
+- **Optional FortiGate/FortiWeb appliances are not handled.** They are
+  deployed into the lab VPC's subnets, so the VPC cannot be destroyed while
+  they exist. With the FortiGate private default route configured
+  (`k3s_private_default_route_network_interface_id`), the host plan also
+  contains an `aws_route` deletion, which the plan check does not allow, so
+  teardown stops before changing anything. Tear the appliances down first
+  with their own Terraform folders (`terraform/aws-fortigate`,
+  `terraform/aws-fortiweb`), then run this teardown. The default lab has no
+  appliances and is not affected.
+- **Not yet run end to end** on a disposable deployment; the plan checks and
+  ordering are covered by unit tests.
+- After an Elastic IP is released, the next deployment gets a new address.
+  Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
