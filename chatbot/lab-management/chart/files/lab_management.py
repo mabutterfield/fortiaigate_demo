@@ -116,6 +116,8 @@ def connect(path=None):
     db = sqlite3.connect(path or DB, timeout=10)
     db.execute('PRAGMA journal_mode=WAL')
     db.execute('CREATE TABLE IF NOT EXISTS selection (id TEXT PRIMARY KEY)')
+    # Change 2026-11-20: instructor preferences (auto-approval on/off and hours); never secrets.
+    db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, kind TEXT NOT NULL, actor TEXT NOT NULL, '
                'created INTEGER NOT NULL, status TEXT NOT NULL, request TEXT NOT NULL, detail TEXT NOT NULL)')
     db.commit()
@@ -124,6 +126,32 @@ def connect(path=None):
 
 def selected(db):
     return [r[0] for r in db.execute('SELECT id FROM selection ORDER BY id')]
+
+
+# Change 2026-11-20: auto-approval preference. On by default (owner); it runs in lab_auth under the
+# instructor's own FAIG session, so it starts when an instructor opens this page while it is stopped.
+AUTO_APPROVAL_DEFAULTS = {'enabled': True, 'hours': 8}
+AUTO_APPROVAL_MAX_HOURS = 8
+
+
+def auto_approval_preference(db):
+    rows = dict(db.execute("SELECT key, value FROM settings WHERE key IN ('auto_approval_enabled', 'auto_approval_hours')"))
+    pref = dict(AUTO_APPROVAL_DEFAULTS)
+    if 'auto_approval_enabled' in rows:
+        pref['enabled'] = rows['auto_approval_enabled'] == '1'
+    if 'auto_approval_hours' in rows:
+        pref['hours'] = float(rows['auto_approval_hours'])
+    return pref
+
+
+def save_auto_approval_preference(db, enabled, hours):
+    if not isinstance(enabled, bool):
+        raise ValueError('enabled must be true or false')
+    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0.25 <= hours <= AUTO_APPROVAL_MAX_HOURS:
+        raise ValueError(f'hours must be between 0.25 and {AUTO_APPROVAL_MAX_HOURS}')
+    with db:
+        db.executemany('INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                       [('auto_approval_enabled', '1' if enabled else '0'), ('auto_approval_hours', repr(float(hours)))])
 
 
 def select(db, ids, known):
@@ -605,15 +633,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, reply)
         if path == '/api/state':
             items, platform, error = load_catalog()
+            # Change 2026-11-20: live auto-approval status from lab_auth (no secrets in it).
+            try:
+                approval = gateway(self.headers.get('X-Lab-Session', ''), '/_lab/internal/admin/auto-approve', timeout=15)
+            except SessionLost:
+                approval = {'state': 'unavailable', 'stop_reason': 'Your FAIG session ended; sign in again.'}
+            except (BrokerError, UnknownOutcome) as exc:
+                approval = {'state': 'unavailable', 'stop_reason': str(exc)}
             with connect() as db:
+                approval['preference'] = auto_approval_preference(db)
                 return self.reply(200, {
                     'user': self.headers.get('X-Lab-User', ''),
                     'catalog': items, 'catalog_error': error,
                     'pricing': {k: platform.get(k) for k in ('currency', 'unit', 'pricing_note')},
                     'selected': selected(db), 'jobs': jobs(db), 'faig_actions': bool(caller_token()),
                     'gui_only': GUI_ONLY,
-                    'auto_approval': {'enabled': False, 'state': 'unavailable',
-                                      'detail': 'Auto-approval is not connected yet.'}})
+                    # 'auto_approval': {'enabled': False, 'state': 'unavailable',
+                    #                   'detail': 'Auto-approval is not connected yet.'}})  # Change 2026-11-20
+                    'auto_approval': approval})
         self.reply(404, {'error': 'not found'})
 
     def do_POST(self):
@@ -636,6 +673,18 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(409, {'error': error})
                     select(db, body['ids'], {s['id'] for s in items})
                     return self.reply(200, {'saved': True})
+                if path == '/api/auto-approve' and set(body) == {'enabled', 'hours'}:
+                    # Change 2026-11-20: save the preference, then start/stop the worker in lab_auth.
+                    save_auto_approval_preference(db, body['enabled'], body['hours'])
+                    try:
+                        status = gateway(self.headers.get('X-Lab-Session', ''), '/_lab/internal/admin/auto-approve',
+                                         {'enabled': body['enabled'], 'hours': body['hours']}, timeout=15)
+                    except SessionLost:
+                        return self.reply(401, {'error': 'Your FAIG session ended; sign in again.'})
+                    except (BrokerError, UnknownOutcome) as exc:
+                        return self.reply(503, {'error': str(exc)})
+                    status['preference'] = auto_approval_preference(db)
+                    return self.reply(200, status)
                 if path == '/api/roster/name' and set(body) == {'student', 'display_name'}:
                     try:
                         gateway(self.headers.get('X-Lab-Session', ''), '/_lab/internal/admin/roster/name', body)

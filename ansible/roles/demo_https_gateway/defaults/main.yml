@@ -87,6 +87,8 @@ lab_gateway_max_session_hours: 8
 # Change 2026-11-20: 25 (was 120). FAIG drops an idle session after 25-30 min (measured 2026-11-20),
 # so the gateway signs users out first instead of leaving them with FAIG errors.
 lab_gateway_idle_minutes: 25
+# Change 2026-11-20: auto-approval polls FAIG's review queue this often while running (owner: 60 s).
+lab_gateway_auto_approve_seconds: 60
 # faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing

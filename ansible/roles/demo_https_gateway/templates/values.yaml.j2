@@ -43,6 +43,7 @@ labAuth:
   httpsPort: {{ demo_https_gateway_chatbot_https_port }}
   maxSessionHours: {{ lab_gateway_max_session_hours }}
   idleMinutes: {{ lab_gateway_idle_minutes }}
+  autoApproveSeconds: {{ lab_gateway_auto_approve_seconds | int }}
   mode: {{ lab_gateway_mode | to_json }}
   signingSecretName: {{ lab_gateway_signing_secret_name | to_json }}
   callerSecretName: {{ lab_gateway_caller_secret_name | to_json }}

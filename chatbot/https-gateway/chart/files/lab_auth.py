@@ -67,6 +67,8 @@ FAIG_VERIFY_TLS = os.environ.get("LAB_FAIG_VERIFY_TLS", "false").lower() in {"1"
 HTTPS_PORT = os.environ.get("LAB_HTTPS_PORT", "")
 MAX_SESSION = float(os.environ.get("LAB_MAX_SESSION_HOURS", "8")) * 3600
 IDLE = float(os.environ.get("LAB_IDLE_MINUTES", "25")) * 60
+# Change 2026-11-20: auto-approval polling interval (owner: 60 s, configurable).
+AUTO_APPROVE_SECONDS = int(os.environ.get("LAB_AUTO_APPROVE_SECONDS", "60"))
 SIGNATURE_MAX_AGE = int(os.environ.get("LAB_SIGNATURE_MAX_AGE", "300"))
 MODE = os.environ.get("LAB_AUTH_MODE", "faig")
 FALLBACK_FILE = os.environ.get("LAB_FALLBACK_FILE", "")
@@ -333,6 +335,8 @@ class Sessions:
 
 
 SESSIONS = Sessions()
+# Change 2026-11-20: auto-approval worker, bound to one instructor's live FAIG session (memory only).
+AUTO_APPROVER = lab_broker.AutoApprover(interval=AUTO_APPROVE_SECONDS, max_session=MAX_SESSION)
 
 
 # ------------------------------------------------------------------ HTTP
@@ -414,7 +418,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.redirect(self.https_url("/_lab/login?next=" + urllib.parse.quote(safe_next(query.get("next", "/")))))
             return self.login_form(safe_next(query.get("next", "/")))
         if url.path == "/_lab/logout":
-            SESSIONS.drop(parse_cookies(self.headers.get("Cookie", "")).get(COOKIE, ""))
+            token = parse_cookies(self.headers.get("Cookie", "")).get(COOKIE, "")
+            # Change 2026-11-20: signing out stops auto-approval that runs under this session.
+            if AUTO_APPROVER.owns(SESSIONS.data.get(token)):
+                AUTO_APPROVER.stop("the instructor who started it signed out")
+            SESSIONS.drop(token)
             return self.redirect("/_lab/login", {"Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
         if url.path in ("/_lab/whoami", "/"):
             return self.whoami()
@@ -426,6 +434,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_roster(query.get("reveal") == "1")
         if url.path == "/_lab/internal/keys":
             return self.keys_list(query.get("student", ""))
+        if url.path == "/_lab/internal/admin/auto-approve":
+            return self.auto_approve_status()
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
@@ -439,6 +449,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.admin_roster_name()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/prepopulate":
             return self.admin_student_prepopulate()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/auto-approve":
+            return self.auto_approve_control()
         key_routes = {"/_lab/internal/keys/refresh": self.keys_refresh, "/_lab/internal/keys/map": self.keys_map,
                       "/_lab/internal/keys/rotate": self.keys_rotate, "/_lab/internal/keys/status": self.keys_status}
         if urllib.parse.urlsplit(self.path).path in key_routes:
@@ -766,6 +778,32 @@ class Handler(BaseHTTPRequestHandler):
         print(f"prepopulated {student} by {session['identity']['user']}: {len(summary['created'])} created, "
               f"{len(summary['approved'])} approved, {len(summary['keys_saved'])} key secrets saved", flush=True)
         return self.json_reply(200, dict(summary, student=student))
+
+    # ---- auto-approval (Lab Management caller, admin session; Change 2026-11-20)
+    def auto_approve_status(self):
+        if not broker_session(self, "admin"):
+            return None
+        return self.json_reply(200, AUTO_APPROVER.status())
+
+    def auto_approve_control(self):
+        """{"enabled": true, "hours": n} binds the worker to this instructor's session; false stops it."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            body = self.broker_json(1024)
+            if set(body) - {"enabled", "hours"} or not isinstance(body.get("enabled"), bool):
+                raise ValueError("expected {enabled, hours}")
+            user = session["identity"].get("user", "")
+            if body["enabled"]:
+                status = AUTO_APPROVER.start(session, user, body.get("hours", 8))
+                print(f"auto-approve started by {user} until {status['ends_at']}", flush=True)
+            else:
+                status = AUTO_APPROVER.stop(f"turned off by {user}")
+                print(f"auto-approve stopped by {user}", flush=True)
+        except (ValueError, TypeError) as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        return self.json_reply(200, status)
 
     def admin_roster(self, reveal: bool):
         session = broker_session(self, "admin")
