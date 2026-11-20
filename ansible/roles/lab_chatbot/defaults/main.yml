@@ -39,7 +39,10 @@ lab_chatbot_reseed_keys: false
 lab_chatbot_seed_secret_prefix: lab-seed-
 
 # In-cluster endpoints.
-lab_chatbot_faig_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"
+# Change 2026-11-20: HTTPS (FAIG's ingress forces it). The self-signed lab certificate does not name
+# this in-cluster address, so verification is off unless a matching certificate is installed.
+lab_chatbot_faig_url: "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"
+lab_chatbot_faig_verify_tls: false
 lab_chatbot_direct_url: "http://{{ litellm_release_name | default('litellm') }}.{{ litellm_namespace | default('litellm') }}.svc.cluster.local:{{ litellm_service_port | default(4000) }}/v1"
 lab_chatbot_mcp_url: "{{ mcp_standard_internal_base_url | default('http://mcp-demo.mcp.svc.cluster.local:8001/mcp') }}"
 lab_chatbot_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"

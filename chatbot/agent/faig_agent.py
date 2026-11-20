@@ -23,6 +23,9 @@ spec fields:
   max_rounds     tool-call round limit (default 3)
   max_tokens, temperature
   record_exchanges  include each request body and response (default false)
+  verify_tls     verify the endpoint's TLS certificate (default true; Change 2026-11-20:
+                 the lab chatbot sets false for FAIG's in-cluster HTTPS address, which the
+                 self-signed lab certificate does not name)
 
 result fields:
   reply, finish_reason, rounds, http_status, tool_events[], messages[],
@@ -30,7 +33,9 @@ result fields:
 """
 from __future__ import annotations
 
+import functools
 import json
+import ssl
 import urllib.error
 import urllib.request
 from typing import Any, Awaitable, Callable
@@ -38,8 +43,10 @@ from typing import Any, Awaitable, Callable
 ChatFn = Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]]
 
 
-def chat_completion(base_url: str, api_key: str, body: dict[str, Any], timeout: int = 180) -> tuple[int, dict[str, Any]]:
+def chat_completion(base_url: str, api_key: str, body: dict[str, Any], timeout: int = 180,
+                    verify_tls: bool = True) -> tuple[int, dict[str, Any]]:
     """POST one chat completion; returns (HTTP status, JSON body or error excerpt)."""
+    context = None if verify_tls else ssl._create_unverified_context()
     request = urllib.request.Request(
         base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(body).encode(),
@@ -47,7 +54,7 @@ def chat_completion(base_url: str, api_key: str, body: dict[str, Any], timeout: 
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             return response.status, json.loads(response.read())
     except urllib.error.HTTPError as exc:
         return exc.code, {"error_body": exc.read()[:2000].decode(errors="replace")}
@@ -125,6 +132,8 @@ async def _loop(spec: dict[str, Any], session: Any, tools: list[dict[str, Any]],
 
 async def run_turn(spec: dict[str, Any], *, chat: ChatFn = chat_completion, session: Any = None) -> dict[str, Any]:
     """Run one agent turn. `session` may be any object with async list_tools()/call_tool()."""
+    if chat is chat_completion and spec.get("verify_tls") is False:
+        chat = functools.partial(chat_completion, verify_tls=False)
     wanted = list(spec.get("tools") or [])
     if not wanted:
         return await _loop(spec, None, [], chat)

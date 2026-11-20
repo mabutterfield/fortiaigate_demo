@@ -156,7 +156,9 @@
         transport: "HTTPS"
         fortiweb: false
         url: "https://{{ demo_home_host }}{{ fortiaigate_ui_path | default('/ui/') }}"
-    demo_home_litellm_url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+    # Change 2026-11-20: HTTPS by default (owner); the gateway serves LiteLLM over HTTPS.
+    # demo_home_litellm_url: "http://{{ demo_home_host }}:{{ litellm_node_port | default(demo_litellm_http_port | default(30083)) }}/ui/"
+    demo_home_litellm_url: "https://{{ demo_home_host }}:{{ demo_https_gateway_litellm_https_port | default(30446) }}/ui/"
     demo_home_links:
       - label: "Demo Home HTTP"
         title: "Demo Home"
@@ -494,6 +496,22 @@
   # - ansible.builtin.debug:
   #     var: demo_home_chatbot_display_links
 
+- name: Keep only HTTPS links on the demo home page
+  # Change 2026-11-20 (owner: HTTPS is on by default): the legacy HTTP NodePorts are closed by
+  # default, so their links would be dead. demo_home_show_http_links: true restores them.
+  ansible.builtin.set_fact:
+    demo_home_links: "{{ demo_home_links | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+    demo_home_litellm_links: "{{ demo_home_litellm_links | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+    demo_home_mcp_links: "{{ demo_home_mcp_links | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+    demo_home_admin_links: "{{ demo_home_admin_links | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+    demo_home_openwebui_display_links: "{{ demo_home_openwebui_display_links | default([]) | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+    demo_home_chatbot_display_links: "{{ demo_home_chatbot_display_links | default([]) | rejectattr('transport', 'equalto', 'HTTP') | list }}"
+  when:
+    - demo_home_enabled | bool
+    - not (demo_home_show_http_links | bool)
+  # - ansible.builtin.debug:
+  #     var: demo_home_links
+
 - name: Set demo home display link facts
   ansible.builtin.set_fact:
     demo_home_openwebui_links: "{{ demo_home_openwebui_display_links | default([]) }}"
@@ -569,6 +587,7 @@
   ansible.builtin.debug:
     msg:
       - "Demo home release: {{ demo_home_release_name }}"
-      - "Demo home URL: http://{{ demo_home_host }}:{{ demo_home_node_port }}"
+      # - "Demo home URL: http://{{ demo_home_host }}:{{ demo_home_node_port }}"  # Change 2026-11-20
+      - "Demo home URL: https://{{ demo_home_host }}:{{ demo_https_gateway_demo_home_https_port | default(30445) }}"
       - "Helm accepted the install or upgrade; run status_demo_home.yml to check READY/NOT READY."
   when: demo_home_enabled | bool

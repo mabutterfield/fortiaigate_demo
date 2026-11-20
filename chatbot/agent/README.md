@@ -16,7 +16,7 @@ Endpoints:
 
 | Mode | `base_url` | Key |
 |---|---|---|
-| FortiAIGate | `http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1` | student virtual key for the scenario action |
+| FortiAIGate | `https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1` (HTTPS since 2026-11-20; plain HTTP is redirected; pass `verify_tls: false` for the self-signed lab certificate) | student virtual key for the scenario action |
 | Direct | `http://litellm.litellm.svc.cluster.local:4000/v1` | shared non-admin LiteLLM virtual key |
 
 `record_exchanges` adds every request body and response to the result for the

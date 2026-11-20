@@ -1,5 +1,8 @@
 ---
 demo_home_enabled: true
+# Change 2026-11-20: HTTPS links only by default; the legacy HTTP NodePorts are closed by the default
+# security group. Set true only when you reopen them (additional_ingress_tcp_ports).
+demo_home_show_http_links: false
 demo_home_namespace: demo-home
 demo_home_release_name: demo-home
 demo_home_chart_local_path: "{{ playbook_dir }}/../../chatbot/home/chart"
