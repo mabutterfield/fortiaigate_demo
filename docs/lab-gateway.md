@@ -75,15 +75,18 @@ lab_gateway_faig_url: "https://ingress-nginx-controller.ingress-nginx.svc.cluste
 lab_gateway_faig_verify_tls: false
 lab_gateway_max_session_hours: 8
 lab_gateway_idle_minutes: 25
+lab_gateway_auto_approve_seconds: 60
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
 lab_gateway_fallback_secret_name: lab-gateway-fallback
 lab_gateway_chatbot_placeholder: "{{ not (lab_chatbot_enabled | default(true) | bool) }}"
 ```
 
-The gateway now uses the nginx stable line `1.30-alpine`. Because it takes HTTP
-port 30081, do not deploy the 8.0.1 chatbot (which also uses NodePort 30081)
-in the same cluster.
+The gateway now uses the nginx stable line `1.30-alpine`. (The 8.0.1 chatbot,
+which also used NodePort 30081, was removed from the 8.0.2 branch.)
+
+The sign-in sidecar also runs [auto-approval](lab-management.md#auto-approval)
+(`/_lab/internal/admin/auto-approve`, Lab Management caller only).
 
 ## Validation
 

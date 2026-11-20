@@ -41,11 +41,65 @@ function scenarioSection(s, isSelected) {
   return section;
 }
 
+// Change 2026-11-20: live auto-approval status (runs in the lab gateway under an instructor's session).
+function clock(t) { return t ? new Date(t * 1000).toLocaleTimeString() : '—'; }
 function showApproval(a) {
   const box = el('approval');
-  box.className = 'indicator ' + (a.state || 'unavailable');
-  box.textContent = 'Auto-approval: ' + (a.state || 'unavailable');
-  box.title = a.detail || '';
+  let state = a.state || 'unavailable';
+  // A running worker that missed two polls plus a margin is shown as stale, not running.
+  if (state === 'running' && a.last_run_at && a.now && a.now - a.last_run_at > 2 * (a.interval || 60) + 15) state = 'stale';
+  box.className = 'indicator ' + state;
+  const last = a.last_result || {};
+  box.textContent = 'Auto-approval: ' + state + (state === 'running' || state === 'stale'
+    ? ' · until ' + clock(a.ends_at) + ' · last ' + clock(a.last_run_at) + ' · ' + ((a.totals || {}).approved || 0) + ' approved'
+    : '');
+  const lines = [];
+  if (a.owner) lines.push('Started by ' + a.owner + ' at ' + clock(a.started_at) + '.');
+  if (a.last_run_at) lines.push('Last run ' + clock(a.last_run_at) + ': ' + (last.approved || 0) + ' approved, ' + (last.failed || 0) + ' failed.');
+  (last.errors || []).forEach(e => lines.push(e));
+  if (a.stop_reason && state !== 'running') lines.push('Stopped: ' + a.stop_reason + '.');
+  box.title = lines.join('\n');
+  el('aa-detail').textContent = lines.join(' ');
+  const pref = a.preference;
+  if (pref && !el('auto-approval').dataset.touched) {
+    el('aa-enabled').checked = pref.enabled;
+    el('aa-hours').value = pref.hours;
+  }
+}
+
+// Change 2026-11-20: approval history (newest first, up to 200 rows).
+const CHANGE_LABEL = {create: 'add', update: 'change', deletion: 'delete', delete: 'delete'};
+async function loadApprovals() {
+  const box = el('aa-history');
+  const student = el('aa-student').value.trim();
+  try {
+    const data = await api('api/approvals' + (student ? '?student=' + encodeURIComponent(student) : ''));
+    if (!data.items.length) { box.replaceChildren(text('p', 'No approvals recorded yet.', 'muted')); return; }
+    const table = document.createElement('table');
+    const head = document.createElement('tr');
+    ['Time', 'Student', 'Type', 'Object', 'Change', 'Result', 'Approved with'].forEach(h => head.append(text('th', h)));
+    table.append(head);
+    data.items.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.append(text('td', new Date(r.at * 1000).toLocaleString()), text('td', r.student), text('td', r.type),
+                text('td', r.name), text('td', CHANGE_LABEL[r.change] || r.change),
+                text('td', r.outcome + (r.detail ? ' (' + r.detail + ')' : ''), r.outcome === 'approved' ? '' : 'warn'),
+                text('td', r.approved_by));
+      table.append(tr);
+    });
+    box.replaceChildren(table);
+  } catch (e) { box.replaceChildren(text('p', 'Approval history unavailable: ' + e.message, 'warn')); }
+}
+
+// Default-on: when the saved preference is on and nothing is running, start it once per page load
+// under this instructor's session (owner decision; no stored credential).
+let autoStartTried = false;
+async function ensureAutoApproval(a) {
+  const pref = a.preference || {};
+  if (autoStartTried || !pref.enabled || ['running', 'error', 'unavailable'].includes(a.state)) return;
+  autoStartTried = true;
+  try { showApproval(await api('api/auto-approve', {enabled: true, hours: pref.hours})); }
+  catch (e) { el('aa-detail').textContent = 'Could not start auto-approval: ' + e.message; }
 }
 
 async function refresh() {
@@ -53,6 +107,7 @@ async function refresh() {
   el('user').textContent = state.user;
   el('gui-only').hidden = !state.gui_only;
   showApproval(state.auto_approval || {});
+  ensureAutoApproval(state.auto_approval || {});
   const p = state.pricing || {};
   el('pricing').textContent = p.currency ? ('Prices: ' + p.currency + ' ' + (p.unit || '') + '. ' + (p.pricing_note || '')) : '';
   const box = el('scenarios');
@@ -130,6 +185,20 @@ async function loadRoster() {
   } catch (e) { box.replaceChildren(text('p', 'Student list unavailable: ' + e.message, 'warn')); }
 }
 
+el('aa-history-box').addEventListener('toggle', () => { if (el('aa-history-box').open) loadApprovals(); });
+el('aa-history-form').addEventListener('submit', e => { e.preventDefault(); loadApprovals(); });
+el('auto-approval').addEventListener('input', () => { el('auto-approval').dataset.touched = '1'; });
+el('auto-approval').addEventListener('submit', e => {
+  e.preventDefault();
+  run(async () => {
+    showApproval(await api('api/auto-approve', {enabled: el('aa-enabled').checked, hours: Number(el('aa-hours').value)}));
+    delete el('auto-approval').dataset.touched;
+  });
+});
+
 run(async () => {});
 loadRoster();
-setInterval(() => api('api/state').then(s => showApproval(s.auto_approval || {})).catch(() => {}), 15000);
+setInterval(() => api('api/state').then(s => {
+  showApproval(s.auto_approval || {});
+  if ((s.auto_approval || {}).history_added && el('aa-history-box').open) loadApprovals();
+}).catch(() => {}), 15000);

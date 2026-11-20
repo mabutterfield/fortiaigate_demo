@@ -20,6 +20,23 @@
   <p id="actions" class="warn"></p>
   <div id="error" role="alert"></div>
 
+  <h2>Auto-approval</h2>
+  <p>FAIG requires an administrator to approve every detector, guardrail and policy a student submits or deletes. When this is on, the lab approves <strong>every pending change</strong> about once a minute, using your signed-in FAIG session. It keeps running when you close this page, and stops when the time below runs out, when your FAIG session ends (at most 8 hours after you signed in), when you turn it off or sign out, or when the lab gateway restarts. Opening this page restarts it if it is on.</p>
+  <form id="auto-approval">
+    <label><input type="checkbox" id="aa-enabled"> Approve pending changes automatically</label>
+    <label>for <input type="number" id="aa-hours" min="0.25" max="8" step="0.25" value="8"> hours</label>
+    <button type="submit">Save</button>
+  </form>
+  <p id="aa-detail" class="muted"></p>
+  <details id="aa-history-box">
+    <summary>Approval history</summary>
+    <form id="aa-history-form">
+      <label>Student <input id="aa-student" placeholder="all, or e.g. student02" maxlength="80"></label>
+      <button type="submit">Refresh</button>
+    </form>
+    <div id="aa-history"><p class="muted">Open to load.</p></div>
+  </details>
+
   <h2>Scenarios</h2>
   <p id="pricing" class="muted"></p>
   <form id="selection">

@@ -58,6 +58,8 @@ labAuth:
   maxSessionHours: 8
   # Change 2026-11-20: 25 (was 120), just under FAIG's 25-30 min idle timeout.
   idleMinutes: 25
+  # Change 2026-11-20: auto-approval polling interval (seconds).
+  autoApproveSeconds: 60
   mode: faig
   # Existing Secret holding the HMAC key (key: hmac-key) shared with upstream apps.
   signingSecretName: lab-gateway-signing

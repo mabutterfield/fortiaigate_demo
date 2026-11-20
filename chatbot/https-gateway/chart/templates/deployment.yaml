@@ -78,6 +78,8 @@ spec:
               value: "{{ .Values.labAuth.maxSessionHours }}"
             - name: LAB_IDLE_MINUTES
               value: "{{ .Values.labAuth.idleMinutes }}"
+            - name: LAB_AUTO_APPROVE_SECONDS
+              value: "{{ .Values.labAuth.autoApproveSeconds | default 60 }}"
             - name: LAB_AUTH_MODE
               value: {{ .Values.labAuth.mode | quote }}
             - name: LAB_SIGNING_KEY_FILE

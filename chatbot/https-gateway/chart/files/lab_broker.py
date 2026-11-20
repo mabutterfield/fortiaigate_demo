@@ -665,3 +665,187 @@ def apply_mapping(records: list, faig_key_id: str, scenario_id: str, action: str
     elif record.get("status") == "unmapped":
         record["status"] = "untested"
     return records, {"warnings": mapping_warnings(record, expected_model), "key": public_key(record)}
+
+
+# ---------------------------------------------------------------- auto-approval (Change 2026-11-20)
+# Owner decisions: when on, approve EVERY pending FAIG change (deletions included, any workspace),
+# using the instructor's own FAIG session held by lab_auth; no stored credential. Reference behavior:
+# experiments/faig-api-lab/scenario_lab.py auto-approve (same queue, endpoints and order).
+
+APPROVAL_ORDER = {"detector": 0, "guardrail": 1, "policy": 2}
+
+
+def approval_queue(queue: list) -> list:
+    """Pending items in detector -> guardrail -> policy order, oldest first within a type."""
+    return sorted((i for i in queue if isinstance(i, dict) and i.get("id")),
+                  key=lambda i: (APPROVAL_ORDER.get(i.get("type"), 9), i.get("submittedAt") or ""))
+
+
+STUDENT_EMAIL = re.compile(r"^(student\d{2,})@")
+
+
+def queue_entry(item: dict) -> dict:
+    """History fields for one review-queue item (Change 2026-11-20: owner wants a viewable list)."""
+    submitter = item.get("submittedBy") or {}
+    email = str(submitter.get("email") or "")
+    match = STUDENT_EMAIL.match(email)
+    return {"item_id": str(item.get("id", "")), "type": str(item.get("type") or ""),
+            "name": str(item.get("name") or ""), "change": str(item.get("changeKind") or "change"),
+            "student": match.group(1) if match else (email or str(submitter.get("fullName") or "")),
+            "submitted_by": email, "submitted_at": str(item.get("submittedAt") or "")}
+
+
+def entry_label(entry: dict) -> str:
+    return f'{entry["type"]} {entry["name"] or entry["item_id"]} [{entry["change"]}] from {entry["student"] or "?"}'
+
+
+def approve_pending(faig, http_error=None) -> dict:
+    """Approve everything in FAIG's review queue once. Raises on 401/403 (session ended).
+
+    Returns {"approved": [entries], "failed": [entries], "skipped": [entries]}; each entry is
+    queue_entry() plus "outcome" and "detail". No secrets."""
+    import urllib.error
+    http_error = http_error or urllib.error.HTTPError
+    result = {"approved": [], "failed": [], "skipped": []}
+    for item in approval_queue(_items(faig.call("GET", "/api/v1/admin/review-queue"))):
+        entry = queue_entry(item)
+        path = APPROVE.get(item.get("type"))
+        if not path:
+            result["skipped"].append(dict(entry, outcome="skipped", detail="no approve endpoint for this type"))
+            continue
+        try:
+            faig.call("POST", path.format(urllib.parse.quote(str(item["id"]), safe="")))
+            result["approved"].append(dict(entry, outcome="approved", detail=""))
+        except http_error as exc:
+            if getattr(exc, "code", None) in (401, 403):
+                raise
+            result["failed"].append(dict(entry, outcome="failed", detail=f"HTTP {getattr(exc, 'code', '?')}"))
+    return result
+
+
+class AutoApprover:
+    """Background approval loop bound to one instructor's live FAIG session (in lab_auth memory).
+
+    Stops when the chosen duration or the session's absolute limit ends, FAIG answers 401/403, the
+    instructor turns it off or signs out, or the process restarts. Status never contains secrets."""
+
+    def __init__(self, interval: int = 60, max_session: float = 8 * 3600, clock=None, start_thread=True):
+        import threading
+        import time as _t
+        self.interval, self.max_session = max(5, int(interval)), max_session
+        self.clock = clock or _t.time
+        self.start_thread = start_thread
+        self.lock = threading.Lock()
+        self.generation, self.session, self.wake, self.capped = 0, None, threading.Event(), False
+        import collections
+        import secrets as _s
+        # Change 2026-11-20: numbered history of approval attempts (memory, last 1000). Lab Management
+        # copies new entries into its journal; "boot" changes when this process restarts.
+        self.boot, self.seq, self.history = _s.token_hex(6), 0, collections.deque(maxlen=1000)
+        self.state = {"enabled": False, "state": "stopped", "owner": "", "started_at": None, "ends_at": None,
+                      "last_run_at": None, "last_result": None, "totals": {"approved": 0, "failed": 0},
+                      "stop_reason": "not started since the gateway started", "interval": self.interval}
+
+    def status(self) -> dict:
+        import copy
+        with self.lock:
+            return dict(copy.deepcopy(self.state), now=int(self.clock()), boot=self.boot, history_seq=self.seq)
+
+    def history_after(self, boot: str, after: int) -> dict:
+        """Entries newer than (boot, after); all retained entries when boot differs."""
+        with self.lock:
+            start = after if boot == self.boot else 0
+            return {"boot": self.boot, "history_seq": self.seq,
+                    "items": [dict(e) for e in self.history if e["seq"] > start]}
+
+    def owns(self, session) -> bool:
+        with self.lock:
+            return self.session is not None and self.session is session
+
+    def start(self, session, owner: str, hours: float) -> dict:
+        import threading
+        hours = float(hours)
+        if not 0.25 <= hours <= self.max_session / 3600:
+            raise ValueError(f"hours must be between 0.25 and {self.max_session / 3600:g}")
+        now = self.clock()
+        session_limit = session.get("created", now) + self.max_session
+        ends = min(now + hours * 3600, session_limit)
+        with self.lock:
+            self.capped = session_limit <= now + hours * 3600
+            self.wake.set()  # end any previous loop promptly
+            self.generation += 1
+            generation, self.wake = self.generation, threading.Event()
+            self.session = session
+            self.state.update(enabled=True, state="running", owner=owner, started_at=int(now), ends_at=int(ends),
+                              last_run_at=None, last_result=None, totals={"approved": 0, "failed": 0},
+                              stop_reason="")
+        if self.start_thread:
+            threading.Thread(target=self.loop, args=(generation,), daemon=True, name="auto-approve").start()
+        return self.status()
+
+    def stop(self, reason: str, state: str = "stopped") -> dict:
+        with self.lock:
+            if self.state["enabled"]:
+                self.generation += 1
+                self.wake.set()
+                self.session = None
+                self.state.update(enabled=False, state=state, stop_reason=reason)
+        return self.status()
+
+    def tick(self, generation: int) -> bool:
+        """One pass; returns False when the loop should end."""
+        import urllib.error
+        with self.lock:
+            if generation != self.generation or not self.session:
+                return False
+            session, ends, capped = self.session, self.state["ends_at"], self.capped
+        now = self.clock()
+        if now >= ends:
+            self._finish(generation, "expired" if capped else "stopped",
+                         "FAIG session limit reached; sign in again and reopen Lab Management" if capped
+                         else "chosen duration ended")
+            return False
+        try:
+            result = approve_pending(session["faig"])
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                self._finish(generation, "expired",
+                             f"FAIG session ended (HTTP {exc.code}); sign in again and reopen Lab Management")
+                return False
+            result = {"approved": [], "failed": [], "skipped": [], "error": f"review queue: HTTP {exc.code}"}
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            result = {"approved": [], "failed": [], "skipped": [], "error": f"FAIG unreachable ({type(exc).__name__})"}
+        with self.lock:
+            if generation != self.generation:
+                return False
+            totals = self.state["totals"]
+            totals["approved"] += len(result["approved"])
+            totals["failed"] += len(result["failed"])
+            stamp = int(self.clock())
+            for entry in result["approved"] + result["failed"]:
+                self.seq += 1
+                self.history.append(dict(entry, seq=self.seq, at=stamp, by=self.state["owner"]))
+            self.state.update(last_run_at=stamp, state="error" if result.get("error") else "running",
+                              last_result={"approved": len(result["approved"]), "failed": len(result["failed"]),
+                                           "skipped": len(result["skipped"]),
+                                           "errors": ([result["error"]] if result.get("error") else [])
+                                           + [entry_label(e) + ": " + e["detail"] for e in result["failed"][:5]]
+                                           + [entry_label(e) + ": " + e["detail"] for e in result["skipped"][:5]]})
+        if result["approved"] or result["failed"]:
+            print(f"auto-approve ({self.state['owner']}): approved {len(result['approved'])}, failed "
+                  f"{len(result['failed'])}: " + "; ".join(entry_label(e) for e in (result["approved"] + result["failed"])[:20]),
+                  flush=True)
+        return True
+
+    def _finish(self, generation: int, state: str, reason: str) -> None:
+        with self.lock:
+            if generation == self.generation:
+                self.session = None
+                self.state.update(enabled=False, state=state, stop_reason=reason)
+
+    def loop(self, generation: int) -> None:
+        with self.lock:
+            wake = self.wake
+        while self.tick(generation):
+            if wake.wait(self.interval):
+                return
