@@ -6,6 +6,9 @@ services, and optionally initializes FAIG through GUI-observed APIs. Those
 application APIs are unsupported and can change between releases. The full
 fresh-host workflow must be validated before it is treated as release-ready.
 
+For using the deployed lab, see the [instructor guide](instructor-guide-802.md)
+and [student guide](student-guide-802.md).
+
 For an existing named Terraform workspace with separate prep and host variable
 files, for example the Ohio lab:
 
