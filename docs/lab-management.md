@@ -60,6 +60,64 @@ The second adds the `/manage/` route to the chatbot gateway route.
 It starts with zero students, keys or selection. A missing or invalid catalog
 shows "catalog unavailable" instead of failing.
 
+## If you set up FAIG yourself
+
+The quickstart's experimental initializer does the FAIG first-time setup for you
+(on by default once it is validated). If you turn it off
+(`--no-experimental-faig-init` or `quickstart_experimental_faig_init: false`)
+or install FAIG another way, Lab Management still deploys and starts empty, but
+nobody can sign in to `/manage/` until FAIG is set up. No redeploy is needed
+afterwards: the gateway checks FAIG live at every sign-in and request.
+
+Do these in the FAIG GUI (`https://<host>/ui`), in order:
+
+1. **First-time setup.** Create the administrator account and organization.
+   This account is a FAIG `super_admin`, which is what `/manage/` accepts
+   (`lab_auth.py` maps `super_admin` to the instructor role; anyone else gets a
+   403, and students are recognized by their `studentNN_workspace`). To give
+   more instructors access, create more `super_admin` users. Use a password
+   that no student will get: Create students rejects a student password equal
+   to the instructor's.
+2. **License.** Upload the FAIG license and confirm it shows Active with
+   scanning enabled. Without both, the guardrail tests can't pass.
+3. **LiteLLM provider.** Lab Management's Apply models only edits an existing
+   provider; it never creates one, and it refuses a provider without a saved
+   credential. Create a provider exactly as the catalog expects
+   (`catalog802/data/models.json`: every lab model uses provider
+   `litellm-direct`):
+   - ID and name `litellm-direct`, platform custom, OpenAI API format;
+   - endpoint `http://litellm.litellm.svc.cluster.local:4000/v1` (in-cluster
+     LiteLLM; it is not reachable from outside);
+   - one enabled API key: the LiteLLM shared non-admin virtual key. It is in
+     the owner-only file `litellm-shared-key.json` in your `FAIG_ENV_DIR`
+     (or `.litellm_shared_virtual_key.json` in the workspace root), and in
+     Secret `litellm-shared-virtual-key` in namespace `litellm`. Copy it from
+     the file; don't print it in a shared terminal.
+   - at least the model `pass-model` (custom model). Apply models adds the
+     scenario models and lab prices later; leaving the others out is fine.
+4. **Optional check.** Create a global key for `pass-model` only, send one
+   request through FAIG and confirm a Traffic Log entry. This is what the
+   initializer's governed smoke test does. Delete the key afterwards, or keep
+   it outside the lab.
+
+Then sign in at `https://<host>:<chatbot HTTPS port>/manage/` with the
+administrator account and continue as usual: select scenarios, **Apply models**
+(it reports `litellm-direct: add ...` and verifies by reading back), then
+Create students with or without Prepopulate.
+
+Typical errors when a step was missed:
+- 403 on `/manage/` after sign-in: the account isn't `super_admin`.
+- Sign-in fails at the gateway: first-time setup not done, or FAIG not ready.
+- Apply models fails reading `litellm-direct`: step 3 not done, or the
+  provider was created with a different ID.
+- Create students fails with "provider has no saved credential": the provider
+  has no API key.
+- Prepopulated tests return no verdicts or fail: license inactive or scanning
+  disabled.
+
+This manual path has not yet been run end to end on a fresh host; it mirrors
+what the initializer (`scripts/faig_bootstrap_802.py`) creates.
+
 ## Design notes
 
 - **Image:** stock `python:3.12-slim`, standard library only, code in a
