@@ -61,3 +61,23 @@ Quickstart prints the FAIG and instructor URLs, administrator email and private
 credential directory, not passwords. The FAIG re-entry provider is not yet
 implemented in this workflow. The current preflight stops before infrastructure
 changes if the reviewed Lab Management playbooks have not been integrated.
+
+## Tear down the disposable lab
+
+Select the same workspace and overrides used to deploy, then run the separate
+teardown command:
+
+```bash
+export TF_WORKSPACE=ohio-802
+export FAIG_TERRAFORM_VARS_DIR=/path/to/FAIG/ohio-802
+python3 scripts/automated_teardown.py
+```
+
+By default it destroys the EC2/VPC stack and releases its lab Elastic IP.
+`--keep-eip` preserves the IP for reuse; `--skip-ec2` keeps the entire lab
+and implies `--keep-eip`. ECR, S3, shared IAM/prep resources, and optional
+appliances are untouched. `--yolo` skips confirmations and approves the
+Terraform actions; review the workspace and effective profile first. EIP
+release uses a saved plan that must contain only that IP's deletion. An EC2
+failure stops before the IP is released. GPU termination may take several
+minutes; the VPC remains until AWS releases its dependencies.
