@@ -66,6 +66,64 @@ class RestoreTests(unittest.TestCase):
         self.assertFalse(any(k["faig_key_id"] == "aaaa-bbbb" for k in store.data["keys"]["student03"]["keys"]))
 
 
+
+class RacingFaig(PrepopFaig):
+    """Auto-approval approves each submission immediately (before prepopulation reads the queue)."""
+
+    def call(self, method, path, payload=None):
+        for kind in self.objects:
+            collection = f"/api/v1/workspaces/w3/{kind}"
+            if method == "GET" and path.startswith(collection + "/"):
+                oid = path.rsplit("/", 1)[1]
+                return next(o for o in self.objects[kind] if o["id"] == oid)
+        out = super().call(method, path, payload)
+        if path.endswith("/submit"):
+            oid = path.split("/")[-2]
+            for objs in self.objects.values():
+                for obj in objs:
+                    if obj["id"] == oid:
+                        obj["status"] = "active"
+            self.queue = [q for q in self.queue if q["id"] != oid]
+            out = dict(out, status="pending")  # the student saw it pending
+        return out
+
+
+class LateApproveAdmin(PrepopAdmin):
+    """The item is still listed, but auto-approval wins: our approve call gets 409."""
+
+    def call(self, method, path, payload=None):
+        if path.endswith("/approve"):
+            oid = path.split("/")[-2]
+            for objs in self.faig.objects.values():
+                for obj in objs:
+                    if obj["id"] == oid:
+                        obj["status"] = "active"
+            raise urllib.error.HTTPError(path, 409, "already approved", {}, None)
+        return super().call(method, path, payload)
+
+
+class AutoApprovalRaceTests(unittest.TestCase):
+    def test_item_approved_before_queue_read(self):
+        faig, store = RacingFaig(), Store()
+        out = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", hr_plan(), lambda _: None)
+        self.assertEqual(out["approved"], [])
+        self.assertTrue(any("(approved by auto-approval)" in e for e in out["existing"]))
+        self.assertEqual(len(out["keys_saved"]), 4)
+
+    def test_item_approved_between_queue_read_and_approve(self):
+        class Lister(PrepopFaig):
+            def call(self, method, path, payload=None):
+                for kind in self.objects:
+                    collection = f"/api/v1/workspaces/w3/{kind}"
+                    if method == "GET" and path.startswith(collection + "/"):
+                        oid = path.rsplit("/", 1)[1]
+                        return next(o for o in self.objects[kind] if o["id"] == oid)
+                return super().call(method, path, payload)
+        faig, store = Lister(), Store()
+        out = lab_broker.prepopulate_student(LateApproveAdmin(faig), faig, store, "student03", hr_plan(), lambda _: None)
+        self.assertEqual(out["approved"], [])
+        self.assertEqual(len(out["keys_saved"]), 4)
+
 class ResetFaig(StudentFaig):
     def __init__(self, reset_error=None, applies=True, **kw):
         super().__init__(**kw)

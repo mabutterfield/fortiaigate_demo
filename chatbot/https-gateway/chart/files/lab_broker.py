@@ -523,10 +523,25 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
             result[key] = _oid(obj)
         if pending:
             queue = {i.get("id") for i in _items(admin.call("GET", "/api/v1/admin/review-queue")) if i.get("type") == kind}
+
+            def approved_elsewhere(oid):
+                # Change 2026-11-20: auto-approval (or another instructor) may approve it first.
+                obj = student_session.call("GET", f"{collection}/{oid}")
+                return _status(obj) == "active" and not obj.get("hasPendingChange")
+
             for oid, name in pending.items():
                 if oid not in queue:
+                    if approved_elsewhere(oid):
+                        summary["existing"].append(f"{kind} {name} (approved by auto-approval)")
+                        continue
                     raise RuntimeError(f"{kind} {name} is pending but not in the review queue")
-                admin.call("POST", APPROVE[kind].format(oid))
+                try:
+                    admin.call("POST", APPROVE[kind].format(oid))
+                except _urlerror.HTTPError as exc:
+                    if exc.code in (401, 403) or not approved_elsewhere(oid):
+                        raise
+                    summary["existing"].append(f"{kind} {name} (approved by auto-approval)")
+                    continue
                 summary["approved"].append(f"{kind} {name}")
         return result
 
