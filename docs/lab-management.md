@@ -39,8 +39,9 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
   passwords or keys.
 - **Chatbot keys:** since 2026-11-19 the student chatbot reads and maps keys
   from `lab-keys` through the gateway (see [lab chatbot](lab-chatbot.md)).
-- **Not yet available:** auto-approval, seeded-key restore by rotation, and
-  student password reset (still on the chatbot's Admin tab).
+- **Auto-approval** (2026-11-20): see [below](#auto-approval).
+- **Not yet available:** seeded-key restore by rotation, and student password
+  reset (still on the chatbot's Admin tab).
 
 ## Deploy
 
@@ -176,15 +177,43 @@ as `lab_management_gui_only` and `lab_chatbot_gui_only`.
 
   In both cases the instructor re-runs the job after signing in.
 
+## Auto-approval
+
+FAIG makes an administrator approve every detector, guardrail and policy a
+student submits, changes or deletes. FAIG 8.0.2 has no "approve automatically"
+setting, so the lab does it:
+
+- **What it approves:** every item in FAIG's review queue
+  (`GET /api/v1/admin/review-queue`), deletions included, in any workspace, in
+  detector → guardrail → policy order. Item types without a known approve
+  endpoint are reported, not approved.
+- **How often:** every 60 seconds (`lab_gateway_auto_approve_seconds`).
+- **Whose authority:** the instructor's own FAIG session, held only in the lab
+  gateway's memory (`lab_auth`). Nothing is stored; the journal, logs and
+  status never contain cookies, tokens or passwords. Approved items are logged
+  by type and name.
+- **On by default:** the preference (on, 8 hours) is saved in Lab Management.
+  Because nothing can run without an instructor's session, it starts when an
+  instructor opens `/manage/` while it is not running. Turning it off saves
+  the preference off.
+- **When it stops:** the chosen hours end; FAIG's session limit is reached
+  (at most 8 hours after that instructor signed in); FAIG answers 401/403; the
+  instructor turns it off or signs out; or the gateway restarts (opening
+  `/manage/` starts it again). Closing the browser does not stop it, and its
+  polling keeps the FAIG session alive (FAIG's idle timeout is 25-30 minutes,
+  measured 2026-11-20).
+- **Indicator:** top right of `/manage/`: running (end time, last run, number
+  approved), stale (a poll is more than two intervals late), stopped, expired
+  or error, with the reason under the controls.
+- **Verified 2026-11-20 (Ohio):** a student's submitted detector was approved
+  61 s later, and its deletion 61 s after that; off/on and a gateway restart
+  behaved as above.
+
 ## Not yet implemented
 
 Tracked in the Milestone 2 interfaces proposal:
-- auto-approval: the instructor turns it on for a chosen number of hours; it
-  approves pending review-queue items with the instructor's session every 60
-  seconds, with a status indicator;
 - restoring a prepopulated key that has no stored secret, by rotating it;
 - student password reset on this page (then the chatbot Admin tab can be
   retired);
-- FAIG's idle session timeout is 25-30 minutes and resets with use (measured
-  2026-11-20). Jobs that keep calling FAIG are unaffected; auto-approval's 60 s
-  polling keeps the instructor session alive up to the ~8 h absolute limit.
+- (FAIG's idle session timeout is 25-30 minutes and resets with use, measured
+  2026-11-20. Jobs that keep calling FAIG are unaffected.)
