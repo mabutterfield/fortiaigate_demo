@@ -35,9 +35,12 @@ browser ──► nginx (HTTP 30081 / HTTPS 30444) ──auth_request──► l
   `demo-https-gateway-auth:8090` Service by forwarding the signed headers;
   `?key=&since=` filters the list and `?uuid=` returns one entry. The
   FortiAIGate session never reaches the browser or the upstream app.
-- Sessions live in the sidecar's memory: up to 8 hours, 2 hours idle, and they
-  end early if FortiAIGate rejects the stored session. Restarting the gateway
-  signs everyone out.
+- Sessions live in the sidecar's memory: up to 8 hours, 25 minutes idle, and
+  they end early if FortiAIGate rejects the stored session. Restarting the
+  gateway signs everyone out. Any browser request through the gateway counts as
+  activity. The 25-minute default sits just under FortiAIGate's own idle
+  timeout (25-30 minutes, measured 2026-11-20; using the session resets it), so
+  users see the sign-in page instead of FortiAIGate errors.
 - Fallback mode (`lab_gateway_mode: fallback`) checks salted PBKDF2 hashes from
   the Secret named by `lab_gateway_fallback_secret_name` (default
   `lab-gateway-fallback`, key `fallback.json`, created empty once) instead of
@@ -71,7 +74,7 @@ lab_gateway_auth_port: 8090
 lab_gateway_faig_url: "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 lab_gateway_faig_verify_tls: false
 lab_gateway_max_session_hours: 8
-lab_gateway_idle_minutes: 120
+lab_gateway_idle_minutes: 25
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
 lab_gateway_fallback_secret_name: lab-gateway-fallback

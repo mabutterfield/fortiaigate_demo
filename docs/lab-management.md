@@ -185,4 +185,6 @@ Tracked in the Milestone 2 interfaces proposal:
 - restoring a prepopulated key that has no stored secret, by rotating it;
 - student password reset on this page (then the chatbot Admin tab can be
   retired);
-- handling FAIG's idle session timeout (not yet measured) for long jobs.
+- FAIG's idle session timeout is 25-30 minutes and resets with use (measured
+  2026-11-20). Jobs that keep calling FAIG are unaffected; auto-approval's 60 s
+  polling keeps the instructor session alive up to the ~8 h absolute limit.

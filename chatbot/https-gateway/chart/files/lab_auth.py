@@ -19,7 +19,7 @@ Environment:
   LAB_FAIG_VERIFY_TLS        "true" to verify FAIG's certificate (default false)
   LAB_HTTPS_PORT             public HTTPS port; HTTP logins redirect there
   LAB_MAX_SESSION_HOURS      absolute session lifetime (default 8)
-  LAB_IDLE_MINUTES           idle timeout (default 120)
+  LAB_IDLE_MINUTES           idle timeout (default 25, under FAIG's 25-30 min; Change 2026-11-20)
   LAB_SIGNING_KEY_FILE       file with the HMAC key shared with upstreams
   LAB_SIGNATURE_MAX_AGE      seconds a signed identity stays valid (default 300)
   LAB_AUTH_MODE              "faig" (default) or "fallback"
@@ -66,7 +66,7 @@ FAIG_URL = os.environ.get("LAB_FAIG_URL", "https://ingress-nginx-controller.ingr
 FAIG_VERIFY_TLS = os.environ.get("LAB_FAIG_VERIFY_TLS", "false").lower() in {"1", "true", "yes", "on"}
 HTTPS_PORT = os.environ.get("LAB_HTTPS_PORT", "")
 MAX_SESSION = float(os.environ.get("LAB_MAX_SESSION_HOURS", "8")) * 3600
-IDLE = float(os.environ.get("LAB_IDLE_MINUTES", "120")) * 60
+IDLE = float(os.environ.get("LAB_IDLE_MINUTES", "25")) * 60
 SIGNATURE_MAX_AGE = int(os.environ.get("LAB_SIGNATURE_MAX_AGE", "300"))
 MODE = os.environ.get("LAB_AUTH_MODE", "faig")
 FALLBACK_FILE = os.environ.get("LAB_FALLBACK_FILE", "")
