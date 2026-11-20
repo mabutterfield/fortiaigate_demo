@@ -38,7 +38,9 @@ class FakeClient:
             self.provider['apiKeys'] = [{'id':'one', 'name':'litellm-key', 'enabled':True, 'apiKeyMasked':'sk-******3456'}]
             return self.provider
         if path == '/api/v1/admin/ai-providers/litellm-direct': return self.provider
-        if path.endswith('/connectivity-tests'): return {'reachable':True, 'credentialsVerified':True}
+        if path.endswith('/connectivity-tests'):
+            if payload.get('url') != 'http://litellm.litellm.svc.cluster.local:4000/v1': raise AssertionError('missing connectivity URL')
+            return {'reachable':True, 'credentialsVerified':True}
         if path == '/api/v1/admin/virtual-keys' and method == 'GET': return [self.smoke] if self.smoke else []
         if path == '/api/v1/admin/virtual-keys' and method == 'POST':
             self.smoke = {'id':'key-id','keyName':payload['keyName'],'secretKey':'test-smoke-key'}
@@ -68,6 +70,19 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(self.client.calls.count(('POST','/api/v1/setup')), 1)
         self.assertEqual(self.client.calls.count(('POST','/api/v1/admin/licenses')), 1)
         self.assertEqual(self.client.calls.count(('POST','/api/v1/admin/ai-providers')), 1)
+
+    def test_license_readiness_retries_transient_gateway_errors(self):
+        original = self.client.call
+        failures = [503, 503]
+        def call(method, path, *args, **kwargs):
+            if path == '/api/v1/licenses' and failures:
+                raise bootstrap.ApiError(method, path, failures.pop())
+            return original(method, path, *args, **kwargs)
+        self.client.call = call
+        result = bootstrap.initialize(self.client, SETUP, self.root, r'FAIG\d+\.lic', KEY,
+                                      self.journal, MODEL, attempts=3, sleep=lambda _: None)
+        self.assertTrue(result['scanning_enabled'])
+        self.assertFalse(failures)
     def test_governed_smoke_key_is_saved_and_reused(self):
         path = self.root / 'smoke.json'
         result = bootstrap.initialize(self.client, SETUP, self.root, r'FAIG\d+\.lic', KEY, self.journal, MODEL,

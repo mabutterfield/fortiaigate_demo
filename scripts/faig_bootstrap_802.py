@@ -14,10 +14,14 @@ from pathlib import Path
 import re
 import secrets
 import ssl
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def select_license(directory: Path, pattern: str):
@@ -67,6 +71,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class ApiError(RuntimeError):
+    def __init__(self, method, path, status):
+        self.status = status
+        super().__init__(f'{method} {path}: HTTP {status}; response withheld')
+
+
 class Client:
     def __init__(self, origin, insecure=False):
         parsed = urllib.parse.urlsplit(origin)
@@ -97,7 +107,7 @@ class Client:
                 body = response.read()
                 return json.loads(body) if body else {}
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(f'{method} {path}: HTTP {exc.code}; response withheld') from None
+            raise ApiError(method, path, exc.code) from None
 
 
     def inference(self, key, payload):
@@ -133,6 +143,14 @@ def initialize(client, setup, license_dir, license_regex, key, journal_path, mod
     def mark(step, value):
         journal[step] = value
         atomic_private_write(journal_path, json.dumps(journal, sort_keys=True) + '\n')
+    def read_licenses():
+        for i in range(max(1, attempts)):
+            try:
+                return client.call('GET', '/api/v1/licenses')
+            except ApiError as exc:
+                if exc.status not in (502, 503, 504) or i + 1 >= max(1, attempts):
+                    raise
+                sleep(delay)
     status = client.call('GET', '/api/v1/setup-status')
     if status.get('needs_setup') is True:
         if journal.get('setup') == 'pending':
@@ -154,7 +172,7 @@ def initialize(client, setup, license_dir, license_regex, key, journal_path, mod
             mark('setup', 'complete')
     else:
         raise RuntimeError('setup status is unavailable or unrecognized')
-    licenses = client.call('GET', '/api/v1/licenses')
+    licenses = read_licenses()
     if not isinstance(licenses, dict) or not isinstance(licenses.get('licenses'), list):
         raise RuntimeError('license status is unavailable or unrecognized')
     if is_active(licenses) and journal.get('license') == 'pending':
@@ -173,7 +191,12 @@ def initialize(client, setup, license_dir, license_regex, key, journal_path, mod
         atomic_private_write(marker, selected.name + '\n')
         mark('license', 'complete')
     for i in range(max(1, attempts)):
-        licenses = client.call('GET', '/api/v1/licenses')
+        try:
+            licenses = client.call('GET', '/api/v1/licenses')
+        except ApiError as exc:
+            if exc.status not in (502, 503, 504):
+                raise
+            licenses = {}
         if is_active(licenses) and licenses.get('scanningEnabled') is True:
             break
         if i + 1 < attempts:
@@ -210,6 +233,7 @@ def initialize(client, setup, license_dir, license_regex, key, journal_path, mod
     if not parts or not key.startswith(parts[0]) or not key.endswith(parts[-1]):
         raise RuntimeError('existing LiteLLM credential does not match the private key; reconcile manually')
     result = client.call('POST', '/api/v1/admin/ai-providers/connectivity-tests', {
+        'url': saved.get('baseUrl') or endpoint['baseUrl'],
         'platform': saved['platform'], 'model': 'pass-model', 'providerId': saved['providerId'],
         'endpoint': endpoint, 'draftCredentials': [{'ref': credential['id'], 'credentialId': credential['id'],
                                                     'name': credential['name'], 'enabled': True}]})
