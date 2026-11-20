@@ -120,21 +120,38 @@ class Quickstart802Tests(unittest.TestCase):
 
     def test_terraform_preserves_ecr_by_default(self):
         with mock.patch.object(quickstart, 'run_ecr_terraform') as ecr, \
+             mock.patch.object(quickstart, 'restore_existing_ecr_vars') as restore, \
              mock.patch.object(quickstart, 'terraform_init_validate'), \
              mock.patch.object(quickstart, 'terraform_apply') as apply:
             quickstart.run_terraform('skip', True, [], 'profile', 'region')
             ecr.assert_not_called()
+            restore.assert_called_once_with('profile', 'region')
             self.assertTrue(apply.called)
             self.assertFalse(any(call.args[0] == 'terraform/aws-ecr' for call in apply.call_args_list))
 
     def test_terraform_workspace_overrides_passed_to_prep_and_host(self):
         directory = self.root / 'ohio'
-        with mock.patch.object(quickstart, 'terraform_init_validate'), \
+        with mock.patch.object(quickstart, 'restore_existing_ecr_vars'), \
+             mock.patch.object(quickstart, 'terraform_init_validate'), \
              mock.patch.object(quickstart, 'terraform_apply') as apply:
             quickstart.run_terraform('skip', True, [], 'profile', 'region', terraform_vars_dir=directory)
         calls = {call.args[0]: call.kwargs.get('var_file') for call in apply.call_args_list}
         self.assertEqual(calls['terraform/aws-prep'], directory / 'prep.tfvars')
         self.assertEqual(calls['terraform/aws-ec2-k3s'], directory / 'host.tfvars')
+
+    def test_existing_ecr_vars_come_from_matching_workspace(self):
+        import json
+        data = {'registry': {'value': '123456789012.dkr.ecr.us-east-2.amazonaws.com'},
+                'account_id': {'value': '123456789012'},
+                'repository_urls': {'value': {'api': '123456789012.dkr.ecr.us-east-2.amazonaws.com/fortiaigate/api'}}}
+        with mock.patch.object(quickstart, 'REPO_ROOT', self.root), \
+             mock.patch.object(quickstart, 'parse_ecr_tfvars', return_value=('fortiaigate', ['api'])), \
+             mock.patch.object(quickstart, 'command_output', side_effect=[json.dumps(data), '123456789012', json.dumps(data), '123456789012']):
+            quickstart.restore_existing_ecr_vars('test', 'us-east-2')
+            output = json.loads((self.root / 'ansible/group_vars/ecr.generated.yml').read_text())
+            self.assertEqual(output['fortiaigate_image_repository'], data['registry']['value'] + '/fortiaigate')
+            with self.assertRaisesRegex(SystemExit, 'matching existing ECR'):
+                quickstart.restore_existing_ecr_vars('test', 'us-east-1')
 
     def test_802_service_order_and_manual_setup(self):
         args = Namespace(faig_status_retries=1, faig_status_delay=1)

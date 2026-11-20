@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
 import os
 import platform
 import re
@@ -1537,6 +1538,7 @@ def run_terraform(
         run_ecr_terraform(ecr_mode, auto_approve, profile, region, noninteractive_import=noninteractive_import)
     else:
         print("Existing ECR repositories and images are preserved; ECR management skipped.")
+        restore_existing_ecr_vars(profile, region)
 
     for label, module_path in TERRAFORM_MODULES[1:]:
         print_header(f"Terraform: {label}")
@@ -1551,6 +1553,37 @@ def run_terraform(
         terraform_init_validate(module_path)
         variables = [f"{appliance_key}_enabled=true"] if appliance_key in (transient_appliance_enables or set()) else []
         terraform_apply(module_path, auto_approve, variables)
+
+
+def restore_existing_ecr_vars(profile: str, region: str) -> None:
+    """Render Ansible registry settings from existing ECR state without applying it."""
+    raw = command_output(["terraform", "-chdir=terraform/aws-ecr", "output", "-json"], check=False)
+    caller_account = command_output(['aws', 'sts', 'get-caller-identity', '--profile', profile,
+                                     '--query', 'Account', '--output', 'text'], check=False)
+    try:
+        outputs = json.loads(raw)
+        registry = outputs['registry']['value']
+        account = outputs['account_id']['value']
+        repositories = outputs['repository_urls']['value']
+        prefix, _ = parse_ecr_tfvars()
+        if (not isinstance(account, str) or not account.isdigit() or caller_account != account or
+                not isinstance(registry, str) or
+                not registry.startswith(f'{account}.dkr.ecr.{region}.') or
+                not isinstance(repositories, dict) or not repositories or
+                any(not isinstance(url, str) or not url.startswith(f'{registry}/{prefix}/')
+                    for url in repositories.values())):
+            raise ValueError('ECR outputs do not match the selected region and repository prefix')
+    except (ValueError, KeyError, TypeError):
+        raise SystemExit('Cannot derive matching existing ECR settings from the selected Terraform workspace; '
+                         'check ECR state, account and region before deployment.') from None
+    values = {'aws_profile': profile, 'aws_region': region, 'aws_account_id': account,
+              'ecr_account_id': account, 'ecr_registry': registry, 'ecr_repo_prefix': prefix,
+              'registry_type': 'ecr', 'registry': registry, 'repo_prefix': prefix,
+              'fortiaigate_image_repository': f'{registry}/{prefix}', 'ecr_repository_urls': repositories}
+    path = REPO_ROOT / 'ansible/group_vars/ecr.generated.yml'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(values, indent=2) + '\n', encoding='utf-8')
+    print(f'Prepared existing ECR settings in {path}; repositories were not modified.')
 
 
 def run_ecr_terraform(ecr_mode: str, auto_approve: bool, profile: str, region: str, *, noninteractive_import: bool = False) -> None:
