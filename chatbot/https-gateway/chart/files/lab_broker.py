@@ -178,6 +178,54 @@ def _all_users(admin) -> list:
             return users
 
 
+def reset_student_password(admin, new_session, store, request: dict, same_as_instructor=lambda pw: False) -> dict:
+    """Reset one student's FAIG password and keep lab-credentials in step (Change 2026-11-20).
+
+    request {"number", "password": {"mode", "value"?}}. The new password is stored before FAIG is
+    asked (status "reset-pending", previous value kept), then confirmed by signing in as the student.
+    A definite refusal or a failed sign-in restores the previous stored password."""
+    names = student_names(request.get("number"))
+    student, email = names["student"], names["email"]
+    user = next((u for u in _all_users(admin) if u.get("email") == email), None)
+    if user is None:
+        raise KeyError(f"{email} does not exist in FAIG")
+    password = student_password(request.get("password"), names["number"])
+    strength = admin.call("POST", "/api/v1/me/password/strength", {"password": password})
+    if not strength.get("isStrong"):
+        missing = [k for k, v in strength.items() if k.endswith("Ok") and v is False]
+        raise ValueError("FAIG rejects this password as weak: " + ", ".join(missing))
+    if same_as_instructor(password):
+        raise ValueError("student passwords must differ from the instructor's password")
+    previous = store.get("credentials", student) or {}
+    restore = (dict(previous) if previous.get("password")
+               else {"username": email, "password": "", "status": "unknown", "updated_at": int(_time.time())})
+    store.put("credentials", student, {"username": email, "password": password, "status": "reset-pending",
+                                       "previous_password": previous.get("password", ""),
+                                       "updated_at": int(_time.time())})
+    try:
+        admin.call("POST", f"/api/v1/admin/users/{user['id']}/password/reset", {"password": password})
+    except _urlerror.HTTPError as exc:
+        if 400 <= exc.code < 500:  # FAIG did not change it (includes an expired instructor session)
+            store.put("credentials", student, restore)
+            raise
+    except (_urlerror.URLError, OSError):
+        pass  # unknown outcome: the sign-in check below decides
+    for candidate, state in ((password, "new"), (previous.get("password", ""), "previous")):
+        if not candidate:
+            continue
+        try:
+            new_session().login(email, candidate)
+        except (_urlerror.URLError, OSError, KeyError, ValueError):
+            continue
+        if state == "new":
+            store.put("credentials", student, {"username": email, "password": password, "status": "active",
+                                               "updated_at": int(_time.time())})
+            return {"student": student, "email": email, "password": "stored", "reset": True, "verified": True}
+        store.put("credentials", student, restore)
+        raise RuntimeError(f"{student}: the reset did not take effect; the previous password still works and is kept")
+    raise RuntimeError(f"{student}: could not confirm the reset (neither password signs in); run the reset again")
+
+
 def _accept_invitation(new_session, invitation_id: str, email: str, number: int, password: str):
     path = "/api/v1/invitations/" + urllib.parse.quote(invitation_id, safe="")
     new_session.call("GET", path)
@@ -411,7 +459,7 @@ def validate_plan(student: str, plan: dict) -> None:
             raise ValueError(f"object name {name!r} is not a valid name for {student}")
 
 
-def prepopulate_student(admin, student_session, store, student: str, plan: dict, log) -> dict:
+def prepopulate_student(admin, student_session, store, student: str, plan: dict, log, restore: bool = False) -> dict:
     """Create and approve one student's objects and keys; returns a summary."""
     validate_plan(student, plan)
     workspace = next((w for w in _items(student_session.call("GET", "/api/v1/me/workspaces"))
@@ -427,7 +475,8 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
                   if m.get("effectiveEnabled", m.get("enabled", True)) is not False}
         return provider, models.get(model_id)
 
-    summary = {"created": [], "existing": [], "approved": [], "skipped": [], "keys_saved": [], "notes": []}
+    summary = {"created": [], "existing": [], "approved": [], "skipped": [], "keys_saved": [], "notes": [],
+               "keys_restored": []}
     entries = []
     for entry in plan.get("entries") or []:
         provider, model = model_for(entry["provider"], entry["model"])
@@ -532,11 +581,41 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
     for name, scenario, action, model_id, project_id, policy_id, provider, model in wanted:
         current = existing_keys.get(name)
         if current:
+            summary["existing"].append("key " + name)
             if current.get("id") in stored and stored[current["id"]].get("secret"):
-                summary["existing"].append("key " + name)
-            else:
-                summary["existing"].append("key " + name)
+                continue
+            if not restore:
                 summary["notes"].append(f"key {name} exists in FAIG without a stored secret; restore (rotate) it to use it")
+                continue
+            # Change 2026-11-20: restore by rotation (as the student). Only a definite 4xx proves
+            # nothing changed; anything else is an unknown outcome and is reported, never retried here.
+            try:
+                response = student_session.call("POST", f"/api/v1/me/virtual-keys/{current['id']}/rotate", {})
+            except _urlerror.HTTPError as exc:
+                summary["notes"].append(f"key {name}: FAIG refused the rotation (HTTP {exc.code}); nothing changed"
+                                        if rotation_refused(exc.code) else
+                                        f"key {name}: rotation outcome unknown (HTTP {exc.code}); restore again")
+                continue
+            except (_urlerror.URLError, OSError) as exc:
+                summary["notes"].append(f"key {name}: rotation outcome unknown ({type(exc).__name__}); restore again")
+                continue
+            secret = response.get("secretKey") if isinstance(response, dict) else None
+            if not secret or str(current["id"]).replace("-", "") not in secret:
+                summary["notes"].append(f"key {name}: FAIG returned no usable new value; restore again")
+                continue
+            record = dict(stored.get(current["id"]) or {}, faig_key_id=current["id"], key_name=name,
+                          scenario_id=scenario, action=action, origin="seeded", secret=secret, model=model_id,
+                          policy_ids=[policy_id] if policy_id else [], status="untested", verified_at=None,
+                          updated_at=int(_time.time()))
+            try:
+                keys = (store.get("keys", student) or {}).get("keys", [])
+                keys = [k for k in keys if k.get("faig_key_id") != current["id"]] + [record]
+                store.put("keys", student, {"schema": 1, "keys": keys})
+                summary["keys_restored"].append(name)
+            except Exception as exc:  # noqa: BLE001 - the new value exists only here now
+                summary["notes"].append(f"key {name} was rotated but its new value could not be saved "
+                                        f"({type(exc).__name__}); restore again")
+            secret = record = None
             continue
         response = student_session.call("POST", "/api/v1/me/virtual-keys",
                                         _key_body(name, workspace["id"], project_id, policy_id, provider, model))

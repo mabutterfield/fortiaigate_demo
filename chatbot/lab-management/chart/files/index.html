@@ -69,8 +69,23 @@
   <p>For students that already exist with a stored password. Creates what is missing for the selected scenarios; existing objects and keys are kept. Each layer is approved with your session.</p>
   <form id="prepop">
     <label>First number <input type="number" id="pstart" min="1" max="99" value="1" required></label>
-    <label>How many <input type="number" id="pcount" min="1" max="99" value="1" required></label>
+    <label>How many <input type="number" id="pcount" min="1" max="99" value="1" required></label><br>
+    <label><input type="checkbox" id="prestore"> Also restore lost key values: a prepopulated key that exists in FAIG without a stored value is rotated and the new value stored (its old value stops working within about a minute)</label><br>
     <button type="submit">Prepopulate</button>
+  </form>
+
+  <h2>Reset a student's password</h2>
+  <p>Sets a new FAIG password, stores it for the share page and checks it by signing in as the student. If FAIG refuses or the new password does not work, the stored password is kept.</p>
+  <form id="reset" autocomplete="off">
+    <label>Student number <input type="number" id="rnumber" min="1" max="99" value="1" required></label>
+    <fieldset>
+      <legend>New password</legend>
+      <label><input type="radio" name="rmode" value="generated" checked> Generate one</label><br>
+      <label><input type="radio" name="rmode" value="shared"> Use this password</label><br>
+      <label><input type="radio" name="rmode" value="base"> Base + student number (e.g. Base_ → Base_01)</label><br>
+      <label id="rlabel" hidden>Password <input type="password" id="rpassword" autocomplete="new-password" maxlength="128"></label>
+    </fieldset>
+    <button type="submit">Reset password</button>
   </form>
 
   <h2>Students</h2>

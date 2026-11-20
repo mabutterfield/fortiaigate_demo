@@ -12,7 +12,8 @@ Change 2026-11-19 (catalog switch; the previous app was removed 2026-11-20, see 
   marker-matched Traffic Log rows (PASS / FAIL / KNOWN FAIL / INCOMPLETE).
 - "Direct to LiteLLM" is a debug option: off by default and needs a
   confirmation; it bypasses FortiAIGate.
-- The Admin tab keeps password resets and links to Lab Management (/manage/);
+- Admins reset student passwords in Lab Management (/manage/); the Admin tab was
+  retired 2026-11-20 (it previously kept password resets here);
   the old seed comparison/restore is retired (seeded keys live in lab-keys).
 
 The gateway signs the visitor's identity into X-Lab-* headers (display and
@@ -528,33 +529,35 @@ def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], 
 
 # ------------------------------------------------------------------ admin
 
-def admin_tab(identity: dict[str, str]) -> None:
-    st.markdown("Students, scenarios, prepopulation and the share page are in "
-                "**[Lab Management](/manage/)**.")
-
-    def call(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
-        return ls.admin_call(CFG["auth_url"], identity, signing_key(), method, path, body)
-
-    st.subheader("Set a student's password")
-    st.write("Sets the password in FortiAIGate and the matching fallback sign-in hash.")
-    with st.form("set-password", clear_on_submit=True):
-        target = st.selectbox("Student", student_list(identity))
-        typed = st.text_input("New password (leave empty to generate one)", type="password")
-        if st.form_submit_button("Set password") and target:
-            password = typed or ls.generate_password()
-            status, result = call("POST", "/_lab/internal/admin/password", {"student": target, "password": password})
-            if status == 200:
-                st.success(f"{result['email']}: FortiAIGate password reset; fallback {result['fallback']}.")
-                if not typed:
-                    st.write("Generated password (shown once):")
-                    st.code(password, language=None)
-                st.info("Lab Management's share page still shows the previous stored password until it is "
-                        "re-imported; update it there.")
-            elif status == 422:
-                st.error(f"{result['error']}: add {', '.join(result.get('missing', [])) or 'complexity'}.")
-            else:
-                st.error(f"Password not changed: {result.get('error', status)}")
-            password = typed = None
+# Change 2026-11-20: the Admin tab (student password reset) moved to Lab Management (/manage/,
+# "Reset a student's password"); its gateway route /_lab/internal/admin/password is commented out too.
+# def admin_tab(identity: dict[str, str]) -> None:
+#     st.markdown("Students, scenarios, prepopulation and the share page are in "
+#                 "**[Lab Management](/manage/)**.")
+#
+#     def call(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
+#         return ls.admin_call(CFG["auth_url"], identity, signing_key(), method, path, body)
+#
+#     st.subheader("Set a student's password")
+#     st.write("Sets the password in FortiAIGate and the matching fallback sign-in hash.")
+#     with st.form("set-password", clear_on_submit=True):
+#         target = st.selectbox("Student", student_list(identity))
+#         typed = st.text_input("New password (leave empty to generate one)", type="password")
+#         if st.form_submit_button("Set password") and target:
+#             password = typed or ls.generate_password()
+#             status, result = call("POST", "/_lab/internal/admin/password", {"student": target, "password": password})
+#             if status == 200:
+#                 st.success(f"{result['email']}: FortiAIGate password reset; fallback {result['fallback']}.")
+#                 if not typed:
+#                     st.write("Generated password (shown once):")
+#                     st.code(password, language=None)
+#                 st.info("Lab Management's share page still shows the previous stored password until it is "
+#                         "re-imported; update it there.")
+#             elif status == 422:
+#                 st.error(f"{result['error']}: add {', '.join(result.get('missing', [])) or 'complexity'}.")
+#             else:
+#                 st.error(f"Password not changed: {result.get('error', status)}")
+#             password = typed = None
 
 
 # ------------------------------------------------------------------ page
@@ -636,7 +639,9 @@ def main() -> None:
     st.title(CFG["title"])
     if CFG["gui_only"]:
         st.warning(GUI_ONLY_NOTE)
-    names = ["Chat", "Tests", "Keys"] + (["Admin"] if identity["role"] == "admin" else [])
+    # Change 2026-11-20: Admin tab retired (password reset is in Lab Management).
+    # names = ["Chat", "Tests", "Keys"] + (["Admin"] if identity["role"] == "admin" else [])
+    names = ["Chat", "Tests", "Keys"]
     tabs = st.tabs(names)
     with tabs[0]:
         chat_tab(ctx, scenario)
@@ -644,9 +649,9 @@ def main() -> None:
         tests_tab(identity, scenarios, keys, scenario, action)
     with tabs[2]:
         keys_tab(identity, student, scenarios, platform, keys, key_error)
-    if identity["role"] == "admin":
-        with tabs[3]:
-            admin_tab(identity)
+    # if identity["role"] == "admin":  # Change 2026-11-20: Admin tab retired
+    #     with tabs[3]:
+    #         admin_tab(identity)
 
 
 main()
