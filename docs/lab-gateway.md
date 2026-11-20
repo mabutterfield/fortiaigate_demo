@@ -19,8 +19,12 @@ browser ──► nginx (HTTP 30081 / HTTPS 30444) ──auth_request──► l
 - Students and FortiAIGate super admins sign in with their FortiAIGate email
   and password. A student is an account that is Workspace Admin of a
   `studentNN_workspace`; other accounts are refused.
-- The plain HTTP port stays available, but the login page and form always
-  redirect to HTTPS. The session cookie is `Secure`, `HttpOnly` and
+- HTTPS only (Change 2026-11-20, owner: HTTPS is mandatory for browser
+  routes): the plain HTTP port (30081) answers every request with a 301 to the
+  same path and query on HTTPS 30444; it no longer serves any page. A redirect
+  cannot protect anything already sent over HTTP, so give students the HTTPS
+  address. Other HTTP listeners (FAIG ingress, optional apps) are part of the
+  deployment and are handled there. The session cookie is `Secure`, `HttpOnly` and
   `SameSite=Lax`, so after sign-in students use HTTPS.
 - nginx asks the sidecar (`/_lab/verify`) about every request on routes with
   `auth: true`. A valid session returns HMAC-signed `X-Lab-User`,
