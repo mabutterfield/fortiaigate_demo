@@ -40,8 +40,18 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
 - **Chatbot keys:** since 2026-11-19 the student chatbot reads and maps keys
   from `lab-keys` through the gateway (see [lab chatbot](lab-chatbot.md)).
 - **Auto-approval** (2026-11-20): see [below](#auto-approval).
-- **Not yet available:** seeded-key restore by rotation, and student password
-  reset (still on the chatbot's Admin tab).
+- **Restore lost key values** (2026-11-20): "Prepopulate existing students"
+  with *Also restore lost key values* rotates, as the student, any
+  prepopulated key that exists in FAIG without a stored value, and stores the
+  new value with its scenario and action. The old value stops working within
+  about a minute. A definite FAIG refusal is reported as "nothing changed"; any
+  other failure as "outcome unknown, restore again". Nothing is retried blindly.
+- **Reset a student's password** (2026-11-20, moved from the chatbot Admin
+  tab, which is retired): generated, typed, or base + number, with the same
+  rules as student creation. The new password is stored first, then confirmed
+  by signing in as the student; if FAIG refuses or the new password does not
+  work, the stored password is kept. The share page and the fallback sign-in
+  store follow. The journal records the student number and mode only.
 
 ## Deploy
 
@@ -220,8 +230,5 @@ setting, so the lab does it:
 ## Not yet implemented
 
 Tracked in the Milestone 2 interfaces proposal:
-- restoring a prepopulated key that has no stored secret, by rotating it;
-- student password reset on this page (then the chatbot Admin tab can be
-  retired);
 - (FAIG's idle session timeout is 25-30 minutes and resets with use, measured
   2026-11-20. Jobs that keep calling FAIG are unaffected.)

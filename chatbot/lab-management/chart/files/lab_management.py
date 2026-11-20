@@ -231,14 +231,25 @@ def create_job(db, kind, actor, request):
             raise ValueError('invalid student batch')
         clean = dict(request, scenarios=selected(db))
     elif kind == 'prepopulate':
+        # Change 2026-11-20: optional "restore" rotates prepopulated keys whose values were lost.
+        request = dict(request)
+        restore = request.pop('restore', False)
+        if type(restore) is not bool:
+            raise ValueError('invalid prepopulation batch')
         if (set(request) != {'count', 'start_index'} or type(request['count']) is not int
                 or type(request['start_index']) is not int or not 1 <= request['count'] <= 99
                 or not 1 <= request['start_index'] <= 99 or request['start_index'] + request['count'] - 1 > 99):
             raise ValueError('invalid prepopulation batch')
-        clean = dict(request, scenarios=selected(db))
+        clean = dict(request, restore=restore, scenarios=selected(db))
+    elif kind == 'password':
+        # Change 2026-11-20: student password reset moved here from the chatbot Admin tab.
+        if (set(request) != {'number', 'password_mode'} or type(request['number']) is not int
+                or not 1 <= request['number'] <= 99 or request['password_mode'] not in PASSWORD_MODES):
+            raise ValueError('invalid password reset')
+        clean = dict(request)
     else:
         raise ValueError('unknown operation')
-    if not clean['scenarios']:
+    if kind != 'password' and not clean['scenarios']:
         raise ValueError('select at least one scenario')
     job = str(uuid.uuid4())
     status, detail = (('queued', 'Waiting to run.') if kind in EXECUTABLE
@@ -517,6 +528,8 @@ def prepopulation_plan(view, scenario_ids, student):
 def summarize_prepopulation(student, result):
     parts = [f'{len(result.get("created", []))} created', f'{len(result.get("approved", []))} approved',
              f'{len(result.get("existing", []))} already present', f'{len(result.get("keys_saved", []))} key secrets saved']
+    if result.get('keys_restored'):  # Change 2026-11-20
+        parts.append(f'{len(result["keys_restored"])} key(s) restored by rotation: ' + ', '.join(result['keys_restored']))
     line = f'{student}: prepopulated — ' + ', '.join(parts)
     if result.get('skipped'):
         line += '; skipped ' + '; '.join(result['skipped'])
@@ -531,7 +544,10 @@ def run_prepopulate_job(prepopulate, view, request, log):
     for number in range(request['start_index'], request['start_index'] + request['count']):
         student = f'student{number:02d}'
         try:
-            result = prepopulate({'number': number, 'plan': prepopulation_plan(view, scenarios, student)})
+            body = {'number': number, 'plan': prepopulation_plan(view, scenarios, student)}
+            if request.get('restore'):
+                body['restore'] = True
+            result = prepopulate(body)
         except (BrokerError, UnknownOutcome) as exc:
             failures += 1
             log(f'{student}: prepopulation FAILED — {exc}')
@@ -543,7 +559,7 @@ def run_prepopulate_job(prepopulate, view, request, log):
         raise BrokerError(f'{failures} student(s) need attention; re-run the same batch to reconcile')
 
 
-EXECUTABLE = {'models', 'students', 'prepopulate'}
+EXECUTABLE = {'models', 'students', 'prepopulate', 'password'}
 _job_lock = threading.Lock()
 
 
@@ -570,6 +586,15 @@ def execute(job, kind, request, handle, db_path=None, password=None):
             elif kind == 'prepopulate':
                 run_prepopulate_job(lambda body: gateway(handle, '/_lab/internal/admin/students/prepopulate', body,
                                                          timeout=600), load_faig_view(), request, log)
+            elif kind == 'password':
+                policy = {'mode': request['password_mode']}
+                if request['password_mode'] != 'generated':
+                    policy['value'] = password
+                result = gateway(handle, '/_lab/internal/admin/students/password',
+                                 {'number': request['number'], 'password': policy}, timeout=120)
+                password = policy = None
+                log(f"{result['student']}: password reset and verified by student sign-in; stored for the share "
+                    f"page; fallback sign-in {result.get('fallback', 'not changed')}")
             set_job(db, job, 'done', '\n'.join(lines) or 'Done.')
         except SessionLost:
             set_job(db, job, 'needs-sign-in', '\n'.join(lines + ['Your FAIG session ended; sign in again and re-run.']))
@@ -764,13 +789,13 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(400, {'error': str(exc)})
                     return self.reply(200, {'saved': True})
                 password = None
-                if path == '/api/jobs/students':
+                if path in ('/api/jobs/students', '/api/jobs/password'):
                     password = body.pop('password', None)
                     if body.get('password_mode') in ('shared', 'base') and (not isinstance(password, str) or not password):
                         raise ValueError('enter a password for this mode')
                     if body.get('password_mode') == 'generated' and password:
                         raise ValueError('generated mode takes no password')
-                if path in ('/api/jobs/models', '/api/jobs/students', '/api/jobs/prepopulate'):
+                if path in ('/api/jobs/models', '/api/jobs/students', '/api/jobs/prepopulate', '/api/jobs/password'):
                     kind = path.rsplit('/', 1)[-1]
                     if kind in EXECUTABLE and not caller_token():
                         return self.reply(409, {'error': 'FAIG actions are not configured yet (no broker caller token).'})

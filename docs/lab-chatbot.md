@@ -50,8 +50,9 @@ preserved on `main` and tag `v1.0_faig8.0.1`.
   - *Rotate*: rotates a key in FortiAIGate (with confirmation) and stores the
     new value.
 - **Admins** (FAIG administrators) pick any student under **Act as student**
-  and get an **Admin** tab with student password reset and a link to
-  [Lab Management](lab-management.md) (`/manage/`).
+  (tests are graded with that student's Traffic Log) and have a link to
+  [Lab Management](lab-management.md) (`/manage/`), where student passwords
+  are reset. The Admin tab was retired on 2026-11-20.
 
 ## How It Is Built
 
@@ -157,7 +158,7 @@ The single test for `hr-tool-dlp`/`redact` paired its 2 requests with 2
 Traffic Log entries (input Log, output Redact), and no key value appeared in
 the result.
 
-Admin tab (2026-11-19):
+Admin tab (2026-11-19; retired 2026-11-20, password reset is in Lab Management):
 - The student list showed student01 and student02.
 - A student identity got 403 from the admin calls.
 - A weak password was refused with the missing requirements listed.
@@ -173,4 +174,5 @@ Admin tab (2026-11-19):
 - Instructor all-students view and admin Traffic Log views when acting as a
   student (admin sign-ins have no student Traffic Log, so their test runs are
   INCOMPLETE).
-- Student password reset moves to Lab Management; the Admin tab then retires.
+- (Done 2026-11-20: student password reset moved to Lab Management and the
+  Admin tab was retired.)

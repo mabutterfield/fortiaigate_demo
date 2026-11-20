@@ -154,9 +154,20 @@ el('students').addEventListener('submit', e => {
   run(async () => { await api('api/jobs/students', body); el('password').value = ''; });
 });
 
+// Change 2026-11-20: password reset (moved here from the chatbot Admin tab).
+function rMode() { return document.querySelector('input[name=rmode]:checked').value; }
+document.querySelectorAll('input[name=rmode]').forEach(r => r.addEventListener('change', () => { el('rlabel').hidden = rMode() === 'generated'; }));
+el('reset').addEventListener('submit', e => {
+  e.preventDefault();
+  const body = {number: Number(el('rnumber').value), password_mode: rMode()};
+  if (rMode() !== 'generated') body.password = el('rpassword').value;
+  run(async () => { await api('api/jobs/password', body); el('rpassword').value = ''; });
+});
+
 el('prepop').addEventListener('submit', e => {
   e.preventDefault();
-  run(() => api('api/jobs/prepopulate', {count: Number(el('pcount').value), start_index: Number(el('pstart').value)}));
+  run(() => api('api/jobs/prepopulate', {count: Number(el('pcount').value), start_index: Number(el('pstart').value),
+                                        restore: el('prestore').checked}));
 });
 
 async function loadRoster() {

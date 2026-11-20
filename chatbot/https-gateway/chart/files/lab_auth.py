@@ -441,8 +441,12 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
-        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/password":
-            return self.admin_password()
+        # Change 2026-11-20: password reset moved to Lab Management (/students/password below); the
+        # chatbot Admin tab that used this signed-identity route is retired.
+        # if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/password":
+        #     return self.admin_password()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/password":
+            return self.admin_student_password()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/faig":
             return self.admin_faig_proxy()
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/ensure":
@@ -749,7 +753,9 @@ class Handler(BaseHTTPRequestHandler):
             return None
         try:
             request = self.broker_json(256 * 1024)
-            if set(request) != {"number", "plan"}:
+            # Change 2026-11-20: optional "restore" rotates prepopulated keys whose values were lost.
+            if not {"number", "plan"} <= set(request) <= {"number", "plan", "restore"} \
+                    or not isinstance(request.get("restore", False), bool):
                 raise ValueError("unexpected fields")
             names = lab_broker.student_names(request["number"])
         except (ValueError, KeyError):
@@ -764,7 +770,8 @@ class Handler(BaseHTTPRequestHandler):
             student_session.login(credentials["username"], credentials["password"])
             credentials = None
             summary = lab_broker.prepopulate_student(session["faig"], student_session, store, student,
-                                                     request["plan"], lambda _: None)
+                                                     request["plan"], lambda _: None,
+                                                     restore=request.get("restore", False))
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403):
                 return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
@@ -815,6 +822,43 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             return self.json_reply(400, {"error": str(exc)})
         return self.json_reply(200, status)
+
+    def admin_student_password(self):
+        """Reset a student's password from Lab Management; lab-credentials and the fallback store follow."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            request = self.broker_json(4096)
+            if set(request) != {"number", "password"}:
+                raise ValueError("unexpected fields")
+        except ValueError:
+            return self.json_reply(400, {"error": "bad request body"})
+        check = session.get("password_check")
+        try:
+            result = lab_broker.reset_student_password(
+                session["faig"], FaigSession, LabDataStore(), request,
+                same_as_instructor=lambda pw: bool(check) and hmac.compare_digest(check, password_check(pw)))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
+            return self.json_reply(502, {"error": f"FAIG refused the reset (HTTP {exc.code}); the stored password was kept"})
+        except KeyError as exc:
+            return self.json_reply(404, {"error": str(exc).strip("'")})
+        except (ValueError, RuntimeError) as exc:
+            return self.json_reply(422, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); run the reset again"})
+        request = None
+        try:  # the fallback sign-in entry carries the workspace (from the roster)
+            roster = LabDataStore().get("roster", result["student"]) or {}
+        except (urllib.error.URLError, OSError, ValueError):
+            roster = {}
+        result["fallback"] = self.sync_fallback(dict(result, workspace_id=roster.get("workspace_id", ""),
+                                                     workspace_name=roster.get("workspace", "")))
+        print(f"password reset for {result['student']} by {session['identity']['user']}: fallback {result['fallback']}",
+              flush=True)
+        return self.json_reply(200, result)
 
     def admin_roster(self, reveal: bool):
         session = broker_session(self, "admin")
