@@ -13,7 +13,7 @@ data:
 {{- end }}
 ---
 # The shared catalog evaluator package (catalog802: loader, vocabulary,
-# result_contract), copied from the repository at deploy time.
+# result_contract, sensitive), copied from the repository at deploy time.
 apiVersion: v1
 kind: ConfigMap
 metadata:

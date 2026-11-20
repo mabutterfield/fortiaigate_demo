@@ -55,11 +55,9 @@ def load_chatbot(fake):
     import os, tempfile
     key = tempfile.NamedTemporaryFile("wb", delete=False); key.write(b"unit-test-key"); key.close()
     os.environ["LAB_SIGNING_KEY_FILE"] = key.name
-    saved = {n: sys.modules.get(n) for n in ("streamlit", "faig_agent", "result_contract")}
+    saved = {n: sys.modules.get(n) for n in ("streamlit", "faig_agent")}
     sys.modules["streamlit"] = fake
     sys.modules["faig_agent"] = types.ModuleType("faig_agent")
-    rc = types.ModuleType("result_contract"); rc.contains_sensitive = lambda *_: False
-    sys.modules["result_contract"] = rc
     sys.path[:0] = [str(FILES), str(REPO_ROOT)]
     try:
         spec = importlib.util.spec_from_file_location("lab_chatbot_ui_test", FILES / "lab_chatbot.py")

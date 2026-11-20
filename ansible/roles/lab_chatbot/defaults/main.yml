@@ -9,7 +9,8 @@ lab_chatbot_service_port: 80
 lab_chatbot_title: FortiAIGate Lab Chatbot
 lab_chatbot_chart_local_path: "{{ (playbook_dir + '/../../chatbot/lab-chatbot/chart') | realpath }}"
 lab_chatbot_agent_local_path: "{{ (playbook_dir + '/../../chatbot/agent/faig_agent.py') | realpath }}"
-lab_chatbot_result_contract_local_path: "{{ (playbook_dir + '/../../functional_test/result_contract.py') | realpath }}"
+# Change 2026-11-20: contains_sensitive moved to catalog802/sensitive.py; result_contract.py is no longer shipped.
+# lab_chatbot_result_contract_local_path: "{{ (playbook_dir + '/../../functional_test/result_contract.py') | realpath }}"
 lab_chatbot_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
 # Change 2026-11-19: catalog view and evaluator package (replace scenario-pack.json).
 lab_chatbot_catalog_python: python3
@@ -18,6 +19,7 @@ lab_chatbot_catalog_package_files:
   - loader.py
   - vocabulary.py
   - result_contract.py
+  - sensitive.py  # Change 2026-11-20
 lab_chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/lab-chatbot-chart"
 lab_chatbot_values_remote_path: "/home/{{ ansible_user }}/tmp/lab-chatbot-values.yaml"
 lab_chatbot_image_repository: python

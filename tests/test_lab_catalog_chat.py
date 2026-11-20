@@ -15,7 +15,7 @@ spec.loader.exec_module(lc)
 
 from catalog802.loader import build_views, load  # noqa: E402
 from catalog802.result_contract import evaluate  # noqa: E402
-from functional_test.result_contract import contains_sensitive  # noqa: E402
+from catalog802.sensitive import contains_sensitive  # noqa: E402
 
 KID = "1b65f1df-d00f-45d4-abba-7ade33eeb8be"
 
