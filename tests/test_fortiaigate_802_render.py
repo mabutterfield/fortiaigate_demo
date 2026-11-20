@@ -43,6 +43,24 @@ class RuntimePatchTests(unittest.TestCase):
             MODULE.patch_gpu_runtime(doc)
             self.assertEqual(doc, expected)
 
+    def test_faig_nginx_tls_forces_https_and_preserves_other_settings(self):
+        doc = {'kind': 'Ingress', 'metadata': {'name': 'fortiaigate-ingress', 'annotations': {
+            'nginx.ingress.kubernetes.io/force-ssl-redirect': 'false',
+            'nginx.ingress.kubernetes.io/proxy-body-size': '64m'}},
+            'spec': {'ingressClassName': 'nginx', 'tls': [{'secretName': 'tls'}]}}
+        MODULE.patch_https_redirect(doc)
+        self.assertEqual(doc['metadata']['annotations']['nginx.ingress.kubernetes.io/force-ssl-redirect'], 'true')
+        self.assertEqual(doc['metadata']['annotations']['nginx.ingress.kubernetes.io/ssl-redirect'], 'true')
+        self.assertEqual(doc['metadata']['annotations']['nginx.ingress.kubernetes.io/proxy-body-size'], '64m')
+
+    def test_redirect_patch_does_not_change_other_ingresses(self):
+        for doc in ({'kind':'Ingress','metadata':{'name':'other'},'spec':{'ingressClassName':'nginx','tls':[{}]}},
+                    {'kind':'Ingress','metadata':{'name':'fortiaigate-ingress'},'spec':{'ingressClassName':'traefik','tls':[{}]}},
+                    {'kind':'Ingress','metadata':{'name':'fortiaigate-ingress'},'spec':{'ingressClassName':'nginx'}}):
+            expected = copy.deepcopy(doc)
+            MODULE.patch_https_redirect(doc)
+            self.assertEqual(doc, expected)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -95,3 +95,9 @@ minutes; the VPC remains until AWS releases its dependencies.
   ordering are covered by unit tests.
 - After an Elastic IP is released, the next deployment gets a new address.
   Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
+
+For the default AWS security group, FAIG's port 80 and the lab chatbot's
+legacy HTTP port redirect to their HTTPS endpoints. Other generated legacy
+HTTP NodePorts are not exposed by default; use their HTTPS gateway endpoints.
+Explicit additional security-group ports are operator-controlled and may expose
+unencrypted services. A redirect cannot protect data already sent over HTTP.

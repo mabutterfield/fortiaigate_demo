@@ -12,6 +12,7 @@
       - ecr_registry | default('') | length > 0
       - fortiaigate_image_pull_secrets | length == 1
       - fortiaigate_image_pull_secrets[0].name == ecr_pull_secret_name
+      - fortiaigate_tls_enabled | bool
       - not (fortiaigate_tls_enabled | bool) or fortiaigate_ssl_cert_path is file
       - not (fortiaigate_tls_enabled | bool) or fortiaigate_ssl_key_path is file
     fail_msg: "8.0.2 currently requires a chart, an explicit GPU profile, TLS files, and an instance-role ECR pull secret."
