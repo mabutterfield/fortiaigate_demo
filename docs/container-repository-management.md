@@ -13,7 +13,7 @@ All commands run from `<repo_root>`.
 |---|---|---|---|
 | FortiAIGate application images | Vendor `.tar` archives under `../images/<release>/`; publisher uses `docker load` rather than building source | `api`, `core`, `webui`, `scanner`, `logd`, `license_manager` | FortiAIGate Helm values use the configured repository prefix and release tag |
 | FortiAIGate inference images | Vendor archives and their loaded tags | `triton-models`, `custom-triton` | FortiAIGate Helm values use their independent Triton tags |
-| Custom chatbot | Docker build context `chatbot/app/` | `chatbot-basic` | Chatbot Helm values use `chatbot_image_repository` and `chatbot_image_tag` |
+| 8.0.1 demo chatbot (retired 2026-11-20) | Removed from the 8.0.2 branch; build context preserved on `main` / tag `v1.0_faig8.0.1` | `chatbot-basic` (existing images left in place) | Not deployed. The 8.0.2 lab chatbot uses the stock `python` image with code in ConfigMaps (no build) |
 | Third-party application images | Public upstream registries, for example LiteLLM, PostgreSQL, Python, nginx, and optional Open WebUI | Not republished by the normal workflow | Individual Ansible role defaults and Helm values reference upstream repositories/tags |
 
 Terraform in `terraform/aws-ecr` owns AWS ECR repositories, mutability,
@@ -123,23 +123,13 @@ The publisher reads `docker load` output, preserves loaded tags when automatic
 mapping is enabled, authenticates to the selected registry, and reports
 published and skipped images.
 
-## Build And Publish The Chatbot
+## Chatbot Image (Retired)
 
-When `chatbot/app/` content or its dependencies change, increment
-`chatbot_image_tag`, then publish:
-
-```bash
-ansible-playbook ansible/playbooks/publish_chatbot_images.yml
-```
-
-The publisher builds `chatbot/app/Dockerfile` for the configured platform
-(AWS defaults to `linux/amd64`), logs in, and pushes
-`<registry>/<prefix>/chatbot-basic:<tag>`.
-
-Scenario metadata, LiteLLM instruction files, and rendered chatbot profile
-configuration are deployed through configuration and do not by themselves
-require a chatbot image rebuild. Changes to `chatbot.py`, `agent_probe.py`,
-`requirements.txt`, or the Dockerfile do.
+The 8.0.1 demo chatbot and `publish_chatbot_images.yml` were removed from the
+8.0.2 branch on 2026-11-20. The 8.0.2 lab chatbot needs no image build: it runs
+the stock `python` image with its code mounted from ConfigMaps (see
+[lab chatbot](lab-chatbot.md)). Existing `chatbot-basic` images in ECR are not
+deleted by this change.
 
 ## Local Registry
 
@@ -153,7 +143,6 @@ ansible-playbook ansible/playbooks/publish_images.yml \
   -e registry_type=local \
   -e local_registry=<registry-host>:5000
 
-ansible-playbook -i local ansible/playbooks/publish_chatbot_images.yml
 ```
 
 For an authenticated local registry, pass credentials through
@@ -187,10 +176,7 @@ docker manifest inspect <registry>/<prefix>/<repository>:<tag>
 
 ```bash
 ansible-playbook -i cloud ansible/playbooks/status_fortiaigate.yml
-ansible-playbook -i cloud ansible/playbooks/status_chatbots.yml
-
-# Local lane
-ansible-playbook -i local ansible/playbooks/status_chatbots.yml
+ansible-playbook -i cloud ansible/playbooks/status_litellm.yml
 ```
 
 Status proves readiness, not image provenance. For a release audit, also inspect
@@ -231,9 +217,10 @@ under the current tag.
 4. Run its status playbook and functional validation.
 
 ```bash
-ansible-playbook -i cloud ansible/playbooks/deploy_chatbots.yml
-ansible-playbook -i cloud ansible/playbooks/status_chatbots.yml
-python3 -m functional_test validate
+ansible-playbook -i cloud ansible/playbooks/deploy_fortiaigate.yml
+ansible-playbook -i cloud ansible/playbooks/status_fortiaigate.yml
+# then re-run the affected catalog case, e.g.:
+# python3 -m functional_test catalog-baseline --scenario <id> --action <alert|block|redact> --key-file <file> --admin-credentials <file>
 ```
 
 For FortiAIGate vendor images, keep the application and Triton tag set aligned

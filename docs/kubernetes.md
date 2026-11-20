@@ -105,7 +105,6 @@ Useful status entry points:
 - `ansible/playbooks/status_fortiaigate.yml`
 - `ansible/playbooks/validate_faig.yml`
 - `ansible/playbooks/status_litellm.yml`
-- `ansible/playbooks/status_chatbots.yml`
 - `ansible/playbooks/status_mcp.yml`
 - `ansible/playbooks/test_mcp.yml`
 - `ansible/playbooks/status_demo_home.yml`

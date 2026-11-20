@@ -36,8 +36,12 @@ demo_https_gateway_routes:
     plain_port: "{{ lab_gateway_http_port if lab_gateway_enabled | bool else '' }}"
     auth: "{{ lab_gateway_enabled | bool }}"
     # Change 2026-11-18: with the lab gateway on, the route serves the 8.0.2
-    # student lab chatbot (or the "who am I" placeholder); the 8.0.1 chatbot
-    # upstream remains for lab_gateway_enabled: false.
+    # student lab chatbot (or the "who am I" placeholder).
+    # Change 2026-11-20: the 8.0.1 chatbot was removed. Its fallback upstream for
+    # lab_gateway_enabled: false is commented out; the role now drops this route
+    # when the lab gateway is off (the lab chatbot needs the signed identity).
+    #   else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
+    #         ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
     upstream: >-
       {{
         ('http://127.0.0.1:' ~ lab_gateway_auth_port)
@@ -45,9 +49,6 @@ demo_https_gateway_routes:
         else ('http://' ~ (lab_chatbot_release_name | default('lab-chatbot')) ~ '.'
               ~ (lab_chatbot_namespace | default('lab-chatbot')) ~ '.svc.cluster.local:'
               ~ (lab_chatbot_service_port | default(80)))
-        if lab_gateway_enabled | bool
-        else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
-              ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
       }}
     # Change 2026-11-19: instructor Lab Management page at /manage/ on the
     # same signed-in address (prefix stripped before proxying).

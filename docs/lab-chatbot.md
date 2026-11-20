@@ -9,7 +9,8 @@ selects the FortiAIGate policy.
 
 Source: `chatbot/lab-chatbot/chart` (app code in `files/`), deployed by
 `ansible/playbooks/deploy_lab_chatbot.yml` (role `lab_chatbot`). The 8.0.1
-chatbot (`chatbot/app`) is unchanged.
+chatbot (`chatbot/app`) was removed from the 8.0.2 branch on 2026-11-20; it is
+preserved on `main` and tag `v1.0_faig8.0.1`.
 
 ## What Students See
 

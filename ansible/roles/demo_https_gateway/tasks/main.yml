@@ -20,6 +20,17 @@
   # - ansible.builtin.debug:
   #     var: demo_https_gateway_routes
 
+- name: Drop the chat route when the lab login gateway is off
+  # Change 2026-11-20: the 8.0.1 chatbot this route used to fall back to was removed, and the
+  # 8.0.2 lab chatbot only works behind the lab login gateway.
+  ansible.builtin.set_fact:
+    demo_https_gateway_routes: "{{ demo_https_gateway_routes | rejectattr('name', 'equalto', 'chatbot') | list }}"
+  when:
+    - demo_https_gateway_enabled | bool
+    - not lab_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: demo_https_gateway_routes
+
 - name: Validate demo HTTPS gateway settings
   ansible.builtin.assert:
     that:

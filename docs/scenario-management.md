@@ -94,11 +94,11 @@ next-hop model alias.
 
 ## 5. Deploy Matrix Consumers
 
-Deploy LiteLLM and the chatbot after installing or changing a scenario:
+Deploy LiteLLM after installing or changing a scenario (the 8.0.1 chatbot this
+step used to redeploy was removed; the 8.0.2 lab chatbot reads the catalog):
 
 ```bash
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_chatbots.yml
 ```
 
 Deploy MCP only when MCP server code, schemas, fixtures, or credentials
@@ -210,7 +210,6 @@ order, deploy LiteLLM and the chatbot, and validate the configured paths.
 python3 scripts/scenario_profiles.py remove <scenario-id>
 python3 scripts/scenario_profiles.py render-work-order
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_chatbots.yml
 ```
 
 Removal moves the local package into the ignored `_removed/` tree. It does not
