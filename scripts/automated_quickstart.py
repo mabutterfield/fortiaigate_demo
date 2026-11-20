@@ -105,7 +105,8 @@ APPLICATION_PLAYBOOKS = [
     ("LiteLLM proxy", "deploy_litellm.yml", "status_litellm.yml"),
     ("MCP demo tools", "deploy_mcp.yml", "status_mcp.yml"),
     ("optional Open WebUI", "deploy_openwebui.yml", "status_openwebui.yml", "openwebui_enabled"),
-    ("custom chatbot UI", "deploy_chatbots.yml", "status_chatbots.yml"),
+    # Change 2026-11-20: the 8.0.1 chatbot and its playbooks were removed (8.0.2 lab chatbot: deploy_lab_chatbot.yml).
+    # ("custom chatbot UI", "deploy_chatbots.yml", "status_chatbots.yml"),
     ("demo home page", "deploy_demo_home.yml", "status_demo_home.yml"),
 ]
 SKIP_SSH_PRIVATE_KEY_NAMES = {
@@ -1886,7 +1887,7 @@ def expected_chatbot_ecr_tag() -> tuple[str, str] | None:
 def show_ecr_image_publish_preflight() -> None:
     print("Image publishing can take a long time when FortiAIGate images are selected.")
     print("FortiAIGate/all publishing may load and compare large image archives before deciding whether to skip.")
-    print("Choose chatbot only when you only changed the chatbot UI or agent code.")
+    # print("Choose chatbot only when you only changed the chatbot UI or agent code.")  # Change 2026-11-20
 
     registry_type = resolve_layered_scalar_reference(get_layered_yaml_scalar("registry_type", "ecr"), "ecr")
     if registry_type != "ecr":
@@ -1900,9 +1901,10 @@ def show_ecr_image_publish_preflight() -> None:
         return
 
     targets: list[tuple[str, str, str]] = []
-    chatbot_target = expected_chatbot_ecr_tag()
-    if chatbot_target:
-        targets.append(("chatbot", chatbot_target[0], chatbot_target[1]))
+    # Change 2026-11-20: the 8.0.1 chatbot image is no longer published from the 8.0.2 branch.
+    # chatbot_target = expected_chatbot_ecr_tag()
+    # if chatbot_target:
+    #     targets.append(("chatbot", chatbot_target[0], chatbot_target[1]))
     targets.extend(("fortiaigate", repository, tag) for repository, tag in expected_fortiaigate_ecr_tags())
 
     if not targets:
@@ -1923,8 +1925,9 @@ def show_ecr_image_publish_preflight() -> None:
 
     chatbot_counts = grouped_counts.get("chatbot", {})
     fortiaigate_counts = grouped_counts.get("fortiaigate", {})
-    if chatbot_counts.get("missing", 0) == 0 and chatbot_counts.get("unknown", 0) == 0:
-        print("Chatbot image tag appears to exist already; publish chatbot only if you changed chatbot code.")
+    # Change 2026-11-20: no chatbot image target any more.
+    # if chatbot_counts.get("missing", 0) == 0 and chatbot_counts.get("unknown", 0) == 0:
+    #     print("Chatbot image tag appears to exist already; publish chatbot only if you changed chatbot code.")
     if fortiaigate_counts.get("missing", 0) == 0 and fortiaigate_counts.get("unknown", 0) == 0:
         print("All inferred FortiAIGate image tags appear to exist already; avoid FortiAIGate/all publishing unless you are changing image contents.")
     elif fortiaigate_counts.get("missing", 0) > 0:
@@ -1944,24 +1947,25 @@ def run_image_publishing(args: argparse.Namespace, *, inventory: str | None = No
     print()
     print("Choose which images to publish now:")
     print("1. none (default, fastest when required images already exist)")
-    print("2. chatbot only (usually quick; use for chatbot UI/agent changes)")
+    # Change 2026-11-20: option 2 (8.0.1 chatbot image) removed; numbering kept for muscle memory.
     print("3. FortiAIGate only (can take significant time; avoid unless FAIG images are missing or changed)")
-    print("4. all (can take significant time; avoid unless both chatbot and FAIG images need publishing)")
+    print("4. all (same as FortiAIGate now that the 8.0.1 chatbot image is retired)")
     while True:
         selection = prompt_text("Image publishing selection", "none").strip().lower()
         if selection in {"", "1", "n", "none", "no", "skip"}:
             selection = "none"
             break
-        if selection in {"2", "chatbot", "chat", "bot"}:
-            selection = "chatbot"
-            break
+        # Change 2026-11-20: the 8.0.1 chatbot image option was removed.
+        # if selection in {"2", "chatbot", "chat", "bot"}:
+        #     selection = "chatbot"
+        #     break
         if selection in {"3", "fortiaigate", "faig", "fortiai"}:
             selection = "fortiaigate"
             break
         if selection in {"4", "all", "both"}:
             selection = "all"
             break
-        print("Choose none, chatbot, fortiaigate, or all.")
+        print("Choose none, fortiaigate, or all.")
 
     if selection == "none":
         print("Skipping image publishing. Deployments assume required images already exist in the registry.")
@@ -1979,8 +1983,9 @@ def run_image_publishing(args: argparse.Namespace, *, inventory: str | None = No
         if publish_image_version.lower() not in {"", "active", "all-active"}:
             publish_extra_vars["publish_image_version"] = publish_image_version
         run_ansible_playbook("publish_images.yml", inventory=inventory, extra_vars=publish_extra_vars)
-    if selection in {"chatbot", "all"}:
-        run_ansible_playbook("publish_chatbot_images.yml", inventory=inventory)
+    # Change 2026-11-20: publish_chatbot_images.yml was removed with the 8.0.1 chatbot.
+    # if selection in {"chatbot", "all"}:
+    #     run_ansible_playbook("publish_chatbot_images.yml", inventory=inventory)
 
 
 def wait_for_fortiaigate_ready(

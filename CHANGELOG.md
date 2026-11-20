@@ -5,6 +5,15 @@ a "what's new" guide rather than a raw commit log.
 
 ## Unreleased
 
+- Removed the 8.0.1 demo chatbot from the 8.0.2 branch (`chatbot/app`,
+  `chatbot/chart`, `deploy_chatbots.yml`, `status_chatbots.yml`,
+  `validate_chatbots.yml`, `publish_chatbot_images.yml` and their roles). It is
+  preserved on `main` and tag `v1.0_faig8.0.1`. The chat route on the HTTPS
+  gateway now serves only the 8.0.2 lab chatbot and is omitted when the lab
+  login gateway is off. Existing `chatbot-basic` images in ECR are untouched.
+  The legacy `functional_test validate` command and `load_test`, which ran
+  `agent_probe.py` inside that chatbot pod, no longer have a target until they
+  move to the catalog flow.
 - Added the 8.0.2 student lab chatbot behind the lab login gateway:
   - one shared Streamlit app; students pick a scenario and action and chat
     with their own FortiAIGate key at `/ai/openai/v1`, or send the same turn

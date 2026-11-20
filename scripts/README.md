@@ -74,9 +74,10 @@ user-facing scripts. Users normally should not invoke them directly.
   deterministic runtime objects. It is imported by the matrix builder,
   scenario manager, functional tests, and load generator.
 
-The Helm post-renderer at `k8s-overlays/bin/post_render_fortiaigate.py` and the
-deployed chatbot probe at `chatbot/app/agent_probe.py` are also automation-only
-Python components, but live beside the artifacts that consume them.
+The Helm post-renderer at `k8s-overlays/bin/post_render_fortiaigate.py` is also
+an automation-only Python component, but lives beside the artifact that
+consumes it. (The 8.0.1 chatbot probe `chatbot/app/agent_probe.py` was removed
+on 2026-11-20 with the old chatbot.)
 
 ## Developer and release scripts
 

@@ -251,12 +251,12 @@ ansible-playbook -i cloud ansible/playbooks/show_demo_outputs.yml
 
 Demo Outputs should print a non-empty `FortiWeb MCP:` URL. If the generated
 file is absent, stale, or contains an empty value, refresh the Terraform-owned
-local file, configure the proxy objects, and redeploy the chatbot:
+local file, configure the proxy objects, and redeploy the demo pages:
 
 ```bash
 terraform -chdir=terraform/aws-fortiweb apply
 ansible-playbook -i cloud-fortiweb ansible/playbooks/configure_fortiweb.yml
-ansible-playbook -i cloud ansible/playbooks/deploy_chatbots.yml
+ansible-playbook -i cloud ansible/playbooks/deploy_demo_home.yml
 ```
 
 The offline `scenario_profiles.py render-work-order` command intentionally
@@ -266,7 +266,7 @@ FortiAIGate guard/flow work order.
 ## Chatbot Or Demo Home Is Unavailable
 
 ```bash
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_chatbots.yml
+ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/validate_demo_http_paths.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_demo_home.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/show_demo_outputs.yml
 ```

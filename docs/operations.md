@@ -40,7 +40,6 @@ ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/validate_k3s.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_fortiaigate.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_litellm.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_mcp.yml
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_chatbots.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/status_demo_home.yml
 ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/show_demo_outputs.yml
 ```
@@ -117,7 +116,8 @@ changes needed to reach the configured state. The commands below use the
 | Ollama | `ansible-playbook -i local ansible/playbooks/deploy_ollama.yml` | `status_ollama.yml` |
 | LiteLLM | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml` | `status_litellm.yml` or `validate_litellm.yml` |
 | MCP | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_mcp.yml` | `status_mcp.yml` or `validate_mcp.yml` |
-| Chatbot | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_chatbots.yml` | `status_chatbots.yml` or `validate_chatbots.yml` |
+| Lab chatbot | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_lab_chatbot.yml` (after `deploy_demo_https_gateway.yml`) | `validate_demo_http_paths.yml`; see [lab chatbot](lab-chatbot.md) |
+| Lab Management | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_lab_management.yml` | `/manage/` loads for an admin; see [lab management](lab-management.md) |
 | Demo Home | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_demo_home.yml` | `status_demo_home.yml` or `validate_demo_home.yml` |
 | HTTPS gateway | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_demo_https_gateway.yml` | `validate_demo_http_paths.yml` |
 | Syslog collector | `ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_fortiaigate_syslog_collector.yml` | `status_fortiaigate_syslog_collector.yml` or `test_fortiaigate_syslog_collector.yml` |
@@ -169,8 +169,6 @@ Common publisher commands:
 # AWS ECR, configured release inputs
 ansible-playbook -i cloud ansible/playbooks/publish_images.yml
 
-# Chatbot application image only
-ansible-playbook -i cloud ansible/playbooks/publish_chatbot_images.yml
 
 # Local registry
 ansible-playbook -i local ansible/playbooks/publish_images.yml \

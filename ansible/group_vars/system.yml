@@ -248,9 +248,9 @@ litellm_direct_test_expected_text_by_model:
 litellm_direct_test_fail_on_missing_expected_text: true
 
 # === Optional Open WebUI deployment: ansible/playbooks/deploy_openwebui.yml ===
-# Open WebUI is available as an optional secondary chat UI. The default demo
-# path uses the custom chatbot because it exposes the direct/FAIG/MCP controls
-# used by the lab walkthrough. Set openwebui_enabled=true to deploy Open WebUI.
+# Open WebUI is available as an optional secondary chat UI. The default lab
+# path uses the 8.0.2 lab chatbot behind the lab login gateway (lab_chatbot_*).
+# Set openwebui_enabled=true to deploy Open WebUI.
 openwebui_enabled: false
 openwebui_namespace: openwebui
 openwebui_release_name: openwebui
@@ -272,30 +272,38 @@ openwebui_instances:
     bedrock_proxy_enabled: false
     ingress_host: ""
 
-# === Chatbot image publishing: ansible/playbooks/publish_chatbot_images.yml ===
-# Publishes only the demo chatbot image. FortiAIGate image publishing remains
-# in ansible/playbooks/publish_images.yml.
-chatbot_publish_enabled: true
-# The chatbot-basic ECR repository is mutable by default for development, so
-# the same tag can be rebuilt and pushed. Set this false if you want tag bumps
-# for every changed chatbot image.
-chatbot_publish_overwrite_existing_tag: true
-chatbot_image_tag: v0.5.9
-chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
-chatbot_image_pull_policy: Always
-# EC2 GPU nodes are x86_64. Keep this as linux/amd64 when publishing from
-# Apple Silicon or other non-amd64 workstations.
-chatbot_publish_platform: linux/amd64
+# Change 2026-11-20: the 8.0.1 demo chatbot (chatbot/app, chatbot/chart, deploy_chatbots.yml,
+# publish_chatbot_images.yml and their roles) was removed from the 8.0.2 branch; it is preserved
+# on main and tag v1.0_faig8.0.1. Its image publishing settings are commented out below.
+# # === Chatbot image publishing: ansible/playbooks/publish_chatbot_images.yml ===
+# # Publishes only the demo chatbot image. FortiAIGate image publishing remains
+# # in ansible/playbooks/publish_images.yml.
+# chatbot_publish_enabled: true
+# # The chatbot-basic ECR repository is mutable by default for development, so
+# # the same tag can be rebuilt and pushed. Set this false if you want tag bumps
+# # for every changed chatbot image.
+# chatbot_publish_overwrite_existing_tag: true
+# chatbot_image_tag: v0.5.9
+# chatbot_image_repository: "{{ (ecr_repository_urls | default({})).get('chatbot-basic', (ecr_registry ~ '/' ~ ecr_repo_prefix ~ '/chatbot-basic') if ecr_registry is defined and ecr_repo_prefix is defined else '') }}"
+# chatbot_image_pull_policy: Always
+# # EC2 GPU nodes are x86_64. Keep this as linux/amd64 when publishing from
+# # Apple Silicon or other non-amd64 workstations.
+# chatbot_publish_platform: linux/amd64
 
-# === Chatbot deployment: ansible/playbooks/deploy_chatbots.yml ===
-# Consolidated single Python chatbot UI. The UI runtime selector switches
-# between direct LiteLLM and FortiAIGate paths. Backend demo instructions are
-# injected by LiteLLM, not by this frontend.
-chatbots_enabled: true
+# === Legacy chatbot/scenario settings (Change 2026-11-20) ===
+# The 8.0.1 demo chatbot that consumed these was removed. The remaining values are still read by
+# the legacy scenario tooling (scripts/scenario_matrix.py, functional_test baseline/validation,
+# load_test) until the scenario installer is retired; the 8.0.2 lab chatbot uses lab_chatbot_*.
+# Original section header:
+# # === Chatbot deployment: ansible/playbooks/deploy_chatbots.yml ===
+# # Consolidated single Python chatbot UI. The UI runtime selector switches
+# # between direct LiteLLM and FortiAIGate paths. Backend demo instructions are
+# # injected by LiteLLM, not by this frontend.
+# chatbots_enabled: true  # Change 2026-11-20: deploy-only, removed with the 8.0.1 chatbot
 chatbot_namespace: chatbot
-chatbot_service_type: NodePort
-chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"
-chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"
+# chatbot_service_type: NodePort  # Change 2026-11-20: deploy-only, removed with the 8.0.1 chatbot
+# chatbot_start_node_port: "{{ demo_chatbot_http_port | default(30081) }}"  # Change 2026-11-20: deploy-only, removed with the 8.0.1 chatbot
+# chatbot_ecr_token_source: "{{ fortiaigate_ecr_token_source | default('instance_role') }}"  # Change 2026-11-20: deploy-only, removed with the 8.0.1 chatbot
 chatbot_direct_base_url: "{{ litellm_internal_base_url }}"
 chatbot_direct_api_key: "{{ litellm_master_key }}"
 chatbot_fortigate_litellm_base_url: ""
@@ -359,45 +367,54 @@ chatbot_context_window: 8
 chatbot_context_summary_max_chars: 1500
 chatbot_context_summary_model: "{{ litellm_passthrough_model_alias }}"
 chatbot_show_context: false
+# Change 2026-11-20: the 8.0.1 chatbot instance definition is commented out. chatbot_instances now
+# only describes the chat link for demo_home and demo_outputs; the HTTPS port is the lab login
+# gateway, which serves the 8.0.2 lab chatbot.
+# chatbot_instances:
+#   - name: chatbot
+#     instruction_set: consolidated
+#     namespace: "{{ chatbot_namespace }}"
+#     release_name: chatbot
+#     node_port: "{{ demo_chatbot_http_port | default(30081) }}"
+#     direct_base_url: "{{ chatbot_direct_base_url }}"
+#     direct_api_key: "{{ chatbot_direct_api_key }}"
+#     fortigate_litellm_base_url: "{{ chatbot_fortigate_litellm_base_url }}"
+#     fortigate_litellm_api_key: "{{ chatbot_fortigate_litellm_api_key }}"
+#     fortigate_ollama_base_url: "{{ chatbot_fortigate_ollama_base_url }}"
+#     fortigate_ollama_api_key: "{{ chatbot_fortigate_ollama_api_key }}"
+#     fortigate_ollama_model: "{{ chatbot_fortigate_ollama_model }}"
+#     fortigate_ollama_model_options: "{{ chatbot_fortigate_ollama_model_options }}"
+#     faig_base_url: "{{ chatbot_faig_base_url }}"
+#     faig_api_key: "{{ chatbot_faig_api_key }}"
+#     faig_static_route: "{{ chatbot_faig_static_route }}"
+#     faig_header_route: "{{ chatbot_faig_header_route }}"
+#     faig_model_route_header_name: "{{ faig_model_route_header_name }}"
+#     model: "{{ chatbot_model }}"
+#     model_options: "{{ chatbot_model_options }}"
+#     frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
+#     frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
+#     mcp_enabled: "{{ chatbot_mcp_enabled }}"
+#     mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
+#     mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
+#     mcp_default_path: "{{ chatbot_mcp_default_path }}"
+#     mcp_max_tool_rounds: "{{ chatbot_mcp_max_tool_rounds }}"
+#     mcp_tool_profile: "{{ chatbot_mcp_tool_profile }}"
+#     mcp_tool_profiles: "{{ chatbot_mcp_tool_profiles }}"
+#     context_mode: "{{ chatbot_context_mode }}"
+#     context_window: "{{ chatbot_context_window }}"
+#     context_summary_max_chars: "{{ chatbot_context_summary_max_chars }}"
+#     context_summary_model: "{{ chatbot_context_summary_model }}"
+#     show_context: "{{ chatbot_show_context }}"
+#     title: "Demo Chatbot"
+#     header_title: "FortiAIGate Demo Chatbot"
+#     provider_label: Direct LiteLLM or FAIG Static Route
+#     ingress_host: ""
+
 chatbot_instances:
   - name: chatbot
-    instruction_set: consolidated
-    namespace: "{{ chatbot_namespace }}"
-    release_name: chatbot
     node_port: "{{ demo_chatbot_http_port | default(30081) }}"
-    direct_base_url: "{{ chatbot_direct_base_url }}"
-    direct_api_key: "{{ chatbot_direct_api_key }}"
-    fortigate_litellm_base_url: "{{ chatbot_fortigate_litellm_base_url }}"
-    fortigate_litellm_api_key: "{{ chatbot_fortigate_litellm_api_key }}"
-    fortigate_ollama_base_url: "{{ chatbot_fortigate_ollama_base_url }}"
-    fortigate_ollama_api_key: "{{ chatbot_fortigate_ollama_api_key }}"
-    fortigate_ollama_model: "{{ chatbot_fortigate_ollama_model }}"
-    fortigate_ollama_model_options: "{{ chatbot_fortigate_ollama_model_options }}"
-    faig_base_url: "{{ chatbot_faig_base_url }}"
-    faig_api_key: "{{ chatbot_faig_api_key }}"
-    faig_static_route: "{{ chatbot_faig_static_route }}"
-    faig_header_route: "{{ chatbot_faig_header_route }}"
-    faig_model_route_header_name: "{{ faig_model_route_header_name }}"
-    model: "{{ chatbot_model }}"
-    model_options: "{{ chatbot_model_options }}"
-    frontend_instruction_profile: "{{ chatbot_frontend_instruction_profile }}"
-    frontend_instruction_profiles: "{{ chatbot_frontend_instruction_profiles }}"
-    mcp_enabled: "{{ chatbot_mcp_enabled }}"
-    mcp_direct_base_url: "{{ chatbot_mcp_direct_base_url }}"
-    mcp_fortiweb_base_url: "{{ chatbot_mcp_fortiweb_base_url }}"
-    mcp_default_path: "{{ chatbot_mcp_default_path }}"
-    mcp_max_tool_rounds: "{{ chatbot_mcp_max_tool_rounds }}"
-    mcp_tool_profile: "{{ chatbot_mcp_tool_profile }}"
-    mcp_tool_profiles: "{{ chatbot_mcp_tool_profiles }}"
-    context_mode: "{{ chatbot_context_mode }}"
-    context_window: "{{ chatbot_context_window }}"
-    context_summary_max_chars: "{{ chatbot_context_summary_max_chars }}"
-    context_summary_model: "{{ chatbot_context_summary_model }}"
-    show_context: "{{ chatbot_show_context }}"
-    title: "Demo Chatbot"
-    header_title: "FortiAIGate Demo Chatbot"
-    provider_label: Direct LiteLLM or FAIG Static Route
-    ingress_host: ""
+    title: "FortiAIGate Lab Chatbot"
+    provider_label: Lab login
 
 # === MCP demo tools: ansible/playbooks/deploy_mcp.yml ===
 # Shared tool server for the Python chatbot agent loop.
