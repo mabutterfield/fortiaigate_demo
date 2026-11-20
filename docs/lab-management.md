@@ -37,7 +37,10 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
   students" (checkbox) or "Prepopulate existing students".
 - **Operation journal:** records each job's status and result lines, never
   passwords or keys.
-- **Not yet available:** auto-approval, seeded-key restore, and the chatbot reading keys from `lab-keys`. The chatbot still reads the older `lab-keys-<student>` Secrets in `lab-chatbot`.
+- **Chatbot keys:** since 2026-11-19 the student chatbot reads and maps keys
+  from `lab-keys` through the gateway (see [lab chatbot](lab-chatbot.md)).
+- **Not yet available:** auto-approval, seeded-key restore by rotation, and
+  student password reset (still on the chatbot's Admin tab).
 
 ## Deploy
 
@@ -101,9 +104,11 @@ shows "catalog unavailable" instead of failing.
 
 ## Not yet implemented
 
-These are tracked in the Milestone 2 interfaces proposal:
-- the FAIG executor (models, students, prepopulation);
-- student roster, passwords and the share page;
-- auto-approval;
-- session-handle and service-token authorization;
-- the chatbot's switch to the catalog view.
+Tracked in the Milestone 2 interfaces proposal:
+- auto-approval: the instructor turns it on for a chosen number of hours; it
+  approves pending review-queue items with the instructor's session every 60
+  seconds, with a status indicator;
+- restoring a prepopulated key that has no stored secret, by rotating it;
+- student password reset on this page (then the chatbot Admin tab can be
+  retired);
+- handling FAIG's idle session timeout (not yet measured) for long jobs.
