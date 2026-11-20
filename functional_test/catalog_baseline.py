@@ -8,10 +8,10 @@ import uuid
 
 from catalog802 import loader
 from catalog802.result_contract import evaluate
+from catalog802.sensitive import contains_sensitive
 from functional_test import baseline, validation
 from functional_test.catalog_logs import match_rows
 from functional_test.catalog_plan import plan_case
-from functional_test.result_contract import contains_sensitive
 
 
 def evidence_from_turn(raw, test, *, block_message=None):
