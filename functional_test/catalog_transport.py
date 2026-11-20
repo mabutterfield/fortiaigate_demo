@@ -40,7 +40,7 @@ def parse_inventory(path: Path, host_alias: str) -> dict[str, str]:
 
 
 def ssh_base(host: dict[str, str]) -> list[str]:
-    command = ['ssh', '-o', 'StrictHostKeyChecking=no']
+    command = ['ssh', '-o', 'StrictHostKeyChecking=accept-new']
     key = host.get('ansible_ssh_private_key_file', '').strip()
     if key:
         command.extend(['-i', str(Path(key).expanduser())])

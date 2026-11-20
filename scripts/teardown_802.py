@@ -67,6 +67,11 @@ def ensure_no_other_vpc_interfaces(profile, region, host_resources):
     This catches appliances even when their state lives in another checkout or
     workspace. An unreadable or incomplete host state fails closed.
     """
+    if 'aws_vpc.this' not in host_resources:
+        if 'aws_instance.this' in host_resources:
+            raise SystemExit('Lab instance remains tracked but its VPC is not tracked; inspect state before teardown.')
+        print('No lab VPC or instance is tracked; skipping the VPC interface check.')
+        return
     vpc = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'vpc_id'], capture=True).stdout.strip()
     instance = ''
     if 'aws_instance.this' in host_resources:

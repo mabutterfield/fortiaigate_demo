@@ -23,7 +23,7 @@ demo_http_paths_test_services:
     https_port: "{{ demo_openwebui_https_port | default(30443) | int }}"
   - name: chatbot
     display_name: Chatbot
-    enabled: "{{ lab_gateway_enabled | default(false) | bool }}"
+    enabled: "{{ lab_gateway_enabled | default(true) | bool }}"
     fortiweb_enabled: false
     path: "{{ chatbot_status_health_path | default('/') }}"
     http_port: "{{ demo_chatbot_http_port | default(30081) | int }}"
