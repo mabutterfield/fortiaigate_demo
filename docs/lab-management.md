@@ -205,6 +205,14 @@ setting, so the lab does it:
 - **Indicator:** top right of `/manage/`: running (end time, last run, number
   approved), stale (a poll is more than two intervals late), stopped, expired
   or error, with the reason under the controls.
+- **Approval history:** "Approval history" under the controls lists every
+  approval attempt, newest first: time, student (from the submitter's
+  `studentNN@` email), type (detector, guardrail, policy), object name, change
+  (add, change, delete), result, and whose session approved it. Filter by
+  student. The gateway keeps the last 1000 in memory; Lab Management copies new
+  ones into its journal (`approvals` table) whenever `/manage/` is open, so the
+  list survives restarts. Approvals made while no page is open are copied the
+  next time one is, unless the gateway restarted in between.
 - **Verified 2026-11-20 (Ohio):** a student's submitted detector was approved
   61 s later, and its deletion 61 s after that; off/on and a gateway restart
   behaved as above.
