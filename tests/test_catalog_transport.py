@@ -8,9 +8,17 @@ import unittest
 from unittest.mock import patch
 
 from functional_test import catalog_transport as transport
+from functional_test import catalog_baseline
 
 
 class CatalogTransportTests(unittest.TestCase):
+    def test_tls_exception_only_defaults_for_the_lab_service(self):
+        required = ['--scenario', 's', '--action', 'alert', '--key-file', 'key',
+                    '--admin-credentials', 'admin', '--inventory', 'inventory', '--faig-url', 'https://example.test']
+        self.assertFalse(catalog_baseline.parse_args(required).internal_verify_tls)
+        self.assertTrue(catalog_baseline.parse_args(required + ['--internal-verify-tls']).internal_verify_tls)
+        self.assertTrue(catalog_baseline.parse_args(required + ['--faig-internal-url', 'https://other.test']).internal_verify_tls)
+
     def test_reads_inventory_and_constructs_ssh_target(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'inventory'

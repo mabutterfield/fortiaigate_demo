@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import time
+from urllib.parse import urlsplit
 import uuid
 
 from catalog802 import loader
@@ -74,8 +75,8 @@ def parse_args(argv):
     p.add_argument('--faig-url', required=True)
     p.add_argument('--insecure', action='store_true')
     p.add_argument('--faig-internal-url', default='https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1')
-    p.add_argument('--internal-verify-tls', action='store_true',
-                   help='Verify the in-cluster FAIG certificate (requires a trusted certificate matching its service DNS; the default lab certificate does not)')
+    p.add_argument('--internal-verify-tls', action='store_true', default=None,
+                   help='Require verification of the in-cluster FAIG certificate (the default lab certificate does not match its service DNS)')
     p.add_argument('--mcp-url', default='http://mcp-demo.mcp.svc.cluster.local:8001/mcp')
     p.add_argument('--mcp-namespace', default='mcp')
     p.add_argument('--mcp-deployment', default='mcp-demo')
@@ -84,7 +85,11 @@ def parse_args(argv):
     p.add_argument('--temperature', type=float, default=0.0)
     p.add_argument('--log-wait', type=int, default=20)
     p.add_argument('--block-message-file', type=Path, help='File containing the exact FAIG block message, required when a case checks it')
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.internal_verify_tls is None:
+        # Only the known lab service defaults to the self-signed-certificate exception.
+        args.internal_verify_tls = urlsplit(args.faig_internal_url).hostname != 'ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+    return args
 
 
 def main(argv):

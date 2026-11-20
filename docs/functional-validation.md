@@ -7,9 +7,10 @@
 
 The catalog runner uses HTTPS to the in-cluster FAIG ingress. Its default lab
 certificate does not match the service DNS, so the runner does not verify that
-internal certificate by default: traffic is encrypted but the server identity
+internal certificate by default for the standard lab service address: traffic is encrypted but the server identity
 is not authenticated. Supply a trusted, service-DNS-matching certificate and
-`--internal-verify-tls` to require verification. This setting is separate from
+`--internal-verify-tls` to require verification. Other service addresses require
+verification by default. This setting is separate from
 `--insecure`, which controls verification of the external admin API.
 
 Functional validation is the supported post-installation path test for
