@@ -123,18 +123,26 @@ class Quickstart802Tests(unittest.TestCase):
              mock.patch.object(quickstart, 'restore_existing_ecr_vars') as restore, \
              mock.patch.object(quickstart, 'terraform_init_validate'), \
              mock.patch.object(quickstart, 'terraform_apply') as apply:
-            quickstart.run_terraform('skip', True, [], 'profile', 'region')
+            quickstart.run_terraform(True, [], 'profile', 'region')
             ecr.assert_not_called()
             restore.assert_called_once_with('profile', 'region')
             self.assertTrue(apply.called)
             self.assertFalse(any(call.args[0] == 'terraform/aws-ecr' for call in apply.call_args_list))
+
+    def test_quickstart_does_not_offer_ecr_mutation_flags(self):
+        import sys
+        with mock.patch.object(sys, 'argv', ['quickstart', '--manage-ecr']), \
+             mock.patch('sys.stderr'):
+            with self.assertRaises(SystemExit) as exc:
+                quickstart.parse_args()
+        self.assertEqual(exc.exception.code, 2)
 
     def test_terraform_workspace_overrides_passed_to_prep_and_host(self):
         directory = self.root / 'ohio'
         with mock.patch.object(quickstart, 'restore_existing_ecr_vars'), \
              mock.patch.object(quickstart, 'terraform_init_validate'), \
              mock.patch.object(quickstart, 'terraform_apply') as apply:
-            quickstart.run_terraform('skip', True, [], 'profile', 'region', terraform_vars_dir=directory)
+            quickstart.run_terraform(True, [], 'profile', 'region', terraform_vars_dir=directory)
         calls = {call.args[0]: call.kwargs.get('var_file') for call in apply.call_args_list}
         self.assertEqual(calls['terraform/aws-prep'], directory / 'prep.tfvars')
         self.assertEqual(calls['terraform/aws-ec2-k3s'], directory / 'host.tfvars')

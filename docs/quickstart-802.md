@@ -23,7 +23,8 @@ explicit `TF_WORKSPACE` is required with these overrides. Review the selected
 workspace and private values before using `--yolo`: Terraform applies changes
 without prompting. The option does not mean Terraform itself cannot change or
 replace an instance. Existing ECR repositories and images are not managed by
-default; `--manage-ecr` explicitly opts into the separate ECR workflow.
+by the quickstart. Manage repositories through the separate ECR maintainer
+workflow; image publishing and repository changes are not quickstart options.
 When preserving ECR, quickstart rebuilds the local Ansible registry settings
 from the selected workspace's existing `terraform/aws-ecr` outputs and checks
 the account and region. That ECR state must already exist in the checkout;
