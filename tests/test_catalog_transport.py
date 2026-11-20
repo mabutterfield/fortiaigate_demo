@@ -26,6 +26,7 @@ class CatalogTransportTests(unittest.TestCase):
             host = transport.parse_inventory(path, 'faig-aws')
             self.assertEqual(host['ansible_host'], '192.0.2.12')
             self.assertEqual(transport.ssh_base(host)[-1], 'ubuntu@192.0.2.12')
+            self.assertIn('StrictHostKeyChecking=accept-new', transport.ssh_base(host))
             with self.assertRaisesRegex(SystemExit, 'not found'):
                 transport.parse_inventory(path, 'missing')
 

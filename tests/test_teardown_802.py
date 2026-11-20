@@ -111,14 +111,14 @@ class TeardownTests(unittest.TestCase):
                                  {'id': 'eni-appliance', 'instance': 'i-456'}])
         with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'), response(interfaces)]):
             with self.assertRaisesRegex(SystemExit, 'tear down optional appliances'):
-                teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_instance.this'])
+                teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_vpc.this', 'aws_instance.this'])
 
     def test_host_interfaces_and_private_route_are_allowed(self):
         def response(text):
             return subprocess.CompletedProcess([], 0, text)
         with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'),
                  response(json.dumps([{'id':'eni-host', 'instance':'i-123'}]))]):
-            teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_instance.this'])
+            teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_vpc.this', 'aws_instance.this'])
         self.assertIn('aws_route', teardown.HOST_TYPES)
 
     def test_vpc_not_found_cannot_pass_as_empty_interface_list(self):
@@ -127,7 +127,7 @@ class TeardownTests(unittest.TestCase):
         with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'),
                 subprocess.CalledProcessError(1, ['aws', 'ec2', 'describe-vpcs'])]):
             with self.assertRaises(subprocess.CalledProcessError):
-                teardown.ensure_no_other_vpc_interfaces('wrong-account', 'us-east-2', ['aws_instance.this'])
+                teardown.ensure_no_other_vpc_interfaces('wrong-account', 'us-east-2', ['aws_vpc.this', 'aws_instance.this'])
 
     def test_partial_state_without_instance_allows_empty_vpc_only(self):
         def response(text):
@@ -138,6 +138,14 @@ class TeardownTests(unittest.TestCase):
                 response(json.dumps([{'id': 'eni-leftover', 'instance': None}]))]):
             with self.assertRaisesRegex(SystemExit, 'other dependent resources'):
                 teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_vpc.this'])
+
+    def test_partial_state_without_vpc_skips_eni_check_only_without_instance(self):
+        with mock.patch.object(teardown, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
+            teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_security_group.this'])
+            run.assert_not_called()
+            with self.assertRaisesRegex(SystemExit, 'instance remains tracked'):
+                teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_instance.this'])
+            run.assert_not_called()
 
     def test_cloud_failure_has_clear_message_and_stops_teardown(self):
         with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \

@@ -2092,12 +2092,13 @@ def run_post_application_validations(appliance_keys: list[str], *, inventory: st
 
 def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inventory: str | None = None) -> None:
     print_header("Ansible Deployment")
-    if not args.yolo and not prompt_yes_no("Ready to start Ansible image publishing and deployment?", True):
+    if not args.yolo and not prompt_yes_no("Ready to start Ansible deployment?", True):
         raise SystemExit("Stopped before Ansible execution.")
 
     faig_status_mode = args.faig_status_mode or "once"
 
-    run_image_publishing(args, inventory=inventory)
+    # Change 2026-11-20: image publishing is a separate maintainer workflow.
+    # run_image_publishing(args, inventory=inventory)
 
     print_header("Ansible: Bootstrap k3s")
     run_ansible_playbook("bootstrap_gpu_k3s.yml", inventory=inventory)
