@@ -61,16 +61,20 @@ def state_resources(module):
             if line.strip() and not line.startswith('data.')]
 
 
-def ensure_no_other_vpc_interfaces(profile, region):
+def ensure_no_other_vpc_interfaces(profile, region, host_resources):
     """Refuse host teardown if any non-host ENI remains in the lab VPC.
 
     This catches appliances even when their state lives in another checkout or
     workspace. An unreadable or incomplete host state fails closed.
     """
     vpc = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'vpc_id'], capture=True).stdout.strip()
-    instance = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'instance_id'], capture=True).stdout.strip()
-    if not re.fullmatch(r'vpc-[0-9a-f]+', vpc) or not re.fullmatch(r'i-[0-9a-f]+', instance):
+    instance = ''
+    if 'aws_instance.this' in host_resources:
+        instance = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'instance_id'], capture=True).stdout.strip()
+    if not re.fullmatch(r'vpc-[0-9a-f]+', vpc) or (instance and not re.fullmatch(r'i-[0-9a-f]+', instance)):
         raise SystemExit('Cannot verify the lab VPC and instance from Terraform state; inspect before teardown.')
+    if 'aws_instance.this' in host_resources and not instance:
+        raise SystemExit('Lab instance is tracked but its ID is unavailable; inspect before teardown.')
     # An ENI filter alone returns an empty list in the wrong account or region.
     # An explicit VPC lookup fails instead of treating that as an empty VPC.
     observed_vpc = run(['aws', 'ec2', 'describe-vpcs', '--profile', profile, '--region', region,
@@ -162,8 +166,13 @@ def main(argv=None):
     auto = args.auto_approve or args.yolo
     if not args.skip_ec2:
         run(['terraform', '-chdir=' + HOST, 'init'])
-        if state_resources(HOST):
-            ensure_no_other_vpc_interfaces(profile, region)
+        resources = state_resources(HOST)
+        if resources:
+            try:
+                ensure_no_other_vpc_interfaces(profile, region, resources)
+            except subprocess.CalledProcessError as exc:
+                raise SystemExit(f'Cannot verify the lab VPC in Terraform/AWS (exit {exc.returncode}); '
+                                 'no teardown plan was applied. Check account, region, session and state.') from None
             destroy(HOST, host_vars, auto)
         else:
             print('No disposable host resources remain in this workspace.')
