@@ -84,7 +84,7 @@ def run_case(args: argparse.Namespace, host: dict[str, str], case: dict[str, Any
     spec = {'base_url': args.faig_internal_url, 'api_key': key['secretKey'], 'model': case['model'],
             'prompt': case['prompt'], 'system_prompt': case['system_prompt'], 'mcp_url': args.mcp_url,
             'tools': case['tools'], 'max_rounds': case['max_rounds'], 'max_tokens': args.max_tokens,
-            'temperature': args.temperature}
+            'temperature': args.temperature, 'verify_tls': args.internal_verify_tls}
     result = kubectl_exec(args, host, ['python', REMOTE_AGENT_PATH], json.dumps(spec))
     if result.returncode != 0:
         return {'error': 'agent_exec_failed', 'stderr': result.stderr[-600:], 'reply': '', 'tool_events': []}

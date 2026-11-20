@@ -73,7 +73,9 @@ def parse_args(argv):
     p.add_argument('--host-alias', default='faig-aws')
     p.add_argument('--faig-url', required=True)
     p.add_argument('--insecure', action='store_true')
-    p.add_argument('--faig-internal-url', default='http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1')
+    p.add_argument('--faig-internal-url', default='https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1')
+    p.add_argument('--internal-verify-tls', action='store_true',
+                   help='Verify the in-cluster FAIG certificate (requires a trusted certificate matching its service DNS; the default lab certificate does not)')
     p.add_argument('--mcp-url', default='http://mcp-demo.mcp.svc.cluster.local:8001/mcp')
     p.add_argument('--mcp-namespace', default='mcp')
     p.add_argument('--mcp-deployment', default='mcp-demo')

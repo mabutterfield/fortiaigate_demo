@@ -24,7 +24,7 @@ class CatalogTransportTests(unittest.TestCase):
     def test_key_is_supplied_on_stdin_not_remote_command(self):
         args = SimpleNamespace(mcp_namespace='mcp', mcp_deployment='mcp-demo', mcp_container='mcp-standard',
                                faig_internal_url='http://internal/ai/openai/v1', mcp_url='http://mcp/mcp',
-                               max_tokens=20, temperature=0)
+                               max_tokens=20, temperature=0, internal_verify_tls=False)
         case = {'model':'pass-model', 'prompt':'hello', 'system_prompt':'', 'tools':[], 'max_rounds':0}
         key = {'secretKey':'synthetic-secret'}
         result = subprocess.CompletedProcess([], 0, '{"reply":"hello"}\n', '')
@@ -32,6 +32,15 @@ class CatalogTransportTests(unittest.TestCase):
             self.assertEqual(transport.run_case(args, {'ansible_host':'host'}, case, key)['reply'], 'hello')
         self.assertNotIn('synthetic-secret', str(run.call_args.args[0]))
         self.assertEqual(json.loads(run.call_args.kwargs['input'])['api_key'], 'synthetic-secret')
+        self.assertFalse(json.loads(run.call_args.kwargs['input'])['verify_tls'])
+
+    def test_trusted_internal_certificate_can_be_required(self):
+        args = SimpleNamespace(faig_internal_url='https://internal/ai/openai/v1', mcp_url='http://mcp/mcp',
+                               max_tokens=20, temperature=0, internal_verify_tls=True)
+        case = {'model': 'pass-model', 'prompt': 'hello', 'system_prompt': '', 'tools': [], 'max_rounds': 0}
+        with patch.object(transport, 'kubectl_exec', return_value=subprocess.CompletedProcess([], 0, '{"reply":"ok"}', '')) as run:
+            transport.run_case(args, {}, case, {'secretKey': 'synthetic'})
+        self.assertTrue(json.loads(run.call_args.args[3])['verify_tls'])
 
     def test_credential_redirects_are_refused(self):
         self.assertIsNone(transport.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.example'))
