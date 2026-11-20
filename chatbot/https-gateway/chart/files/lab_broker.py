@@ -476,7 +476,7 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
         return provider, models.get(model_id)
 
     summary = {"created": [], "existing": [], "approved": [], "skipped": [], "keys_saved": [], "notes": [],
-               "keys_restored": []}
+               "keys_restored": [], "keys_missing": []}
     entries = []
     for entry in plan.get("entries") or []:
         provider, model = model_for(entry["provider"], entry["model"])
@@ -523,10 +523,25 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
             result[key] = _oid(obj)
         if pending:
             queue = {i.get("id") for i in _items(admin.call("GET", "/api/v1/admin/review-queue")) if i.get("type") == kind}
+
+            def approved_elsewhere(oid):
+                # Change 2026-11-20: auto-approval (or another instructor) may approve it first.
+                obj = student_session.call("GET", f"{collection}/{oid}")
+                return _status(obj) == "active" and not obj.get("hasPendingChange")
+
             for oid, name in pending.items():
                 if oid not in queue:
+                    if approved_elsewhere(oid):
+                        summary["existing"].append(f"{kind} {name} (approved by auto-approval)")
+                        continue
                     raise RuntimeError(f"{kind} {name} is pending but not in the review queue")
-                admin.call("POST", APPROVE[kind].format(oid))
+                try:
+                    admin.call("POST", APPROVE[kind].format(oid))
+                except _urlerror.HTTPError as exc:
+                    if exc.code in (401, 403) or not approved_elsewhere(oid):
+                        raise
+                    summary["existing"].append(f"{kind} {name} (approved by auto-approval)")
+                    continue
                 summary["approved"].append(f"{kind} {name}")
         return result
 
@@ -567,7 +582,17 @@ def prepopulate_student(admin, student_session, store, student: str, plan: dict,
 
     # Keys: one per scenario action, plus the passthrough key (no policy).
     existing_keys = {k.get("keyName"): k for k in _items(student_session.call("GET", "/api/v1/me/virtual-keys"))}
-    stored = {k.get("faig_key_id"): k for k in (store.get("keys", student) or {}).get("keys", [])}
+    # Change 2026-11-20: records of keys the student deleted in FAIG are marked missing (the chatbot
+    # skips them), as a Keys-tab refresh would do.
+    live_ids = {k.get("id") for k in existing_keys.values()}
+    records = (store.get("keys", student) or {}).get("keys", [])
+    gone = [r for r in records if r.get("faig_key_id") not in live_ids and r.get("status") != "missing"]
+    if gone:
+        for record in gone:
+            record.update(status="missing", updated_at=int(_time.time()))
+            summary["keys_missing"].append(record.get("key_name") or record.get("faig_key_id"))
+        store.put("keys", student, {"schema": 1, "keys": records})
+    stored = {k.get("faig_key_id"): k for k in records}
     wanted = [(e["key"], e["scenario"], e["action"], e["model"], projects[e["project"]]["id"], policies[e["policy"]],
                e["_provider"], e["_model"]) for e in entries]
     passthrough = plan.get("passthrough")

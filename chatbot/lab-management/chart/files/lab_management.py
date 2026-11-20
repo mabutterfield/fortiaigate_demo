@@ -528,6 +528,8 @@ def prepopulation_plan(view, scenario_ids, student):
 def summarize_prepopulation(student, result):
     parts = [f'{len(result.get("created", []))} created', f'{len(result.get("approved", []))} approved',
              f'{len(result.get("existing", []))} already present', f'{len(result.get("keys_saved", []))} key secrets saved']
+    if result.get('keys_missing'):  # Change 2026-11-20: keys deleted in FAIG (informational)
+        parts.append('deleted in FAIG, marked missing: ' + ', '.join(result['keys_missing']))
     if result.get('keys_restored'):  # Change 2026-11-20
         parts.append(f'{len(result["keys_restored"])} key(s) restored by rotation: ' + ', '.join(result['keys_restored']))
     line = f'{student}: prepopulated — ' + ', '.join(parts)

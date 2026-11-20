@@ -186,6 +186,17 @@ as `lab_management_gui_only` and `lab_chatbot_gui_only`.
   - if Lab Management restarts, running jobs show `interrupted`.
 
   In both cases the instructor re-runs the job after signing in.
+- **Recovery checks** (Ohio, 2026-11-20):
+  - Lab Management restarted during a "create student + prepopulate" job: the
+    job showed `interrupted`; re-running the same batch reconciled it.
+  - Signing out: `/manage/` and its API redirect to sign-in, and auto-approval
+    started by that instructor stops.
+  - Auto-approval approving objects while prepopulation runs (it may approve
+    them first): prepopulation re-reads them and continues.
+  - A student deleting a prepopulated key in FAIG: prepopulation marks the old
+    record missing, creates a new key and stores its value; the chatbot uses
+    the newest usable key.
+  - A lost one-time key value: restore by rotation (above).
 
 ## Auto-approval
 

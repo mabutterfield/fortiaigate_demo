@@ -137,11 +137,18 @@ data:
       }
 {{- if .plainPort }}
 
+      # Change 2026-11-20 (owner: HTTPS is mandatory for browser-facing routes): the plain HTTP
+      # listener no longer serves the site; every request is redirected to the same path and query
+      # on this route's HTTPS port. A redirect cannot protect anything already sent over HTTP.
+      # Previous behavior (full site over HTTP, only /_lab/login redirected by lab_auth):
+      #   set $lab_scheme http;
+      #   include "demo-https-gateway.locations"
       server {
         listen {{ .plainPort }};
         server_name _;
-        set $lab_scheme http;
-{{ include "demo-https-gateway.locations" (dict "route" . "root" $) }}
+        location / {
+          return 301 https://$host:{{ .externalPort }}$request_uri;
+        }
       }
 {{- end }}
 {{- end }}
