@@ -84,15 +84,13 @@ minutes; the VPC remains until AWS releases its dependencies.
 
 **Known limitations (v1.0):**
 
-- **Optional FortiGate/FortiWeb appliances are not handled.** They are
-  deployed into the lab VPC's subnets, so the VPC cannot be destroyed while
-  they exist. With the FortiGate private default route configured
-  (`k3s_private_default_route_network_interface_id`), the host plan also
-  contains an `aws_route` deletion, which the plan check does not allow, so
-  teardown stops before changing anything. Tear the appliances down first
-  with their own Terraform folders (`terraform/aws-fortigate`,
-  `terraform/aws-fortiweb`), then run this teardown. The default lab has no
-  appliances and is not affected.
+- **Optional FortiGate/FortiWeb appliances are not destroyed.** Before
+  planning, teardown checks AWS for VPC network interfaces belonging to other
+  instances or unattached resources and stops if any remain. Tear appliances
+  or other dependent resources down with their own workflow first. This check
+  does not prove that no non-network dependency exists; AWS or Terraform may
+  still reject deletion. A configured `aws_route` is permitted in the host
+  destroy plan after this guard passes.
 - **Not yet run end to end** on a disposable deployment; the plan checks and
   ordering are covered by unit tests.
 - After an Elastic IP is released, the next deployment gets a new address.

@@ -16,7 +16,7 @@ PREP = 'terraform/aws-prep'
 EIP = 'aws_eip.public["k3s"]'
 HOST_TYPES = {'aws_instance', 'aws_vpc', 'aws_subnet', 'aws_security_group',
               'aws_internet_gateway', 'aws_route_table', 'aws_route_table_association',
-              'aws_eip_association', 'local_file'}
+              'aws_route', 'aws_eip_association', 'local_file'}
 
 
 def run(argv, *, capture=False):
@@ -59,6 +59,32 @@ def state_resources(module):
     result = run(['terraform', '-chdir=' + module, 'state', 'list'], capture=True)
     return [line.strip() for line in result.stdout.splitlines()
             if line.strip() and not line.startswith('data.')]
+
+
+def ensure_no_other_vpc_interfaces(profile, region):
+    """Refuse host teardown if any non-host ENI remains in the lab VPC.
+
+    This catches appliances even when their state lives in another checkout or
+    workspace. An unreadable or incomplete host state fails closed.
+    """
+    vpc = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'vpc_id'], capture=True).stdout.strip()
+    instance = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'instance_id'], capture=True).stdout.strip()
+    if not re.fullmatch(r'vpc-[0-9a-f]+', vpc) or not re.fullmatch(r'i-[0-9a-f]+', instance):
+        raise SystemExit('Cannot verify the lab VPC and instance from Terraform state; inspect before teardown.')
+    response = run(['aws', 'ec2', 'describe-network-interfaces', '--profile', profile, '--region', region,
+                    '--filters', 'Name=vpc-id,Values=' + vpc,
+                    '--query', 'NetworkInterfaces[].{id:NetworkInterfaceId,instance:Attachment.InstanceId}',
+                    '--output', 'json'], capture=True)
+    try:
+        interfaces = json.loads(response.stdout)
+        if not isinstance(interfaces, list) or any(not isinstance(item, dict) or not item.get('id') for item in interfaces):
+            raise ValueError('bad interface response')
+    except (ValueError, TypeError):
+        raise SystemExit('Cannot verify VPC network interfaces; inspect before teardown.') from None
+    foreign = [item['id'] for item in interfaces if item.get('instance') != instance]
+    if foreign:
+        raise SystemExit('Other network interfaces remain in the lab VPC (' + ', '.join(foreign) +
+                         '); tear down optional appliances or other dependent resources first.')
 
 
 def destroy(module, vars_file, auto_approve, *, target=None):
@@ -131,6 +157,7 @@ def main(argv=None):
     if not args.skip_ec2:
         run(['terraform', '-chdir=' + HOST, 'init'])
         if state_resources(HOST):
+            ensure_no_other_vpc_interfaces(profile, region)
             destroy(HOST, host_vars, auto)
         else:
             print('No disposable host resources remain in this workspace.')
