@@ -1,5 +1,10 @@
 # Developer Load Testing
 
+> **8.0.2 status:** This legacy workflow is disabled because it depended on
+> the removed 8.0.1 chatbot. The examples below are historical; do not run
+> them against an 8.0.2 lab until a catalog-based runner is validated. Review
+> provider charges explicitly before any later performance test.
+
 The load generator creates synthetic dashboard volume after functional
 validation already passes. It is intended for developers and demo maintainers
 who need request, outcome, token, cost, latency, and GPU trends. It is not part

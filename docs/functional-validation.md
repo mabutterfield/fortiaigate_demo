@@ -1,5 +1,18 @@
 # Functional Validation
 
+> **8.0.2:** The legacy chatbot-based `validate` path described below is
+> retired. Use `python3 -m functional_test catalog-baseline --help` and the
+> student portal Tests tab for current catalog-driven validation. Remaining
+> legacy renderer and profile material on this page is historical.
+
+The catalog runner uses HTTPS to the in-cluster FAIG ingress. Its default lab
+certificate does not match the service DNS, so the runner does not verify that
+internal certificate by default for the standard lab service address: traffic is encrypted but the server identity
+is not authenticated. Supply a trusted, service-DNS-matching certificate and
+`--internal-verify-tls` to require verification. Other service addresses require
+verification by default. This setting is separate from
+`--insecure`, which controls verification of the external admin API.
+
 Functional validation is the supported post-installation path test for
 FortiAIGate passthrough and every installed scenario. It uses the deployed
 chatbot agent, installed scenario matrix, live MCP transport, and the expected

@@ -174,7 +174,9 @@ allows the Alert request to continue.*
 The Block flow detects the same injected system instruction but stops the
 request before model tokens are generated:
 
-![FortiStore prompt-injection Block event](../../../../docs/images/fortiaigate/logs-fortistore-block.png)
+![Historical FortiStore prompt-injection deny event](../../../../docs/images/fortiaigate/logs-fortistore-deny.png)
+
+*Historical 8.0.1 screenshot; replace with an 8.0.2 Block event during the documentation refresh.*
 
 *FortiAIGate denies the injected request; the zero input/output token counts
 show that it did not continue to model generation.*

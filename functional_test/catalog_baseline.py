@@ -4,14 +4,15 @@ import argparse
 import json
 from pathlib import Path
 import time
+from urllib.parse import urlsplit
 import uuid
 
 from catalog802 import loader
 from catalog802.result_contract import evaluate
-from functional_test import baseline, validation
+from catalog802.sensitive import contains_sensitive
+from functional_test import catalog_transport as transport
 from functional_test.catalog_logs import match_rows
 from functional_test.catalog_plan import plan_case
-from functional_test.result_contract import contains_sensitive
 
 
 def evidence_from_turn(raw, test, *, block_message=None):
@@ -73,7 +74,9 @@ def parse_args(argv):
     p.add_argument('--host-alias', default='faig-aws')
     p.add_argument('--faig-url', required=True)
     p.add_argument('--insecure', action='store_true')
-    p.add_argument('--faig-internal-url', default='http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1')
+    p.add_argument('--faig-internal-url', default='https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1')
+    p.add_argument('--internal-verify-tls', action='store_true', default=None,
+                   help='Require verification of the in-cluster FAIG certificate (the default lab certificate does not match its service DNS)')
     p.add_argument('--mcp-url', default='http://mcp-demo.mcp.svc.cluster.local:8001/mcp')
     p.add_argument('--mcp-namespace', default='mcp')
     p.add_argument('--mcp-deployment', default='mcp-demo')
@@ -82,14 +85,18 @@ def parse_args(argv):
     p.add_argument('--temperature', type=float, default=0.0)
     p.add_argument('--log-wait', type=int, default=20)
     p.add_argument('--block-message-file', type=Path, help='File containing the exact FAIG block message, required when a case checks it')
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.internal_verify_tls is None:
+        # Only the known lab service defaults to the self-signed-certificate exception.
+        args.internal_verify_tls = urlsplit(args.faig_internal_url).hostname != 'ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+    return args
 
 
 def main(argv):
     args = parse_args(argv)
     if args.log_wait < 0 or args.log_wait > 120:
         raise SystemExit('log wait must be between 0 and 120 seconds')
-    catalog, errors = loader.load(validation.REPO_ROOT)
+    catalog, errors = loader.load(transport.ROOT)
     if errors:
         raise SystemExit('; '.join(errors))
     try:
@@ -106,18 +113,18 @@ def main(argv):
             raise ValueError('key file is missing keyName or secretKey')
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise SystemExit(str(exc)) from exc
-    host = validation.parse_inventory(Path(args.inventory), args.host_alias)
-    admin = baseline.FaigAdmin(args.faig_url, credentials, args.insecure)
-    for source, target in ((baseline.SHARED_AGENT_PATH, baseline.REMOTE_DIR + '/faig_agent.py'),
-                           (baseline.AGENT_PATH, baseline.REMOTE_AGENT_PATH)):
-        copied = baseline.kubectl_exec(args, host, ['sh', '-c', f'mkdir -p {baseline.REMOTE_DIR} && cat > {target}'],
+    host = transport.parse_inventory(Path(args.inventory), args.host_alias)
+    admin = transport.FaigAdmin(args.faig_url, credentials, args.insecure)
+    for source, target in ((transport.SHARED_AGENT_PATH, transport.REMOTE_DIR + '/faig_agent.py'),
+                           (transport.AGENT_PATH, transport.REMOTE_AGENT_PATH)):
+        copied = transport.kubectl_exec(args, host, ['sh', '-c', f'mkdir -p {transport.REMOTE_DIR} && cat > {target}'],
                                       source.read_text(encoding='utf-8'))
         if copied.returncode:
             raise SystemExit(f'could not stage {source.name} in the MCP pod')
     marker = '[faig-test-' + uuid.uuid4().hex + ']'
     case['prompt'] += '\n' + marker
     since = int(time.time() * 1000) - 2000
-    raw = baseline.run_case(args, host, case, key)
+    raw = transport.run_case(args, host, case, key)
     execution = 'error' if raw.get('error') else 'completed'
     requests_sent = request_count(raw)
     evidence, tools = evidence_from_turn(raw, case['test'], block_message=block_message)

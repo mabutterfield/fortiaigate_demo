@@ -4,32 +4,41 @@
     msg: "litellm_enabled=false; skipping LiteLLM deployment."
   when: not litellm_enabled | bool
 
-- name: Build installed scenario matrix on the controller
-  ansible.builtin.command:
-    argv: >-
-      {{
-        [
-          ansible_playbook_python,
-          scenario_matrix_builder_path,
-          '--faig-chain-reentry-uri',
-          litellm_faig_backend_base_path
-        ]
-        + (
-          []
-          if faig_chain_capability_enabled | bool
-          else ['--disable-faig-chain']
-        )
-      }}
-  changed_when: false
-  check_mode: false
-  register: scenario_matrix_builder_result
-  delegate_to: localhost
-  become: false
-  when:
-    - litellm_enabled | bool
-    - not litellm_use_catalog | bool
-  # - ansible.builtin.debug:
-  #     var: scenario_matrix_builder_result.stdout_lines
+# Change 2026-11-20: retire the 8.0.1 installed-scenario fallback;
+# existing local scenario data is preserved for a separate migration.
+# - name: Build installed scenario matrix on the controller
+#   ansible.builtin.command:
+#     argv: >-
+#       {{
+#         [
+#           ansible_playbook_python,
+#           scenario_matrix_builder_path,
+#           '--faig-chain-reentry-uri',
+#           litellm_faig_backend_base_path
+#         ]
+#         + (
+#           []
+#           if faig_chain_capability_enabled | bool
+#           else ['--disable-faig-chain']
+#         )
+#       }}
+#   changed_when: false
+#   check_mode: false
+#   register: scenario_matrix_builder_result
+#   delegate_to: localhost
+#   become: false
+#   when:
+#     - litellm_enabled | bool
+#     - not litellm_use_catalog | bool
+#   # - ansible.builtin.debug:
+#   #     var: scenario_matrix_builder_result.stdout_lines
+#
+- name: Require the 8.0.2 scenario catalog
+  ansible.builtin.assert:
+    that:
+      - litellm_use_catalog | bool
+    fail_msg: "The legacy LiteLLM scenario matrix is retired in 8.0.2. Set litellm_use_catalog=true and use the catalog."
+  when: litellm_enabled | bool
 
 - name: Reject unsupported legacy FAIG chain with catalog deployment
   ansible.builtin.assert:
@@ -63,7 +72,7 @@
 
 - name: Set installed scenario matrix fact
   ansible.builtin.set_fact:
-    scenario_matrix_runtime: "{{ (litellm_catalog_matrix_result.stdout if litellm_use_catalog | bool else scenario_matrix_builder_result.stdout) | from_json }}"
+    scenario_matrix_runtime: "{{ litellm_catalog_matrix_result.stdout | from_json }}"
   when: litellm_enabled | bool
   # - ansible.builtin.debug:
   #     var: scenario_matrix_runtime

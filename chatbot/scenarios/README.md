@@ -1,6 +1,6 @@
 # Scenario Packages
 
-For 8.0.2 active scenario definitions, see [catalog802](../../catalog802/README.md). These legacy profiles remain as transitional inputs to the existing chatbot; parity tests check them against the catalog until that consumer is replaced.
+For 8.0.2 active scenario definitions, see [catalog802](../../catalog802/README.md). The legacy scenario installer is retired. These profiles remain temporarily for internal migration and parity tests; the current chatbot reads the catalog. Commands below document the historical workflow and must not be used to configure 8.0.2.
 
 Scenario profiles package repeatable demo instructions, MCP tool expectations,
 and prompt examples. They do not deploy separate MCP servers; every scenario

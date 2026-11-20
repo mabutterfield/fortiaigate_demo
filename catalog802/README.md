@@ -37,8 +37,9 @@ cross-references and rules. It is not a full JSON Schema validator.
 
 ## Deployment and transitional adapters
 
-The LiteLLM role reads catalog aliases and instructions by default. Set
-`litellm_use_catalog: false` to restore its previous installed-scenario matrix.
+The LiteLLM role reads catalog aliases and instructions. The previous
+installed-scenario matrix is retired; `litellm_use_catalog: false` fails with
+migration guidance. Existing local scenario data is not deleted.
 The 8.0.2 FAIG re-entry provider remains separate and unfinished; catalog mode
 rejects the legacy FAIG-chain option.
 

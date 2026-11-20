@@ -1,9 +1,10 @@
 # Container Repository Management
 
 This is the source of truth for Docker image inputs, tags, ECR, local
-registries, publication, verification, cleanup, and rollback. The automated
-quickstart still calls this workflow today; future work intends to separate
-repository maintenance from normal lab deployment.
+registries, publication, verification, cleanup, and rollback. Repository
+maintenance is a separate maintainer workflow and is not run by the 8.0.2
+quickstart. The standalone publisher predates 8.0.2 and needs a fresh-image
+verification before its commands can be treated as a validated 8.0.2 recipe.
 
 All commands run from `<repo_root>`.
 
@@ -12,7 +13,7 @@ All commands run from `<repo_root>`.
 | Image family | Source/build context | Target | How deployment consumes it |
 |---|---|---|---|
 | FortiAIGate application images | Vendor `.tar` archives under `../images/<release>/`; publisher uses `docker load` rather than building source | `api`, `core`, `webui`, `scanner`, `logd`, `license_manager` | FortiAIGate Helm values use the configured repository prefix and release tag |
-| FortiAIGate inference images | Vendor archives and their loaded tags | `triton-models`, `custom-triton` | FortiAIGate Helm values use their independent Triton tags |
+| FortiAIGate 8.0.2 inference and guardrail images | Vendor archives and their loaded tags | `faig-models`, `vllm-server`, `custom-triton`, `guardrail`, `guardrail-scanner`, `llm-gateway` | The chart and rendered values use their corresponding tags; `triton-models` is retained for older releases |
 | 8.0.1 demo chatbot (retired 2026-11-20) | Removed from the 8.0.2 branch; build context preserved on `main` / tag `v1.0_faig8.0.1` | `chatbot-basic` (existing images left in place) | Not deployed. The 8.0.2 lab chatbot uses the stock `python` image with code in ConfigMaps (no build) |
 | Third-party application images | Public upstream registries, for example LiteLLM, PostgreSQL, Python, nginx, and optional Open WebUI | Not republished by the normal workflow | Individual Ansible role defaults and Helm values reference upstream repositories/tags |
 
@@ -30,11 +31,9 @@ FortiAIGate repositories are immutable by default. If the same tag exists:
 - matching content is skipped;
 - differing content fails and requires a new tag.
 
-`chatbot-basic` is mutable for development and
-`chatbot_publish_overwrite_existing_tag: true` permits same-tag rebuilds. That
-exception is convenient for iteration but is not a release-versioning policy.
-Before a release, bump or explicitly confirm `chatbot_image_tag`; the chatbot
-uses `imagePullPolicy: Always`, but a unique tag is the reliable audit trail.
+The existing `chatbot-basic` repository is mutable and retained for the 8.0.1
+archive. The 8.0.2 lab chatbot does not publish to it. Do not modify or delete
+its existing images merely because the old application was retired.
 
 Primary tag variables live in tracked `ansible/group_vars/system.yml` for the
 repository baseline. An operator can test an alternate existing tag through
@@ -65,7 +64,8 @@ The tracked repository set is:
 
 ```text
 api, core, webui, scanner, logd, license_manager,
-triton-models, custom-triton, chatbot-basic
+triton-models, custom-triton, chatbot-basic, guardrail,
+guardrail-scanner, llm-gateway, faig-models, vllm-server
 ```
 
 `terraform/aws-prep` reads ECR state and grants the k3s EC2 role scoped pull
@@ -83,11 +83,16 @@ terraform -chdir=terraform/aws-ecr import \
   fortiaigate/api
 ```
 
-The automated quickstart's repeat-run mode can import expected missing ECR
-repository state when possible. Review Terraform plans carefully so an import
-mistake does not create a competing repository or lifecycle policy.
+Import is a separate maintainer action; quickstart does not import or apply ECR.
+Review Terraform plans carefully so an import mistake does not create a
+competing repository or lifecycle policy.
 
 ## Publish FortiAIGate Images
+
+**8.0.2 status:** The following publisher workflow is inherited from earlier
+releases and has not yet been validated end to end for every 8.0.2 archive and
+tag. Inspect the archive tags and image mapping before publishing. Never alter
+existing 8.0.1 or 8.0.2 images as part of a normal lab deployment.
 
 The workstation needs Docker disk space for source archives, loaded layers,
 target tags, and possible comparison pulls. Allow roughly two to three times
@@ -184,15 +189,16 @@ the pod image/image ID on the k3s host and compare it with the registry digest.
 
 ## Cleanup
 
-Use the guided teardown for repeat AWS lab cycles:
+Use the guided teardown for repeat AWS lab cycles, selecting the same
+Terraform workspace and overrides as the deployment:
 
 ```bash
 python3 scripts/automated_teardown.py
 ```
 
-It destroys dependent lab infrastructure while preserving ECR repository data
-through the repository's state-removal workflow. Do not run a broad ECR
-`terraform destroy` when the intention is to retain published images.
+It preserves ECR repositories, lifecycle policies and Terraform state, along
+with S3 and shared prep resources. It does not remove ECR resources from state.
+Do not run a broad ECR `terraform destroy` to remove a lab.
 
 Local Docker cleanup should target confirmed image references rather than all
 images on the workstation:
@@ -226,14 +232,11 @@ ansible-playbook -i cloud ansible/playbooks/status_fortiaigate.yml
 For FortiAIGate vendor images, keep the application and Triton tag set aligned
 with a known compatible chart/release combination.
 
-## Current Quickstart Integration And Future Boundary
+## Current Quickstart Boundary
 
-Today, automated AWS quickstart creates/imports ECR, optionally publishes
-vendor/chatbot images, and then deploys workloads that consume the generated
-registry values. Local quickstart consumes the registry configuration created
-by `local_setup.py` and uses the same publisher roles.
-
-Do not remove those working calls yet. The intended future boundary is:
+The AWS quickstart consumes registry values from existing ECR Terraform outputs
+as a transitional read-only adapter; it does not import, apply or publish
+repositories. The intended final boundary is:
 
 - repository maintenance creates/imports registries and publishes immutable,
   verified release images;
@@ -241,5 +244,5 @@ Do not remove those working calls yet. The intended future boundary is:
   inputs; and
 - the normal quickstart no longer needs Docker archives or registry ownership.
 
-That separation is directional and is not implemented in the current v1.0
-workflow.
+The versioned manifest consumer contract and independent state handling remain
+to be implemented and validated. Local 8.0.2 deployment is not yet supported.

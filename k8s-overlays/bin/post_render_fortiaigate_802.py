@@ -36,11 +36,25 @@ def patch_local_storage(document):
         document["spec"]["accessModes"] = ["ReadWriteOnce"]
 
 
+def patch_https_redirect(document):
+    # Vendor default force-ssl-redirect=false serves HTTP when a client uses
+    # an IP that does not match the chart's wildcard TLS host. Require nginx
+    # to redirect HTTP for this ingress while preserving all other annotations.
+    if (document.get("kind") == "Ingress"
+            and document.get("metadata", {}).get("name") == "fortiaigate-ingress"
+            and document.get("spec", {}).get("ingressClassName") == "nginx"
+            and document.get("spec", {}).get("tls")):
+        annotations = document.setdefault("metadata", {}).setdefault("annotations", {})
+        annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
+        annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
+
+
 def main():
     documents = [doc for doc in yaml.safe_load_all(sys.stdin) if doc]
     for doc in documents:
         patch_gpu_runtime(doc)
         patch_local_storage(doc)
+        patch_https_redirect(doc)
     yaml.safe_dump_all(documents, sys.stdout, explicit_start=True, sort_keys=False)
 
 

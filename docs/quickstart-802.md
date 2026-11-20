@@ -26,7 +26,8 @@ explicit `TF_WORKSPACE` is required with these overrides. Review the selected
 workspace and private values before using `--yolo`: Terraform applies changes
 without prompting. The option does not mean Terraform itself cannot change or
 replace an instance. Existing ECR repositories and images are not managed by
-default; `--manage-ecr` explicitly opts into the separate ECR workflow.
+by the quickstart. Manage repositories through the separate ECR maintainer
+workflow; image publishing and repository changes are not quickstart options.
 When preserving ECR, quickstart rebuilds the local Ansible registry settings
 from the selected workspace's existing `terraform/aws-ecr` outputs and checks
 the account and region. That ECR state must already exist in the checkout;
@@ -87,16 +88,20 @@ minutes; the VPC remains until AWS releases its dependencies.
 
 **Known limitations (v1.0):**
 
-- **Optional FortiGate/FortiWeb appliances are not handled.** They are
-  deployed into the lab VPC's subnets, so the VPC cannot be destroyed while
-  they exist. With the FortiGate private default route configured
-  (`k3s_private_default_route_network_interface_id`), the host plan also
-  contains an `aws_route` deletion, which the plan check does not allow, so
-  teardown stops before changing anything. Tear the appliances down first
-  with their own Terraform folders (`terraform/aws-fortigate`,
-  `terraform/aws-fortiweb`), then run this teardown. The default lab has no
-  appliances and is not affected.
+- **Optional FortiGate/FortiWeb appliances are not destroyed.** Before
+  planning, teardown checks AWS for VPC network interfaces belonging to other
+  instances or unattached resources and stops if any remain. Tear appliances
+  or other dependent resources down with their own workflow first. This check
+  does not prove that no non-network dependency exists; AWS or Terraform may
+  still reject deletion. A configured `aws_route` is permitted in the host
+  destroy plan after this guard passes.
 - **Not yet run end to end** on a disposable deployment; the plan checks and
   ordering are covered by unit tests.
 - After an Elastic IP is released, the next deployment gets a new address.
   Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
+
+For the default AWS security group, FAIG's port 80 and the lab chatbot's
+legacy HTTP port redirect to their HTTPS endpoints. Other generated legacy
+HTTP NodePorts are not exposed by default; use their HTTPS gateway endpoints.
+Explicit additional security-group ports are operator-controlled and may expose
+unencrypted services. A redirect cannot protect data already sent over HTTP.

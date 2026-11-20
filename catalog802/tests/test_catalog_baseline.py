@@ -50,10 +50,10 @@ class CatalogBaselineTests(unittest.TestCase):
             args = ['--scenario', 'hr-tool-dlp', '--action', 'redact', '--key-file', str(key),
                     '--admin-credentials', str(creds), '--inventory', str(root / 'inventory'),
                     '--faig-url', 'https://faig.invalid']
-            with patch('functional_test.catalog_baseline.validation.parse_inventory', return_value={}), \
-                 patch('functional_test.catalog_baseline.baseline.FaigAdmin') as admin, \
-                 patch('functional_test.catalog_baseline.baseline.kubectl_exec') as execute, \
-                 patch('functional_test.catalog_baseline.baseline.run_case', return_value={'error': 'http_error', 'http_status': 401, 'rounds': 0}), \
+            with patch('functional_test.catalog_baseline.transport.parse_inventory', return_value={}), \
+                 patch('functional_test.catalog_baseline.transport.FaigAdmin') as admin, \
+                 patch('functional_test.catalog_baseline.transport.kubectl_exec') as execute, \
+                 patch('functional_test.catalog_baseline.transport.run_case', return_value={'error': 'http_error', 'http_status': 401, 'rounds': 0}), \
                  contextlib.redirect_stdout(io.StringIO()) as output:
                 execute.return_value.returncode = 0
                 self.assertEqual(main(args), 1)
@@ -72,10 +72,10 @@ class CatalogBaselineTests(unittest.TestCase):
                     '--faig-url', 'https://faig.invalid', '--log-wait', '0']
             raw = {'reply': '[REDACTED_SSN_1]', 'rounds': 1,
                    'tool_events': [{'tool': 'employee_sensitive_lookup', 'result': {}}]}
-            with patch('functional_test.catalog_baseline.validation.parse_inventory', return_value={}), \
-                 patch('functional_test.catalog_baseline.baseline.FaigAdmin') as admin, \
-                 patch('functional_test.catalog_baseline.baseline.kubectl_exec') as execute, \
-                 patch('functional_test.catalog_baseline.baseline.run_case', return_value=raw), \
+            with patch('functional_test.catalog_baseline.transport.parse_inventory', return_value={}), \
+                 patch('functional_test.catalog_baseline.transport.FaigAdmin') as admin, \
+                 patch('functional_test.catalog_baseline.transport.kubectl_exec') as execute, \
+                 patch('functional_test.catalog_baseline.transport.run_case', return_value=raw), \
                  contextlib.redirect_stdout(io.StringIO()) as output:
                 execute.return_value.returncode = 0
                 admin.return_value.get.return_value = {'items': []}

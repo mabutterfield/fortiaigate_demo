@@ -86,18 +86,14 @@ locals {
       https = var.demo_https_base_port + 4
     }
   }
-  generated_demo_ingress_tcp_ports = toset(flatten([
-    for assignment in values(local.demo_port_assignments) : [
-      assignment.http,
-      assignment.https
-    ]
-  ]))
+  # The lab chatbot's HTTP listener redirects to HTTPS. Other legacy HTTP
+  # NodePorts may serve unencrypted traffic, so do not expose them by default.
+  generated_demo_ingress_tcp_ports = toset(concat(
+    [local.demo_port_assignments.chatbot.http],
+    [for assignment in values(local.demo_port_assignments) : assignment.https]
+  ))
   generated_demo_ingress_tcp_port_list = [
-    local.demo_port_assignments.openwebui.http,
     local.demo_port_assignments.chatbot.http,
-    local.demo_port_assignments.demo_home.http,
-    local.demo_port_assignments.litellm.http,
-    local.demo_port_assignments.mcp.http,
     local.demo_port_assignments.openwebui.https,
     local.demo_port_assignments.chatbot.https,
     local.demo_port_assignments.demo_home.https,

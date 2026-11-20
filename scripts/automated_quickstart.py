@@ -1524,22 +1524,16 @@ def find_existing_aws_ecr_repos(profile: str, region: str, repo_prefix: str, rep
 
 
 def run_terraform(
-    ecr_mode: str,
     auto_approve: bool,
     appliance_keys: list[str],
     profile: str,
     region: str,
     *,
-    noninteractive_import: bool = False,
     transient_appliance_enables: set[str] | None = None,
-    manage_ecr: bool = False,
     terraform_vars_dir: Path | None = None,
 ) -> None:
-    if manage_ecr:
-        run_ecr_terraform(ecr_mode, auto_approve, profile, region, noninteractive_import=noninteractive_import)
-    else:
-        print("Existing ECR repositories and images are preserved; ECR management skipped.")
-        restore_existing_ecr_vars(profile, region)
+    print("Existing ECR repositories and images are preserved; ECR management is a separate workflow.")
+    restore_existing_ecr_vars(profile, region)
 
     for label, module_path in TERRAFORM_MODULES[1:]:
         print_header(f"Terraform: {label}")
@@ -2458,7 +2452,6 @@ def parse_args() -> argparse.Namespace:
         help="Export the current user profile archive and exit. Default path: ../user_profile.tgz.",
     )
     parser.add_argument("--terraform-vars-dir", type=Path, default=Path(os.environ["FAIG_TERRAFORM_VARS_DIR"]) if os.environ.get("FAIG_TERRAFORM_VARS_DIR") else None, help="Directory containing prep.tfvars and host.tfvars overrides for the selected workspace.")
-    parser.add_argument("--manage-ecr", action="store_true", help="Explicitly manage ECR repositories; normally they are preserved and untouched.")
     parser.add_argument(
         "--skip-terraform",
         action="store_true",
@@ -2468,14 +2461,6 @@ def parse_args() -> argparse.Namespace:
         "--skip-ansible",
         action="store_true",
         help="Stop after Terraform and EC2 status instead of running Ansible deployment.",
-    )
-    parser.add_argument(
-        "--publish-image-version",
-        default="",
-        help=(
-            "FortiAIGate image build version to publish when image publishing is selected, "
-            "for example 8.0.1. Use active to publish all active image catalog entries."
-        ),
     )
     parser.add_argument(
         "--include-fortigate",
@@ -2563,14 +2548,14 @@ def main() -> None:
 
     print("FortiAIGate automated quick start")
     print(f"Repo root: {REPO_ROOT}")
-    print("This script can run Terraform, publish images, bootstrap k3s, and deploy the demo.")
+    print("This script can run Terraform, bootstrap k3s, and deploy the demo.")
     print("Existing local tfvars/YAML values are used as prompt defaults when present.")
     print(f"Deployment target: {args.target}")
     os.environ["FAIG_DEPLOYMENT_TARGET"] = args.target
     if args.yolo:
         print("\nYOLO mode is enabled.")
         print("- Terraform apply uses -auto-approve.")
-        print("- Existing ECR repositories and images are preserved unless --manage-ecr is specified.")
+        print("- Existing ECR repositories and images are preserved.")
         print("- Image publishing is skipped.")
         print("- FortiAIGate status is checked once after deploy, then again after app deployment.")
         print("- Terraform/Ansible execution prompts are skipped where safe.")
@@ -2721,19 +2706,12 @@ def main() -> None:
         if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", True):
             raise SystemExit("Stopped before Terraform execution.")
 
-        ecr_mode = ("existing" if args.yolo else choose_ecr_mode()) if args.manage_ecr else "skip"
-        if args.yolo and args.manage_ecr:
-            print_header("ECR Mode")
-            print("YOLO mode: importing missing existing ECR repositories, then applying.")
         run_terraform(
-            ecr_mode,
             terraform_auto_approve,
             appliance_keys,
             profile,
             region,
-            noninteractive_import=args.yolo,
             transient_appliance_enables=explicitly_requested_appliance_keys(args),
-            manage_ecr=args.manage_ecr,
             terraform_vars_dir=args.terraform_vars_dir,
         )
     prompt_ec2_status(

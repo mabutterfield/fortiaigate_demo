@@ -5,20 +5,15 @@ from __future__ import annotations
 
 import sys
 
-from functional_test import baseline, catalog_baseline, catalog_evaluate, curl_renderer, scenario_pack, validation
-
-
 USAGE = """usage: python3 -m functional_test <command> [options]
 
-With no command, validation runs as a transition convenience.
+Choose a command explicitly.
 
 commands:
   catalog-baseline  Run one live catalog case and verify its Traffic Log
   evaluate-catalog  Evaluate saved observations against a catalog case
   baseline  Run 8.0.2 per-student key validation without the chatbot
-  scenario-pack  Build the secret-free lab chatbot scenario pack
-  validate  Run live scenario validation through the deployed chatbot
-  render-curl  Render one metadata-checked direct FAIG request
+  render-curl  Render a legacy metadata-checked direct FAIG request
 
 Run `python3 -m functional_test <command> --help` for command options.
 """
@@ -26,21 +21,25 @@ Run `python3 -m functional_test <command> --help` for command options.
 
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "catalog-baseline":
+        from functional_test import catalog_baseline
         return catalog_baseline.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "evaluate-catalog":
+        from functional_test import catalog_evaluate
         return catalog_evaluate.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "baseline":
+        from functional_test import baseline
         return baseline.main(sys.argv[2:])
-    if len(sys.argv) > 1 and sys.argv[1] == "scenario-pack":
-        return scenario_pack.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "render-curl":
+        from functional_test import curl_renderer
         return curl_renderer.main(sys.argv[2:])
-    if len(sys.argv) > 1 and sys.argv[1] == "validate":
-        sys.argv = [f"{sys.argv[0]} validate", *sys.argv[2:]]
-    elif len(sys.argv) > 1 and sys.argv[1] in {"commands", "help", "-h", "--help"}:
+    if len(sys.argv) > 1 and sys.argv[1] in {"validate", "scenario-pack"}:
+        print('The legacy chatbot-based command is retired in 8.0.2. Use catalog-baseline or the student Tests tab.', file=sys.stderr)
+        return 2
+    if len(sys.argv) == 1 or sys.argv[1] in {"commands", "help", "-h", "--help"}:
         print(USAGE)
         return 0
-    return validation.main()
+    print(f'Unknown functional_test command: {sys.argv[1]}', file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

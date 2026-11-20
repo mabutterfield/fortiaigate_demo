@@ -53,6 +53,7 @@ class TeardownTests(unittest.TestCase):
     def test_default_destroys_host_then_only_k3s_ip(self):
         with mock.patch.object(teardown, 'run') as run, \
              mock.patch.object(teardown, 'state_resources', side_effect=[['aws_instance.this'], [teardown.EIP]]), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
             teardown.main(['--yolo', '--terraform-vars-dir', str(self.overrides)])
         self.assertEqual(destroy.call_count, 2)
@@ -64,6 +65,7 @@ class TeardownTests(unittest.TestCase):
         for args in (['--keep-eip'], ['--skip-ec2']):
             with self.subTest(args=args), mock.patch.object(teardown, 'run') as run, \
                  mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+                 mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
                  mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
                 teardown.main(['--yolo'] + args)
                 self.assertFalse(any(teardown.PREP in ' '.join(c.args[0]) for c in run.call_args_list))
@@ -95,11 +97,63 @@ class TeardownTests(unittest.TestCase):
 
     def test_host_destroy_failure_prevents_eip_release(self):
         with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy', side_effect=subprocess.CalledProcessError(1, ['terraform'])) as destroy, \
              contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(subprocess.CalledProcessError):
                 teardown.main(['--yolo'])
             self.assertEqual(destroy.call_count, 1)
+
+    def test_appliance_interface_is_detected_before_destroy(self):
+        def response(text):
+            return subprocess.CompletedProcess([], 0, text)
+        interfaces = json.dumps([{'id': 'eni-host', 'instance': 'i-123'},
+                                 {'id': 'eni-appliance', 'instance': 'i-456'}])
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'), response(interfaces)]):
+            with self.assertRaisesRegex(SystemExit, 'tear down optional appliances'):
+                teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_instance.this'])
+
+    def test_host_interfaces_and_private_route_are_allowed(self):
+        def response(text):
+            return subprocess.CompletedProcess([], 0, text)
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'),
+                 response(json.dumps([{'id':'eni-host', 'instance':'i-123'}]))]):
+            teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_instance.this'])
+        self.assertIn('aws_route', teardown.HOST_TYPES)
+
+    def test_vpc_not_found_cannot_pass_as_empty_interface_list(self):
+        def response(text):
+            return subprocess.CompletedProcess([], 0, text)
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'),
+                subprocess.CalledProcessError(1, ['aws', 'ec2', 'describe-vpcs'])]):
+            with self.assertRaises(subprocess.CalledProcessError):
+                teardown.ensure_no_other_vpc_interfaces('wrong-account', 'us-east-2', ['aws_instance.this'])
+
+    def test_partial_state_without_instance_allows_empty_vpc_only(self):
+        def response(text):
+            return subprocess.CompletedProcess([], 0, text)
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('vpc-123'), response('[]')]):
+            teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_vpc.this'])
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('vpc-123'),
+                response(json.dumps([{'id': 'eni-leftover', 'instance': None}]))]):
+            with self.assertRaisesRegex(SystemExit, 'other dependent resources'):
+                teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2', ['aws_vpc.this'])
+
+    def test_cloud_failure_has_clear_message_and_stops_teardown(self):
+        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces', side_effect=subprocess.CalledProcessError(1, ['aws'])), \
+             mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(SystemExit, 'Cannot verify the lab VPC'):
+                teardown.main(['--yolo'])
+            destroy.assert_not_called()
+
+    def test_vpc_guard_failure_prevents_host_and_ip_destroy(self):
+        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces', side_effect=SystemExit('other interfaces')), \
+             mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(SystemExit, 'other interfaces'):
+                teardown.main(['--yolo'])
+            destroy.assert_not_called()
 
 
 if __name__ == '__main__':
