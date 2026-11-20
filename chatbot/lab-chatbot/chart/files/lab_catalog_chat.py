@@ -206,6 +206,7 @@ def run_case(*, agent: Callable[[dict], dict], fetch_logs: Callable[..., tuple[i
     result.update({"test": test.get("id", ""), "key_name": key["key_name"], "requests_sent": requests_sent,
                    "tools_called": tools, "reply": raw.get("reply") or "", "http_status": raw.get("http_status"),
                    "execution_error": raw.get("error") or "", "exchanges": raw.get("exchanges") or [],
+                   "error_detail": raw.get("detail") if raw.get("error") == "http_error" else None,
                    "log_entries": details, "log_error": log_error, "tool_events": raw.get("tool_events") or []})
     return result
 
@@ -277,6 +278,33 @@ def hello_world_test(platform: dict[str, Any]) -> dict[str, Any]:
     return {"id": "hello-world", "action": "", "prompt_ref": "", "required_tools": [], "forbidden_tools": [],
             "attack_tools": [], "expect": hello.get("expect") or {"verdict": "log", "evidence_present": [],
                                                                   "evidence_absent": []}}
+
+
+def http_failure(result: dict[str, Any]) -> str:
+    """Plain-language reason when FortiAIGate answered with an HTTP error (Change 2026-11-20), else "".
+
+    Accepts a run_case result (execution_error/error_detail) or a raw agent turn (error/detail)."""
+    if (result.get("execution_error") or result.get("error")) != "http_error":
+        return ""
+    code = result.get("http_status")
+    detail = result.get("error_detail") or result.get("detail") or {}
+    message = ""
+    try:
+        message = (json.loads(detail.get("error_body") or "{}").get("error") or {}).get("message", "")
+    except (ValueError, AttributeError):
+        message = ""
+    said = f"HTTP {code}" + (f": {message}" if message else "")
+    if code in (401, 403):
+        return (f"FortiAIGate rejected the key ({said}). The stored value is wrong, or the key was rotated or "
+                "revoked: paste the current value in Keys → Change a mapping, or rotate the key.")
+    if code == 429:
+        return f"Rate or budget limit reached ({said}). Wait a moment and retry."
+    if code in (400, 404, 422):
+        return (f"FortiAIGate refused the request ({said}). Check that the key's model and policy match this "
+                "scenario and action (Keys tab warnings).")
+    if isinstance(code, int) and code >= 500:
+        return f"FortiAIGate or the model behind it failed ({said}). Retry; if it keeps failing, tell the instructor."
+    return f"The request failed ({said})."
 
 
 def key_status_for(result: dict[str, Any]) -> str:

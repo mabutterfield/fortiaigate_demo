@@ -123,7 +123,9 @@ def render_turn(turn: dict[str, Any]) -> None:
     result = turn["result"]
     if result.get("error") == "http_error":
         body = (result.get("detail") or {}).get("error_body", "")
-        st.error(f"HTTP {result.get('http_status')}: request failed (key, budget or upstream problem)")
+        # Change 2026-11-20: name the error (rejected key, limit, refused request, upstream failure).
+        # st.error(f"HTTP {result.get('http_status')}: request failed (key, budget or upstream problem)")
+        st.error(lc.http_failure(result))
         if body:
             st.code(body[:1500], language="json")
     elif result.get("error"):
@@ -207,7 +209,10 @@ def default_grade():
 def render_result(result: dict[str, Any]) -> None:
     outcome = result["outcome"]
     verdict = f"FortiAIGate verdict: {VERDICTS.get(result['verdict'], result['verdict'])}"
-    if outcome == "observed":  # ungraded prompt probe (Change 2026-11-19)
+    failure = lc.http_failure(result)
+    if failure:  # Change 2026-11-20: name the HTTP error instead of "INCOMPLETE · Unknown"
+        st.error(failure)
+    elif outcome == "observed":  # ungraded prompt probe (Change 2026-11-19)
         st.info(f"{verdict} · {result.get('requests_sent') or 0} request(s) · not graded")
     else:
         show = {"pass": st.success, "fail": st.error, "known-fail": st.warning, "incomplete": st.info}[outcome]
@@ -349,7 +354,8 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
             rows.append({"Scenario": s["display_name"], "Action": lc.action_label(s, test["action"]),
                          "Test": test["id"], "Result": OUTCOMES.get(result["outcome"], result["outcome"]),
                          "Verdict": VERDICTS.get(result["verdict"], result["verdict"]),
-                         "Notes": "; ".join(result["reasons"])})
+                         "Notes": "; ".join(([lc.http_failure(result)] if lc.http_failure(result) else [])
+                                            + result["reasons"])})
         progress.progress(1.0, text="Done")
         st.session_state.all_tests = rows
     rows = st.session_state.get("all_tests")

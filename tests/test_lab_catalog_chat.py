@@ -141,6 +141,22 @@ class RunCaseTests(unittest.TestCase):
         bad, _ = self.run_case("", Logs([]), tools=(), rounds=0, error="http_error", test=hello, plan=plan)
         self.assertEqual(lc.key_status_for(bad), "invalid")
 
+    def test_http_failures_are_named(self):
+        """Change 2026-11-20: a rejected key reads as such, not as an unknown verdict."""
+        hello = lc.hello_world_test(self.platform)
+        plan = {"prompt": "Reply with exactly: Hello.", "system_prompt": "", "tools": [], "max_rounds": 0,
+                "model": "hr-tool-dlp"}
+        bad, _ = self.run_case("", Logs([]), tools=(), rounds=0, error="http_error", test=hello, plan=plan)
+        self.assertEqual(bad["outcome"], "incomplete")
+        self.assertIn("rejected the key (HTTP 401", lc.http_failure(bad))
+        body = '{"error":{"message":"invalid or unknown API key","type":"authentication_error"}}'
+        raw = {"error": "http_error", "http_status": 401, "detail": {"error_body": body}}
+        self.assertIn("HTTP 401: invalid or unknown API key", lc.http_failure(raw))
+        self.assertIn("refused the request (HTTP 400", lc.http_failure(dict(raw, http_status=400)))
+        self.assertIn("limit", lc.http_failure(dict(raw, http_status=429)))
+        self.assertIn("failed (HTTP 502", lc.http_failure(dict(raw, http_status=502, detail={"error_body": "<html>"})))
+        self.assertEqual(lc.http_failure({"error": "", "reply": "ok"}), "")
+
     def test_gui_only_hello_world_is_ungraded_but_key_ok(self):
         """Change 2026-11-20: no inspection, so no Traffic Log rows; a reply still proves the key."""
         hello = lc.hello_world_test(self.platform)
