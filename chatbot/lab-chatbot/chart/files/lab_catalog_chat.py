@@ -210,6 +210,67 @@ def run_case(*, agent: Callable[[dict], dict], fetch_logs: Callable[..., tuple[i
     return result
 
 
+# ------------------------------------------------------------------ ungraded prompt probe (Change 2026-11-19)
+
+PRIORITY = ("log", "alert", "redact", "block")
+
+
+def prompt_choices(scenario: dict[str, Any]) -> list[dict[str, str]]:
+    """Every catalog prompt of a scenario, attack prompts first: [{id, group, text}]."""
+    prompts = scenario.get("prompts") or {}
+    groups = ["attack", "clean"] + sorted(set(prompts) - {"attack", "clean"})
+    return [{"id": p["id"], "group": group, "text": p["text"]} for group in groups for p in prompts.get(group, [])]
+
+
+def related_tests(scenario: dict[str, Any], action: str, prompt_id: str | None,
+                  compromised: bool) -> list[dict[str, Any]]:
+    """Catalog tests of this action that send the same prompt in the same frontend mode."""
+    mode = "compromised" if compromised else "none"
+    return [t for t in tests_for(scenario, action)
+            if prompt_id and t.get("prompt_ref") == prompt_id and t.get("frontend_instruction", "none") == mode]
+
+
+def probe_plan(scenario: dict[str, Any], action: str, text: str, compromised: bool = False,
+               prompt_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """(test-shaped stub, plan) for sending one prompt through the action's key without grading it.
+
+    Tools match the related catalog tests (extended tool sets included) so a catalog prompt behaves as in its
+    test; a typed prompt gets the scenario's base tools."""
+    related = related_tests(scenario, action, prompt_id, compromised)
+    stub = {"id": "probe", "action": action, "prompt_ref": prompt_id or "",
+            "frontend_instruction": "compromised" if compromised else "none",
+            "required_tools": sorted({x for t in related for x in t.get("required_tools", [])}),
+            "attack_tools": sorted({x for t in related for x in t.get("attack_tools", [])})}
+    system_prompt = ""
+    if compromised:
+        system_prompt = scenario.get("frontend_instruction") or ""
+        if not system_prompt:
+            raise ValueError("compromised frontend fixture not available in the catalog view")
+    tools = list(scenario.get("tools", []))
+    needed = set(stub["required_tools"]) | set(stub["attack_tools"])
+    for group in scenario.get("extended_tool_sets", []):
+        if needed.intersection(group["tools"]):
+            tools.extend(group["tools"])
+    plan = {"prompt": text, "system_prompt": system_prompt, "tools": list(dict.fromkeys(tools)),
+            "max_rounds": scenario.get("max_rounds", 3), "model": model_for(scenario, action).get("public_name", "")}
+    return stub, plan
+
+
+def observe(*, execution: str, verdict_rows: list[dict[str, str]], requests_sent: int, evidence: list[str],
+            **_: Any) -> dict[str, Any]:
+    """Ungraded result for a probe: the most severe Traffic Log verdict and the evidence, no expectation."""
+    seen = [r["verdict"] for r in verdict_rows if r.get("verdict") in PRIORITY]
+    verdict = max(seen, key=PRIORITY.index) if seen else "unknown"
+    reasons = []
+    if execution != "completed":
+        reasons.append("The request did not complete, so FortiAIGate's verdict may be missing.")
+    elif requests_sent and len(verdict_rows) < requests_sent:
+        reasons.append(f"Only {len(verdict_rows)} of {requests_sent} request(s) were found in the Traffic Log; "
+                       "the verdict may be incomplete.")
+    return {"outcome": "observed", "execution": execution, "verdict": verdict, "evidence": sorted(evidence),
+            "reasons": reasons}
+
+
 def hello_world_test(platform: dict[str, Any]) -> dict[str, Any]:
     """The platform hello-world as a catalog-shaped test (no tools, expected verdict Log)."""
     hello = platform.get("hello_world") or {}

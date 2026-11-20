@@ -182,8 +182,8 @@ def fetch_logs(identity: dict[str, str]):
 
 
 def run_test(identity: dict[str, str], scenario: dict[str, Any], test: dict[str, Any], key: dict[str, Any],
-             plan: dict[str, Any] | None = None) -> dict[str, Any]:
-    return lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=evaluate,
+             plan: dict[str, Any] | None = None, grade=evaluate) -> dict[str, Any]:
+    return lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=grade,
                        contains_sensitive=contains_sensitive, test=test, plan=plan or lc.plan_test(scenario, test),
                        key=key, faig_url=CFG["faig_url"], mcp_url=CFG["mcp_url"],
                        scenario_version=scenario.get("scenario_version", ""), block_message=CFG["block_message"],
@@ -192,9 +192,14 @@ def run_test(identity: dict[str, str], scenario: dict[str, Any], test: dict[str,
 
 def render_result(result: dict[str, Any]) -> None:
     outcome = result["outcome"]
-    show = {"pass": st.success, "fail": st.error, "known-fail": st.warning, "incomplete": st.info}[outcome]
-    show(f"{OUTCOMES.get(outcome, outcome)} · FortiAIGate verdict: {VERDICTS.get(result['verdict'], result['verdict'])}"
-         f" · {result.get('requests_sent') or 0} request(s)")
+    verdict = f"FortiAIGate verdict: {VERDICTS.get(result['verdict'], result['verdict'])}"
+    if outcome == "observed":  # ungraded prompt probe (Change 2026-11-19)
+        st.info(f"{verdict} · {result.get('requests_sent') or 0} request(s) · not graded")
+    else:
+        show = {"pass": st.success, "fail": st.error, "known-fail": st.warning, "incomplete": st.info}[outcome]
+        show(f"{OUTCOMES.get(outcome, outcome)} · {verdict} · {result.get('requests_sent') or 0} request(s)")
+    if result.get("reply"):
+        st.markdown("**Reply:** " + result["reply"][:2000])
     if result["evidence"]:
         st.write("Evidence: " + ", ".join(EVIDENCE.get(e, e) for e in result["evidence"]))
     for reason in result["reasons"]:
@@ -222,6 +227,49 @@ def render_result(result: dict[str, Any]) -> None:
                 st.caption("No matched entry.")
 
 
+def try_prompt(identity: dict[str, str], scenario: dict[str, Any], action: str, key: dict[str, Any] | None) -> None:
+    """Send any catalog prompt (or a typed one) through the action's key and show what FortiAIGate did.
+
+    Change 2026-11-19: ungraded probe; shows the matching catalog test's expectation when there is one."""
+    st.subheader("Try a prompt")
+    if key is None:
+        st.info("Map a key to this scenario and action in the Keys tab to send prompts through it.")
+        return
+    sid = scenario["id"]
+    choices = lc.prompt_choices(scenario)
+    source = st.radio("Prompt", ["catalog", "own"] if choices else ["own"], horizontal=True, key=f"probe-src-{sid}",
+                      format_func=lambda s: "Catalog prompt" if s == "catalog" else "Write my own")
+    prompt_id = None
+    if source == "catalog":
+        by_id = {c["id"]: c for c in choices}
+        prompt_id = st.selectbox("Catalog prompt", list(by_id), key=f"probe-prompt-{sid}",
+                                 format_func=lambda i: f"{by_id[i]['group'].title()} · {by_id[i]['text'][:100]}")
+        text = by_id[prompt_id]["text"]
+        st.caption(text)
+    else:
+        text = st.text_area("Your prompt", key=f"probe-text-{sid}", height=100)
+    compromised = bool(scenario.get("frontend_instruction")) and st.checkbox(
+        scenario.get("frontend_instruction_label") or "Simulate compromised frontend", key=f"probe-comp-{sid}",
+        help=scenario.get("frontend_instruction_description") or "")
+    related = lc.related_tests(scenario, action, prompt_id, compromised)
+    if related:
+        expect = related[0]["expect"]["verdict"]
+        st.caption(f"Catalog test **{related[0]['id']}** sends this prompt with this key and expects "
+                   f"**{VERDICTS.get(expect, expect)}**. Use Run one test above for a graded run.")
+    else:
+        st.caption(f"No catalog test sends this prompt for {lc.action_label(scenario, action)}; the result is "
+                   "shown but not graded.")
+    st.caption(f"Key: `{key['key_name']}`")
+    if st.button("Send prompt", disabled=not text.strip()):
+        stub, plan = lc.probe_plan(scenario, action, text.strip(), compromised, prompt_id)
+        with st.spinner("Sending the prompt and waiting for the Traffic Log..."):
+            result = run_test(identity, scenario, stub, key, plan, grade=lc.observe)
+        st.session_state.probe = {"where": (sid, action, key["key_name"]), "result": result}
+    last = st.session_state.get("probe")
+    if last and last["where"] == (sid, action, key["key_name"]):
+        render_result(last["result"])
+
+
 def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[dict[str, Any]],
               scenario: dict[str, Any] | None, action: str) -> None:
     if scenario is None:
@@ -236,7 +284,14 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
     else:
         labels = {t["id"]: t["id"] + (" (compromised frontend)" if t.get("frontend_instruction") == "compromised" else "")
                   for t in tests}
-        test_id = st.selectbox("Test", list(labels), format_func=labels.get)
+        # Change 2026-11-19: the sidebar already picks scenario/action; only offer a choice when the action
+        # has more than one test.
+        if len(tests) == 1:
+            test_id = tests[0]["id"]
+            st.markdown(f"Test: **{labels[test_id]}**")
+        else:
+            test_id = st.radio("Test", list(labels), format_func=labels.get, horizontal=True,
+                               key=f"test-{scenario['id']}-{action}")
         test = next(t for t in tests if t["id"] == test_id)
         plan = lc.plan_test(scenario, test)
         expect = test["expect"]
@@ -254,11 +309,19 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
             render_result(last)
 
     st.divider()
+    try_prompt(identity, scenario, action, key)
+
+    st.divider()
     st.subheader("Run all tests")
-    st.write("Runs every catalog test for each scenario action that has a mapped key. A failed test is retried once "
+    # Change 2026-11-19: default to the scenario selected in the sidebar.
+    scope = st.radio("Scope", ["selected", "all"], horizontal=True, key="run-all-scope",
+                     format_func=lambda s: f"{scenario['display_name']} (all actions)" if s == "selected"
+                     else "All scenarios")
+    st.write("Runs every catalog test for each action in scope that has a mapped key. A failed test is retried once "
              "(model answers vary).")
     if st.button("Run all tests"):
-        plan = [(s, t, lc.mapped_key(keys, sid, t["action"])) for sid, s in scenarios.items()
+        chosen = {scenario["id"]: scenario} if scope == "selected" else scenarios
+        plan = [(s, t, lc.mapped_key(keys, sid, t["action"])) for sid, s in chosen.items()
                 for t in s.get("tests", []) if lc.mapped_key(keys, sid, t["action"])]
         progress, rows = st.progress(0.0, text="Starting..."), []
         for index, (s, test, key) in enumerate(plan):

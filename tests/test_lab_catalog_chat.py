@@ -141,5 +141,67 @@ class RunCaseTests(unittest.TestCase):
         self.assertEqual(lc.key_status_for(bad), "invalid")
 
 
+class ProbeTests(unittest.TestCase):
+    """Ungraded 'Try a prompt' probe (Change 2026-11-19)."""
+
+    def setUp(self):
+        self.scenarios = {i["id"]: i for i in student_view()["items"]}
+        self.store = self.scenarios["fortistore-injection"]
+
+    def test_prompt_choices_cover_every_catalog_prompt_attack_first(self):
+        choices = lc.prompt_choices(self.store)
+        total = sum(len(g) for g in self.store["prompts"].values())
+        self.assertEqual(len(choices), total)
+        self.assertEqual(choices[0]["group"], "attack")
+
+    def test_related_tests_follow_prompt_action_and_frontend_mode(self):
+        self.assertEqual([t["id"] for t in lc.related_tests(self.store, "block", "attack-01", False)], ["block-attack"])
+        self.assertEqual([t["id"] for t in lc.related_tests(self.store, "block", "attack-01", True)],
+                         ["block-compromised"])
+        self.assertEqual(lc.related_tests(self.store, "block", "clean-01", False), [])
+        self.assertEqual(lc.related_tests(self.store, "block", None, False), [])
+
+    def test_probe_plan_matches_the_related_test_plan(self):
+        test = next(t for t in self.store["tests"] if t["id"] == "block-compromised")
+        expected = lc.plan_test(self.store, test)
+        stub, plan = lc.probe_plan(self.store, "block", expected["prompt"], True, "attack-01")
+        self.assertEqual(plan, expected)
+        self.assertEqual(stub["attack_tools"], sorted(test.get("attack_tools", [])))
+
+    def test_typed_prompt_uses_base_tools_and_action_model(self):
+        _, plan = lc.probe_plan(self.store, "alert", "hello", False, None)
+        self.assertEqual(plan["tools"], list(dict.fromkeys(self.store.get("tools", []))))
+        self.assertEqual(plan["system_prompt"], "")
+        self.assertEqual(plan["model"], lc.model_for(self.store, "alert").get("public_name", ""))
+
+    def test_observe_reports_most_severe_verdict_ungraded(self):
+        result = lc.observe(execution="completed", verdict_rows=[{"verdict": "log"}, {"verdict": "block"}],
+                            requests_sent=2, evidence=["block-message-in-reply"], tools_called=[], test={})
+        self.assertEqual((result["outcome"], result["verdict"], result["reasons"]), ("observed", "block", []))
+        partial = lc.observe(execution="completed", verdict_rows=[{"verdict": "alert"}], requests_sent=2, evidence=[])
+        self.assertEqual(partial["verdict"], "alert")
+        self.assertIn("1 of 2", partial["reasons"][0])
+        failed = lc.observe(execution="error", verdict_rows=[], requests_sent=0, evidence=[])
+        self.assertEqual(failed["verdict"], "unknown")
+        self.assertTrue(failed["reasons"])
+
+    def test_probe_runs_through_run_case_with_marker(self):
+        logs, seen = Logs(["log", "alert"], key="student03_fortistore-injection_alert"), {}
+
+        def agent(spec):
+            seen.update(spec)
+            logs.prompt = spec["prompt"]
+            return {"reply": "ok", "tool_events": [], "rounds": 1, "error": None, "http_status": 200}
+        stub, plan = lc.probe_plan(self.store, "alert", "hello", False, None)
+        result = lc.run_case(agent=agent, fetch_logs=logs, evaluate=lc.observe, contains_sensitive=lambda _: False,
+                             test=stub, plan=plan, key={"key_name": "student03_fortistore-injection_alert",
+                                                         "secret": "faig_x"},
+                             faig_url="http://faig", mcp_url="http://mcp", scenario_version="1",
+                             sleep=lambda _: None, clock=lambda: 1000.0, log_wait=0)
+        self.assertEqual((result["outcome"], result["verdict"]), ("observed", "alert"))
+        self.assertTrue(lc.MARKER.search(seen["prompt"]))
+        self.assertTrue(seen["prompt"].startswith("hello"))
+
+
 if __name__ == "__main__":
     unittest.main()
