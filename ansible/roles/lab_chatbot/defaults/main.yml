@@ -55,3 +55,6 @@ lab_chatbot_direct_secret_name: lab-chatbot-direct
 # key lab-chatbot) for the student key endpoints; optional until used.
 lab_chatbot_caller_source_secret: "{{ lab_gateway_caller_secret_name | default('lab-gateway-callers') }}"
 lab_chatbot_caller_secret_name: lab-chatbot-caller
+# Change 2026-11-20: fail the deploy when the gateway has no lab-chatbot caller
+# token (deploy the gateway first). Set false to deploy without the Keys tab.
+lab_chatbot_require_caller_token: true

@@ -229,6 +229,31 @@
   # - ansible.builtin.debug:
   #     var: lab_chatbot_caller_copy.stdout
 
+# Change 2026-11-20: a missing caller token used to pass silently and the Keys tab
+# then showed "key service not configured".
+- name: Require the broker caller token
+  ansible.builtin.fail:
+    msg: >-
+      Secret {{ lab_chatbot_caller_source_secret }} (key lab-chatbot) was not found in
+      namespace {{ lab_chatbot_signing_source_namespace }}. Deploy the lab gateway
+      (deploy_demo_https_gateway.yml) before the chatbot, or set
+      lab_chatbot_require_caller_token=false to deploy without student key endpoints.
+  when:
+    - lab_chatbot_enabled | bool
+    - lab_chatbot_require_caller_token | bool
+    - lab_chatbot_caller_copy.stdout | default('') | trim == 'missing'
+
+- name: Warn that the broker caller token is missing
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ lab_chatbot_caller_source_secret }} not found; the chatbot Keys tab
+      will show "key service not configured" until the gateway is deployed and the
+      chatbot is redeployed.
+  when:
+    - lab_chatbot_enabled | bool
+    - not (lab_chatbot_require_caller_token | bool)
+    - lab_chatbot_caller_copy.stdout | default('') | trim == 'missing'
+
 # Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
 # key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
 # - name: Find student key files on the controller

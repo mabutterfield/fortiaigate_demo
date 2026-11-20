@@ -97,14 +97,19 @@ FortiAIGate /ai/openai/v1   LiteLLM /v1 (debug)   MCP standards endpoint   gatew
 ## Deploy
 
 Prerequisites: the lab login gateway (deployed first so `lab-gateway-callers`
-exists), LiteLLM with the shared virtual key, the standards MCP endpoint, and
-the catalog Python environment on the controller.
+exists), LiteLLM with the shared virtual key, and the standards MCP endpoint.
+The catalog view is rendered on the controller with the standard library only,
+so the default `python3` works (`lab_chatbot_catalog_python` overrides it).
 
 ```bash
 ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy_demo_https_gateway.yml
-ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy_lab_chatbot.yml \
-  -e lab_chatbot_catalog_python=<python with the repo's catalog dependencies>
+ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy_lab_chatbot.yml
 ```
+
+The chatbot deploy fails if the gateway's `lab-gateway-callers` Secret (key
+`lab-chatbot`) is missing. Set `lab_chatbot_require_caller_token=false` to
+deploy anyway with a warning; the Keys tab then shows "key service not
+configured" until the gateway is deployed and the chatbot redeployed.
 
 Students and their keys are created from [Lab Management](lab-management.md)
 (Create students, Prepopulate). The gateway's chatbot route follows
