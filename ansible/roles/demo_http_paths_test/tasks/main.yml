@@ -67,6 +67,9 @@
   when:
     - demo_http_paths_test_include_direct | bool
     - item.enabled | default(true) | bool
+    # AWS exposes only the chatbot redirect listener; other HTTP NodePorts
+    # remain reachable in-cluster and through optional appliance routes.
+    - deployment_target | default('aws') != 'aws' or item.name == 'chatbot'
 
 - name: Add direct HTTPS test targets
   ansible.builtin.set_fact:
