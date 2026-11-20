@@ -62,14 +62,14 @@ FortiAIGate /ai/openai/v1   LiteLLM /v1 (debug)   MCP standards endpoint   gatew
 ```
 
 - **Packaging:** stock `python:3.12-slim`. The app (`lab_chatbot.py`,
-  `lab_catalog_chat.py`, `lab_support.py`), the shared
-  `chatbot/agent/faig_agent.py` and `result_contract.py` (for sensitive-data
-  detection) are mounted from a ConfigMap; dependencies are installed at pod
+  `lab_catalog_chat.py`, `lab_support.py`) and the shared
+  `chatbot/agent/faig_agent.py` are mounted from a ConfigMap; dependencies are installed at pod
   start (about a minute). No image build or ECR publish.
 - **Catalog:** Ansible renders the catalog student view
   (`python3 -m catalog802 student`) into ConfigMap `lab-catalog`, mounted at
   `/catalog/catalog-student.json`, and copies the evaluator package
-  (`catalog802/__init__.py`, `loader.py`, `vocabulary.py`, `result_contract.py`)
+  (`catalog802/__init__.py`, `loader.py`, `vocabulary.py`, `result_contract.py`,
+  and `sensitive.py` for synthetic sensitive-data detection)
   into ConfigMap `lab-chatbot-catalog802`, mounted at `/pylib/catalog802`.
   A missing or invalid view shows "catalog unavailable".
 - **Grading:** `catalog802.result_contract.evaluate`, the same evaluator as
@@ -89,10 +89,11 @@ FortiAIGate /ai/openai/v1   LiteLLM /v1 (debug)   MCP standards endpoint   gatew
   (`legacyKeySecrets: false`) and reads no Kubernetes Secrets.
 - **Direct key:** the shared LiteLLM virtual key (`lab-chatbot-direct`, copied
   from `litellm/litellm-shared-virtual-key`), never the master key.
-- **Previous app:** `chatbot/lab-chatbot/legacy/lab_chatbot_v1.py` (scenario
-  pack and per-student `lab-keys-*`/`lab-seed-*` Secrets), kept for reference.
-  Its Ansible tasks are commented out with change notes; the old Secrets are
-  not deleted by deploys.
+- **Previous app:** the v1 chatbot (scenario pack and per-student
+  `lab-keys-*`/`lab-seed-*` Secrets) was removed from the 8.0.2 branch on
+  2026-11-20 with its support helpers; see the `archive/8.0.1` branch or Git
+  history. Its Ansible tasks remain commented out with change notes; the old
+  Secrets are not deleted by deploys.
 
 ## Deploy
 

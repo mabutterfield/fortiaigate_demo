@@ -37,11 +37,11 @@
     that:
       - lab_chatbot_chart_local_path is directory
       - lab_chatbot_agent_local_path is file
-      - lab_chatbot_result_contract_local_path is file
+      # Change 2026-11-20: result_contract.py is no longer shipped (catalog802/sensitive.py).
+      # - lab_chatbot_result_contract_local_path is file
       - (lab_chatbot_repo_root ~ '/catalog802') is directory
     fail_msg: >-
-      The lab chatbot needs the chart, chatbot/agent/faig_agent.py, functional_test/result_contract.py
-      and the catalog802 package. The lab login gateway must be deployed first (its signing Secret and
+      The lab chatbot needs the chart, chatbot/agent/faig_agent.py and the catalog802 package. The lab login gateway must be deployed first (its signing Secret and
       caller token are copied below).
   when: lab_chatbot_enabled | bool
 
@@ -130,7 +130,8 @@
     mode: "0644"
   loop:
     - "{{ lab_chatbot_agent_local_path }}"
-    - "{{ lab_chatbot_result_contract_local_path }}"
+    # Change 2026-11-20: no longer shipped (catalog802/sensitive.py).
+    # - "{{ lab_chatbot_result_contract_local_path }}"
   when: lab_chatbot_enabled | bool
 
 - name: Copy the catalog view into the remote chart

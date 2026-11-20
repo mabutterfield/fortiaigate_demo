@@ -1,6 +1,6 @@
 """FortiAIGate 8.0.2 student lab chatbot (Streamlit).
 
-Change 2026-11-19 (catalog switch; previous app kept in chatbot/lab-chatbot/legacy/):
+Change 2026-11-19 (catalog switch; the previous app was removed 2026-11-20, see archive/8.0.1):
 - Scenarios, actions, prompts and tests come from the catalog student view
   (catalog-student.json, ConfigMap lab-catalog), not scenario-pack.json.
 - Keys come from the gateway's key endpoints (lab_auth, lab-data/lab-keys),
@@ -31,7 +31,8 @@ import lab_catalog_chat as lc
 import lab_support as ls
 from catalog802.result_contract import evaluate
 from catalog802.vocabulary import EVIDENCE, OUTCOMES, VERDICTS
-from result_contract import contains_sensitive
+# Change 2026-11-20: was `from result_contract import contains_sensitive` (functional_test copy).
+from catalog802.sensitive import contains_sensitive
 
 CFG = {
     "signing_key_file": os.environ.get("LAB_SIGNING_KEY_FILE", "/etc/lab-chatbot/signing/hmac-key"),
