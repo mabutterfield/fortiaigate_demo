@@ -67,6 +67,20 @@ class RestoreTests(unittest.TestCase):
 
 
 
+
+class DeletedKeyTests(unittest.TestCase):
+    def test_record_of_deleted_key_is_marked_missing_and_key_recreated(self):
+        faig, store = PrepopFaig(), Store()
+        store.data["keys"] = {"student03": {"schema": 1, "keys": [
+            {"faig_key_id": "gone-1", "key_name": "student03_passthrough", "scenario_id": "passthrough",
+             "action": "passthrough", "secret": "faig_gone1_old", "status": "ok", "updated_at": 1}]}}
+        out = lab_broker.prepopulate_student(PrepopAdmin(faig), faig, store, "student03", hr_plan(), lambda _: None)
+        records = {r["faig_key_id"]: r for r in store.data["keys"]["student03"]["keys"]}
+        self.assertEqual(records["gone-1"]["status"], "missing")
+        self.assertIn("student03_passthrough", out["keys_saved"])
+        self.assertEqual(out["keys_missing"], ["student03_passthrough"])
+        self.assertEqual(out["notes"], [])  # informational, not a failure
+
 class RacingFaig(PrepopFaig):
     """Auto-approval approves each submission immediately (before prepopulation reads the queue)."""
 
