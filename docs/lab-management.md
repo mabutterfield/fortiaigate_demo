@@ -1,5 +1,8 @@
 # Lab management page (FortiAIGate 8.0.2)
 
+For day-to-day use see the [instructor guide](instructor-guide-802.md); this
+page describes how Lab Management works.
+
 Instructor page served by the lab login gateway at
 `https://<host>:<chatbot HTTPS port>/manage/` (30444 by default). It shares the
 chatbot's sign-in; only FAIG administrators get in, and students get a 403.
