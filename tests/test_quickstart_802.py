@@ -96,6 +96,28 @@ class Quickstart802Tests(unittest.TestCase):
         path.write_text('fortigate_enabled = false\n')
         self.assertFalse(quickstart.appliance_enabled_from_tfvars('fortigate'))
 
+    def test_override_preflight_requires_workspace_and_both_files(self):
+        import os
+        directory = self.root / 'overrides'; directory.mkdir()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(SystemExit, 'TF_WORKSPACE'):
+                quickstart.validate_terraform_vars_dir(directory)
+        with mock.patch.dict(os.environ, {'TF_WORKSPACE':'ohio-802'}, clear=True):
+            with self.assertRaisesRegex(SystemExit, 'prep.tfvars'):
+                quickstart.validate_terraform_vars_dir(directory)
+            (directory / 'prep.tfvars').write_text('')
+            with self.assertRaisesRegex(SystemExit, 'host.tfvars'):
+                quickstart.validate_terraform_vars_dir(directory)
+            (directory / 'host.tfvars').write_text('')
+            self.assertEqual(quickstart.validate_terraform_vars_dir(directory), directory.resolve())
+
+    def test_override_preflight_rejects_region_mismatch(self):
+        directory = self.root / 'overrides'; directory.mkdir()
+        (directory / 'prep.tfvars').write_text('aws_region = "us-east-1"\n')
+        (directory / 'host.tfvars').write_text('aws_region = "us-east-2"\n')
+        with self.assertRaisesRegex(SystemExit, 'disagree on aws_region'):
+            quickstart.effective_terraform_user_settings('aws_profile = "test"\n', directory)
+
     def test_terraform_preserves_ecr_by_default(self):
         with mock.patch.object(quickstart, 'run_ecr_terraform') as ecr, \
              mock.patch.object(quickstart, 'terraform_init_validate'), \

@@ -2331,6 +2331,32 @@ def prepare_802_initialization() -> dict[str, Path | str]:
             'smoke_key': environment / 'quickstart-smoke-key.json'}
 
 
+def validate_terraform_vars_dir(directory: Path | None) -> Path | None:
+    if directory is None:
+        return None
+    if not os.environ.get('TF_WORKSPACE'):
+        raise SystemExit('Set TF_WORKSPACE explicitly when using --terraform-vars-dir; no deployment was started.')
+    directory = directory.expanduser().resolve()
+    for filename in ('prep.tfvars', 'host.tfvars'):
+        if not (directory / filename).is_file():
+            raise SystemExit(f'Missing Terraform override: {directory / filename}')
+    return directory
+
+
+def effective_terraform_user_settings(content: str, directory: Path | None) -> str:
+    if directory is None:
+        return content
+    prep = read_file(directory / 'prep.tfvars')
+    host = read_file(directory / 'host.tfvars')
+    for setting in ('aws_region', 'aws_profile'):
+        prep_value = get_tf_string(prep, setting) or get_tf_string(content, setting)
+        host_value = get_tf_string(host, setting) or get_tf_string(content, setting)
+        if prep_value != host_value:
+            raise SystemExit(f'Terraform prep and host overrides disagree on {setting}')
+        content = set_tf_string(content, setting, prep_value)
+    return content
+
+
 def validate_yolo_aws_profile(content: str) -> None:
     missing = [key for key in ("aws_profile", "aws_region", "ssh_key_name", "ssh_private_key_file")
                if not get_tf_string(content, key).strip()]
@@ -2522,8 +2548,9 @@ def main() -> None:
     if args.yolo and args.target == "aws":
         validate_yolo_aws_profile(read_file(REPO_ROOT / "terraform/user.tfvars"))
     initialization = None
-    if args.terraform_vars_dir is not None and not os.environ.get("TF_WORKSPACE"):
-        raise SystemExit("Set TF_WORKSPACE explicitly when using --terraform-vars-dir; no deployment was started.")
+    args.terraform_vars_dir = validate_terraform_vars_dir(args.terraform_vars_dir)
+    if args.target == "aws":
+        effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
     if not args.skip_ansible:
         if args.target != 'aws':
             raise SystemExit('The new 8.0.2 quickstart currently supports AWS only; no deployment was started.')
@@ -2587,20 +2614,7 @@ def main() -> None:
     if profile_action != "init":
         profile_tool.ensure_ec2_instance_type(interactive=not args.yolo)
 
-    current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
-    if args.terraform_vars_dir is not None:
-        args.terraform_vars_dir = args.terraform_vars_dir.expanduser().resolve()
-        for filename in ("prep.tfvars", "host.tfvars"):
-            if not (args.terraform_vars_dir / filename).is_file():
-                raise SystemExit(f"Missing Terraform override: {args.terraform_vars_dir / filename}")
-        prep_override = read_file(args.terraform_vars_dir / "prep.tfvars")
-        host_override = read_file(args.terraform_vars_dir / "host.tfvars")
-        for setting in ("aws_region", "aws_profile"):
-            prep_value = get_tf_string(prep_override, setting) or get_tf_string(current_user_tfvars, setting)
-            host_value = get_tf_string(host_override, setting) or get_tf_string(current_user_tfvars, setting)
-            if prep_value != host_value:
-                raise SystemExit(f"Terraform prep and host overrides disagree on {setting}")
-            current_user_tfvars = set_tf_string(current_user_tfvars, setting, prep_value)
+    current_user_tfvars = effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
     default_profile = get_tf_string(current_user_tfvars, "aws_profile")
     profile_is_fresh = profile_action in {"init", "import"}
     if (args.yolo or profile_is_fresh) and default_profile:
