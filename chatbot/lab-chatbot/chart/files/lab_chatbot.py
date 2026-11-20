@@ -215,7 +215,11 @@ def render_result(result: dict[str, Any]) -> None:
             st.json(exchange.get("response", {}), expanded=2)
         with logged:
             st.markdown("**Traffic Log entry**")
-            st.json(entries[index], expanded=2) if index < len(entries) else st.caption("No matched entry.")
+            # A bare conditional expression is echoed by Streamlit "magic"; use a statement.
+            if index < len(entries):
+                st.json(entries[index], expanded=2)
+            else:
+                st.caption("No matched entry.")
 
 
 def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[dict[str, Any]],
