@@ -24,10 +24,16 @@ workspace and private values before using `--yolo`: Terraform applies changes
 without prompting. The option does not mean Terraform itself cannot change or
 replace an instance. Existing ECR repositories and images are not managed by
 default; `--manage-ecr` explicitly opts into the separate ECR workflow.
+When preserving ECR, quickstart rebuilds the local Ansible registry settings
+from the selected workspace's existing `terraform/aws-ecr` outputs and checks
+the account and region. That ECR state must already exist in the checkout;
+otherwise initialize or import it through the separate ECR workflow first.
 
 Experimental FAIG initialization defaults on. Use
 `--no-experimental-faig-init` or set `quickstart_experimental_faig_init: false`
 in ignored `ansible/group_vars/user.yml` to leave setup and licensing manual.
+The instructor page cannot authenticate until the administrator completes that
+manual setup. See [manual FAIG setup](lab-management.md#if-you-set-up-faig-yourself).
 The initializer checks the setup API, uses a private administrator setup file,
 rotates a matching license, reads back Active and scanning-enabled status,
 creates or verifies the direct LiteLLM `pass-model` provider, then sends a

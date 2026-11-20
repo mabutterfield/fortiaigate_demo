@@ -2710,6 +2710,8 @@ def main() -> None:
     if args.skip_terraform:
         print_header("Terraform")
         print("Skipped by --skip-terraform.")
+        if not args.skip_ansible:
+            restore_existing_ecr_vars(profile, region)
     else:
         if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", True):
             raise SystemExit("Stopped before Terraform execution.")
