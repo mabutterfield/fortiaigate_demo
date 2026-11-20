@@ -38,6 +38,17 @@ class BootstrapTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 init.choose_license(folder)
 
+    def test_license_regex_is_fullmatch_and_validated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for name in ('FGVM001.lic', 'FGVM002.lic', 'prefixFGVM003.lic'):
+                (folder / name).write_text('license')
+            self.assertEqual(init.choose_license(folder, r'FGVM[0-9]+\.lic')[0].name, 'FGVM001.lic')
+            with self.assertRaisesRegex(ValueError, 'Invalid license filename regex'):
+                init.choose_license(folder, '[')
+            with self.assertRaisesRegex(ValueError, 'No license files match'):
+                init.choose_license(folder, r'FAIG[0-9]+\.lic')
+
     def test_setup_upload_then_record(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

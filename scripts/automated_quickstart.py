@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
 import os
 import platform
 import re
@@ -18,6 +19,8 @@ import user_profile as profile_tool
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 APPLIANCE_LOCAL_FILE_PAIRS = {
     "fortigate": ("terraform/aws-fortigate/99-local.auto.tfvars.example", "terraform/aws-fortigate/99-local.auto.tfvars"),
@@ -1171,7 +1174,9 @@ def appliance_tfvars_path(appliance_key: str) -> Path:
 
 def appliance_enabled_from_tfvars(appliance_key: str) -> bool:
     module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key][1]
-    content = read_effective_module_tfvars(module_path)
+    # 8.0.2 quickstart opts appliances in only through user-owned module overrides.
+    # Do not rewrite prior profiles or apply an unselected appliance module.
+    content = read_existing_file(module_local_tfvars_path(module_path))
     enabled_key = f"{appliance_key}_enabled"
     return get_tf_bool(content, enabled_key, False)
 
@@ -1438,10 +1443,12 @@ def terraform_init_validate(module_path: str) -> None:
     run_command(["terraform", "-chdir=" + module_path, "validate"])
 
 
-def terraform_apply(module_path: str, auto_approve: bool, variables: list[str] | None = None) -> None:
+def terraform_apply(module_path: str, auto_approve: bool, variables: list[str] | None = None, *, var_file: Path | None = None) -> None:
     argv = ["terraform", "-chdir=" + module_path, "apply"]
     for variable in variables or []:
         argv.extend(["-var", variable])
+    if var_file is not None:
+        argv.append("-var-file=" + str(var_file))
     if auto_approve:
         argv.append("-auto-approve")
     run_command(argv)
@@ -1524,7 +1531,62 @@ def run_terraform(
     *,
     noninteractive_import: bool = False,
     transient_appliance_enables: set[str] | None = None,
+    manage_ecr: bool = False,
+    terraform_vars_dir: Path | None = None,
 ) -> None:
+    if manage_ecr:
+        run_ecr_terraform(ecr_mode, auto_approve, profile, region, noninteractive_import=noninteractive_import)
+    else:
+        print("Existing ECR repositories and images are preserved; ECR management skipped.")
+        restore_existing_ecr_vars(profile, region)
+
+    for label, module_path in TERRAFORM_MODULES[1:]:
+        print_header(f"Terraform: {label}")
+        terraform_init_validate(module_path)
+        name = {"terraform/aws-prep": "prep.tfvars", "terraform/aws-ec2-k3s": "host.tfvars"}.get(module_path)
+        override = terraform_vars_dir / name if terraform_vars_dir is not None and name else None
+        terraform_apply(module_path, auto_approve, var_file=override)
+
+    for appliance_key in appliance_keys:
+        label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
+        print_header(f"Terraform: {label}")
+        terraform_init_validate(module_path)
+        variables = [f"{appliance_key}_enabled=true"] if appliance_key in (transient_appliance_enables or set()) else []
+        terraform_apply(module_path, auto_approve, variables)
+
+
+def restore_existing_ecr_vars(profile: str, region: str) -> None:
+    """Render Ansible registry settings from existing ECR state without applying it."""
+    raw = command_output(["terraform", "-chdir=terraform/aws-ecr", "output", "-json"], check=False)
+    caller_account = command_output(['aws', 'sts', 'get-caller-identity', '--profile', profile,
+                                     '--query', 'Account', '--output', 'text'], check=False)
+    try:
+        outputs = json.loads(raw)
+        registry = outputs['registry']['value']
+        account = outputs['account_id']['value']
+        repositories = outputs['repository_urls']['value']
+        prefix, _ = parse_ecr_tfvars()
+        if (not isinstance(account, str) or not account.isdigit() or caller_account != account or
+                not isinstance(registry, str) or
+                not registry.startswith(f'{account}.dkr.ecr.{region}.') or
+                not isinstance(repositories, dict) or not repositories or
+                any(not isinstance(url, str) or not url.startswith(f'{registry}/{prefix}/')
+                    for url in repositories.values())):
+            raise ValueError('ECR outputs do not match the selected region and repository prefix')
+    except (ValueError, KeyError, TypeError):
+        raise SystemExit('Cannot derive matching existing ECR settings from the selected Terraform workspace; '
+                         'check ECR state, account and region before deployment.') from None
+    values = {'aws_profile': profile, 'aws_region': region, 'aws_account_id': account,
+              'ecr_account_id': account, 'ecr_registry': registry, 'ecr_repo_prefix': prefix,
+              'registry_type': 'ecr', 'registry': registry, 'repo_prefix': prefix,
+              'fortiaigate_image_repository': f'{registry}/{prefix}', 'ecr_repository_urls': repositories}
+    path = REPO_ROOT / 'ansible/group_vars/ecr.generated.yml'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(values, indent=2) + '\n', encoding='utf-8')
+    print(f'Prepared existing ECR settings in {path}; repositories were not modified.')
+
+
+def run_ecr_terraform(ecr_mode: str, auto_approve: bool, profile: str, region: str, *, noninteractive_import: bool = False) -> None:
     print_header("Terraform: ECR")
     terraform_init_validate("terraform/aws-ecr")
     repo_prefix, repositories = parse_ecr_tfvars()
@@ -1542,17 +1604,6 @@ def run_terraform(
             import_existing_ecr_repos(missing_repositories)
     terraform_apply("terraform/aws-ecr", auto_approve)
 
-    for label, module_path in TERRAFORM_MODULES[1:]:
-        print_header(f"Terraform: {label}")
-        terraform_init_validate(module_path)
-        terraform_apply(module_path, auto_approve)
-
-    for appliance_key in appliance_keys:
-        label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
-        print_header(f"Terraform: {label}")
-        terraform_init_validate(module_path)
-        variables = [f"{appliance_key}_enabled=true"] if appliance_key in (transient_appliance_enables or set()) else []
-        terraform_apply(module_path, auto_approve, variables)
 
 
 def get_ec2_instance_id() -> str:
@@ -2072,6 +2123,86 @@ def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inv
         run_fortiaigate_status_once("Ansible: Final FortiAIGate Status", inventory=inventory)
 
 
+def run_802_ansible_flow(args: argparse.Namespace, initialization: dict | None, appliance_keys: list[str] | None = None, *, inventory: str | None = None) -> None:
+    """Deploy the 8.0.2 single-node services; student provisioning is separate."""
+    env_dir = os.environ.get('FAIG_ENV_DIR')
+    extra = {'faig_env_dir': env_dir} if env_dir else None
+    def deploy(name):
+        run_ansible_playbook(name, inventory=inventory, extra_vars=extra)
+    print_header('Ansible: Bootstrap k3s')
+    deploy('bootstrap_gpu_k3s.yml')
+    print_header('Ansible: Deploy FortiAIGate')
+    deploy('deploy_fortiaigate.yml')
+    if appliance_keys:
+        run_appliance_ansible_deployments(args, appliance_keys)
+    print_header('Ansible: Deploy LiteLLM and MCP')
+    deploy('deploy_litellm.yml')
+    deploy('deploy_mcp.yml')
+    from scripts import faig_bootstrap_802
+    import urllib.error
+    ip = get_layered_yaml_scalar('k3s_public_ip', '')
+    if not ip:
+        raise SystemExit('Cannot check FAIG: generated k3s_public_ip is missing.')
+    origin = 'https://' + ip
+    insecure = get_layered_yaml_bool('quickstart_faig_insecure_tls', True)
+    client = faig_bootstrap_802.Client(origin, insecure)
+    attempts = max(1, args.faig_status_retries)
+    for attempt in range(attempts):
+        try:
+            status = client.call('GET', '/api/v1/setup-status')
+            if isinstance(status.get('needs_setup'), bool):
+                break
+        except (OSError, ValueError, RuntimeError, urllib.error.URLError):
+            pass
+        if attempt + 1 < attempts:
+            print(f'Waiting for FAIG setup API ({attempt + 1}/{attempts}).')
+            time.sleep(max(1, args.faig_status_delay))
+    else:
+        raise SystemExit('FAIG setup API did not become ready; no initialization attempted.')
+    if initialization is not None:
+        try:
+            instance_id = get_ec2_instance_id()
+            if not re.fullmatch(r'i-[0-9a-f]+', instance_id or ''):
+                raise ValueError('cannot identify the current EC2 instance for initialization state')
+            initialization['journal'] = initialization['environment'] / ('faig-init-' + instance_id + '.json')
+            initialization['smoke_key'] = initialization['environment'] / ('quickstart-smoke-key-' + instance_id + '.json')
+            setup = faig_bootstrap_802.private_json(initialization['setup'])
+            token = faig_bootstrap_802.private_json(initialization['litellm_key']).get('api_key')
+            if not isinstance(token, str) or not token:
+                raise ValueError('LiteLLM shared non-admin key file is incomplete')
+            catalog, errors = __import__('catalog802.loader', fromlist=['load']).load(REPO_ROOT)
+            if errors:
+                raise ValueError('catalog validation failed: ' + '; '.join(errors))
+            result = faig_bootstrap_802.initialize(client, setup, initialization['license_dir'],
+                initialization['license_regex'], token, initialization['journal'], catalog['models']['pass-model'],
+                smoke_key_path=initialization['smoke_key'], attempts=attempts, delay=max(1, args.faig_status_delay))
+            if not all(result.get(flag) is True for flag in ('license_active', 'scanning_enabled', 'provider_verified', 'governed_verified')):
+                raise RuntimeError('initialization verification did not confirm every required check')
+        except (OSError, ValueError, KeyError, RuntimeError, urllib.error.URLError) as exc:
+            raise SystemExit(f'Experimental FAIG initialization stopped: {exc}') from None
+        print('FAIG: license Active, scanning enabled, LiteLLM pass-model connectivity verified.')
+        print('Governed pass-model inference and Traffic Log verification passed.')
+    else:
+        print('Experimental FAIG initialization disabled: first-time setup remains manual.')
+    # Agent2 supplies these playbooks in the integrated branch. They must support zero students.
+    # First create the management service; the gateway then creates caller tokens.
+    deploy('deploy_lab_management.yml')
+    deploy('deploy_demo_https_gateway.yml')
+    # Rerun management after gateway creation to copy its caller token.
+    deploy('deploy_lab_management.yml')
+    deploy('deploy_lab_chatbot.yml')
+    if appliance_keys:
+        run_post_application_validations(appliance_keys, inventory=inventory)
+    print_header('8.0.2 Quickstart Status')
+    print('FAIG URL: ' + origin + '/ui')
+    port = get_layered_yaml_scalar('demo_chatbot_https_port', '30444')
+    print('Instructor URL: ' + origin + ':' + port + '/manage/')
+    if initialization is not None:
+        print('Administrator: ' + setup['email'])
+        print('Private credentials: ' + str(initialization['environment']))
+        print('Status: initialized and governed smoke test verified.')
+
+
 def missing_user_profile_files() -> list[Path]:
     return [path for path in profile_tool.REQUIRED_PROFILE_FILES if not (REPO_ROOT / path).exists()]
 
@@ -2180,10 +2311,83 @@ def select_experimental_init(override: bool | None, *, noninteractive: bool) -> 
             raise SystemExit("Set quickstart_experimental_faig_init to true or false in ansible/group_vars/user.yml.")
         return value == "true"
     if noninteractive:
-        raise SystemExit("Missing quickstart_experimental_faig_init in ansible/group_vars/user.yml; set true or false, or supply an explicit initialization flag.")
-    selected = prompt_yes_no("Execute experimental FAIG initialization when supported?", False)
+        return True
+    selected = prompt_yes_no("Execute experimental FAIG initialization when supported?", True)
     write_file(path, set_yaml_scalar(content, "quickstart_experimental_faig_init", str(selected).lower()))
     return selected
+
+
+def prepare_802_initialization() -> dict[str, Path | str]:
+    """Validate license selection and create/reuse private admin files before AWS changes."""
+    from scripts import faig_bootstrap_802
+
+    workspace = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or REPO_ROOT.parent).expanduser().resolve()
+    user_config = read_file(REPO_ROOT / 'ansible/group_vars/user.yml')
+    configured = os.environ.get('FAIG_ENV_DIR') or get_yaml_scalar(user_config, 'faig_env_dir', '')
+    if not configured or '{{' in configured:
+        configured = str(workspace / '.secrets' / 'default')
+    environment = Path(configured).expanduser().resolve()
+    environment.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if environment.stat().st_mode & 0o077:
+        raise SystemExit(f'FAIG environment directory must be owner-only (chmod 700): {environment}')
+    os.environ['FAIG_ENV_DIR'] = str(environment)
+    raw_dir = get_layered_yaml_scalar('license_source_dir', '{{ faig_workspace_root }}/licenses')
+    license_dir = resolve_ansible_path(raw_dir)
+    pattern = get_layered_yaml_scalar('quickstart_faig_license_regex', r'FAIG.*\.lic')
+    try:
+        faig_bootstrap_802.select_license(license_dir, pattern)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'FAIG license preflight failed: {exc}') from None
+    setup = environment / 'admin-setup.json'
+    login = environment / 'admin-login.json'
+    if setup.exists() != login.exists():
+        raise SystemExit('Admin setup and login files are incomplete; reconcile the private environment before continuing.')
+    if not setup.exists():
+        email = get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab')
+        password_file = get_layered_yaml_scalar('faig_admin_password_file', '')
+        argv = [sys.executable, str(REPO_ROOT / 'experiments/faig-api-lab/prepare_admin.py'),
+                '--email', email, '--setup-output', str(setup), '--login-output', str(login)]
+        if password_file:
+            argv += ['--password-file', str(resolve_ansible_path(password_file))]
+        run_command(argv)
+    try:
+        setup_data = faig_bootstrap_802.private_json(setup)
+        login_data = faig_bootstrap_802.private_json(login)
+        if not all(isinstance(setup_data.get(k), str) and setup_data[k] for k in ('email', 'username', 'password', 'organization_name')):
+            raise ValueError('admin setup file is incomplete')
+        if (setup_data['email'], setup_data['password']) != (login_data.get('username'), login_data.get('password')):
+            raise ValueError('admin setup and login files do not match')
+    except (OSError, ValueError, KeyError) as exc:
+        raise SystemExit(f'FAIG admin credential preflight failed: {exc}') from None
+    return {'environment': environment, 'setup': setup, 'login': login, 'license_dir': license_dir, 'license_regex': pattern,
+            'journal': environment / 'faig-init-journal.json', 'litellm_key': environment / 'litellm-shared-key.json',
+            'smoke_key': environment / 'quickstart-smoke-key.json'}
+
+
+def validate_terraform_vars_dir(directory: Path | None) -> Path | None:
+    if directory is None:
+        return None
+    if not os.environ.get('TF_WORKSPACE'):
+        raise SystemExit('Set TF_WORKSPACE explicitly when using --terraform-vars-dir; no deployment was started.')
+    directory = directory.expanduser().resolve()
+    for filename in ('prep.tfvars', 'host.tfvars'):
+        if not (directory / filename).is_file():
+            raise SystemExit(f'Missing Terraform override: {directory / filename}')
+    return directory
+
+
+def effective_terraform_user_settings(content: str, directory: Path | None) -> str:
+    if directory is None:
+        return content
+    prep = read_file(directory / 'prep.tfvars')
+    host = read_file(directory / 'host.tfvars')
+    for setting in ('aws_region', 'aws_profile'):
+        prep_value = get_tf_string(prep, setting) or get_tf_string(content, setting)
+        host_value = get_tf_string(host, setting) or get_tf_string(content, setting)
+        if prep_value != host_value:
+            raise SystemExit(f'Terraform prep and host overrides disagree on {setting}')
+        content = set_tf_string(content, setting, prep_value)
+    return content
 
 
 def validate_yolo_aws_profile(content: str) -> None:
@@ -2213,7 +2417,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Subsequent-run mode: use preconfigured vars, auto-approve Terraform, "
-            "import missing ECR repository state, skip image publishing, and run Ansible without setup prompts."
+            "preserve ECR, skip image publishing, and run Ansible without setup prompts."
         ),
     )
     parser.add_argument(
@@ -2223,7 +2427,7 @@ def parse_args() -> argparse.Namespace:
     )
     init_options = parser.add_mutually_exclusive_group()
     init_options.add_argument("--experimental-faig-init", dest="experimental_faig_init", action="store_true", default=None,
-                              help="Request experimental FAIG initialization for this run (currently blocked).")
+                              help="Request experimental FAIG initialization for this run.")
     init_options.add_argument("--no-experimental-faig-init", dest="experimental_faig_init", action="store_false",
                               help="Leave FAIG first-time setup pending for this run.")
     parser.add_argument(
@@ -2248,6 +2452,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Export the current user profile archive and exit. Default path: ../user_profile.tgz.",
     )
+    parser.add_argument("--terraform-vars-dir", type=Path, default=Path(os.environ["FAIG_TERRAFORM_VARS_DIR"]) if os.environ.get("FAIG_TERRAFORM_VARS_DIR") else None, help="Directory containing prep.tfvars and host.tfvars overrides for the selected workspace.")
+    parser.add_argument("--manage-ecr", action="store_true", help="Explicitly manage ECR repositories; normally they are preserved and untouched.")
     parser.add_argument(
         "--skip-terraform",
         action="store_true",
@@ -2359,7 +2565,7 @@ def main() -> None:
     if args.yolo:
         print("\nYOLO mode is enabled.")
         print("- Terraform apply uses -auto-approve.")
-        print("- ECR repositories missing from state are imported before apply when possible.")
+        print("- Existing ECR repositories and images are preserved unless --manage-ecr is specified.")
         print("- Image publishing is skipped.")
         print("- FortiAIGate status is checked once after deploy, then again after app deployment.")
         print("- Terraform/Ansible execution prompts are skipped where safe.")
@@ -2374,14 +2580,20 @@ def main() -> None:
         return
     if args.yolo and args.target == "aws":
         validate_yolo_aws_profile(read_file(REPO_ROOT / "terraform/user.tfvars"))
-    # CHANGED for 8.0.2: do not run the unported legacy application flow.
+    initialization = None
+    args.terraform_vars_dir = validate_terraform_vars_dir(args.terraform_vars_dir)
+    if args.target == "aws":
+        effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
     if not args.skip_ansible:
+        if args.target != 'aws':
+            raise SystemExit('The new 8.0.2 quickstart currently supports AWS only; no deployment was started.')
+        required_playbooks = ('deploy_lab_management.yml', 'deploy_lab_chatbot.yml', 'deploy_demo_https_gateway.yml')
+        missing = [name for name in required_playbooks if not (REPO_ROOT / 'ansible/playbooks' / name).is_file()]
+        if missing:
+            raise SystemExit('8.0.2 quickstart requires the reviewed Lab Management integration before deployment: ' + ', '.join(missing))
         experimental_init = select_experimental_init(args.experimental_faig_init, noninteractive=args.yolo)
-        raise SystemExit(
-            "The full 8.0.2 Ansible deployment is not ready. "
-            f"Experimental initialization {'requested' if experimental_init else 'disabled'}; no application calls were made. "
-            "Use docs/aws-k3s-foundation.md for foundation bootstrap only."
-        )
+        if experimental_init:
+            initialization = prepare_802_initialization()
     profile_tool.warn_legacy_files()
 
     requested_appliances = requested_appliance_keys(
@@ -2435,7 +2647,7 @@ def main() -> None:
     if profile_action != "init":
         profile_tool.ensure_ec2_instance_type(interactive=not args.yolo)
 
-    current_user_tfvars = read_file(REPO_ROOT / "terraform/user.tfvars")
+    current_user_tfvars = effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
     default_profile = get_tf_string(current_user_tfvars, "aws_profile")
     profile_is_fresh = profile_action in {"init", "import"}
     if (args.yolo or profile_is_fresh) and default_profile:
@@ -2481,7 +2693,7 @@ def main() -> None:
     ensure_appliance_prep_tfvars(appliance_keys)
     ensure_appliance_collections(appliance_keys)
 
-    configure_license_preflight(noninteractive=args.yolo or profile_action == "init")
+    # FAIG 8.0.2 licensing is uploaded via the experimental initializer after deployment.
     if not args.skip_terraform:
         configure_appliance_license_preflight(appliance_keys, noninteractive=args.yolo)
     if profile_action == "init":
@@ -2498,12 +2710,14 @@ def main() -> None:
     if args.skip_terraform:
         print_header("Terraform")
         print("Skipped by --skip-terraform.")
+        if not args.skip_ansible:
+            restore_existing_ecr_vars(profile, region)
     else:
         if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", True):
             raise SystemExit("Stopped before Terraform execution.")
 
-        ecr_mode = "existing" if args.yolo else choose_ecr_mode()
-        if args.yolo:
+        ecr_mode = ("existing" if args.yolo else choose_ecr_mode()) if args.manage_ecr else "skip"
+        if args.yolo and args.manage_ecr:
             print_header("ECR Mode")
             print("YOLO mode: importing missing existing ECR repositories, then applying.")
         run_terraform(
@@ -2514,6 +2728,8 @@ def main() -> None:
             region,
             noninteractive_import=args.yolo,
             transient_appliance_enables=explicitly_requested_appliance_keys(args),
+            manage_ecr=args.manage_ecr,
+            terraform_vars_dir=args.terraform_vars_dir,
         )
     prompt_ec2_status(
         profile,
@@ -2540,15 +2756,10 @@ def main() -> None:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
-    run_ansible_flow(args, appliance_keys)
+    run_802_ansible_flow(args, initialization, appliance_keys)
 
-    print_header("Automated Quick Start Complete")
-    print("Terraform and Ansible deployment steps completed.")
-    print("Next: configure FortiAIGate before functional validation:")
-    print("  docs/FortiAIGate-initial-config.MD")
-    print("  docs/fortiaigate-gui-config.md")
-    print("After the required FortiAIGate flows are configured, validate from the repo root:")
-    print("  python3 -m functional_test validate")
+    print_header("8.0.2 Deployment Stages Finished")
+    print("Review the initialization and governed-test status above before using the lab.")
 
 
 if __name__ == "__main__":

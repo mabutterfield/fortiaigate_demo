@@ -4,6 +4,7 @@ import argparse
 import http.cookiejar
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import ssl
@@ -13,10 +14,14 @@ import urllib.parse
 import urllib.request
 
 
-def choose_license(directory):
-    licenses = sorted(p for p in directory.glob('FAIG*.lic') if p.is_file())
+def choose_license(directory, pattern=r'FAIG.*\.lic'):
+    try:
+        matcher = re.compile(pattern)
+    except re.error as exc:
+        raise ValueError(f'Invalid license filename regex: {exc}') from exc
+    licenses = sorted(p for p in directory.iterdir() if p.is_file() and matcher.fullmatch(p.name))
     if not licenses:
-        raise ValueError('No FAIG*.lic files found in license directory')
+        raise ValueError('No license files match the configured filename regex')
     marker = directory / '.last-used'
     if not marker.exists():
         return licenses[0], marker
@@ -43,6 +48,7 @@ def main():
     ap.add_argument('--url', required=True, help='FAIG HTTPS origin, also used as externalUrl')
     ap.add_argument('--setup-file', type=Path, required=True, help='Owner-only JSON: email, username, password, organization_name')
     ap.add_argument('--licenses', type=Path, required=True, help='Directory containing FAIG*.lic')
+    ap.add_argument('--license-regex', default=r'FAIG.*\.lic', help='Full filename regular expression (default FAIG.*\\.lic)')
     ap.add_argument('--license-only', action='store_true', help='Recover a failed upload using the existing administrator account')
     ap.add_argument('--insecure', action='store_true', help='Accept the isolated lab self-signed certificate')
     args = ap.parse_args()
@@ -56,7 +62,7 @@ def main():
     fields = ('email', 'username', 'password', 'organization_name')
     if any(not isinstance(setup.get(k), str) or not setup[k] for k in fields):
         ap.error('Setup file needs non-empty email, username, password, organization_name')
-    license_file, marker = choose_license(args.licenses)
+    license_file, marker = choose_license(args.licenses, args.license_regex)
     data = license_file.read_bytes()
     if not data:
         raise ValueError('Selected license is empty')

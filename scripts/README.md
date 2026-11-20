@@ -9,11 +9,10 @@ but they are grouped below by who normally invokes them.
 These are the primary commands used to prepare, deploy, manage, and remove a
 demo environment.
 
-- `automated_quickstart.py` — guides the AWS or local deployment workflow. It
-  initializes or imports the user profile when needed, runs the applicable
-  Terraform stages, and invokes the Ansible deployment. Use
-  `python3 scripts/automated_quickstart.py` for AWS or add `--local` for an
-  existing local Ubuntu GPU host.
+- `automated_quickstart.py` — guides the AWS deployment. The 8.0.2 path is
+  experimental; see [8.0.2 quickstart](../docs/quickstart-802.md) for profile,
+  licensing and verification details. The new 8.0.2 path currently supports
+  AWS only; local deployment requires a separate validated workflow.
 - `automated_teardown.py` — guides repeat AWS teardown in dependency order. It
   can preserve FortiAIGate syslog data and avoids deleting retained ECR image
   repositories. Review its plan before approving destructive actions.
