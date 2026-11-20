@@ -106,6 +106,10 @@ ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy
 ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy_lab_chatbot.yml
 ```
 
+On a GUI-only install (`faig_gui_only: true`: no GPU, no license, no
+inspection) the chatbot shows a banner and runs every test ungraded; see
+[Lab Management](lab-management.md#gui-only-installs-no-gpu-no-license).
+
 The chatbot deploy fails if the gateway's `lab-gateway-callers` Secret (key
 `lab-chatbot`) is missing. Set `lab_chatbot_require_caller_token=false` to
 deploy anyway with a warning; the Keys tab then shows "key service not

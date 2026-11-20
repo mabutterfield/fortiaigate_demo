@@ -91,7 +91,8 @@ class RunCaseTests(unittest.TestCase):
         self.redact = next(t for t in self.hr["tests"] if t["action"] == "redact")
         self.key = {"key_name": "student03_hr-tool-dlp_redact", "secret": "faig_x", "faig_key_id": KID}
 
-    def run_case(self, reply, logs, tools=("employee_sensitive_lookup",), rounds=1, error=None, test=None, plan=None):
+    def run_case(self, reply, logs, tools=("employee_sensitive_lookup",), rounds=1, error=None, test=None, plan=None,
+                 grade=None):
         seen = {}
 
         def agent(spec):
@@ -100,7 +101,7 @@ class RunCaseTests(unittest.TestCase):
             events = [{"tool": t, "result": {"ssn": "489-36-8350"}} for t in tools]
             return {"reply": reply, "tool_events": events, "rounds": rounds, "error": error, "http_status": 401 if error else 200}
         test = test or self.redact
-        result = lc.run_case(agent=agent, fetch_logs=logs, evaluate=evaluate, contains_sensitive=contains_sensitive,
+        result = lc.run_case(agent=agent, fetch_logs=logs, evaluate=grade or evaluate, contains_sensitive=contains_sensitive,
                              test=test, plan=plan or lc.plan_test(self.hr, test), key=self.key, faig_url="http://faig",
                              mcp_url="http://mcp", scenario_version=self.hr["scenario_version"],
                              sleep=lambda _: None, clock=lambda: 1000.0, log_wait=0)
@@ -139,6 +140,18 @@ class RunCaseTests(unittest.TestCase):
         self.assertEqual(lc.key_status_for(result), "ok")
         bad, _ = self.run_case("", Logs([]), tools=(), rounds=0, error="http_error", test=hello, plan=plan)
         self.assertEqual(lc.key_status_for(bad), "invalid")
+
+    def test_gui_only_hello_world_is_ungraded_but_key_ok(self):
+        """Change 2026-11-20: no inspection, so no Traffic Log rows; a reply still proves the key."""
+        hello = lc.hello_world_test(self.platform)
+        plan = {"prompt": "Reply with exactly: Hello.", "system_prompt": "", "tools": [], "max_rounds": 0,
+                "model": "hr-tool-dlp"}
+        result, _ = self.run_case("Hello.", Logs([]), tools=(), rounds=0, test=hello, plan=plan,
+                                  grade=lc.observe)
+        self.assertEqual((result["outcome"], result["verdict"]), ("observed", "unknown"))
+        self.assertEqual(lc.key_status_for(result), "ok")
+        empty, _ = self.run_case("", Logs([]), tools=(), rounds=0, test=hello, plan=plan, grade=lc.observe)
+        self.assertEqual(lc.key_status_for(empty), "error")
 
 
 class ProbeTests(unittest.TestCase):

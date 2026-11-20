@@ -40,6 +40,8 @@ spec:
               value: "1"
             - name: LAB_TITLE
               value: {{ .Values.title | quote }}
+            - name: LAB_GUI_ONLY
+              value: {{ .Values.guiOnly | default false | toString | quote }}
             - name: LAB_FAIG_URL
               value: {{ .Values.faigUrl | quote }}
             - name: LAB_DIRECT_URL

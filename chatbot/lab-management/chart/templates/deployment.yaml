@@ -49,6 +49,8 @@ spec:
               value: {{ .Values.authUrl | quote }}
             - name: LAB_PUBLIC_ORIGIN
               value: {{ .Values.publicOrigin | quote }}
+            - name: LAB_GUI_ONLY
+              value: {{ .Values.guiOnly | default false | toString | quote }}
             - name: LAB_STATIC_DIR
               value: /app
             - name: LAB_CALLER_TOKEN_FILE

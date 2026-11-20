@@ -24,6 +24,8 @@ lab_management_catalog_configmap_name: lab-catalog
 # Optional exact browser origin for POSTs; empty derives it from the gateway's
 # X-Forwarded-Proto/-Host headers.
 lab_management_public_origin: ""
+# Change 2026-11-20: GUI-only install (no GPU, no license, inspection off); shows a banner.
+lab_management_gui_only: "{{ faig_gui_only | default(false) }}"
 lab_management_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"
 # Broker caller token: copied from the gateway's caller Secret (key
 # lab-management) into this namespace. Deploy the gateway first; without it the

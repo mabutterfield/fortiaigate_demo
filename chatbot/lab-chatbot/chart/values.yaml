@@ -18,6 +18,8 @@ mcpUrl: http://mcp-demo.mcp.svc.cluster.local:8001/mcp
 authUrl: http://demo-https-gateway-auth.demo-https-gateway.svc.cluster.local:8090
 maxTokens: 2048
 temperature: "0.0"
+# GUI-only install: inspection off, tests not graded.
+guiOnly: false
 
 # Secrets created by Ansible in the release namespace (not Helm-managed).
 signingSecretName: lab-chatbot-signing

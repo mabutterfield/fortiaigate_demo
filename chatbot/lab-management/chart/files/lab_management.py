@@ -60,6 +60,8 @@ AUTH_URL = os.environ.get('LAB_AUTH_URL', '').rstrip('/')
 PUBLIC_ORIGIN = os.environ.get('LAB_PUBLIC_ORIGIN', '').rstrip('/')
 STATIC_DIR = Path(os.environ.get('LAB_STATIC_DIR', Path(__file__).resolve().parent))
 CALLER_TOKEN_FILE = os.environ.get('LAB_CALLER_TOKEN_FILE', '/etc/lab-management/caller/token')
+# Change 2026-11-20: GUI-only install (no GPU, no license): FAIG does not inspect traffic.
+GUI_ONLY = os.environ.get('LAB_GUI_ONLY', 'false').strip().lower() == 'true'
 HEADERS = ('X-Lab-User', 'X-Lab-Student', 'X-Lab-Role', 'X-Lab-Workspace-Id', 'X-Lab-Ts', 'X-Lab-Signature')
 STATIC = {'/': ('index.html', 'text/html; charset=utf-8'),
           '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
@@ -609,6 +611,7 @@ class Handler(BaseHTTPRequestHandler):
                     'catalog': items, 'catalog_error': error,
                     'pricing': {k: platform.get(k) for k in ('currency', 'unit', 'pricing_note')},
                     'selected': selected(db), 'jobs': jobs(db), 'faig_actions': bool(caller_token()),
+                    'gui_only': GUI_ONLY,
                     'auto_approval': {'enabled': False, 'state': 'unavailable',
                                       'detail': 'Auto-approval is not connected yet.'}})
         self.reply(404, {'error': 'not found'})

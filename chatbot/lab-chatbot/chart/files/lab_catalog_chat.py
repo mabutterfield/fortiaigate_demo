@@ -288,4 +288,7 @@ def key_status_for(result: dict[str, Any]) -> str:
         return "error"
     if result.get("outcome") == "pass" and result.get("reply"):
         return "ok"
+    # Change 2026-11-20: GUI-only installs run hello-world ungraded; a completed reply means the key works.
+    if result.get("outcome") == "observed" and result.get("execution") == "completed" and result.get("reply"):
+        return "ok"
     return "untested" if result.get("outcome") == "incomplete" else "error"

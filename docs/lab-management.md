@@ -118,6 +118,22 @@ Typical errors when a step was missed:
 This manual path has not yet been run end to end on a fresh host; it mirrors
 what the initializer (`scripts/faig_bootstrap_802.py`) creates.
 
+## GUI-only installs (no GPU, no license)
+
+A one-off install mode for GUI testing: FAIG runs without a GPU and is not
+licensed, so it passes traffic but does not inspect it. Set `faig_gui_only: true`
+(the deployment sets it for this mode); Lab Management and the chatbot read it
+as `lab_management_gui_only` and `lab_chatbot_gui_only`.
+
+- `/manage/` shows a banner. Models, students and prepopulation run as usual
+  so the GUI objects exist. Whether FAIG accepts every object without a
+  license is not yet verified.
+- In the chatbot, every test, Run all, Try a prompt and hello-world is shown
+  ungraded: the reply, payloads and any Traffic Log entry, never PASS or FAIL.
+  A hello-world reply still marks the key OK.
+- Guardrail results can't be verified in this mode. Use a licensed GPU install
+  for any test that must pass.
+
 ## Design notes
 
 - **Image:** stock `python:3.12-slim`, standard library only, code in a

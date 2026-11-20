@@ -43,6 +43,9 @@ lab_chatbot_mcp_url: "{{ mcp_standard_internal_base_url | default('http://mcp-de
 lab_chatbot_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"
 lab_chatbot_max_tokens: 2048
 lab_chatbot_temperature: "0.0"
+# Change 2026-11-20: GUI-only install (no GPU, no license, inspection off). Set by the
+# deployment as faig_gui_only; tests are shown but not graded.
+lab_chatbot_gui_only: "{{ faig_gui_only | default(false) }}"
 
 # Secrets copied into the chatbot namespace on every deploy.
 lab_chatbot_signing_source_namespace: "{{ demo_https_gateway_namespace | default('demo-https-gateway') }}"

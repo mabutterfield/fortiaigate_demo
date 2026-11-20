@@ -51,6 +51,7 @@ function showApproval(a) {
 async function refresh() {
   const state = await api('api/state');
   el('user').textContent = state.user;
+  el('gui-only').hidden = !state.gui_only;
   showApproval(state.auto_approval || {});
   const p = state.pricing || {};
   el('pricing').textContent = p.currency ? ('Prices: ' + p.currency + ' ' + (p.unit || '') + '. ' + (p.pricing_note || '')) : '';

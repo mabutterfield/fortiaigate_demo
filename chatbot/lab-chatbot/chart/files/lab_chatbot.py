@@ -47,7 +47,12 @@ CFG = {
     "max_tokens": int(os.environ.get("LAB_MAX_TOKENS", "2048")),
     "temperature": float(os.environ.get("LAB_TEMPERATURE", "0.0")),
     "title": os.environ.get("LAB_TITLE", "FortiAIGate Lab Chatbot"),
+    # Change 2026-11-20: GUI-only install (no GPU, no license): FAIG passes traffic without
+    # inspection, so verdicts can't be checked and every run is shown ungraded.
+    "gui_only": os.environ.get("LAB_GUI_ONLY", "false").strip().lower() == "true",
 }
+GUI_ONLY_NOTE = ("GUI-only install: FortiAIGate has no license or GPU, so inspection is off. Requests pass "
+                 "through and are shown with whatever the Traffic Log records, but results are not graded.")
 PASSTHROUGH = "passthrough"
 
 
@@ -182,12 +187,18 @@ def fetch_logs(identity: dict[str, str]):
 
 
 def run_test(identity: dict[str, str], scenario: dict[str, Any], test: dict[str, Any], key: dict[str, Any],
-             plan: dict[str, Any] | None = None, grade=evaluate) -> dict[str, Any]:
+             plan: dict[str, Any] | None = None, grade=None) -> dict[str, Any]:
+    grade = grade or default_grade()
     return lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=grade,
                        contains_sensitive=contains_sensitive, test=test, plan=plan or lc.plan_test(scenario, test),
                        key=key, faig_url=CFG["faig_url"], mcp_url=CFG["mcp_url"],
                        scenario_version=scenario.get("scenario_version", ""), block_message=CFG["block_message"],
                        max_tokens=CFG["max_tokens"], temperature=CFG["temperature"])
+
+
+def default_grade():
+    """The catalog evaluator, or the ungraded observer on a GUI-only install."""
+    return lc.observe if CFG["gui_only"] else evaluate
 
 
 def render_result(result: dict[str, Any]) -> None:
@@ -297,6 +308,7 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
         expect = test["expect"]
         st.markdown(f"- Key: `{key['key_name']}`\n- Prompt: _{plan['prompt']}_\n"
                     f"- Expected verdict: **{VERDICTS.get(expect['verdict'], expect['verdict'])}**"
+                    + (" (not checked on a GUI-only install)" if CFG["gui_only"] else "")
                     + (f"\n- Must show: {', '.join(EVIDENCE[e] for e in expect['evidence_present'])}"
                        if expect["evidence_present"] else "")
                     + (f"\n- Must not show: {', '.join(EVIDENCE[e] for e in expect['evidence_absent'])}"
@@ -328,7 +340,7 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
             progress.progress(index / max(len(plan), 1), text=f"{s['display_name']} / {test['id']}")
             for _attempt in range(2):
                 result = run_test(identity, s, test, key)
-                if result["outcome"] in ("pass", "known-fail"):
+                if result["outcome"] in ("pass", "known-fail", "observed"):
                     break
             rows.append({"Scenario": s["display_name"], "Action": lc.action_label(s, test["action"]),
                          "Test": test["id"], "Result": OUTCOMES.get(result["outcome"], result["outcome"]),
@@ -338,8 +350,11 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
         st.session_state.all_tests = rows
     rows = st.session_state.get("all_tests")
     if rows:
-        passed = sum(r["Result"] in ("PASS", "KNOWN FAIL") for r in rows)
-        (st.success if passed == len(rows) else st.warning)(f"{passed} of {len(rows)} passed or known.")
+        if CFG["gui_only"]:
+            st.info(f"{len(rows)} test(s) run, not graded (GUI-only install).")
+        else:
+            passed = sum(r["Result"] in ("PASS", "KNOWN FAIL") for r in rows)
+            (st.success if passed == len(rows) else st.warning)(f"{passed} of {len(rows)} passed or known.")
         st.dataframe(rows, hide_index=True, use_container_width=True)
     elif rows == []:
         st.info("No mapped keys with tests yet.")
@@ -410,7 +425,7 @@ def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], 
             plan = {"prompt": hello.get("prompt", "Reply with exactly: Hello."), "system_prompt": "", "tools": [],
                     "max_rounds": 0, "model": key.get("model", "")}
             with st.spinner("Checking the key..."):
-                result = lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=evaluate,
+                result = lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=default_grade(),
                                      contains_sensitive=contains_sensitive, test=lc.hello_world_test(platform),
                                      plan=plan, key=key, faig_url=CFG["faig_url"], mcp_url=CFG["mcp_url"],
                                      scenario_version="", block_message=CFG["block_message"],
@@ -549,6 +564,8 @@ def main() -> None:
         st.markdown("[Sign out](/_lab/logout)")
 
     st.title(CFG["title"])
+    if CFG["gui_only"]:
+        st.warning(GUI_ONLY_NOTE)
     names = ["Chat", "Tests", "Keys"] + (["Admin"] if identity["role"] == "admin" else [])
     tabs = st.tabs(names)
     with tabs[0]:
