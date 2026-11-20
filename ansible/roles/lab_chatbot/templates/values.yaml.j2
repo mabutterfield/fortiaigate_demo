@@ -5,6 +5,7 @@ image:
 servicePort: {{ lab_chatbot_service_port }}
 title: {{ lab_chatbot_title | to_json }}
 faigUrl: {{ lab_chatbot_faig_url | to_json }}
+faigVerifyTls: {{ lab_chatbot_faig_verify_tls | bool | to_json }}
 directUrl: {{ lab_chatbot_direct_url | to_json }}
 mcpUrl: {{ lab_chatbot_mcp_url | to_json }}
 authUrl: {{ lab_chatbot_auth_url | to_json }}

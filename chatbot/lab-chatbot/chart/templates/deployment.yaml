@@ -44,6 +44,8 @@ spec:
               value: {{ .Values.guiOnly | default false | toString | quote }}
             - name: LAB_FAIG_URL
               value: {{ .Values.faigUrl | quote }}
+            - name: LAB_FAIG_VERIFY_TLS
+              value: {{ .Values.faigVerifyTls | default false | toString | quote }}
             - name: LAB_DIRECT_URL
               value: {{ .Values.directUrl | quote }}
             - name: LAB_MCP_URL

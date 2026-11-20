@@ -547,23 +547,28 @@
             else ['unavailable']
           )
       }}
+    # Change 2026-11-20 (owner: HTTPS by default): use the HTTPS gateway addresses when the gateway is
+    # on; the legacy HTTP NodePorts are closed by the default security group.
     demo_outputs_litellm_admin_url: >-
       {{
-        'http://' ~ demo_outputs_access_host ~ ':' ~ (litellm_node_port | default(demo_litellm_http_port | default(30083)) | string) ~ '/ui/'
-        if demo_outputs_access_host | default('', true) | length > 0
-        else 'unavailable'
+        'unavailable' if demo_outputs_access_host | default('', true) | length == 0
+        else ('https://' ~ demo_outputs_access_host ~ ':' ~ (demo_https_gateway_litellm_https_port | default(30446) | string) ~ '/ui/')
+        if demo_https_gateway_enabled | default(false) | bool
+        else ('http://' ~ demo_outputs_access_host ~ ':' ~ (litellm_node_port | default(demo_litellm_http_port | default(30083)) | string) ~ '/ui/')
       }}
     demo_outputs_demo_home_url: >-
       {{
-        'http://' ~ demo_outputs_access_host ~ ':' ~ (demo_home_node_port | default(demo_home_http_port | default(30082)) | string)
-        if demo_outputs_access_host | default('', true) | length > 0
-        else 'unavailable'
+        'unavailable' if demo_outputs_access_host | default('', true) | length == 0
+        else ('https://' ~ demo_outputs_access_host ~ ':' ~ (demo_https_gateway_demo_home_https_port | default(30445) | string))
+        if demo_https_gateway_enabled | default(false) | bool
+        else ('http://' ~ demo_outputs_access_host ~ ':' ~ (demo_home_node_port | default(demo_home_http_port | default(30082)) | string))
       }}
     demo_outputs_mcp_tools_url: >-
       {{
-        'http://' ~ demo_outputs_access_host ~ ':' ~ (mcp_node_port | default(demo_mcp_http_port | default(30084)) | string) ~ '/tools'
-        if demo_outputs_access_host | default('', true) | length > 0
-        else 'unavailable'
+        'unavailable' if demo_outputs_access_host | default('', true) | length == 0
+        else ('https://' ~ demo_outputs_access_host ~ ':' ~ (demo_https_gateway_mcp_https_port | default(30447) | string) ~ '/tools')
+        if demo_https_gateway_enabled | default(false) | bool
+        else ('http://' ~ demo_outputs_access_host ~ ':' ~ (mcp_node_port | default(demo_mcp_http_port | default(30084)) | string) ~ '/tools')
       }}
     demo_outputs_syslog_target: >-
       {{

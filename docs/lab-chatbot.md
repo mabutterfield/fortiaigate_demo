@@ -1,5 +1,8 @@
 # Student Lab Chatbot (8.0.2)
 
+For day-to-day use see the [student guide](student-guide-802.md) and the
+[instructor guide](instructor-guide-802.md); this page describes how the chatbot works.
+
 One shared Streamlit chatbot for every student, reached through the
 [lab login gateway](lab-gateway.md) on the chatbot route (HTTPS 30444, HTTP
 30081 redirects to HTTPS for sign-in). Each student chats with their own

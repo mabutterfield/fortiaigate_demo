@@ -39,7 +39,10 @@ CFG = {
     "signing_key_file": os.environ.get("LAB_SIGNING_KEY_FILE", "/etc/lab-chatbot/signing/hmac-key"),
     "caller_token_file": os.environ.get("LAB_CALLER_TOKEN_FILE", "/etc/lab-chatbot/caller/token"),
     "catalog_file": os.environ.get("LAB_CATALOG_FILE", "/catalog/catalog-student.json"),
-    "faig_url": os.environ.get("LAB_FAIG_URL", "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"),
+    # Change 2026-11-20: FAIG's ingress now forces HTTPS (308 for plain HTTP), so call it over
+    # in-cluster HTTPS. The lab certificate is self-signed and does not name the service address.
+    "faig_url": os.environ.get("LAB_FAIG_URL", "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local/ai/openai/v1"),
+    "faig_verify_tls": os.environ.get("LAB_FAIG_VERIFY_TLS", "false").strip().lower() == "true",
     "direct_url": os.environ.get("LAB_DIRECT_URL", "http://litellm.litellm.svc.cluster.local:4000/v1"),
     "direct_key_file": os.environ.get("LAB_DIRECT_KEY_FILE", "/etc/lab-chatbot/direct/api-key"),
     "mcp_url": os.environ.get("LAB_MCP_URL", "http://mcp-demo.mcp.svc.cluster.local:8001/mcp"),
@@ -113,6 +116,8 @@ def reset_chat() -> None:
 
 
 def agent(spec: dict[str, Any]) -> dict[str, Any]:
+    if str(spec.get("base_url", "")).startswith(CFG["faig_url"].rstrip("/")):
+        spec = dict(spec, verify_tls=CFG["faig_verify_tls"])
     try:
         return faig_agent.run_turn_sync(spec)
     except Exception as exc:  # network or MCP transport failure; never echo the key

@@ -132,5 +132,42 @@ class FaigAgentTests(unittest.TestCase):
         self.assertEqual(anyio.run(lambda: self.agent.run_turn(spec, chat=chat))["reply"], "hi")
 
 
+
+class TlsVerificationTests(unittest.TestCase):
+    """Change 2026-11-20: FAIG is called over in-cluster HTTPS with the self-signed lab certificate."""
+
+    def capture(self, **kwargs):
+        import ssl
+        import urllib.request
+        agent = load_agent()
+        seen = {}
+
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return b'{"choices": []}'
+
+        def fake_urlopen(request, timeout=None, context=None):
+            seen["context"], seen["url"] = context, request.full_url
+            return Response()
+
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake_urlopen
+        try:
+            agent.chat_completion("https://faig.local/ai/openai/v1", "k", {"model": "m"}, **kwargs)
+        finally:
+            urllib.request.urlopen = original
+        return seen, ssl
+
+    def test_verified_by_default(self):
+        seen, _ = self.capture()
+        self.assertIsNone(seen["context"])
+
+    def test_unverified_when_asked(self):
+        seen, ssl = self.capture(verify_tls=False)
+        self.assertIsInstance(seen["context"], ssl.SSLContext)
+        self.assertEqual(seen["context"].verify_mode, ssl.CERT_NONE)
+
 if __name__ == "__main__":
     unittest.main()
