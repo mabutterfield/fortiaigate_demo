@@ -83,7 +83,9 @@ lab_gateway_auth_port: 8090
 lab_gateway_faig_url: "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 lab_gateway_faig_verify_tls: false
 lab_gateway_max_session_hours: 8
-lab_gateway_idle_minutes: 120
+# Change 2026-11-20: 25 (was 120). FAIG drops an idle session after 25-30 min (measured 2026-11-20),
+# so the gateway signs users out first instead of leaving them with FAIG errors.
+lab_gateway_idle_minutes: 25
 # faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
