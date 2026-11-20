@@ -191,5 +191,42 @@ class InternalLogsTests(unittest.TestCase):
         self.assertEqual(self.run_logs({"user": "a", "role": "admin"}, {"student": "student09"}, roster={})[0][0], 404)
 
 
+
+class RotateOutcomeTests(unittest.TestCase):
+    """Change 2026-11-20 (Agent1 review): only a definite 4xx proves nothing was rotated."""
+    KID = "11111111-2222-3333-4444-555555555555"
+
+    def rotate(self, error_code):
+        import urllib.error
+        records = [{"faig_key_id": self.KID, "status": "ok", "secret": "old"}]
+        saved, replies = [], []
+        class Faig:
+            def call(inner, method, path, payload=None):
+                raise urllib.error.HTTPError(path, error_code, "x", {}, None)
+        handler = lab_auth.Handler.__new__(lab_auth.Handler)
+        handler.key_session = lambda *a, **k: ({"faig": Faig()}, "student02")
+        handler.broker_json = lambda limit=0: {"faig_key_id": self.KID}
+        handler.load_keys = lambda student: records
+        handler.save_keys = lambda student, recs: saved.append([dict(r) for r in recs])
+        handler.json_reply = lambda status, value: replies.append((status, value))
+        handler.keys_rotate()
+        return saved[-1][0]["status"], replies[0]
+
+    def test_refused_4xx_restores_previous_status(self):
+        status, (code, body) = self.rotate(400)
+        self.assertEqual((status, code), ("ok", 502))
+        self.assertIn("nothing changed", body["error"])
+
+    def test_ambiguous_5xx_keeps_rotation_unknown(self):
+        for err in (500, 502, 504, 408):
+            status, (code, body) = self.rotate(err)
+            self.assertEqual((status, code), ("rotation-unknown", 504), err)
+            self.assertIn("outcome unknown", body["error"])
+
+    def test_refused_statuses(self):
+        self.assertTrue(all(lab_auth.lab_broker.rotation_refused(c) for c in (400, 401, 403, 404, 409, 422, 429)))
+        self.assertFalse(any(lab_auth.lab_broker.rotation_refused(c) for c in (408, 500, 502, 503, 504)))
+
+
 if __name__ == "__main__":
     unittest.main()

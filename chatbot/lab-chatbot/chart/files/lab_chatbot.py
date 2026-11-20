@@ -432,6 +432,11 @@ def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], 
     if not own:
         return
     by_name = {k.get("key_name") or k["faig_key_id"]: k for k in keys if k.get("status") != "missing"}
+    # Change 2026-11-20 (Agent1 review): every stored key can be missing (deleted in FAIG); the forms below
+    # need at least one key.
+    if not by_name:
+        st.info("No active keys in FortiAIGate. Create a key in the FortiAIGate portal, then Refresh.")
+        return
 
     # Change 2026-11-20: unmapped keys get their own short form; mapped keys move to "Change a mapping",
     # and the value field clears after a save (owner browser check). Previous single form:

@@ -615,6 +615,14 @@ def merge_refresh(records: list, faig_keys: list, now: int = None) -> list:
     return sorted(by_id.values(), key=lambda r: (r.get("key_name") or "", r.get("faig_key_id")))
 
 
+def rotation_refused(status: int) -> bool:
+    """True when FAIG's HTTP status proves a rotation did not happen (Change 2026-11-20).
+
+    Definite client errors only; 408, 5xx and anything else are ambiguous (the rotation may have
+    happened before the error), so the caller must record rotation-unknown."""
+    return status in (400, 401, 403, 404, 409, 422, 429)
+
+
 def mapping_warnings(record: dict, expected_model: str = "") -> list:
     """Warnings for the owner's 1 key -> 1 policy -> 1 model rule (never a silent rejection)."""
     warnings = []

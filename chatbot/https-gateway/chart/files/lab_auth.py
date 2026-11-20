@@ -927,9 +927,21 @@ class Handler(BaseHTTPRequestHandler):
             # response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate")
             response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate", {})
         except urllib.error.HTTPError as exc:
-            record["status"] = previous
+            # Change 2026-11-20 (Agent1 review): only a definite 4xx means nothing was rotated. A 5xx or
+            # timeout can follow a rotation that happened, so keep rotation-unknown and never claim the
+            # old value still works.
+            # record["status"] = previous
+            # self.save_keys(student, records)
+            # return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG refused the rotation (HTTP {exc.code})"})
+            if lab_broker.rotation_refused(exc.code):
+                record["status"] = previous
+                self.save_keys(student, records)
+                return self.json_reply(401 if exc.code in (401, 403) else 502,
+                                       {"error": f"FAIG refused the rotation (HTTP {exc.code}); nothing changed"})
+            record["status"] = "rotation-unknown"
             self.save_keys(student, records)
-            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG refused the rotation (HTTP {exc.code})"})
+            return self.json_reply(504, {"error": f"rotation outcome unknown (HTTP {exc.code}); test the key with "
+                                                  "hello-world in a minute, and rotate again only if it fails"})
         except (urllib.error.URLError, OSError):
             record["status"] = "rotation-unknown"
             self.save_keys(student, records)
