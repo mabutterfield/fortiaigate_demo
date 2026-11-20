@@ -67,6 +67,30 @@ function showApproval(a) {
   }
 }
 
+// Change 2026-11-20: approval history (newest first, up to 200 rows).
+const CHANGE_LABEL = {create: 'add', update: 'change', deletion: 'delete', delete: 'delete'};
+async function loadApprovals() {
+  const box = el('aa-history');
+  const student = el('aa-student').value.trim();
+  try {
+    const data = await api('api/approvals' + (student ? '?student=' + encodeURIComponent(student) : ''));
+    if (!data.items.length) { box.replaceChildren(text('p', 'No approvals recorded yet.', 'muted')); return; }
+    const table = document.createElement('table');
+    const head = document.createElement('tr');
+    ['Time', 'Student', 'Type', 'Object', 'Change', 'Result', 'Approved with'].forEach(h => head.append(text('th', h)));
+    table.append(head);
+    data.items.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.append(text('td', new Date(r.at * 1000).toLocaleString()), text('td', r.student), text('td', r.type),
+                text('td', r.name), text('td', CHANGE_LABEL[r.change] || r.change),
+                text('td', r.outcome + (r.detail ? ' (' + r.detail + ')' : ''), r.outcome === 'approved' ? '' : 'warn'),
+                text('td', r.approved_by));
+      table.append(tr);
+    });
+    box.replaceChildren(table);
+  } catch (e) { box.replaceChildren(text('p', 'Approval history unavailable: ' + e.message, 'warn')); }
+}
+
 // Default-on: when the saved preference is on and nothing is running, start it once per page load
 // under this instructor's session (owner decision; no stored credential).
 let autoStartTried = false;
@@ -161,6 +185,8 @@ async function loadRoster() {
   } catch (e) { box.replaceChildren(text('p', 'Student list unavailable: ' + e.message, 'warn')); }
 }
 
+el('aa-history-box').addEventListener('toggle', () => { if (el('aa-history-box').open) loadApprovals(); });
+el('aa-history-form').addEventListener('submit', e => { e.preventDefault(); loadApprovals(); });
 el('auto-approval').addEventListener('input', () => { el('auto-approval').dataset.touched = '1'; });
 el('auto-approval').addEventListener('submit', e => {
   e.preventDefault();
@@ -172,4 +198,7 @@ el('auto-approval').addEventListener('submit', e => {
 
 run(async () => {});
 loadRoster();
-setInterval(() => api('api/state').then(s => showApproval(s.auto_approval || {})).catch(() => {}), 15000);
+setInterval(() => api('api/state').then(s => {
+  showApproval(s.auto_approval || {});
+  if ((s.auto_approval || {}).history_added && el('aa-history-box').open) loadApprovals();
+}).catch(() => {}), 15000);

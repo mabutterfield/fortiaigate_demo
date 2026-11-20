@@ -436,6 +436,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.keys_list(query.get("student", ""))
         if url.path == "/_lab/internal/admin/auto-approve":
             return self.auto_approve_status()
+        if url.path == "/_lab/internal/admin/auto-approve/history":
+            return self.auto_approve_history(query)
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
@@ -784,6 +786,15 @@ class Handler(BaseHTTPRequestHandler):
         if not broker_session(self, "admin"):
             return None
         return self.json_reply(200, AUTO_APPROVER.status())
+
+    def auto_approve_history(self, query: dict):
+        if not broker_session(self, "admin"):
+            return None
+        try:
+            after = int(query.get("after", "0") or 0)
+        except ValueError:
+            return self.json_reply(400, {"error": "bad after"})
+        return self.json_reply(200, AUTO_APPROVER.history_after(query.get("boot", ""), after))
 
     def auto_approve_control(self):
         """{"enabled": true, "hours": n} binds the worker to this instructor's session; false stops it."""

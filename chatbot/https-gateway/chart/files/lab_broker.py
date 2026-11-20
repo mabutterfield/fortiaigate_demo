@@ -681,26 +681,45 @@ def approval_queue(queue: list) -> list:
                   key=lambda i: (APPROVAL_ORDER.get(i.get("type"), 9), i.get("submittedAt") or ""))
 
 
+STUDENT_EMAIL = re.compile(r"^(student\d{2,})@")
+
+
+def queue_entry(item: dict) -> dict:
+    """History fields for one review-queue item (Change 2026-11-20: owner wants a viewable list)."""
+    submitter = item.get("submittedBy") or {}
+    email = str(submitter.get("email") or "")
+    match = STUDENT_EMAIL.match(email)
+    return {"item_id": str(item.get("id", "")), "type": str(item.get("type") or ""),
+            "name": str(item.get("name") or ""), "change": str(item.get("changeKind") or "change"),
+            "student": match.group(1) if match else (email or str(submitter.get("fullName") or "")),
+            "submitted_by": email, "submitted_at": str(item.get("submittedAt") or "")}
+
+
+def entry_label(entry: dict) -> str:
+    return f'{entry["type"]} {entry["name"] or entry["item_id"]} [{entry["change"]}] from {entry["student"] or "?"}'
+
+
 def approve_pending(faig, http_error=None) -> dict:
     """Approve everything in FAIG's review queue once. Raises on 401/403 (session ended).
 
-    Returns {"approved": [labels], "failed": [labels with reason], "skipped": [labels]}; no secrets."""
+    Returns {"approved": [entries], "failed": [entries], "skipped": [entries]}; each entry is
+    queue_entry() plus "outcome" and "detail". No secrets."""
     import urllib.error
     http_error = http_error or urllib.error.HTTPError
     result = {"approved": [], "failed": [], "skipped": []}
     for item in approval_queue(_items(faig.call("GET", "/api/v1/admin/review-queue"))):
-        label = f'{item.get("type")} {item.get("name") or item["id"]} [{item.get("changeKind") or "change"}]'
+        entry = queue_entry(item)
         path = APPROVE.get(item.get("type"))
         if not path:
-            result["skipped"].append(label + " (no approve endpoint for this type)")
+            result["skipped"].append(dict(entry, outcome="skipped", detail="no approve endpoint for this type"))
             continue
         try:
             faig.call("POST", path.format(urllib.parse.quote(str(item["id"]), safe="")))
-            result["approved"].append(label)
+            result["approved"].append(dict(entry, outcome="approved", detail=""))
         except http_error as exc:
             if getattr(exc, "code", None) in (401, 403):
                 raise
-            result["failed"].append(f"{label}: HTTP {getattr(exc, 'code', '?')}")
+            result["failed"].append(dict(entry, outcome="failed", detail=f"HTTP {getattr(exc, 'code', '?')}"))
     return result
 
 
@@ -718,6 +737,11 @@ class AutoApprover:
         self.start_thread = start_thread
         self.lock = threading.Lock()
         self.generation, self.session, self.wake, self.capped = 0, None, threading.Event(), False
+        import collections
+        import secrets as _s
+        # Change 2026-11-20: numbered history of approval attempts (memory, last 1000). Lab Management
+        # copies new entries into its journal; "boot" changes when this process restarts.
+        self.boot, self.seq, self.history = _s.token_hex(6), 0, collections.deque(maxlen=1000)
         self.state = {"enabled": False, "state": "stopped", "owner": "", "started_at": None, "ends_at": None,
                       "last_run_at": None, "last_result": None, "totals": {"approved": 0, "failed": 0},
                       "stop_reason": "not started since the gateway started", "interval": self.interval}
@@ -725,7 +749,14 @@ class AutoApprover:
     def status(self) -> dict:
         import copy
         with self.lock:
-            return dict(copy.deepcopy(self.state), now=int(self.clock()))
+            return dict(copy.deepcopy(self.state), now=int(self.clock()), boot=self.boot, history_seq=self.seq)
+
+    def history_after(self, boot: str, after: int) -> dict:
+        """Entries newer than (boot, after); all retained entries when boot differs."""
+        with self.lock:
+            start = after if boot == self.boot else 0
+            return {"boot": self.boot, "history_seq": self.seq,
+                    "items": [dict(e) for e in self.history if e["seq"] > start]}
 
     def owns(self, session) -> bool:
         with self.lock:
@@ -790,14 +821,20 @@ class AutoApprover:
             totals = self.state["totals"]
             totals["approved"] += len(result["approved"])
             totals["failed"] += len(result["failed"])
-            self.state.update(last_run_at=int(self.clock()), state="error" if result.get("error") else "running",
+            stamp = int(self.clock())
+            for entry in result["approved"] + result["failed"]:
+                self.seq += 1
+                self.history.append(dict(entry, seq=self.seq, at=stamp, by=self.state["owner"]))
+            self.state.update(last_run_at=stamp, state="error" if result.get("error") else "running",
                               last_result={"approved": len(result["approved"]), "failed": len(result["failed"]),
                                            "skipped": len(result["skipped"]),
                                            "errors": ([result["error"]] if result.get("error") else [])
-                                           + result["failed"][:5] + result["skipped"][:5]})
+                                           + [entry_label(e) + ": " + e["detail"] for e in result["failed"][:5]]
+                                           + [entry_label(e) + ": " + e["detail"] for e in result["skipped"][:5]]})
         if result["approved"] or result["failed"]:
             print(f"auto-approve ({self.state['owner']}): approved {len(result['approved'])}, failed "
-                  f"{len(result['failed'])}: " + "; ".join((result["approved"] + result["failed"])[:20]), flush=True)
+                  f"{len(result['failed'])}: " + "; ".join(entry_label(e) for e in (result["approved"] + result["failed"])[:20]),
+                  flush=True)
         return True
 
     def _finish(self, generation: int, state: str, reason: str) -> None:

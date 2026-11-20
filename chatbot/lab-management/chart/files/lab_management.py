@@ -41,6 +41,7 @@ Environment:
 """
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -118,6 +119,11 @@ def connect(path=None):
     db.execute('CREATE TABLE IF NOT EXISTS selection (id TEXT PRIMARY KEY)')
     # Change 2026-11-20: instructor preferences (auto-approval on/off and hours); never secrets.
     db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+    # Change 2026-11-20: auto-approval history copied from lab_auth (names and actions only).
+    db.execute('CREATE TABLE IF NOT EXISTS approvals (boot TEXT NOT NULL, seq INTEGER NOT NULL, at INTEGER NOT NULL, '
+               'student TEXT NOT NULL, submitted_by TEXT NOT NULL, type TEXT NOT NULL, name TEXT NOT NULL, '
+               'change TEXT NOT NULL, outcome TEXT NOT NULL, detail TEXT NOT NULL, approved_by TEXT NOT NULL, '
+               'item_id TEXT NOT NULL, PRIMARY KEY (boot, seq))')
     db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, kind TEXT NOT NULL, actor TEXT NOT NULL, '
                'created INTEGER NOT NULL, status TEXT NOT NULL, request TEXT NOT NULL, detail TEXT NOT NULL)')
     db.commit()
@@ -142,6 +148,53 @@ def auto_approval_preference(db):
     if 'auto_approval_hours' in rows:
         pref['hours'] = float(rows['auto_approval_hours'])
     return pref
+
+
+APPROVAL_FIELDS = ('at', 'student', 'submitted_by', 'type', 'name', 'change', 'outcome', 'detail', 'approved_by', 'item_id')
+
+
+def store_approvals(db, boot, items):
+    """Insert history entries from lab_auth (idempotent per boot/seq); returns the number added."""
+    rows = []
+    for e in items:
+        if not isinstance(e, dict) or not isinstance(e.get('seq'), int):
+            continue
+        rows.append((str(boot), e['seq'], int(e.get('at') or 0), str(e.get('student', ''))[:120],
+                     str(e.get('submitted_by', ''))[:200], str(e.get('type', ''))[:40], str(e.get('name', ''))[:200],
+                     str(e.get('change', ''))[:40], str(e.get('outcome', ''))[:20], str(e.get('detail', ''))[:200],
+                     str(e.get('by', ''))[:200], str(e.get('item_id', ''))[:80]))
+    with db:
+        before = db.total_changes
+        db.executemany('INSERT OR IGNORE INTO approvals VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+        return db.total_changes - before
+
+
+def sync_approvals(db, handle, status):
+    """Copy entries newer than our cursor from lab_auth; tolerate any failure (the list is best effort)."""
+    boot, latest = status.get('boot'), status.get('history_seq')
+    if not boot or not isinstance(latest, int):
+        return 0
+    cursor = dict(db.execute("SELECT key, value FROM settings WHERE key IN ('approvals_boot', 'approvals_seq')"))
+    after = int(cursor.get('approvals_seq', '0')) if cursor.get('approvals_boot') == boot else 0
+    if cursor.get('approvals_boot') == boot and after >= latest:
+        return 0
+    try:
+        page = gateway(handle, '/_lab/internal/admin/auto-approve/history?boot=' + boot + '&after=' + str(after), timeout=15)
+    except (SessionLost, BrokerError, UnknownOutcome):
+        return 0
+    added = store_approvals(db, page.get('boot', boot), page.get('items', []))
+    with db:
+        db.executemany('INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                       [('approvals_boot', str(page.get('boot', boot))), ('approvals_seq', str(page.get('history_seq', latest)))])
+    return added
+
+
+def list_approvals(db, student='', limit=200):
+    query, args = 'SELECT ' + ', '.join(APPROVAL_FIELDS) + ' FROM approvals', []
+    if student:
+        query, args = query + ' WHERE student = ?', [student]
+    query += ' ORDER BY at DESC, seq DESC LIMIT ?'
+    return [dict(zip(APPROVAL_FIELDS, row)) for row in db.execute(query, args + [max(1, min(int(limit), 1000))])]
 
 
 def save_auto_approval_preference(db, enabled, hours):
@@ -631,6 +684,22 @@ class Handler(BaseHTTPRequestHandler):
             if path.endswith('share'):
                 reply['sign_in_url'] = public_origin(self.headers) + '/'
             return self.reply(200, reply)
+        if path == '/api/approvals':
+            # Change 2026-11-20: auto-approval history (student, type, object, change, result).
+            query = dict(urllib.parse.parse_qsl(urlsplit(self.path).query))
+            student = query.get('student', '')
+            limit = query.get('limit', '200')
+            if not limit.isdigit():
+                return self.reply(400, {'error': 'bad limit'})
+            if student and not re.fullmatch(r'student\d{2,}|[^\s@]+@[^\s@]+', student):
+                return self.reply(400, {'error': 'bad student filter'})
+            with connect() as db:
+                try:
+                    status = gateway(self.headers.get('X-Lab-Session', ''), '/_lab/internal/admin/auto-approve', timeout=15)
+                    sync_approvals(db, self.headers.get('X-Lab-Session', ''), status)
+                except (SessionLost, BrokerError, UnknownOutcome):
+                    pass  # show what is already stored
+                return self.reply(200, {'items': list_approvals(db, student, int(limit))})
         if path == '/api/state':
             items, platform, error = load_catalog()
             # Change 2026-11-20: live auto-approval status from lab_auth (no secrets in it).
@@ -642,6 +711,7 @@ class Handler(BaseHTTPRequestHandler):
                 approval = {'state': 'unavailable', 'stop_reason': str(exc)}
             with connect() as db:
                 approval['preference'] = auto_approval_preference(db)
+                approval['history_added'] = sync_approvals(db, self.headers.get('X-Lab-Session', ''), approval)
                 return self.reply(200, {
                     'user': self.headers.get('X-Lab-User', ''),
                     'catalog': items, 'catalog_error': error,
