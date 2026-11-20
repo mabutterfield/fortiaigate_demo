@@ -459,6 +459,15 @@ demo_home_ingress_host: ""
 lab_chatbot_enabled: true
 lab_chatbot_reseed_keys: false
 
+# --- lab management (Agent2) ---
+# === Lab management page (8.0.2): ansible/playbooks/deploy_lab_management.yml ===
+# Instructor page served by the lab login gateway at /manage/ on the chatbot
+# HTTPS port. Needs no students, keys or selection to start. Catalog views are
+# rendered from catalog802 on the controller at deploy time.
+lab_management_enabled: true
+lab_management_namespace: lab-management
+lab_management_pvc_size: 1Gi
+
 # === Optional HTTPS gateway: ansible/playbooks/deploy_demo_https_gateway.yml ===
 # Enabled by default. The nginx gateway exposes HTTPS NodePorts and proxies
 # to the existing internal HTTP services. Keep internal cluster traffic HTTP;

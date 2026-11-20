@@ -1,0 +1,29 @@
+:root { --fg: #202b32; --bg: #f2f5f6; --card: #ffffff; --muted: #5b6a73; --warn: #a15c00; --bad: #a00; --ok: #1f7a3a; }
+body { font: 16px system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; max-width: 960px; margin: auto; padding: 1.5rem 2rem 0; }
+header h1 { margin: 0; }
+.who { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; }
+main { max-width: 960px; margin: auto; padding: 0 2rem 2rem; }
+section, .notice { background: var(--card); padding: 1rem; margin: .75rem 0; border-radius: .4rem; }
+.notice { border-left: .3rem solid #ca7c19; }
+.muted { color: var(--muted); font-size: .9rem; }
+.warn { color: var(--warn); }
+#error { color: var(--bad); }
+.indicator { padding: .4rem .7rem; border-radius: 1rem; background: #e3e7ea; font-size: .9rem; white-space: nowrap; }
+.indicator.running { background: #dff3e5; color: var(--ok); }
+.indicator.expired, .indicator.error, .indicator.stale { background: #fde7e7; color: var(--bad); }
+button { padding: .55rem .8rem; cursor: pointer; }
+input[type=number] { width: 5rem; }
+label { margin-right: 1rem; }
+@media (max-width: 640px) { header { flex-direction: column; padding: 1rem 1rem 0; } main { padding: 0 1rem 1rem; } }
+.status { font-weight: 600; } .status.done { color: var(--ok); } .status.failed, .status.needs-sign-in, .status.interrupted { color: var(--bad); } .status.blocked { color: var(--warn); }
+button:disabled { cursor: not-allowed; opacity: .6; }
+table { border-collapse: collapse; width: 100%; background: var(--card); }
+th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid #e3e7ea; vertical-align: middle; }
+td input { width: 10rem; }
+fieldset { border: 1px solid #d5dbdf; border-radius: .4rem; margin: .75rem 0; }
+.mono { font-family: ui-monospace, Menlo, monospace; }
+body.share main { max-width: 1100px; padding-top: 1.5rem; }
+body.share table { font-size: 1.35rem; }
+body.share h1 { margin-top: 0; }
+.warnbox { border-left-color: var(--bad); }

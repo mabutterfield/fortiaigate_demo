@@ -1,0 +1,6 @@
+apiVersion: v2
+name: lab-management
+description: FortiAIGate 8.0.2 lab management page (/manage/) behind the lab login gateway
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

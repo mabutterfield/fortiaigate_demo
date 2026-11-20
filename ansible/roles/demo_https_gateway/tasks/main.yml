@@ -229,6 +229,63 @@
   # - ansible.builtin.debug:
   #     var: lab_gateway_signing_secret.stdout
 
+- name: Create lab gateway caller tokens once (one key per in-cluster caller)
+  # Change 2026-11-19: broker callers (lab_broker.CALLER_SCOPES) authenticate to
+  # /_lab/internal/ with their own random token. Tokens are generated on the
+  # host, never printed, and kept across redeploys; missing callers are added.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ demo_https_gateway_namespace }}"
+    NAME="{{ lab_gateway_caller_secret_name }}"
+    if ! $K get secret "$NAME" >/dev/null 2>&1; then
+      $K create secret generic "$NAME" >/dev/null
+      echo created
+    fi
+    for CALLER in {{ lab_gateway_callers | join(' ') }}; do
+      if ! $K get secret "$NAME" -o json | python3 -c 'import json, sys; sys.exit(0 if (json.load(sys.stdin).get("data") or {}).get(sys.argv[1]) else 1)' "$CALLER"; then
+        TOKEN="$(openssl rand -hex 32 | tr -d '\n' | base64 | tr -d '\n')"
+        $K patch secret "$NAME" --type merge -p "{\"data\":{\"$CALLER\":\"$TOKEN\"}}" >/dev/null
+        echo "added $CALLER"
+      fi
+    done
+  args:
+    executable: /bin/bash
+  register: lab_gateway_caller_secret
+  changed_when: lab_gateway_caller_secret.stdout | length > 0
+  no_log: true
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_gateway_caller_secret.stdout_lines
+
+- name: Create the lab data namespace and empty student Secrets once
+  # Change 2026-11-19: lab-roster (names, workspace IDs), lab-credentials
+  # (student passwords) and lab-keys (prepopulated key secrets, one data key per
+  # student) start empty and are filled by Lab Management jobs.
+  # Existing data is never replaced.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    $K get namespace {{ lab_data_namespace }} >/dev/null 2>&1 || { $K create namespace {{ lab_data_namespace }} >/dev/null; echo "created namespace"; }
+    for NAME in lab-roster lab-credentials lab-keys; do
+      if ! $K -n {{ lab_data_namespace }} get secret "$NAME" >/dev/null 2>&1; then
+        $K -n {{ lab_data_namespace }} create secret generic "$NAME" >/dev/null
+        $K -n {{ lab_data_namespace }} label secret "$NAME" app.kubernetes.io/part-of=lab-management >/dev/null
+        echo "created $NAME"
+      fi
+    done
+  args:
+    executable: /bin/bash
+  register: lab_data_secrets
+  changed_when: lab_data_secrets.stdout | length > 0
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+    - lab_management_enabled | default(true) | bool
+  # - ansible.builtin.debug:
+  #     var: lab_data_secrets.stdout_lines
+
 - name: Create empty lab fallback password Secret once
   # Admin password resets add salted PBKDF2 hashes here; redeploys keep them.
   ansible.builtin.shell: |

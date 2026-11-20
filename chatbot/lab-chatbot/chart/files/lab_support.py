@@ -185,11 +185,14 @@ class SecretStore:
 
 
 def internal_logs(auth_url: str, identity: dict[str, str], key: bytes, *,
-                  key_alias: str = "", since_ms: int = 0, uuid: str = "", limit: int = 50) -> tuple[int, Any]:
+                  key_alias: str = "", since_ms: int = 0, uuid: str = "", limit: int = 50,
+                  student: str = "") -> tuple[int, Any]:
     """Call the gateway's internal Traffic Log API with freshly signed identity headers.
 
-    Only student sign-ins have a Traffic Log view (admins get 403)."""
+    Students read their own workspace; an admin passes student= (Act as student, Change 2026-11-20)."""
     query = {"uuid": uuid} if uuid else {"key": key_alias, "since": str(since_ms), "limit": str(limit)}
+    if student:
+        query["student"] = student
     request = urllib.request.Request(auth_url.rstrip("/") + "/_lab/internal/traffic-logs?" + urllib.parse.urlencode(query),
                                      headers=identity_headers(identity, key))
     try:

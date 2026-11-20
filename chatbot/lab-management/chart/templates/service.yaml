@@ -1,0 +1,15 @@
+# Cluster-internal only; instructors reach it through the lab login gateway at /manage/.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lab-management.name" . }}
+  labels:
+{{ include "lab-management.labels" . | indent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+{{ include "lab-management.labels" . | indent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.servicePort }}
+      targetPort: http

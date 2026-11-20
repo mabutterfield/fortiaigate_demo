@@ -49,6 +49,17 @@ demo_https_gateway_routes:
         else ('http://' ~ (chatbot_instances[0].release_name | default('chatbot')) ~ '.'
               ~ (chatbot_instances[0].namespace | default('chatbot')) ~ '.svc.cluster.local:80')
       }}
+    # Change 2026-11-19: instructor Lab Management page at /manage/ on the
+    # same signed-in address (prefix stripped before proxying).
+    prefix_routes: >-
+      {{
+        [{'path': '/manage/',
+          'upstream': 'http://' ~ (lab_management_release_name | default('lab-management')) ~ '.'
+                      ~ (lab_management_namespace | default('lab-management')) ~ '.svc.cluster.local:'
+                      ~ (lab_management_service_port | default(80))}]
+        if (lab_gateway_enabled | bool and lab_management_enabled | default(true) | bool)
+        else []
+      }}
   - name: demo-home
     display_name: Demo Home
     external_port: "{{ demo_https_gateway_demo_home_https_port }}"
@@ -76,6 +87,18 @@ lab_gateway_idle_minutes: 120
 # faig (default) or fallback (salted hashes from lab_gateway_fallback_secret_name).
 lab_gateway_mode: faig
 lab_gateway_signing_secret_name: lab-gateway-signing
+# Change 2026-11-19: per-caller bearer tokens for lab_auth broker endpoints
+# (/_lab/internal/ on the auth service port). Each caller's role copies its own
+# token into its namespace.
+lab_gateway_caller_secret_name: lab-gateway-callers
+lab_gateway_callers:
+  - lab-management
+  - lab-chatbot
+# Change 2026-11-19: student roster and passwords live in two Secrets in this
+# namespace, readable and patchable only by lab_auth. Students are
+# student<NN>@<domain>.
+lab_data_namespace: lab-data
+lab_gateway_student_domain: fortiai.lab
 # Change 2026-11-19: always keep a fallback Secret so admin password resets
 # (lab chatbot Admin tab) store matching fallback hashes; mode stays faig.
 # lab_gateway_fallback_secret_name: ""

@@ -28,6 +28,14 @@ Environment:
   LAB_FALLBACK_SECRET        Secret holding LAB_FALLBACK_FILE (key fallback.json); when set, admin
                              password resets also update the student's fallback hash there
   LAB_NAMESPACE              namespace of LAB_FALLBACK_SECRET
+  LAB_CALLER_TOKEN_DIR       directory of per-caller bearer tokens (lab_broker.py; default /etc/lab-auth/callers)
+  LAB_DATA_NAMESPACE         namespace of the lab-roster and lab-credentials Secrets (student data)
+  LAB_STUDENT_DOMAIN         email domain for studentNN accounts (default fortiai.lab)
+
+Change 2026-11-19: each sign-in also gets an opaque session handle, sent to
+upstreams as X-Lab-Session by nginx. In-cluster callers with their own token
+(lab_broker.CALLER_SCOPES) act for that handle's live session through
+/_lab/internal/admin/faig, limited to lab_broker.ADMIN_ALLOW.
 """
 from __future__ import annotations
 
@@ -48,6 +56,11 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # lab_broker.py sits next to this file
+import lab_broker  # noqa: E402
+
 PORT = int(os.environ.get("LAB_AUTH_PORT", "8090"))
 FAIG_URL = os.environ.get("LAB_FAIG_URL", "https://ingress-nginx-controller.ingress-nginx.svc.cluster.local").rstrip("/")
 FAIG_VERIFY_TLS = os.environ.get("LAB_FAIG_VERIFY_TLS", "false").lower() in {"1", "true", "yes", "on"}
@@ -60,6 +73,10 @@ FALLBACK_FILE = os.environ.get("LAB_FALLBACK_FILE", "")
 STUDENT_PATTERN = re.compile(os.environ.get("LAB_STUDENT_PATTERN", r"^(student\d{2,})_workspace$"))
 FALLBACK_SECRET = os.environ.get("LAB_FALLBACK_SECRET", "")
 NAMESPACE = os.environ.get("LAB_NAMESPACE", "")
+DATA_NAMESPACE = os.environ.get("LAB_DATA_NAMESPACE", "")
+DATA_SECRETS = {"credentials": "lab-credentials", "roster": "lab-roster", "keys": "lab-keys"}
+# Per-process key for comparing student passwords with the instructor's without storing it.
+PASSWORD_CHECK_KEY = secrets.token_bytes(32)
 FALLBACK_DATA_KEY = "fallback.json"
 COOKIE = "lab_session"
 IDENTITY_FIELDS = ("user", "student", "role", "workspace_id", "ts")
@@ -97,6 +114,30 @@ def verify_identity(headers: dict, key: bytes = None, now: float = None) -> dict
 
 # ------------------------------------------------------------------ FAIG client
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def check_key_value(secret: str, base: str = FAIG_URL, verify: bool = FAIG_VERIFY_TLS) -> str:
+    """'ok' or 'invalid' from FAIG's OpenAI-compatible model list for this key, else 'unknown'.
+
+    Change 2026-11-20: GET /ai/openai/v1/models returns 200 for a valid key and 401 for a wrong,
+    rotated or revoked one (probe 2026-11-19). It checks the value only, not inference."""
+    context = ssl.create_default_context() if verify else ssl._create_unverified_context()
+    request = urllib.request.Request(base + "/ai/openai/v1/models", headers={"Authorization": "Bearer " + secret})
+    try:
+        with urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _NoRedirect()).open(
+                request, timeout=15) as response:
+            return "ok" if response.status == 200 else "unknown"
+    except urllib.error.HTTPError as exc:
+        return "invalid" if exc.code in (401, 403) else "unknown"
+    except (urllib.error.URLError, OSError):
+        return "unknown"
+    finally:
+        secret = request = None
+
+
 class FaigSession:
     """A signed-in FAIG session (cookie jar + CSRF token) kept server-side."""
 
@@ -104,8 +145,9 @@ class FaigSession:
         self.base = base
         context = ssl.create_default_context() if verify else ssl._create_unverified_context()
         self.jar = http.cookiejar.CookieJar()
+        # Change 2026-11-19: never follow FAIG redirects (cookies/CSRF must not move elsewhere).
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar),
-                                                  urllib.request.HTTPSHandler(context=context))
+                                                  urllib.request.HTTPSHandler(context=context), _NoRedirect())
         self.csrf = ""
 
     def call(self, method: str, path: str, payload=None):
@@ -196,6 +238,34 @@ class KubeSecret:
         self._call("PATCH", {"data": {self.data_key: base64.b64encode(json.dumps(value, indent=1).encode()).decode()}})
 
 
+class LabDataStore:
+    """Per-student JSON values in lab-data Secrets (one data key per student, merge-patched)."""
+
+    def __init__(self, namespace: str = None):
+        self.namespace = namespace or DATA_NAMESPACE
+
+    def _secret(self, kind: str) -> KubeSecret:
+        if not self.namespace or kind not in DATA_SECRETS:
+            raise ValueError("lab data store is not configured")
+        return KubeSecret(self.namespace, DATA_SECRETS[kind], "")
+
+    def all(self, kind: str) -> dict:
+        data = self._secret(kind)._call("GET").get("data") or {}
+        return {key: json.loads(base64.b64decode(value)) for key, value in data.items() if value}
+
+    def get(self, kind: str, student: str) -> dict:
+        return self.all(kind).get(student, {})
+
+    def put(self, kind: str, student: str, value: dict) -> None:
+        if not re.fullmatch(r"student\d{2}", student):
+            raise ValueError("invalid student key")
+        self._secret(kind)._call("PATCH", {"data": {student: base64.b64encode(json.dumps(value).encode()).decode()}})
+
+
+def password_check(password: str) -> str:
+    return hmac.new(PASSWORD_CHECK_KEY, password.encode(), hashlib.sha256).hexdigest()
+
+
 def student_rows(users: list) -> list:
     """Lab students from FAIG's admin user list (one row per student workspace membership)."""
     rows = []
@@ -227,8 +297,18 @@ class Sessions:
         token = secrets.token_urlsafe(32)
         now = time.time()
         with self.lock:
-            self.data[token] = {"identity": identity, "faig": faig, "created": now, "seen": now}
+            # handle: opaque reference for upstream callers; never the cookie value.
+            self.data[token] = {"identity": identity, "faig": faig, "created": now, "seen": now,
+                                "handle": secrets.token_urlsafe(24)}
         return token
+
+    def by_handle(self, handle: str, now: float = None) -> dict | None:
+        """Live session for an upstream-supplied handle (same expiry rules as the cookie)."""
+        if not handle:
+            return None
+        with self.lock:
+            token = next((t for t, s in self.data.items() if hmac.compare_digest(s.get("handle", ""), handle)), None)
+        return self.get(token, now) if token else None
 
     def get(self, token: str, now: float = None) -> dict | None:
         now = now or time.time()
@@ -342,11 +422,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.internal_logs(query)
         if url.path == "/_lab/internal/admin/students":
             return self.admin_students()
+        if url.path == "/_lab/internal/admin/roster":
+            return self.admin_roster(query.get("reveal") == "1")
+        if url.path == "/_lab/internal/keys":
+            return self.keys_list(query.get("student", ""))
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
         if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/password":
             return self.admin_password()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/faig":
+            return self.admin_faig_proxy()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/ensure":
+            return self.admin_student_ensure()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/roster/name":
+            return self.admin_roster_name()
+        if urllib.parse.urlsplit(self.path).path == "/_lab/internal/admin/students/prepopulate":
+            return self.admin_student_prepopulate()
+        key_routes = {"/_lab/internal/keys/refresh": self.keys_refresh, "/_lab/internal/keys/map": self.keys_map,
+                      "/_lab/internal/keys/rotate": self.keys_rotate, "/_lab/internal/keys/status": self.keys_status}
+        if urllib.parse.urlsplit(self.path).path in key_routes:
+            return key_routes[urllib.parse.urlsplit(self.path).path]()
         if urllib.parse.urlsplit(self.path).path != "/_lab/login":
             return self.respond(404, page("Not found", "<h1>Not found</h1>"))
         if not self.is_https():
@@ -372,6 +468,10 @@ class Handler(BaseHTTPRequestHandler):
         if not identity:
             return self.login_form(next_path, error, status=401)
         token = SESSIONS.create(identity, faig)
+        if identity["role"] == "admin" and form.get("password"):
+            # Keyed hash only, so student passwords can be checked against the instructor's.
+            SESSIONS.data[token]["password_check"] = password_check(form["password"])
+        form = None
         cookie = f"{COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={int(MAX_SESSION)}"
         return self.redirect(next_path, {"Set-Cookie": cookie})
 
@@ -394,7 +494,7 @@ class Handler(BaseHTTPRequestHandler):
         identity = dict(session["identity"], ts=str(int(time.time())))
         headers = {"X-Lab-User": identity["user"], "X-Lab-Student": identity["student"], "X-Lab-Role": identity["role"],
                    "X-Lab-Workspace-Id": identity["workspace_id"], "X-Lab-Ts": identity["ts"],
-                   "X-Lab-Signature": sign_identity(identity)}
+                   "X-Lab-Signature": sign_identity(identity), "X-Lab-Session": session.get("handle", "")}
         return self.respond(200, b"", headers)
 
     def whoami(self):
@@ -426,12 +526,25 @@ class Handler(BaseHTTPRequestHandler):
     def internal_logs(self, query: dict):
         """Upstream apps fetch the caller's own Traffic Log entries with signed identity headers."""
         identity = verify_identity({k.lower(): v for k, v in self.headers.items()})
-        if not identity or identity["role"] != "student":
+        # Change 2026-11-20: an admin acting as a student (?student=studentNN) reads that student's
+        # workspace log with the admin's own FAIG session (FAIG allows super_admin on workspace logs).
+        acting = query.get("student", "")
+        if not identity or identity["role"] not in ("student", "admin") or (identity["role"] == "admin") != bool(acting):
             return self.respond(403, b'{"error":"invalid or expired identity"}', content_type="application/json")
         session = SESSIONS.latest_for(identity["user"])
         if not session:
             return self.respond(409, b'{"error":"no active FAIG session; sign in again"}', content_type="application/json")
-        workspace = session["identity"]["workspace_id"]
+        if acting:
+            if not re.fullmatch(r"student\d{2}", acting):
+                return self.respond(400, b'{"error":"bad student"}', content_type="application/json")
+            try:
+                workspace = (LabDataStore().get("roster", acting) or {}).get("workspace_id", "")
+            except (urllib.error.URLError, OSError, ValueError):
+                workspace = ""
+            if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", workspace or ""):
+                return self.respond(404, b'{"error":"student workspace unknown"}', content_type="application/json")
+        else:
+            workspace = session["identity"]["workspace_id"]
         try:
             if query.get("uuid"):
                 if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", query["uuid"]):
@@ -524,6 +637,350 @@ class Handler(BaseHTTPRequestHandler):
         print(f"admin password reset for {student} by {session['identity']['user']}: fallback {result['fallback']}",
               flush=True)
         return self.json_reply(200, result)
+
+    def admin_faig_proxy(self):
+        """POST {method, path, body?}: forward one allowlisted call with the instructor's FAIG session."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            if not 0 < length <= lab_broker.MAX_PROXY_BODY:
+                raise ValueError("bad length")
+            request = json.loads(self.rfile.read(length))
+            method, path = str(request.get("method", "")).upper(), str(request.get("path", ""))
+            body = request.get("body")
+            if set(request) - {"method", "path", "body"}:
+                raise ValueError("unexpected fields")
+        except (ValueError, AttributeError):
+            return self.json_reply(400, {"error": "bad request body"})
+        if not lab_broker.allowed(method, path):
+            return self.json_reply(403, {"error": "FAIG call not allowed", "method": method})
+        try:
+            data = session["faig"].call(method, path, body)
+            return self.json_reply(200, {"status": 200, "body": data})
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                # The instructor's FAIG session is no longer valid: end it here too.
+                SESSIONS.drop(next((t for t, s in list(SESSIONS.data.items()) if s is session), ""))
+                return self.json_reply(401, {"error": "FAIG session expired; sign in again"})
+            try:
+                detail = json.loads(exc.read() or b"{}")
+            except ValueError:
+                detail = {}
+            return self.json_reply(200, {"status": exc.code, "body": detail})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            # Unknown outcome: the caller must re-read state before any retry.
+            return self.json_reply(504, {"error": f"FAIG unreachable or timed out ({type(exc).__name__})"})
+
+    def broker_json(self, limit: int = 16384):
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        if not 0 < length <= limit:
+            raise ValueError("bad length")
+        body = json.loads(self.rfile.read(length))
+        if not isinstance(body, dict):
+            raise ValueError("bad body")
+        return body
+
+    def admin_student_ensure(self):
+        """Create or reconcile one student with the instructor's session (passwords stay in lab_auth)."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            request = self.broker_json()
+            if set(request) - {"number", "password", "providers", "projects"}:
+                raise ValueError("unexpected fields")
+        except ValueError:
+            return self.json_reply(400, {"error": "bad request body"})
+        check = session.get("password_check")
+        try:
+            result = lab_broker.ensure_student(
+                session["faig"], FaigSession, LabDataStore(), request, session["identity"]["user"],
+                same_as_instructor=lambda pw: bool(check) and hmac.compare_digest(check, password_check(pw)))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code}"})
+        except (ValueError, RuntimeError, KeyError) as exc:
+            return self.json_reply(422, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); re-run to reconcile"})
+        request = None
+        sync = self.sync_fallback(result)
+        result["fallback"] = sync
+        print(f"student {result['student']} ensured by {session['identity']['user']}: account {result['account']}, "
+              f"workspace {result['workspace']}, verified {result['verified']}", flush=True)
+        return self.json_reply(200, result)
+
+    def sync_fallback(self, result: dict) -> str:
+        """Keep the fallback sign-in store in step with a stored student password."""
+        if not (FALLBACK_SECRET and NAMESPACE) or result.get("password") != "stored":
+            return "not changed"
+        try:
+            stored = LabDataStore().get("credentials", result["student"])
+            store = KubeSecret(NAMESPACE, FALLBACK_SECRET, FALLBACK_DATA_KEY)
+            current = store.load()
+            current[result["email"]] = fallback_entry(stored["password"], result["student"],
+                                                      result.get("workspace_id", ""), result.get("workspace_name", ""))
+            store.save(current)
+            return "updated"
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            return f"failed ({type(exc).__name__})"
+
+    def admin_student_prepopulate(self):
+        """Create one student's detectors, guardrails, policies and keys as that student."""
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            request = self.broker_json(256 * 1024)
+            if set(request) != {"number", "plan"}:
+                raise ValueError("unexpected fields")
+            names = lab_broker.student_names(request["number"])
+        except (ValueError, KeyError):
+            return self.json_reply(400, {"error": "bad request body"})
+        student = names["student"]
+        try:
+            store = LabDataStore()
+            credentials = store.get("credentials", student)
+            if not credentials.get("password"):
+                return self.json_reply(409, {"error": f"{student} has no stored password; create or import it first"})
+            student_session = FaigSession()
+            student_session.login(credentials["username"], credentials["password"])
+            credentials = None
+            summary = lab_broker.prepopulate_student(session["faig"], student_session, store, student,
+                                                     request["plan"], lambda _: None)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return self.json_reply(401, {"error": "FAIG session expired or not allowed; sign in again"})
+            try:
+                detail = json.loads(exc.read() or b"{}").get("error", "")
+            except ValueError:
+                detail = ""
+            return self.json_reply(502, {"error": f"FAIG returned HTTP {exc.code} {detail}".strip()})
+        except (ValueError, RuntimeError, KeyError) as exc:
+            return self.json_reply(422, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); re-run to reconcile"})
+        print(f"prepopulated {student} by {session['identity']['user']}: {len(summary['created'])} created, "
+              f"{len(summary['approved'])} approved, {len(summary['keys_saved'])} key secrets saved", flush=True)
+        return self.json_reply(200, dict(summary, student=student))
+
+    def admin_roster(self, reveal: bool):
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            store = LabDataStore()
+            rows = lab_broker.roster_rows(store.all("roster"), store.all("credentials") if reveal else
+                                          {k: {"password": bool(v.get("password"))} for k, v in store.all("credentials").items()},
+                                          student_rows(self.faig_users(session)), reveal)
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"HTTP {exc.code}"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"roster unavailable ({type(exc).__name__})"})
+        if reveal:
+            print(f"roster with passwords viewed by {session['identity']['user']}", flush=True)
+        return self.json_reply(200, {"items": rows})
+
+    def admin_roster_name(self):
+        session = broker_session(self, "admin")
+        if not session:
+            return None
+        try:
+            body = self.broker_json(2048)
+            student, name = str(body.get("student", "")), body.get("display_name", "")
+            if not re.fullmatch(r"student\d{2}", student) or not isinstance(name, str) \
+                    or not lab_broker.DISPLAY_NAME.fullmatch(name):
+                raise ValueError("bad student or name")
+            store = LabDataStore()
+            entry = store.get("roster", student)
+            if not entry:
+                return self.json_reply(404, {"error": "student not in roster"})
+            store.put("roster", student, dict(entry, display_name=name.strip(), updated_at=int(time.time())))
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"roster unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, {"saved": True})
+
+
+    # ---- student keys (chatbot caller; Change 2026-11-19)
+    def key_session(self, allow_admin_read: bool = False, requested: str = ""):
+        """(session, student) for the chatbot caller; admins may only read another student's keys."""
+        session = broker_session(self, "student")
+        if not session:
+            return None, None
+        identity = session["identity"]
+        if identity.get("role") == "student":
+            if requested and requested != identity["student"]:
+                self.json_reply(403, {"error": "students may only use their own keys"})
+                return None, None
+            return session, identity["student"]
+        if identity.get("role") == "admin" and allow_admin_read and re.fullmatch(r"student\d{2}", requested or ""):
+            return session, requested
+        self.json_reply(403, {"error": "student session required"})
+        return None, None
+
+    def load_keys(self, student: str) -> list:
+        return (LabDataStore().get("keys", student) or {}).get("keys", [])
+
+    def save_keys(self, student: str, records: list) -> None:
+        LabDataStore().put("keys", student, {"schema": 1, "keys": records})
+
+    def keys_list(self, requested: str):
+        session, student = self.key_session(allow_admin_read=True, requested=requested)
+        if not session:
+            return None
+        try:
+            return self.json_reply(200, {"student": student, "keys": self.load_keys(student)})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+
+    def keys_refresh(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            faig_keys = items(session["faig"].call("GET", "/api/v1/me/virtual-keys"))
+            records = lab_broker.merge_refresh(self.load_keys(student), faig_keys)
+            self.save_keys(student, records)
+        except urllib.error.HTTPError as exc:
+            return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG returned HTTP {exc.code}"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"refresh failed ({type(exc).__name__})"})
+        return self.json_reply(200, {"keys": [lab_broker.public_key(r) for r in records]})
+
+    def keys_map(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            body = self.broker_json(4096)
+            if set(body) - {"faig_key_id", "scenario_id", "action", "secret", "expected_model"}:
+                raise ValueError("unexpected fields")
+            records, result = lab_broker.apply_mapping(
+                self.load_keys(student), str(body.get("faig_key_id", "")), str(body.get("scenario_id", "")),
+                str(body.get("action", "")), body.get("secret"), str(body.get("expected_model", "")))
+            # Change 2026-11-20: the format/ID check can't catch a mistyped value; ask FAIG before storing.
+            if body.get("secret"):
+                check = check_key_value(str(body["secret"]).strip())
+                if check == "invalid":
+                    raise ValueError("FortiAIGate does not accept that key value (HTTP 401); nothing was saved")
+                if check != "ok":
+                    result["warnings"].append("could not check the value with FortiAIGate; run hello-world")
+            body = None
+            self.save_keys(student, records)
+        except KeyError as exc:
+            return self.json_reply(404, {"error": str(exc).strip("'")})
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, result)
+
+    def keys_status(self):
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            body = self.broker_json(1024)
+            kid, status = str(body.get("faig_key_id", "")), str(body.get("status", ""))
+            if status not in ("untested", "ok", "invalid", "denied", "unavailable", "error"):
+                raise ValueError("bad status")
+            records = self.load_keys(student)
+            record = next((r for r in records if r.get("faig_key_id") == kid), None)
+            if not record:
+                return self.json_reply(404, {"error": "unknown key"})
+            record.update(status=status, verified_at=int(time.time()) if status == "ok" else record.get("verified_at"),
+                          updated_at=int(time.time()))
+            self.save_keys(student, records)
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__})"})
+        return self.json_reply(200, {"saved": True})
+
+    def keys_rotate(self):
+        """Rotate the student's own key; the new one-time secret is stored before replying."""
+        session, student = self.key_session()
+        if not session:
+            return None
+        try:
+            kid = str(self.broker_json(1024).get("faig_key_id", ""))
+            if not lab_broker.UUID_RE.fullmatch(kid):
+                raise ValueError("bad key id")
+            records = self.load_keys(student)
+            record = next((r for r in records if r.get("faig_key_id") == kid), None)
+            if not record:
+                return self.json_reply(404, {"error": "unknown key; refresh first"})
+            previous = record.get("status")
+            record.update(status="rotation-pending", updated_at=int(time.time()))
+            self.save_keys(student, records)  # write-ahead marker
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__}); nothing rotated"})
+        try:
+            # Change 2026-11-20: FAIG answers 400 "request body is required" without a JSON body.
+            # response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate")
+            response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate", {})
+        except urllib.error.HTTPError as exc:
+            # Change 2026-11-20 (Agent1 review): only a definite 4xx means nothing was rotated. A 5xx or
+            # timeout can follow a rotation that happened, so keep rotation-unknown and never claim the
+            # old value still works.
+            # record["status"] = previous
+            # self.save_keys(student, records)
+            # return self.json_reply(401 if exc.code in (401, 403) else 502, {"error": f"FAIG refused the rotation (HTTP {exc.code})"})
+            if lab_broker.rotation_refused(exc.code):
+                record["status"] = previous
+                self.save_keys(student, records)
+                return self.json_reply(401 if exc.code in (401, 403) else 502,
+                                       {"error": f"FAIG refused the rotation (HTTP {exc.code}); nothing changed"})
+            record["status"] = "rotation-unknown"
+            self.save_keys(student, records)
+            return self.json_reply(504, {"error": f"rotation outcome unknown (HTTP {exc.code}); test the key with "
+                                                  "hello-world in a minute, and rotate again only if it fails"})
+        except (urllib.error.URLError, OSError):
+            record["status"] = "rotation-unknown"
+            self.save_keys(student, records)
+            return self.json_reply(504, {"error": "rotation outcome unknown; if the old value stops working within "
+                                                  "about a minute, rotate again"})
+        secret = response.get("secretKey", "")
+        if kid.replace("-", "") not in secret:
+            record["status"] = "rotation-unknown"
+            self.save_keys(student, records)
+            return self.json_reply(502, {"error": "FAIG returned no usable new key value; rotate again"})
+        record.update(secret=secret, status="untested", verified_at=None, updated_at=int(time.time()))
+        for _ in range(3):
+            try:
+                self.save_keys(student, records)
+                secret = None
+                return self.json_reply(200, {"key": lab_broker.public_key(record), "saved": True})
+            except (urllib.error.URLError, OSError):
+                time.sleep(2)
+        # Could not store it: show it once to the student so it is not lost.
+        print(f"key rotation for {student} could not be saved; value returned once to the student", flush=True)
+        return self.json_reply(200, {"key": dict(lab_broker.public_key(record), status="rotation-unsaved"),
+                                     "saved": False, "secret_once": secret})
+
+
+
+def broker_session(handler, scope: str):
+    """Resolve caller token + session handle; reply and return None when not allowed."""
+    caller = lab_broker.caller_for(handler.headers.get("Authorization", ""), lab_broker.load_caller_tokens())
+    if not caller or lab_broker.CALLER_SCOPES.get(caller) != scope:
+        handler.json_reply(403, {"error": "caller not allowed"})
+        return None
+    session = SESSIONS.by_handle(handler.headers.get("X-Lab-Session", ""))
+    if not session or not session.get("faig"):
+        handler.json_reply(401, {"error": "sign in again"})
+        return None
+    if scope == "admin" and session["identity"].get("role") != "admin":
+        handler.json_reply(403, {"error": "administrator session required"})
+        return None
+    return session
 
 
 def main():

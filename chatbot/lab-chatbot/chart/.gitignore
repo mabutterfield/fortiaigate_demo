@@ -2,3 +2,6 @@
 files/faig_agent.py
 files/scenario-pack.json
 files/result_contract.py
+# Change 2026-11-19: rendered catalog view and copied evaluator package.
+catalog/*.json
+pylib/

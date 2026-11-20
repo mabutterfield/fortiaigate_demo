@@ -1,6 +1,4 @@
-{{- if and .Values.labAuth.enabled .Values.labAuth.fallbackSecretName }}
-# The lab-auth sidecar may read and update only the fallback password Secret
-# (admin password resets keep fallback hashes in step with FortiAIGate).
+{{- if .Values.labAuth.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -8,7 +6,11 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ include "demo-https-gateway.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- if and .Values.labAuth.enabled .Values.labAuth.fallbackSecretName }}
 ---
+# The lab-auth sidecar may read and update only the fallback password Secret
+# (admin password resets keep fallback hashes in step with FortiAIGate).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -27,6 +29,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ include "demo-https-gateway.name" . }}-lab-fallback
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "demo-https-gateway.name" . }}-lab-auth
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- if and .Values.labAuth.enabled .Values.labAuth.labDataNamespace }}
+---
+# Change 2026-11-19: student roster, passwords and key secrets (lab-data namespace).
+# Only the lab-auth sidecar may read or update these Secrets; no list, create or delete.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-lab-data
+  namespace: {{ .Values.labAuth.labDataNamespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "patch"]
+    resourceNames: ["lab-roster", "lab-credentials", "lab-keys"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "demo-https-gateway.name" . }}-lab-data
+  namespace: {{ .Values.labAuth.labDataNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "demo-https-gateway.name" . }}-lab-data
 subjects:
   - kind: ServiceAccount
     name: {{ include "demo-https-gateway.name" . }}-lab-auth

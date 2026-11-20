@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Management</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>Lab Management</h1>
+    <p class="who">Signed in as <span id="user"></span> · <a href="../">Student chatbot</a> · <a href="../_lab/logout">Sign out</a></p>
+  </div>
+  <div id="approval" class="indicator" role="status" aria-live="polite">Auto-approval: …</div>
+</header>
+<main>
+  <p class="notice">Actions here change FAIG using your own signed-in FAIG session.</p>
+  <p id="gui-only" class="warn" hidden>GUI-only install: FAIG has no license or GPU, so inspection is off. You can create models, students and prepopulated objects to explore the GUI, but guardrails do not act and student test results are not graded.</p>
+  <p id="actions" class="warn"></p>
+  <div id="error" role="alert"></div>
+
+  <h2>Scenarios</h2>
+  <p id="pricing" class="muted"></p>
+  <form id="selection">
+    <div id="scenarios"></div>
+    <button type="submit">Save selection</button>
+  </form>
+
+  <h2>FAIG models for selected scenarios</h2>
+  <p>Adds missing models and sets lab prices for the selected scenarios and pass-model on their FAIG provider. Other models and stored credentials are kept.</p>
+  <button id="models" type="button">Apply models to FAIG</button>
+
+  <h2>Create students</h2>
+  <p>Creates or reconciles accounts <code>studentNN</code>, their workspaces and one project per selected scenario. Re-running the same numbers is safe: existing accounts and objects are kept.</p>
+  <form id="students" autocomplete="off">
+    <label>First number <input type="number" id="start" min="1" max="99" value="1" required></label>
+    <label>How many <input type="number" id="count" min="1" max="99" value="2" required></label>
+    <fieldset>
+      <legend>Passwords</legend>
+      <label><input type="radio" name="pwmode" value="generated" checked> Generate a unique password per student</label><br>
+      <label><input type="radio" name="pwmode" value="shared"> One password for everyone</label><br>
+      <label><input type="radio" name="pwmode" value="base"> Base + student number (e.g. Base_ → Base_01)</label><br>
+      <label id="pwlabel" hidden>Password <input type="password" id="password" autocomplete="new-password" maxlength="128"></label>
+      <p class="muted">Checked against FAIG's password rules before any account is created. Must differ from your own password.</p>
+    </fieldset>
+    <label><input type="checkbox" id="prepopulate"> Also prepopulate: detectors, guardrails, policies and one key per action for the selected scenarios, plus a passthrough key</label><br>
+    <button type="submit">Create students</button>
+  </form>
+
+  <h2>Prepopulate existing students</h2>
+  <p>For students that already exist with a stored password. Creates what is missing for the selected scenarios; existing objects and keys are kept. Each layer is approved with your session.</p>
+  <form id="prepop">
+    <label>First number <input type="number" id="pstart" min="1" max="99" value="1" required></label>
+    <label>How many <input type="number" id="pcount" min="1" max="99" value="1" required></label>
+    <button type="submit">Prepopulate</button>
+  </form>
+
+  <h2>Students</h2>
+  <p><a href="share.html" target="_blank" rel="noopener">Open share page</a> <span class="muted">(shows passwords — for screen sharing)</span></p>
+  <div id="roster"><p class="muted">Loading…</p></div>
+
+  <h2>Operation journal</h2>
+  <div id="jobs"></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

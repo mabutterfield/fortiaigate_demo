@@ -82,6 +82,12 @@ spec:
               value: {{ .Values.labAuth.mode | quote }}
             - name: LAB_SIGNING_KEY_FILE
               value: /etc/lab-auth/signing/hmac-key
+            - name: LAB_CALLER_TOKEN_DIR
+              value: /etc/lab-auth/callers
+            - name: LAB_DATA_NAMESPACE
+              value: {{ .Values.labAuth.labDataNamespace | quote }}
+            - name: LAB_STUDENT_DOMAIN
+              value: {{ .Values.labAuth.studentDomain | quote }}
 {{- if .Values.labAuth.fallbackSecretName }}
             - name: LAB_FALLBACK_FILE
               value: /etc/lab-auth/fallback/fallback.json
@@ -108,6 +114,13 @@ spec:
               mountPath: /app/lab_auth.py
               subPath: lab_auth.py
               readOnly: true
+            - name: config
+              mountPath: /app/lab_broker.py
+              subPath: lab_broker.py
+              readOnly: true
+            - name: lab-callers
+              mountPath: /etc/lab-auth/callers
+              readOnly: true
             - name: lab-signing
               mountPath: /etc/lab-auth/signing
               readOnly: true
@@ -128,6 +141,12 @@ spec:
         - name: lab-signing
           secret:
             secretName: {{ .Values.labAuth.signingSecretName }}
+        # Per-caller bearer tokens (one key per caller name); optional so the
+        # gateway starts before any caller is configured.
+        - name: lab-callers
+          secret:
+            secretName: {{ .Values.labAuth.callerSecretName }}
+            optional: true
 {{- if .Values.labAuth.fallbackSecretName }}
         - name: lab-fallback
           secret:

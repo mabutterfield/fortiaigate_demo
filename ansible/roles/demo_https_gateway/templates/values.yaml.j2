@@ -23,6 +23,13 @@ routes:
 {% endif %}
     auth: {{ (route.auth | default(false) | bool) | ternary('true', 'false') }}
     upstream: "{{ route.upstream | trim }}"
+{% if route.prefix_routes | default([]) | length > 0 %}
+    prefixRoutes:
+{% for prefix in route.prefix_routes %}
+      - path: {{ prefix.path | to_json }}
+        upstream: {{ prefix.upstream | trim | to_json }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 
 labAuth:
@@ -38,5 +45,8 @@ labAuth:
   idleMinutes: {{ lab_gateway_idle_minutes }}
   mode: {{ lab_gateway_mode | to_json }}
   signingSecretName: {{ lab_gateway_signing_secret_name | to_json }}
+  callerSecretName: {{ lab_gateway_caller_secret_name | to_json }}
+  labDataNamespace: {{ (lab_data_namespace if lab_management_enabled | default(true) | bool else '') | to_json }}
+  studentDomain: {{ lab_gateway_student_domain | to_json }}
   fallbackSecretName: {{ lab_gateway_fallback_secret_name | to_json }}
 

@@ -4,42 +4,48 @@
     msg: "lab_chatbot_enabled=false; skipping the student lab chatbot."
   when: not lab_chatbot_enabled | bool
 
-- name: Find student key directories on the controller
-  ansible.builtin.find:
-    paths: "{{ lab_chatbot_student_credentials_dir }}"
-    patterns: "student*-keys"
-    file_type: directory
-  delegate_to: localhost
-  become: false
-  register: lab_chatbot_key_dirs
-  when: lab_chatbot_enabled | bool
-  # - ansible.builtin.debug:
-  #     var: lab_chatbot_key_dirs.files | map(attribute='path') | list
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Find student key directories on the controller
+#   ansible.builtin.find:
+#     paths: "{{ lab_chatbot_student_credentials_dir }}"
+#     patterns: "student*-keys"
+#     file_type: directory
+#   delegate_to: localhost
+#   become: false
+#   register: lab_chatbot_key_dirs
+#   when: lab_chatbot_enabled | bool
+#   # - ansible.builtin.debug:
+#   #     var: lab_chatbot_key_dirs.files | map(attribute='path') | list
 
-- name: Set lab chatbot student list
-  ansible.builtin.set_fact:
-    lab_chatbot_key_dir_paths: "{{ lab_chatbot_key_dirs.files | map(attribute='path') | sort }}"
-    lab_chatbot_students: >-
-      {{ lab_chatbot_key_dirs.files | map(attribute='path') | map('basename')
-         | map('regex_replace', '-keys$', '') | sort }}
-  when: lab_chatbot_enabled | bool
-  # - ansible.builtin.debug:
-  #     var: lab_chatbot_students
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Set lab chatbot student list
+#   ansible.builtin.set_fact:
+#     lab_chatbot_key_dir_paths: "{{ lab_chatbot_key_dirs.files | map(attribute='path') | sort }}"
+#     lab_chatbot_students: >-
+#       {{ lab_chatbot_key_dirs.files | map(attribute='path') | map('basename')
+#          | map('regex_replace', '-keys$', '') | sort }}
+#   when: lab_chatbot_enabled | bool
+#   # - ansible.builtin.debug:
+#   #     var: lab_chatbot_students
 
 - name: Validate lab chatbot settings
+  # Change 2026-11-19: student key directories are no longer required; the app
+  # starts with zero students and reads keys through the gateway.
   ansible.builtin.assert:
     that:
       - lab_chatbot_chart_local_path is directory
       - lab_chatbot_agent_local_path is file
       - lab_chatbot_result_contract_local_path is file
-      - lab_chatbot_students | length > 0
+      - (lab_chatbot_repo_root ~ '/catalog802') is directory
     fail_msg: >-
-      The lab chatbot needs the chart, chatbot/agent/faig_agent.py, at least one
-      {{ lab_chatbot_student_credentials_dir }}/studentNN-keys directory (scenario_lab.py prepopulate).
-      The lab login gateway must be deployed first (its signing Secret is copied below).
+      The lab chatbot needs the chart, chatbot/agent/faig_agent.py, functional_test/result_contract.py
+      and the catalog802 package. The lab login gateway must be deployed first (its signing Secret and
+      caller token are copied below).
   when: lab_chatbot_enabled | bool
 
-- name: Create controller staging directory for the scenario pack
+- name: Create controller staging directory for the catalog view
   ansible.builtin.tempfile:
     state: directory
     suffix: lab-chatbot
@@ -48,19 +54,47 @@
   register: lab_chatbot_local_stage
   when: lab_chatbot_enabled | bool
 
-- name: Build the secret-free scenario pack from installed scenarios
+- name: Render the secret-free catalog student view on the controller
+  # Change 2026-11-19: replaces the scenario pack.
   ansible.builtin.command:
-    argv: >-
-      {{ ['python3', '-m', 'functional_test', 'scenario-pack', '--output', lab_chatbot_local_stage.path ~ '/scenario-pack.json']
-         + (lab_chatbot_key_dir_paths | map('regex_replace', '^(.*)$', '--key-dir=\1') | list) }}
+    argv:
+      - "{{ lab_chatbot_catalog_python }}"
+      - -m
+      - catalog802
+      - student
     chdir: "{{ lab_chatbot_repo_root }}"
   delegate_to: localhost
   become: false
   changed_when: false
-  register: lab_chatbot_pack_build
+  register: lab_chatbot_catalog_render
   when: lab_chatbot_enabled | bool
   # - ansible.builtin.debug:
-  #     var: lab_chatbot_pack_build.stdout_lines
+  #     msg: "{{ lab_chatbot_catalog_render.stdout | length }} bytes"
+
+- name: Write the catalog view to the controller staging directory
+  ansible.builtin.copy:
+    content: "{{ lab_chatbot_catalog_render.stdout }}\n"
+    dest: "{{ lab_chatbot_local_stage.path }}/catalog-student.json"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  when: lab_chatbot_enabled | bool
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Build the secret-free scenario pack from installed scenarios
+#   ansible.builtin.command:
+#     argv: >-
+#       {{ ['python3', '-m', 'functional_test', 'scenario-pack', '--output', lab_chatbot_local_stage.path ~ '/scenario-pack.json']
+#          + (lab_chatbot_key_dir_paths | map('regex_replace', '^(.*)$', '--key-dir=\1') | list) }}
+#     chdir: "{{ lab_chatbot_repo_root }}"
+#   delegate_to: localhost
+#   become: false
+#   changed_when: false
+#   register: lab_chatbot_pack_build
+#   when: lab_chatbot_enabled | bool
+#   # - ansible.builtin.debug:
+#   #     var: lab_chatbot_pack_build.stdout_lines
 
 - name: Remove previous remote lab chatbot chart staging directory
   ansible.builtin.file:
@@ -86,7 +120,8 @@
     mode: "0644"
   when: lab_chatbot_enabled | bool
 
-- name: Copy shared agent, result contract and scenario pack into the remote chart files
+- name: Copy shared agent and result contract into the remote chart files
+  # Change 2026-11-19: scenario-pack.json is no longer copied (catalog view below).
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "{{ lab_chatbot_chart_remote_root }}/files/"
@@ -96,10 +131,37 @@
   loop:
     - "{{ lab_chatbot_agent_local_path }}"
     - "{{ lab_chatbot_result_contract_local_path }}"
-    - "{{ lab_chatbot_local_stage.path }}/scenario-pack.json"
   when: lab_chatbot_enabled | bool
 
-- name: Remove controller scenario pack staging directory
+- name: Copy the catalog view into the remote chart
+  ansible.builtin.copy:
+    src: "{{ lab_chatbot_local_stage.path }}/catalog-student.json"
+    dest: "{{ lab_chatbot_chart_remote_root }}/catalog/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: lab_chatbot_enabled | bool
+
+- name: Create the evaluator package directory in the remote chart
+  ansible.builtin.file:
+    path: "{{ lab_chatbot_chart_remote_root }}/pylib/catalog802"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: lab_chatbot_enabled | bool
+
+- name: Copy the catalog evaluator package (catalog802) into the remote chart
+  ansible.builtin.copy:
+    src: "{{ lab_chatbot_repo_root }}/catalog802/{{ item }}"
+    dest: "{{ lab_chatbot_chart_remote_root }}/pylib/catalog802/{{ item }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  loop: "{{ lab_chatbot_catalog_package_files }}"
+  when: lab_chatbot_enabled | bool
+
+- name: Remove controller catalog staging directory
   ansible.builtin.file:
     path: "{{ lab_chatbot_local_stage.path }}"
     state: absent
@@ -147,72 +209,127 @@
   no_log: true
   when: lab_chatbot_enabled | bool
 
-- name: Find student key files on the controller
-  ansible.builtin.find:
-    paths: "{{ lab_chatbot_key_dir_paths }}"
-    patterns: "*.json"
-  delegate_to: localhost
-  become: false
-  register: lab_chatbot_key_files
-  when: lab_chatbot_enabled | bool
-  # - ansible.builtin.debug:
-  #     var: lab_chatbot_key_files.files | map(attribute='path') | list
-
-- name: Read student key files on the controller
-  ansible.builtin.set_fact:
-    lab_chatbot_seed_keys: >-
-      {{ lab_chatbot_seed_keys | default({}) | combine({
-           (item | dirname | basename | regex_replace('-keys$', '')):
-             (lab_chatbot_seed_keys | default({})).get(item | dirname | basename | regex_replace('-keys$', ''), [])
-             + [lookup('ansible.builtin.file', item) | from_json]
-         }) }}
-  loop: "{{ lab_chatbot_key_files.files | map(attribute='path') | sort }}"
-  loop_control:
-    label: "{{ item | basename }}"
-  no_log: true
-  when: lab_chatbot_enabled | bool
-
-- name: Seed per-student key Secrets (kept when present unless reseeding)
+- name: Copy the broker caller token into the chatbot namespace
+  # Change 2026-11-19: piped between kubectl calls on the host, never printed.
   ansible.builtin.shell: |
     set -euo pipefail
-    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
-    NAME="{{ lab_chatbot_key_secret_prefix }}{{ item }}"
-    if $K get secret "$NAME" >/dev/null 2>&1 && [ "{{ lab_chatbot_reseed_keys | bool | lower }}" != "true" ]; then
-      echo kept
-    else
-      $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json \
-        | $K apply -f - >/dev/null
-      $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
-      echo seeded
-    fi
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    SRC_NS="{{ lab_chatbot_signing_source_namespace }}"
+    if ! $K -n "$SRC_NS" get secret {{ lab_chatbot_caller_source_secret }} >/dev/null 2>&1; then echo missing; exit 0; fi
+    DOC="$($K -n "$SRC_NS" get secret {{ lab_chatbot_caller_source_secret }} -o json \
+      | python3 -c 'import json, sys; s = json.load(sys.stdin); v = (s.get("data") or {}).get("lab-chatbot"); print(json.dumps({"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": sys.argv[1], "namespace": sys.argv[2], "labels": {"app.kubernetes.io/part-of": "lab-chatbot"}}, "data": {"token": v}}) if v else "")' \
+        {{ lab_chatbot_caller_secret_name }} {{ lab_chatbot_namespace }})"
+    if [ -n "$DOC" ]; then printf '%s' "$DOC" | $K apply -f - >/dev/null; echo copied; else echo missing; fi
   args:
     executable: /bin/bash
-    stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
-  loop: "{{ lab_chatbot_students }}"
-  register: lab_chatbot_seed
-  changed_when: "'seeded' in lab_chatbot_seed.stdout"
-  no_log: true
-  when: lab_chatbot_enabled | bool
-
-- name: Write instructor seed copies of student keys (always refreshed)
-  ansible.builtin.shell: |
-    set -euo pipefail
-    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
-    NAME="{{ lab_chatbot_seed_secret_prefix }}{{ item }}"
-    $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json | $K apply -f - >/dev/null
-    $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
-  args:
-    executable: /bin/bash
-    stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
-  loop: "{{ lab_chatbot_students }}"
+  register: lab_chatbot_caller_copy
   changed_when: false
   no_log: true
   when: lab_chatbot_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_chatbot_caller_copy.stdout
 
-- name: Report key Secret seeding
+# Change 2026-11-20: a missing caller token used to pass silently and the Keys tab
+# then showed "key service not configured".
+- name: Require the broker caller token
+  ansible.builtin.fail:
+    msg: >-
+      Secret {{ lab_chatbot_caller_source_secret }} (key lab-chatbot) was not found in
+      namespace {{ lab_chatbot_signing_source_namespace }}. Deploy the lab gateway
+      (deploy_demo_https_gateway.yml) before the chatbot, or set
+      lab_chatbot_require_caller_token=false to deploy without student key endpoints.
+  when:
+    - lab_chatbot_enabled | bool
+    - lab_chatbot_require_caller_token | bool
+    - lab_chatbot_caller_copy.stdout | default('') | trim == 'missing'
+
+- name: Warn that the broker caller token is missing
   ansible.builtin.debug:
-    msg: "{{ lab_chatbot_seed.results | map(attribute='item') | zip(lab_chatbot_seed.results | map(attribute='stdout')) | map('join', ': ') | list }}"
-  when: lab_chatbot_enabled | bool
+    msg: >-
+      WARNING: {{ lab_chatbot_caller_source_secret }} not found; the chatbot Keys tab
+      will show "key service not configured" until the gateway is deployed and the
+      chatbot is redeployed.
+  when:
+    - lab_chatbot_enabled | bool
+    - not (lab_chatbot_require_caller_token | bool)
+    - lab_chatbot_caller_copy.stdout | default('') | trim == 'missing'
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Find student key files on the controller
+#   ansible.builtin.find:
+#     paths: "{{ lab_chatbot_key_dir_paths }}"
+#     patterns: "*.json"
+#   delegate_to: localhost
+#   become: false
+#   register: lab_chatbot_key_files
+#   when: lab_chatbot_enabled | bool
+#   # - ansible.builtin.debug:
+#   #     var: lab_chatbot_key_files.files | map(attribute='path') | list
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Read student key files on the controller
+#   ansible.builtin.set_fact:
+#     lab_chatbot_seed_keys: >-
+#       {{ lab_chatbot_seed_keys | default({}) | combine({
+#            (item | dirname | basename | regex_replace('-keys$', '')):
+#              (lab_chatbot_seed_keys | default({})).get(item | dirname | basename | regex_replace('-keys$', ''), [])
+#              + [lookup('ansible.builtin.file', item) | from_json]
+#          }) }}
+#   loop: "{{ lab_chatbot_key_files.files | map(attribute='path') | sort }}"
+#   loop_control:
+#     label: "{{ item | basename }}"
+#   no_log: true
+#   when: lab_chatbot_enabled | bool
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Seed per-student key Secrets (kept when present unless reseeding)
+#   ansible.builtin.shell: |
+#     set -euo pipefail
+#     K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
+#     NAME="{{ lab_chatbot_key_secret_prefix }}{{ item }}"
+#     if $K get secret "$NAME" >/dev/null 2>&1 && [ "{{ lab_chatbot_reseed_keys | bool | lower }}" != "true" ]; then
+#       echo kept
+#     else
+#       $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json \
+#         | $K apply -f - >/dev/null
+#       $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
+#       echo seeded
+#     fi
+#   args:
+#     executable: /bin/bash
+#     stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
+#   loop: "{{ lab_chatbot_students }}"
+#   register: lab_chatbot_seed
+#   changed_when: "'seeded' in lab_chatbot_seed.stdout"
+#   no_log: true
+#   when: lab_chatbot_enabled | bool
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Write instructor seed copies of student keys (always refreshed)
+#   ansible.builtin.shell: |
+#     set -euo pipefail
+#     K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n {{ lab_chatbot_namespace }}"
+#     NAME="{{ lab_chatbot_seed_secret_prefix }}{{ item }}"
+#     $K create secret generic "$NAME" --from-file=keys.json=/dev/stdin --dry-run=client -o json | $K apply -f - >/dev/null
+#     $K label secret "$NAME" --overwrite app.kubernetes.io/part-of=lab-chatbot faig-lab/student={{ item }} >/dev/null
+#   args:
+#     executable: /bin/bash
+#     stdin: "{{ lab_chatbot_seed_keys[item] | to_json }}"
+#   loop: "{{ lab_chatbot_students }}"
+#   changed_when: false
+#   no_log: true
+#   when: lab_chatbot_enabled | bool
+
+# Change 2026-11-19: retired with the catalog switch (keys now come from the gateway's
+# key endpoints and lab-data/lab-keys; scenario-pack.json is replaced by the catalog view).
+# - name: Report key Secret seeding
+#   ansible.builtin.debug:
+#     msg: "{{ lab_chatbot_seed.results | map(attribute='item') | zip(lab_chatbot_seed.results | map(attribute='stdout')) | map('join', ': ') | list }}"
+#   when: lab_chatbot_enabled | bool
 
 - name: Deploy lab chatbot release
   ansible.builtin.command:
@@ -272,7 +389,6 @@
   ansible.builtin.debug:
     msg:
       - "Lab chatbot health: {{ lab_chatbot_health.stdout | default('') }}"
-      - "Students: {{ lab_chatbot_students | join(', ') }}"
-      - "{{ lab_chatbot_pack_build.stdout | default('') }}"
-      - "Users reach it through the lab login gateway (chatbot route); redeploy the gateway if it still shows the placeholder page."
+      - "Scenarios come from the catalog view; keys come from the gateway (lab-data/lab-keys)."
+      - "Users reach it through the lab login gateway (chatbot route)."
   when: lab_chatbot_enabled | bool

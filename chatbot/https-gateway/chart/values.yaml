@@ -25,6 +25,11 @@ routes:
     # Require a lab sign-in (labAuth below) before proxying.
     auth: true
     upstream: http://chatbot.chatbot.svc.cluster.local:80
+    # Optional signed-in path prefixes on this route, each proxied to its own
+    # upstream with the prefix stripped (auth routes only), e.g.:
+    # prefixRoutes:
+    #   - path: /manage/
+    #     upstream: http://lab-management.lab-management.svc.cluster.local:80
   - name: demo-home
     displayName: Demo Home
     externalPort: 30445
@@ -57,3 +62,10 @@ labAuth:
   signingSecretName: lab-gateway-signing
   # Optional Secret with the fallback password store (key: fallback.json).
   fallbackSecretName: ""
+  # Secret with per-caller bearer tokens for /_lab/internal/ broker calls
+  # (key = caller name, e.g. lab-management). Created once by Ansible.
+  callerSecretName: lab-gateway-callers
+  # Namespace holding lab-roster and lab-credentials (student data); empty disables
+  # student management. lab_auth gets get/patch on those two Secrets only.
+  labDataNamespace: ""
+  studentDomain: fortiai.lab

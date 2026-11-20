@@ -11,6 +11,13 @@ lab_chatbot_chart_local_path: "{{ (playbook_dir + '/../../chatbot/lab-chatbot/ch
 lab_chatbot_agent_local_path: "{{ (playbook_dir + '/../../chatbot/agent/faig_agent.py') | realpath }}"
 lab_chatbot_result_contract_local_path: "{{ (playbook_dir + '/../../functional_test/result_contract.py') | realpath }}"
 lab_chatbot_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
+# Change 2026-11-19: catalog view and evaluator package (replace scenario-pack.json).
+lab_chatbot_catalog_python: python3
+lab_chatbot_catalog_package_files:
+  - __init__.py
+  - loader.py
+  - vocabulary.py
+  - result_contract.py
 lab_chatbot_chart_remote_root: "/home/{{ ansible_user }}/tmp/lab-chatbot-chart"
 lab_chatbot_values_remote_path: "/home/{{ ansible_user }}/tmp/lab-chatbot-values.yaml"
 lab_chatbot_image_repository: python
@@ -36,6 +43,9 @@ lab_chatbot_mcp_url: "{{ mcp_standard_internal_base_url | default('http://mcp-de
 lab_chatbot_auth_url: "http://{{ demo_https_gateway_release_name | default('demo-https-gateway') }}-auth.{{ demo_https_gateway_namespace | default('demo-https-gateway') }}.svc.cluster.local:{{ lab_gateway_auth_port | default(8090) }}"
 lab_chatbot_max_tokens: 2048
 lab_chatbot_temperature: "0.0"
+# Change 2026-11-20: GUI-only install (no GPU, no license, inspection off). Set by the
+# deployment as faig_gui_only; tests are shown but not graded.
+lab_chatbot_gui_only: "{{ faig_gui_only | default(false) }}"
 
 # Secrets copied into the chatbot namespace on every deploy.
 lab_chatbot_signing_source_namespace: "{{ demo_https_gateway_namespace | default('demo-https-gateway') }}"
@@ -44,3 +54,10 @@ lab_chatbot_signing_secret_name: lab-chatbot-signing
 lab_chatbot_direct_source_namespace: "{{ litellm_namespace | default('litellm') }}"
 lab_chatbot_direct_source_secret: "{{ litellm_shared_virtual_key_secret_name | default('litellm-shared-virtual-key') }}"
 lab_chatbot_direct_secret_name: lab-chatbot-direct
+# Change 2026-11-19: broker caller token (gateway Secret lab-gateway-callers,
+# key lab-chatbot) for the student key endpoints; optional until used.
+lab_chatbot_caller_source_secret: "{{ lab_gateway_caller_secret_name | default('lab-gateway-callers') }}"
+lab_chatbot_caller_secret_name: lab-chatbot-caller
+# Change 2026-11-20: fail the deploy when the gateway has no lab-chatbot caller
+# token (deploy the gateway first). Set false to deploy without the Keys tab.
+lab_chatbot_require_caller_token: true

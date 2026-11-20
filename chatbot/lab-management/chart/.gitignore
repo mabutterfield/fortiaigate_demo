@@ -1,0 +1,2 @@
+# Rendered catalog views, copied in by Ansible at deploy time; not tracked.
+catalog/*.json

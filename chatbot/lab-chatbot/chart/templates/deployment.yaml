@@ -15,10 +15,13 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/catalog: {{ include (print $.Template.BasePath "/catalog-configmap.yaml") . | sha256sum }}
       labels:
 {{ include "lab-chatbot.labels" . | indent 8 }}
     spec:
       serviceAccountName: {{ include "lab-chatbot.name" . }}
+      # Change 2026-11-19: no Kubernetes API access needed (keys via the gateway).
+      automountServiceAccountToken: {{ .Values.legacyKeySecrets }}
       containers:
         - name: chatbot
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -37,6 +40,8 @@ spec:
               value: "1"
             - name: LAB_TITLE
               value: {{ .Values.title | quote }}
+            - name: LAB_GUI_ONLY
+              value: {{ .Values.guiOnly | default false | toString | quote }}
             - name: LAB_FAIG_URL
               value: {{ .Values.faigUrl | quote }}
             - name: LAB_DIRECT_URL
@@ -45,8 +50,13 @@ spec:
               value: {{ .Values.mcpUrl | quote }}
             - name: LAB_AUTH_URL
               value: {{ .Values.authUrl | quote }}
-            - name: LAB_PACK_FILE
-              value: /app/scenario-pack.json
+            # Change 2026-11-19: catalog view and evaluator package replace scenario-pack.json.
+            - name: LAB_CATALOG_FILE
+              value: /catalog/catalog-student.json
+            - name: PYTHONPATH
+              value: /pylib
+            - name: LAB_BLOCK_MESSAGE
+              value: {{ .Values.blockMessage | quote }}
             - name: LAB_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             - name: LAB_KEY_SECRET_PREFIX
@@ -63,6 +73,8 @@ spec:
               value: /etc/lab-chatbot/signing/hmac-key
             - name: LAB_DIRECT_KEY_FILE
               value: /etc/lab-chatbot/direct/api-key
+            - name: LAB_CALLER_TOKEN_FILE
+              value: /etc/lab-chatbot/caller/token
           ports:
             - name: http
               containerPort: {{ .Values.port }}
@@ -94,6 +106,15 @@ spec:
             - name: direct
               mountPath: /etc/lab-chatbot/direct
               readOnly: true
+            - name: caller
+              mountPath: /etc/lab-chatbot/caller
+              readOnly: true
+            - name: catalog
+              mountPath: /catalog
+              readOnly: true
+            - name: pylib
+              mountPath: /pylib/catalog802
+              readOnly: true
       volumes:
         - name: app
           configMap:
@@ -105,3 +126,13 @@ spec:
           secret:
             secretName: {{ .Values.directKeySecretName }}
             optional: true
+        - name: caller
+          secret:
+            secretName: {{ .Values.callerSecretName }}
+            optional: true
+        - name: catalog
+          configMap:
+            name: {{ .Values.catalogConfigMapName }}
+        - name: pylib
+          configMap:
+            name: {{ include "lab-chatbot.name" . }}-catalog802

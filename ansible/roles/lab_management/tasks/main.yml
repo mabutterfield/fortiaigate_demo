@@ -1,0 +1,210 @@
+---
+- name: Skip lab management when disabled
+  ansible.builtin.debug:
+    msg: "lab_management_enabled=false; skipping the lab management page."
+  when: not lab_management_enabled | bool
+
+- name: Validate lab management settings
+  ansible.builtin.assert:
+    that:
+      - lab_management_chart_local_path is directory
+      - (lab_management_repo_root ~ '/catalog802') is directory
+    fail_msg: >-
+      The lab management page needs chatbot/lab-management/chart and the catalog802
+      package in {{ lab_management_repo_root }}. It needs no students, keys or selection.
+  when: lab_management_enabled | bool
+
+- name: Create controller staging directory for catalog views
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: lab-management
+  delegate_to: localhost
+  become: false
+  register: lab_management_local_stage
+  when: lab_management_enabled | bool
+
+- name: Render secret-free catalog views on the controller
+  ansible.builtin.command:
+    argv:
+      - "{{ lab_management_catalog_python }}"
+      - -m
+      - catalog802
+      - "{{ item }}"
+    chdir: "{{ lab_management_repo_root }}"
+  loop: "{{ lab_management_catalog_views }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: lab_management_catalog_render
+  when: lab_management_enabled | bool
+  # - ansible.builtin.debug:
+  #     msg: "{{ lab_management_catalog_render.results | map(attribute='item') | list }}"
+
+- name: Write catalog views to the controller staging directory
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}\n"
+    dest: "{{ lab_management_local_stage.path }}/catalog-{{ item.item }}.json"
+    mode: "0644"
+  loop: "{{ lab_management_catalog_render.results }}"
+  loop_control:
+    label: "catalog-{{ item.item }}.json"
+  delegate_to: localhost
+  become: false
+  when: lab_management_enabled | bool
+
+- name: Remove previous remote lab management chart staging directory
+  ansible.builtin.file:
+    path: "{{ lab_management_chart_remote_root }}"
+    state: absent
+  when: lab_management_enabled | bool
+
+- name: Create remote lab management chart staging directory
+  ansible.builtin.file:
+    path: "{{ lab_management_chart_remote_root }}"
+    state: directory
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0755"
+  when: lab_management_enabled | bool
+
+- name: Copy lab management Helm chart to remote host
+  ansible.builtin.copy:
+    src: "{{ lab_management_chart_local_path }}/"
+    dest: "{{ lab_management_chart_remote_root }}/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  when: lab_management_enabled | bool
+
+- name: Copy rendered catalog views into the remote chart
+  ansible.builtin.copy:
+    src: "{{ lab_management_local_stage.path }}/catalog-{{ item }}.json"
+    dest: "{{ lab_management_chart_remote_root }}/catalog/"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0644"
+  loop: "{{ lab_management_catalog_views }}"
+  when: lab_management_enabled | bool
+
+- name: Remove controller catalog staging directory
+  ansible.builtin.file:
+    path: "{{ lab_management_local_stage.path }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when: lab_management_enabled | bool
+
+- name: Ensure lab management namespace exists
+  ansible.builtin.shell: |
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    $K get namespace {{ lab_management_namespace }} >/dev/null 2>&1 || $K create namespace {{ lab_management_namespace }} >/dev/null
+  changed_when: false
+  when: lab_management_enabled | bool
+
+- name: Copy the broker caller token into the lab management namespace
+  # The token is piped between kubectl calls on the host and never printed.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
+    if ! $K -n {{ lab_management_caller_source_namespace }} get secret {{ lab_management_caller_source_secret }} >/dev/null 2>&1; then
+      echo missing
+      exit 0
+    fi
+    DOC="$($K -n {{ lab_management_caller_source_namespace }} get secret {{ lab_management_caller_source_secret }} -o json \
+      | python3 -c 'import json, sys; s = json.load(sys.stdin); v = (s.get("data") or {}).get("lab-management"); print(json.dumps({"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": sys.argv[1], "namespace": sys.argv[2], "labels": {"app.kubernetes.io/part-of": "lab-management"}}, "data": {"token": v}}) if v else "")' \
+        {{ lab_management_caller_secret_name }} {{ lab_management_namespace }})"
+    if [ -n "$DOC" ]; then
+      printf '%s' "$DOC" | $K apply -f - >/dev/null
+      echo copied
+    else
+      echo missing
+    fi
+  args:
+    executable: /bin/bash
+  register: lab_management_caller_copy
+  changed_when: false
+  no_log: true
+  when: lab_management_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_management_caller_copy.stdout
+
+- name: Warn when the broker caller token is not available yet
+  ansible.builtin.debug:
+    msg: >-
+      Gateway caller token not found ({{ lab_management_caller_source_namespace }}/{{ lab_management_caller_source_secret }}).
+      Deploy the HTTPS gateway, then re-run this playbook to enable FAIG actions.
+  when:
+    - lab_management_enabled | bool
+    - lab_management_caller_copy.stdout | default('') != 'copied'
+
+- name: Render lab management Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ lab_management_values_remote_path }}"
+    owner: "{{ ansible_user | default('root') }}"
+    group: "{{ ansible_user | default('root') }}"
+    mode: "0600"
+  when: lab_management_enabled | bool
+
+- name: Deploy lab management release
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - "{{ lab_management_release_name }}"
+      - "{{ lab_management_chart_remote_root }}"
+      - --namespace
+      - "{{ lab_management_namespace }}"
+      - --create-namespace
+      - --values
+      - "{{ lab_management_values_remote_path }}"
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+  register: lab_management_helm_deploy
+  changed_when: "'deployed' in lab_management_helm_deploy.stdout or 'upgraded' in lab_management_helm_deploy.stdout"
+  when: lab_management_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_management_helm_deploy.stdout_lines
+
+- name: Wait for lab management rollout
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ lab_management_namespace }}"
+      - rollout
+      - status
+      - "deployment/{{ lab_management_release_name }}"
+      - "--timeout={{ lab_management_rollout_timeout }}"
+  changed_when: false
+  when: lab_management_enabled | bool
+
+- name: Check lab management health inside the cluster
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/kubectl
+      - --kubeconfig
+      - /etc/rancher/k3s/k3s.yaml
+      - -n
+      - "{{ lab_management_namespace }}"
+      - exec
+      - "deployment/{{ lab_management_release_name }}"
+      - --
+      - python
+      - -c
+      - "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=10).read().decode())"
+  register: lab_management_health
+  changed_when: false
+  when: lab_management_enabled | bool
+  # - ansible.builtin.debug:
+  #     var: lab_management_health.stdout
+
+- name: Show lab management status
+  ansible.builtin.debug:
+    msg:
+      - "Lab management health: {{ lab_management_health.stdout | default('') }}"
+      - "Instructors reach it at https://<host>:{{ demo_https_gateway_chatbot_https_port | default(30444) }}/manage/ after the gateway is deployed with the /manage/ route."
+  when: lab_management_enabled | bool

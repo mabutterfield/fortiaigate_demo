@@ -18,10 +18,20 @@ mcpUrl: http://mcp-demo.mcp.svc.cluster.local:8001/mcp
 authUrl: http://demo-https-gateway-auth.demo-https-gateway.svc.cluster.local:8090
 maxTokens: 2048
 temperature: "0.0"
+# GUI-only install: inspection off, tests not graded.
+guiOnly: false
 
 # Secrets created by Ansible in the release namespace (not Helm-managed).
 signingSecretName: lab-chatbot-signing
 directKeySecretName: lab-chatbot-direct
+# Bearer token for gateway broker calls (key: token); optional.
+callerSecretName: lab-chatbot-caller
+# Change 2026-11-19: catalog view ConfigMap and FAIG's configured block message
+# (used for the "Block message shown" evidence).
+catalogConfigMapName: lab-catalog
+blockMessage: "This request was blocked by FortiAIGate as it triggered our safety systems."
+# Old per-namespace key Secrets (lab-keys-*/lab-seed-*) and their RBAC; off now.
+legacyKeySecrets: false
 keySecretPrefix: lab-keys-
 # Instructor seed copies, rewritten by every deploy; the app may only read them.
 seedSecretPrefix: lab-seed-

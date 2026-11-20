@@ -1,0 +1,13 @@
+# Secret-free catalog views rendered by `python3 -m catalog802 <view>` at deploy
+# time. An empty ConfigMap is valid: the page then reports "catalog unavailable".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.catalogConfigMapName }}
+  labels:
+{{ include "lab-management.labels" . | indent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "catalog/*.json" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

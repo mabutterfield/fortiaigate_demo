@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lab-management.name" . }}
+  labels:
+{{ include "lab-management.labels" . | indent 4 }}
+spec:
+  # One writer for SQLite; Recreate avoids two pods on the same journal.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+{{ include "lab-management.labels" . | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/catalog: {{ include (print $.Template.BasePath "/catalog-configmap.yaml") . | sha256sum }}
+      labels:
+{{ include "lab-management.labels" . | indent 8 }}
+    spec:
+      # No Kubernetes API access: this pod holds no service-account token.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: management
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/app/lab_management.py"]
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: LAB_MANAGEMENT_PORT
+              value: {{ .Values.port | quote }}
+            - name: LAB_MANAGEMENT_DB
+              value: /data/lab-management.sqlite3
+            - name: LAB_CATALOG_DIR
+              value: /catalog
+            - name: LAB_AUTH_URL
+              value: {{ .Values.authUrl | quote }}
+            - name: LAB_PUBLIC_ORIGIN
+              value: {{ .Values.publicOrigin | quote }}
+            - name: LAB_GUI_ONLY
+              value: {{ .Values.guiOnly | default false | toString | quote }}
+            - name: LAB_STATIC_DIR
+              value: /app
+            - name: LAB_CALLER_TOKEN_FILE
+              value: /etc/lab-management/caller/token
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+            - name: catalog
+              mountPath: /catalog
+              readOnly: true
+            - name: state
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            - name: caller
+              mountPath: /etc/lab-management/caller
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: {{ include "lab-management.name" . }}
+        - name: catalog
+          configMap:
+            name: {{ .Values.catalogConfigMapName }}
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ include "lab-management.name" . }}-state
+        - name: tmp
+          emptyDir: {}
+        - name: caller
+          secret:
+            secretName: {{ .Values.callerSecretName }}
+            optional: true
