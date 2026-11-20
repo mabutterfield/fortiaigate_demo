@@ -1,5 +1,10 @@
 # Functional Validation
 
+> **8.0.2:** The legacy chatbot-based `validate` path described below is
+> retired. Use `python3 -m functional_test catalog-baseline --help` and the
+> student portal Tests tab for current catalog-driven validation. Remaining
+> legacy renderer and profile material on this page is historical.
+
 Functional validation is the supported post-installation path test for
 FortiAIGate passthrough and every installed scenario. It uses the deployed
 chatbot agent, installed scenario matrix, live MCP transport, and the expected

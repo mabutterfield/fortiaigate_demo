@@ -1276,4 +1276,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # 8.0.2 uses the instructor-owned catalog and Lab Management. Keep this
+    # module temporarily for profile migration and remaining legacy imports;
+    # its old installer CLI is retired and must not write local scenario state.
+    if sys.argv[1:] in (['--help'], ['-h']):
+        print('The legacy scenario installer is retired for 8.0.2. Use catalog802 and Lab Management.')
+    else:
+        raise SystemExit('The legacy scenario installer is retired for 8.0.2. Use catalog802 and Lab Management.')

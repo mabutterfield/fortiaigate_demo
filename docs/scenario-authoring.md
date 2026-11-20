@@ -1,6 +1,6 @@
 # Scenario Authoring
 
-For 8.0.2, author active scenarios in the [catalog](../catalog802/README.md). This page documents the transitional legacy scenario-profile workflow used by the existing chatbot until its catalog reader is integrated.
+For 8.0.2, author active scenarios in the [catalog](../catalog802/README.md). The legacy scenario installer is retired; this page documents the historical profile format and its commands must not be used for 8.0.2.
 
 This guide owns the technical contract for creating, changing, documenting,
 and promoting scenario packages. Use [Scenario Management](scenario-management.md)

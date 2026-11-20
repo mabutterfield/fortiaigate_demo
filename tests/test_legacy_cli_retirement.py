@@ -30,6 +30,12 @@ class RetiredCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn('catalog-baseline', result.stdout)
 
+    def test_old_scenario_installer_fails_before_writing(self):
+        result = subprocess.run([sys.executable, 'scripts/scenario_profiles.py', 'add', 'fortistore-injection'],
+                                cwd=ROOT, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('retired', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

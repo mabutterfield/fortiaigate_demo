@@ -1,5 +1,9 @@
 # Release Validation
 
+> **8.0.2:** The scenario-profile and old chatbot commands below are historical.
+> Use the current 8.0.2 release checklist and catalog-driven validation instead;
+> this matrix requires a full refresh before it can be used for release.
+
 This maintainer guide defines the checks required before tagging the repository
 v1.0 baseline. It is not part of the normal operator quickstart. Record the
 environment, date, commit, result, evidence location, and reason for every

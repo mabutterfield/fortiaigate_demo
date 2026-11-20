@@ -151,16 +151,12 @@ def check_script_help() -> None:
         "scripts/smoke_test.py",
     ]:
         run([sys.executable, script, "--help"], show_stdout=False)
-    for command in ["validate", "render-curl"]:
+    for command in ["catalog-baseline", "evaluate-catalog"]:
         run(
             [sys.executable, "-m", "functional_test", command, "--help"],
             show_stdout=False,
         )
-    for command in ["paths", "run"]:
-        run(
-            [sys.executable, "-m", "load_test", command, "--help"],
-            show_stdout=False,
-        )
+    run([sys.executable, "-m", "load_test", "--help"], show_stdout=False)
 
 
 def check_tracked_secrets() -> None:

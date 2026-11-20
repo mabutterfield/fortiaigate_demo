@@ -26,9 +26,9 @@ demo environment.
   required. AWS initialization also records the selected k3s GPU instance size
   in the ignored EC2 module override. Direct use is useful for pre-staging
   configuration or transferring a profile between checkouts.
-- `scenario_profiles.py` — lists, validates, installs, updates, backs up, and
-  removes scenario packages. It also previews the installed scenario matrix and
-  renders the FortiAIGate GUI work order.
+- `scenario_profiles.py` — the 8.0.1 installer CLI is retired. The module is
+  retained temporarily for profile migration and legacy internal consumers;
+  use `catalog802` and Lab Management for 8.0.2 scenarios.
 
 The supported 8.0.2 catalog validation command lives in the `functional_test/`
 package rather than `scripts/`:
@@ -92,8 +92,8 @@ not steps in the end-user quickstart.
   Terraform formatting, inventory links, tracked-secret safeguards, retired
   runtime residue checks, unit tests, and Ansible syntax validation.
 
-Developer-only dashboard workload generation lives in `load_test/`. Its public
-entry point is `python3 -m load_test paths|run`; see
+Developer-only historical dashboard workload code lives in `load_test/`. Its
+legacy traffic entry points are disabled until the later 8.0.2 migration; see
 `docs/development/load-testing.md`.
 
 FortiAIGate image publishing is handled by
