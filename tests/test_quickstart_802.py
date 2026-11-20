@@ -38,8 +38,9 @@ class Quickstart802Tests(unittest.TestCase):
             self.assertTrue(quickstart.select_experimental_init(None, noninteractive=True))
         self.assertIn("private_value: secret-do-not-print", self.user.read_text())
 
-    def test_missing_or_invalid_choice_fails_without_leaking_values(self):
-        for value in (None, "maybe"):
+    def test_default_enabled_and_invalid_choice_fails_without_leaking_values(self):
+        self.assertTrue(quickstart.select_experimental_init(None, noninteractive=True))
+        for value in ("maybe",):
             if value:
                 self.user.write_text(f"private_value: secret-do-not-print\nquickstart_experimental_faig_init: {value}\n")
             output = io.StringIO()
@@ -61,10 +62,103 @@ class Quickstart802Tests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "refresh the SSO session"):
                 quickstart.ensure_aws_login("test", noninteractive=True)
 
-    def test_guard_stops_both_choices_before_platform_or_experimental_calls(self):
+    def test_initialization_preflight_reuses_private_files_and_license(self):
+        import json, os
+        env = self.root / 'private'; env.mkdir(mode=0o700)
+        licenses = self.root / 'licenses'; licenses.mkdir()
+        (licenses / 'FAIG123.lic').write_text('license')
+        setup = {'email':'admin@fortiai.lab','username':'Admin','password':'secret','organization_name':'Lab'}
+        (env / 'admin-setup.json').write_text(json.dumps(setup)); (env / 'admin-setup.json').chmod(0o600)
+        (env / 'admin-login.json').write_text(json.dumps({'username':setup['email'],'password':setup['password']})); (env / 'admin-login.json').chmod(0o600)
+        self.user.write_text(f"license_source_dir: '{licenses}'\nquickstart_faig_license_regex: 'FAIG[0-9]+\\.lic'\n")
+        with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False), \
+             mock.patch.object(quickstart, 'run_command', side_effect=AssertionError('overwrote credentials')):
+            result = quickstart.prepare_802_initialization()
+        self.assertEqual(result['environment'], env.resolve())
+        self.assertEqual(result['license_dir'], licenses)
+
+    def test_initialization_preflight_rejects_incomplete_private_files(self):
+        import os
+        env = self.root / 'private'; env.mkdir(mode=0o700)
+        licenses = self.root / 'licenses'; licenses.mkdir(); (licenses / 'FAIG.lic').write_text('license')
+        (env / 'admin-login.json').write_text('{}'); (env / 'admin-login.json').chmod(0o600)
+        self.user.write_text(f"license_source_dir: '{licenses}'\n")
+        with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False):
+            with self.assertRaisesRegex(SystemExit, 'files are incomplete'):
+                quickstart.prepare_802_initialization()
+
+    def test_appliances_need_explicit_local_opt_in(self):
+        path = self.root / 'terraform/aws-fortigate/99-local.auto.tfvars'
+        path.parent.mkdir(parents=True)
+        self.assertFalse(quickstart.appliance_enabled_from_tfvars('fortigate'))
+        path.write_text('fortigate_enabled = true\n')
+        self.assertTrue(quickstart.appliance_enabled_from_tfvars('fortigate'))
+        path.write_text('fortigate_enabled = false\n')
+        self.assertFalse(quickstart.appliance_enabled_from_tfvars('fortigate'))
+
+    def test_terraform_preserves_ecr_by_default(self):
+        with mock.patch.object(quickstart, 'run_ecr_terraform') as ecr, \
+             mock.patch.object(quickstart, 'terraform_init_validate'), \
+             mock.patch.object(quickstart, 'terraform_apply') as apply:
+            quickstart.run_terraform('skip', True, [], 'profile', 'region')
+            ecr.assert_not_called()
+            self.assertTrue(apply.called)
+            self.assertFalse(any(call.args[0] == 'terraform/aws-ecr' for call in apply.call_args_list))
+
+    def test_terraform_workspace_overrides_passed_to_prep_and_host(self):
+        directory = self.root / 'ohio'
+        with mock.patch.object(quickstart, 'terraform_init_validate'), \
+             mock.patch.object(quickstart, 'terraform_apply') as apply:
+            quickstart.run_terraform('skip', True, [], 'profile', 'region', terraform_vars_dir=directory)
+        calls = {call.args[0]: call.kwargs.get('var_file') for call in apply.call_args_list}
+        self.assertEqual(calls['terraform/aws-prep'], directory / 'prep.tfvars')
+        self.assertEqual(calls['terraform/aws-ec2-k3s'], directory / 'host.tfvars')
+
+    def test_802_service_order_and_manual_setup(self):
+        args = Namespace(faig_status_retries=1, faig_status_delay=1)
+        from scripts import faig_bootstrap_802
+        fake_client = mock.Mock()
+        fake_client.call.return_value = {'needs_setup': True}
+        with mock.patch.object(quickstart, 'run_ansible_playbook') as run, \
+             mock.patch.object(quickstart, 'get_layered_yaml_scalar', return_value='192.0.2.1'), \
+             mock.patch.object(faig_bootstrap_802, 'Client', return_value=fake_client):
+            quickstart.run_802_ansible_flow(args, None)
+        self.assertEqual([call.args[0] for call in run.call_args_list], [
+            'bootstrap_gpu_k3s.yml', 'deploy_fortiaigate.yml', 'deploy_litellm.yml', 'deploy_mcp.yml',
+            'deploy_lab_management.yml', 'deploy_demo_https_gateway.yml', 'deploy_lab_management.yml',
+            'deploy_lab_chatbot.yml'])
+
+    def test_802_initialization_runs_after_litellm_and_before_ui(self):
+        from scripts import faig_bootstrap_802
+        import catalog802.loader
+        args = Namespace(faig_status_retries=1, faig_status_delay=1)
+        private = {'environment': self.root, 'setup': self.root / 'setup', 'litellm_key': self.root / 'key',
+                   'license_dir': self.root, 'license_regex': 'x', 'journal': self.root / 'journal', 'smoke_key': self.root / 'smoke'}
+        sequence = []
+        setup = {'email':'admin@fortiai.lab'}
+        fake_client = mock.Mock()
+        fake_client.call.return_value = {'needs_setup': True}
+        with mock.patch.object(quickstart, 'run_ansible_playbook', side_effect=lambda name, **kwargs: sequence.append(name)), \
+             mock.patch.object(quickstart, 'get_layered_yaml_scalar', return_value='192.0.2.1'), \
+             mock.patch.object(quickstart, 'get_layered_yaml_bool', return_value=True), \
+             mock.patch.object(quickstart, 'get_ec2_instance_id', return_value='i-123abc'), \
+             mock.patch.object(faig_bootstrap_802, 'Client', return_value=fake_client), \
+             mock.patch.object(faig_bootstrap_802, 'private_json', side_effect=[setup, {'api_key':'private'}]), \
+             mock.patch.object(catalog802.loader, 'load', return_value=({'models': {'pass-model':{}}}, [])), \
+             mock.patch.object(faig_bootstrap_802, 'initialize', side_effect=lambda *a, **k: (sequence.append('initialize') or {'license_active':True, 'scanning_enabled':True, 'provider_verified':True, 'governed_verified':True})):
+            quickstart.run_802_ansible_flow(args, private)
+        self.assertLess(sequence.index('deploy_litellm.yml'), sequence.index('initialize'))
+        self.assertLess(sequence.index('initialize'), sequence.index('deploy_lab_management.yml'))
+        self.assertEqual(private['journal'].name, 'faig-init-i-123abc.json')
+        self.assertEqual(private['smoke_key'].name, 'quickstart-smoke-key-i-123abc.json')
+        self.assertLess(sequence.index('deploy_demo_https_gateway.yml'), sequence.index('deploy_lab_chatbot.yml'))
+
+    def test_missing_management_integration_stops_before_deployment(self):
+        (self.root / "terraform").mkdir()
+        (self.root / "terraform/user.tfvars").write_text("")
         for choice in (True, False):
-            args = Namespace(target="local", auto_approve=False, yolo=True,
-                             skip_ansible=False, experimental_faig_init=choice,
+            args = Namespace(target="aws", auto_approve=False, yolo=True,
+                             skip_ansible=False, experimental_faig_init=choice, terraform_vars_dir=None,
                              include_appliances=False, include_fortigate=False,
                              include_fortiweb=False, no_appliances=False,
                              no_fortigate=False, no_fortiweb=False)
@@ -73,7 +167,7 @@ class Quickstart802Tests(unittest.TestCase):
                  mock.patch.object(quickstart, "check_requirements"), \
                  mock.patch.object(quickstart, "ensure_user_profile", return_value="existing"), \
                  mock.patch.object(quickstart, "run_ansible_flow", side_effect=AssertionError("deployed")):
-                with self.assertRaisesRegex(SystemExit, "no application calls were made"):
+                with mock.patch.object(quickstart, "validate_yolo_aws_profile"), self.assertRaisesRegex(SystemExit, "Lab Management integration"):
                     quickstart.main()
 
 

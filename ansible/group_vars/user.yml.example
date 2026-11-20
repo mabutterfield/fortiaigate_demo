@@ -13,8 +13,13 @@
 # aws_region: us-east-1
 
 # Saved quickstart choice. Explicit CLI flags override this for one run.
-# Experimental initialization is not yet implemented by quickstart.
-# quickstart_experimental_faig_init: false
+# Defaults to true; explicitly set false to leave the first-time FAIG setup pending.
+# quickstart_experimental_faig_init: true
+# FAIG license filenames must fully match this regular expression.
+# quickstart_faig_license_regex: 'FAIG.*\.lic'
+# Optional owner-only one-line admin password file; otherwise a password is generated.
+# faig_admin_password_file: /path/to/private-admin-password
+# faig_admin_email: admin@fortiai.lab
 
 # Override only when the repo is not under the default parent FAIG directory.
 # faig_workspace_root: /path/to/FAIG
