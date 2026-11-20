@@ -6,6 +6,59 @@
   # - ansible.builtin.debug:
   #     var: validate_foundation_namespace
 
+# Change 2026-11-20: a re-run on a host where FAIG already holds the GPU cannot schedule another
+# GPU pod (it times out). When every allocatable GPU is held by Running pods, that allocation
+# already proves the device plugin and NVIDIA runtime; skip the extra GPU pod but keep the
+# storage check. A node with no allocatable GPU still fails as before.
+- name: Check current GPU allocation
+  ansible.builtin.shell: |
+    set -euo pipefail
+    K="/usr/local/bin/kubectl --kubeconfig {{ validate_k3s_kubeconfig | quote }}"
+    { $K get nodes -o json; echo; echo '---SPLIT---'; $K get pods -A -o json; } | python3 -c '
+    import json, sys
+    nodes, pods = sys.stdin.read().split("---SPLIT---")
+    alloc = sum(int((n["status"].get("allocatable") or {}).get("nvidia.com/gpu", "0") or 0) for n in json.loads(nodes)["items"])
+    used, holders = 0, []
+    for p in json.loads(pods)["items"]:
+        phase = p["status"].get("phase", "")
+        if phase in ("Succeeded", "Failed"):
+            continue
+        n = sum(int(((c.get("resources") or {}).get("limits") or {}).get("nvidia.com/gpu", 0) or 0) for c in p["spec"].get("containers", []))
+        if n:
+            used += n
+            holders.append({"pod": p["metadata"]["namespace"] + "/" + p["metadata"]["name"], "phase": phase, "gpus": n})
+    print(json.dumps({"allocatable": alloc, "used": used, "holders": holders}))'
+  args:
+    executable: /bin/bash
+  register: validate_foundation_gpu_allocation_raw
+  changed_when: false
+  # - ansible.builtin.debug:
+  #     var: validate_foundation_gpu_allocation_raw.stdout
+
+- name: Decide whether a GPU validation pod can run
+  ansible.builtin.set_fact:
+    validate_foundation_gpu_allocation: "{{ validate_foundation_gpu_allocation_raw.stdout | from_json }}"
+    validate_foundation_gpu_pod: >-
+      {{
+        (validate_foundation_gpu_allocation_raw.stdout | from_json).allocatable | int == 0
+        or (validate_foundation_gpu_allocation_raw.stdout | from_json).used | int
+           < (validate_foundation_gpu_allocation_raw.stdout | from_json).allocatable | int
+      }}
+  # - ansible.builtin.debug:
+  #     var: validate_foundation_gpu_allocation
+
+- name: Require GPUs that are all in use to be held by Running pods
+  ansible.builtin.assert:
+    that:
+      - validate_foundation_gpu_allocation.holders | rejectattr('phase', 'equalto', 'Running') | list | length == 0
+    fail_msg: >-
+      Every GPU is allocated but not every holder is Running: {{ validate_foundation_gpu_allocation.holders }}.
+      Inspect those pods before re-running.
+    success_msg: >-
+      GPU already in use by {{ validate_foundation_gpu_allocation.holders | map(attribute='pod') | join(', ') }}
+      (Running); the device plugin and NVIDIA runtime are working. Skipping the extra GPU validation pod.
+  when: not validate_foundation_gpu_pod | bool
+
 - name: Validate GPU allocation and persistent storage
   block:
     - name: Create isolated validation namespace
@@ -30,6 +83,7 @@
           resources:
             requests:
               storage: 64Mi
+        {% if validate_foundation_gpu_pod | bool %}
         ---
         apiVersion: v1
         kind: Pod
@@ -45,6 +99,7 @@
               resources:
                 limits:
                   nvidia.com/gpu: 1
+        {% endif %}
         ---
         apiVersion: v1
         kind: Pod
@@ -83,7 +138,7 @@
           - "--for=jsonpath={.status.phase}=Succeeded"
           - "pod/{{ item }}"
           - "--timeout={{ validate_k3s_workload_timeout }}"
-      loop: [gpu-check, storage-check]
+      loop: "{{ ['gpu-check', 'storage-check'] if validate_foundation_gpu_pod | bool else ['storage-check'] }}"
       register: validate_foundation_workloads_wait
       changed_when: false
       # - ansible.builtin.debug:
@@ -94,12 +149,14 @@
         argv: [/usr/local/bin/kubectl, --kubeconfig, "{{ validate_k3s_kubeconfig }}", -n, "{{ validate_foundation_namespace }}", logs, gpu-check]
       register: validate_foundation_gpu_output
       changed_when: false
+      when: validate_foundation_gpu_pod | bool
       # - ansible.builtin.debug:
       #     var: validate_foundation_gpu_output.stdout_lines
 
     - name: Show detected GPU in validation container
       ansible.builtin.debug:
         var: validate_foundation_gpu_output.stdout_lines
+      when: validate_foundation_gpu_pod | bool
 
   always:
     - name: Remove isolated validation namespace and workloads
