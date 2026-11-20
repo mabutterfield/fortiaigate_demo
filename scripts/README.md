@@ -30,15 +30,15 @@ demo environment.
   removes scenario packages. It also previews the installed scenario matrix and
   renders the FortiAIGate GUI work order.
 
-The supported scenario validation commands live in the `functional_test/`
+The supported 8.0.2 catalog validation command lives in the `functional_test/`
 package rather than `scripts/`:
 
 ```bash
-python3 -m functional_test validate
-python3 -m functional_test render-curl --help
+python3 -m functional_test catalog-baseline --help
 ```
 
-See `docs/functional-validation.md` for their expected scope and results.
+The older chatbot-based `validate` and `scenario-pack` commands are retired;
+the old performance runner is disabled pending a separate 8.0.2 migration.
 
 ## Optional operator and troubleshooting scripts
 

@@ -1,5 +1,10 @@
 # Developer Load Generator
 
+> **8.0.2 status:** The old chatbot and its agent probe were removed. This
+> legacy runner is disabled until it is migrated and validated against the
+> 8.0.2 catalog. Do not use the commands below for 8.0.2; performance testing
+> is deferred until the functional release is ready.
+
 `load_test` creates bounded synthetic traffic for FortiAIGate dashboard and
 performance demonstrations. It is a developer/maintainer tool, not an
 installation-readiness check. Operators validate scenarios with
