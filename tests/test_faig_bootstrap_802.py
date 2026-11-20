@@ -83,6 +83,21 @@ class BootstrapTests(unittest.TestCase):
                                       self.journal, MODEL, attempts=3, sleep=lambda _: None)
         self.assertTrue(result['scanning_enabled'])
         self.assertFalse(failures)
+
+    def test_license_readiness_does_not_retry_authentication_errors(self):
+        original = self.client.call
+        reads = []
+        def call(method, path, *args, **kwargs):
+            if path == '/api/v1/licenses':
+                reads.append(path)
+                raise bootstrap.ApiError(method, path, 401)
+            return original(method, path, *args, **kwargs)
+        self.client.call = call
+        with self.assertRaisesRegex(bootstrap.ApiError, 'HTTP 401'):
+            bootstrap.initialize(self.client, SETUP, self.root, r'FAIG\d+\.lic', KEY,
+                                 self.journal, MODEL, attempts=3, sleep=lambda _: None)
+        self.assertEqual(len(reads), 1)
+        self.assertNotIn(('POST', '/api/v1/admin/licenses'), self.client.calls)
     def test_governed_smoke_key_is_saved_and_reused(self):
         path = self.root / 'smoke.json'
         result = bootstrap.initialize(self.client, SETUP, self.root, r'FAIG\d+\.lic', KEY, self.journal, MODEL,
