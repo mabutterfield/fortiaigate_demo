@@ -71,6 +71,12 @@ def ensure_no_other_vpc_interfaces(profile, region):
     instance = run(['terraform', '-chdir=' + HOST, 'output', '-raw', 'instance_id'], capture=True).stdout.strip()
     if not re.fullmatch(r'vpc-[0-9a-f]+', vpc) or not re.fullmatch(r'i-[0-9a-f]+', instance):
         raise SystemExit('Cannot verify the lab VPC and instance from Terraform state; inspect before teardown.')
+    # An ENI filter alone returns an empty list in the wrong account or region.
+    # An explicit VPC lookup fails instead of treating that as an empty VPC.
+    observed_vpc = run(['aws', 'ec2', 'describe-vpcs', '--profile', profile, '--region', region,
+                        '--vpc-ids', vpc, '--query', 'Vpcs[0].VpcId', '--output', 'text'], capture=True)
+    if observed_vpc.stdout.strip() != vpc:
+        raise SystemExit('Lab VPC was not confirmed in the selected AWS account and region.')
     response = run(['aws', 'ec2', 'describe-network-interfaces', '--profile', profile, '--region', region,
                     '--filters', 'Name=vpc-id,Values=' + vpc,
                     '--query', 'NetworkInterfaces[].{id:NetworkInterfaceId,instance:Attachment.InstanceId}',

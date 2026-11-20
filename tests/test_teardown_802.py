@@ -109,17 +109,25 @@ class TeardownTests(unittest.TestCase):
             return subprocess.CompletedProcess([], 0, text)
         interfaces = json.dumps([{'id': 'eni-host', 'instance': 'i-123'},
                                  {'id': 'eni-appliance', 'instance': 'i-456'}])
-        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response(interfaces)]):
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'), response(interfaces)]):
             with self.assertRaisesRegex(SystemExit, 'tear down optional appliances'):
                 teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2')
 
     def test_host_interfaces_and_private_route_are_allowed(self):
         def response(text):
             return subprocess.CompletedProcess([], 0, text)
-        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'),
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'), response('vpc-123'),
                  response(json.dumps([{'id':'eni-host', 'instance':'i-123'}]))]):
             teardown.ensure_no_other_vpc_interfaces('test', 'us-east-2')
         self.assertIn('aws_route', teardown.HOST_TYPES)
+
+    def test_vpc_not_found_cannot_pass_as_empty_interface_list(self):
+        def response(text):
+            return subprocess.CompletedProcess([], 0, text)
+        with mock.patch.object(teardown, 'run', side_effect=[response('vpc-123'), response('i-123'),
+                subprocess.CalledProcessError(1, ['aws', 'ec2', 'describe-vpcs'])]):
+            with self.assertRaises(subprocess.CalledProcessError):
+                teardown.ensure_no_other_vpc_interfaces('wrong-account', 'us-east-2')
 
     def test_vpc_guard_failure_prevents_host_and_ip_destroy(self):
         with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
