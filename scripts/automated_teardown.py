@@ -508,7 +508,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def legacy_main() -> None:
+    # Historical workflow retained for reference; the 8.0.2 entry point below does not invoke it.
     args = parse_args()
     if args.yolo:
         args.auto_approve = True
@@ -575,4 +576,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # 8.0.2 teardown retains shared ECR/S3 state and releases the lab IP by default.
+    from teardown_802 import main
     main()

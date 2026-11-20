@@ -13,9 +13,11 @@ demo environment.
   experimental; see [8.0.2 quickstart](../docs/quickstart-802.md) for profile,
   licensing and verification details. The new 8.0.2 path currently supports
   AWS only; local deployment requires a separate validated workflow.
-- `automated_teardown.py` — guides repeat AWS teardown in dependency order. It
-  can preserve FortiAIGate syslog data and avoids deleting retained ECR image
-  repositories. Review its plan before approving destructive actions.
+- `automated_teardown.py` — runs the isolated 8.0.2 AWS lab teardown via
+  `teardown_802.py`. It removes the selected EC2/VPC stack and releases its
+  lab EIP by default, while leaving ECR, S3, shared prep resources and optional
+  appliances untouched. Set `TF_WORKSPACE` explicitly; `--keep-eip` retains
+  the IP. See [8.0.2 quickstart](../docs/quickstart-802.md).
 - `local_setup.py` — collects local deployment settings and generates the
   ignored local inventory and variable files. It describes existing local
   infrastructure; it does not provision the host.
