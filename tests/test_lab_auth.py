@@ -116,5 +116,80 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(lab_auth.safe_next(bad), "/")
 
 
+
+class KeyValueCheckTests(unittest.TestCase):
+    """Change 2026-11-20: pasted key values are checked with FAIG before they are stored."""
+
+    def check(self, outcome):
+        import urllib.error, urllib.request
+        class Opener:
+            def open(self, request, timeout=0):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                class R:
+                    status = outcome
+                    def __enter__(self): return self
+                    def __exit__(self, *a): return False
+                return R()
+        original = urllib.request.build_opener
+        urllib.request.build_opener = lambda *a: Opener()
+        try:
+            return lab_auth.check_key_value("faig_" + "x" * 40, base="https://faig")
+        finally:
+            urllib.request.build_opener = original
+
+    def test_outcomes(self):
+        import urllib.error
+        self.assertEqual(self.check(200), "ok")
+        self.assertEqual(self.check(urllib.error.HTTPError("u", 401, "no", {}, None)), "invalid")
+        self.assertEqual(self.check(urllib.error.HTTPError("u", 500, "err", {}, None)), "unknown")
+        self.assertEqual(self.check(urllib.error.URLError("down")), "unknown")
+
+
+class InternalLogsTests(unittest.TestCase):
+    """Change 2026-11-20: an admin acting as a student reads that student's workspace log."""
+
+    def run_logs(self, identity, query, roster=None):
+        calls = []
+        class Faig:
+            def call(self, method, path, payload=None):
+                calls.append(path)
+                return {"items": [{"keyAlias": "student01_x", "timeStamp": 5}]}
+        replies = []
+        handler = lab_auth.Handler.__new__(lab_auth.Handler)
+        handler.headers = {}
+        handler.respond = lambda status, body=b"", **k: replies.append((status, json.loads(body)))
+        saved = (lab_auth.verify_identity, lab_auth.SESSIONS.latest_for, lab_auth.LabDataStore)
+        lab_auth.verify_identity = lambda headers: identity
+        lab_auth.SESSIONS.latest_for = lambda user: {"faig": Faig(), "identity": {"workspace_id": "own-ws-0001"}}
+        class Store:
+            def get(self, kind, student): return roster
+        lab_auth.LabDataStore = Store
+        try:
+            handler.internal_logs(query)
+        finally:
+            lab_auth.verify_identity, lab_auth.SESSIONS.latest_for, lab_auth.LabDataStore = saved
+        return replies[0], calls
+
+    def test_student_reads_own_workspace(self):
+        (status, body), calls = self.run_logs({"user": "s", "role": "student"}, {"key": "student01_x"})
+        self.assertEqual(status, 200)
+        self.assertIn("/workspaces/own-ws-0001/", calls[0])
+
+    def test_admin_acting_reads_student_workspace(self):
+        (status, body), calls = self.run_logs({"user": "a", "role": "admin"}, {"key": "student01_x", "student": "student01"},
+                                              roster={"workspace_id": "0123abcd-0000"})
+        self.assertEqual(status, 200)
+        self.assertIn("/workspaces/0123abcd-0000/", calls[0])
+        self.assertEqual(len(body["items"]), 1)
+
+    def test_admin_without_student_and_student_with_student_are_refused(self):
+        self.assertEqual(self.run_logs({"user": "a", "role": "admin"}, {})[0][0], 403)
+        self.assertEqual(self.run_logs({"user": "s", "role": "student"}, {"student": "student02"})[0][0], 403)
+
+    def test_unknown_student_workspace_is_404(self):
+        self.assertEqual(self.run_logs({"user": "a", "role": "admin"}, {"student": "student09"}, roster={})[0][0], 404)
+
+
 if __name__ == "__main__":
     unittest.main()

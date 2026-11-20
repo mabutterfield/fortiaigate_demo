@@ -119,6 +119,25 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def check_key_value(secret: str, base: str = FAIG_URL, verify: bool = FAIG_VERIFY_TLS) -> str:
+    """'ok' or 'invalid' from FAIG's OpenAI-compatible model list for this key, else 'unknown'.
+
+    Change 2026-11-20: GET /ai/openai/v1/models returns 200 for a valid key and 401 for a wrong,
+    rotated or revoked one (probe 2026-11-19). It checks the value only, not inference."""
+    context = ssl.create_default_context() if verify else ssl._create_unverified_context()
+    request = urllib.request.Request(base + "/ai/openai/v1/models", headers={"Authorization": "Bearer " + secret})
+    try:
+        with urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _NoRedirect()).open(
+                request, timeout=15) as response:
+            return "ok" if response.status == 200 else "unknown"
+    except urllib.error.HTTPError as exc:
+        return "invalid" if exc.code in (401, 403) else "unknown"
+    except (urllib.error.URLError, OSError):
+        return "unknown"
+    finally:
+        secret = request = None
+
+
 class FaigSession:
     """A signed-in FAIG session (cookie jar + CSRF token) kept server-side."""
 
@@ -507,12 +526,25 @@ class Handler(BaseHTTPRequestHandler):
     def internal_logs(self, query: dict):
         """Upstream apps fetch the caller's own Traffic Log entries with signed identity headers."""
         identity = verify_identity({k.lower(): v for k, v in self.headers.items()})
-        if not identity or identity["role"] != "student":
+        # Change 2026-11-20: an admin acting as a student (?student=studentNN) reads that student's
+        # workspace log with the admin's own FAIG session (FAIG allows super_admin on workspace logs).
+        acting = query.get("student", "")
+        if not identity or identity["role"] not in ("student", "admin") or (identity["role"] == "admin") != bool(acting):
             return self.respond(403, b'{"error":"invalid or expired identity"}', content_type="application/json")
         session = SESSIONS.latest_for(identity["user"])
         if not session:
             return self.respond(409, b'{"error":"no active FAIG session; sign in again"}', content_type="application/json")
-        workspace = session["identity"]["workspace_id"]
+        if acting:
+            if not re.fullmatch(r"student\d{2}", acting):
+                return self.respond(400, b'{"error":"bad student"}', content_type="application/json")
+            try:
+                workspace = (LabDataStore().get("roster", acting) or {}).get("workspace_id", "")
+            except (urllib.error.URLError, OSError, ValueError):
+                workspace = ""
+            if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", workspace or ""):
+                return self.respond(404, b'{"error":"student workspace unknown"}', content_type="application/json")
+        else:
+            workspace = session["identity"]["workspace_id"]
         try:
             if query.get("uuid"):
                 if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", query["uuid"]):
@@ -831,6 +863,13 @@ class Handler(BaseHTTPRequestHandler):
             records, result = lab_broker.apply_mapping(
                 self.load_keys(student), str(body.get("faig_key_id", "")), str(body.get("scenario_id", "")),
                 str(body.get("action", "")), body.get("secret"), str(body.get("expected_model", "")))
+            # Change 2026-11-20: the format/ID check can't catch a mistyped value; ask FAIG before storing.
+            if body.get("secret"):
+                check = check_key_value(str(body["secret"]).strip())
+                if check == "invalid":
+                    raise ValueError("FortiAIGate does not accept that key value (HTTP 401); nothing was saved")
+                if check != "ok":
+                    result["warnings"].append("could not check the value with FortiAIGate; run hello-world")
             body = None
             self.save_keys(student, records)
         except KeyError as exc:
@@ -884,7 +923,9 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, OSError) as exc:
             return self.json_reply(503, {"error": f"key store unavailable ({type(exc).__name__}); nothing rotated"})
         try:
-            response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate")
+            # Change 2026-11-20: FAIG answers 400 "request body is required" without a JSON body.
+            # response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate")
+            response = session["faig"].call("POST", f"/api/v1/me/virtual-keys/{kid}/rotate", {})
         except urllib.error.HTTPError as exc:
             record["status"] = previous
             self.save_keys(student, records)

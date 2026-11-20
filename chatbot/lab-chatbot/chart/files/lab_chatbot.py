@@ -181,8 +181,11 @@ def chat_tab(ctx: dict[str, Any] | None, scenario: dict[str, Any] | None) -> Non
 # ------------------------------------------------------------------ tests
 
 def fetch_logs(identity: dict[str, str]):
+    # Change 2026-11-20: an admin acting as a student reads that student's workspace log.
+    acting = st.session_state.get("acting_student", "") if identity.get("role") == "admin" else ""
+
     def fetch(**query: Any) -> tuple[int, Any]:
-        return ls.internal_logs(CFG["auth_url"], identity, signing_key(), **query)
+        return ls.internal_logs(CFG["auth_url"], identity, signing_key(), student=acting, **query)
     return fetch
 
 
@@ -216,8 +219,9 @@ def render_result(result: dict[str, Any]) -> None:
     for reason in result["reasons"]:
         st.write("- " + reason)
     if result.get("log_error"):
-        st.caption(f"Traffic Log not available here ({result['log_error']}); student sign-ins can read their own "
-                   "workspace log. Missing log rows make a test INCOMPLETE, never PASS.")
+        # Change 2026-11-20: admins acting as a student can read the log too; the usual cause is a lost session.
+        st.caption(f"Traffic Log not available ({result['log_error']}). If the lab was restarted or you were "
+                   "signed out, [sign in again](/_lab/login). Missing log rows make a test INCOMPLETE, never PASS.")
     exchanges, entries = result.get("exchanges", []), result.get("log_entries", [])
     for index in range(max(len(exchanges), len(entries))):
         st.markdown(f"#### Request {index + 1}")
@@ -362,6 +366,43 @@ def tests_tab(identity: dict[str, str], scenarios: dict[str, Any], keys: list[di
 
 # ------------------------------------------------------------------ keys
 
+def expected_model(scenarios: dict[str, Any], platform: dict[str, Any], sid: str, action: str) -> str:
+    """Backend model the lab expects for a scenario/action (or the passthrough model)."""
+    if sid == PASSTHROUGH:
+        return (platform.get("passthrough_model") or {}).get("backend_alias", "")
+    return lc.model_for(scenarios[sid], action).get("backend_alias", "") if sid in scenarios else ""
+
+
+def map_form(student: str, scenarios: dict[str, Any], platform: dict[str, Any], choices: dict[str, Any],
+             prefix: str) -> None:
+    """Map one key to a scenario/action and optionally store its value (checked by FAIG before saving)."""
+    scenario_ids = list(scenarios) + [PASSTHROUGH]
+    name = st.selectbox("Key", list(choices), key=f"{prefix}-key-name")
+    current = choices[name]
+    default = scenario_ids.index(current["scenario_id"]) if current.get("scenario_id") in scenario_ids else 0
+    sid = st.selectbox("Scenario", scenario_ids, index=default, key=f"{prefix}-scenario",
+                       format_func=lambda s: "Passthrough (no policy)" if s == PASSTHROUGH else scenarios[s]["display_name"])
+    actions = [PASSTHROUGH] if sid == PASSTHROUGH else [a["id"] for a in scenarios[sid]["actions"]]
+    action = st.selectbox("Action", actions, key=f"{prefix}-action",
+                          format_func=lambda a: a if sid == PASSTHROUGH else lc.action_label(scenarios[sid], a))
+    value = st.text_input("Key value (paste it when you create or rotate the key; FortiAIGate checks it)",
+                          type="password", key=f"{prefix}-value")
+    if st.button("Save mapping", key=f"{prefix}-save"):
+        body = {"faig_key_id": current["faig_key_id"], "scenario_id": sid, "action": action,
+                "expected_model": expected_model(scenarios, platform, sid, action)}
+        if value.strip():
+            body["secret"] = value.strip()
+        status, data = broker("/_lab/internal/keys/map", body)
+        body = value = None
+        if status == 200:
+            load_keys(student, force=True)
+            st.session_state["map-saved"] = data.get("warnings", [])
+            st.session_state.pop(f"{prefix}-value", None)
+            st.rerun()
+        else:
+            st.error(f"Not saved: {data.get('error', status)}")
+
+
 def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], platform: dict[str, Any],
              keys: list[dict[str, Any]], error: str) -> None:
     own = identity["role"] == "student"
@@ -386,32 +427,45 @@ def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], 
         return
     by_name = {k.get("key_name") or k["faig_key_id"]: k for k in keys if k.get("status") != "missing"}
 
-    st.markdown("**Map a key**")
-    scenario_ids = list(scenarios) + [PASSTHROUGH]
-    name = st.selectbox("Key", list(by_name), key="map-key-name")
-    sid = st.selectbox("Scenario", scenario_ids, key="map-scenario",
-                       format_func=lambda s: "Passthrough (no policy)" if s == PASSTHROUGH else scenarios[s]["display_name"])
-    actions = [PASSTHROUGH] if sid == PASSTHROUGH else [a["id"] for a in scenarios[sid]["actions"]]
-    action = st.selectbox("Action", actions, key="map-action",
-                          format_func=lambda a: a if sid == PASSTHROUGH else lc.action_label(scenarios[sid], a))
-    value = st.text_input("Key value (optional; paste it when you create or rotate the key)", type="password",
-                          key="map-value")
-    if st.button("Save mapping"):
-        expected = (platform.get("passthrough_model") or {}).get("backend_alias", "") if sid == PASSTHROUGH \
-            else lc.model_for(scenarios[sid], action).get("backend_alias", "")
-        body = {"faig_key_id": by_name[name]["faig_key_id"], "scenario_id": sid, "action": action,
-                "expected_model": expected}
-        if value.strip():
-            body["secret"] = value.strip()
-        status, data = broker("/_lab/internal/keys/map", body)
-        body = value = None
-        if status == 200:
-            load_keys(student, force=True)
-            st.success("Saved.")
-            for warning in data.get("warnings", []):
-                st.warning(warning)
-        else:
-            st.error(f"Not saved: {data.get('error', status)}")
+    # Change 2026-11-20: unmapped keys get their own short form; mapped keys move to "Change a mapping",
+    # and the value field clears after a save (owner browser check). Previous single form:
+    # st.markdown("**Map a key**")
+    # scenario_ids = list(scenarios) + [PASSTHROUGH]
+    # name = st.selectbox("Key", list(by_name), key="map-key-name")
+    # sid = st.selectbox("Scenario", scenario_ids, key="map-scenario",
+    #                    format_func=lambda s: "Passthrough (no policy)" if s == PASSTHROUGH else scenarios[s]["display_name"])
+    # actions = [PASSTHROUGH] if sid == PASSTHROUGH else [a["id"] for a in scenarios[sid]["actions"]]
+    # action = st.selectbox("Action", actions, key="map-action",
+    #                       format_func=lambda a: a if sid == PASSTHROUGH else lc.action_label(scenarios[sid], a))
+    # value = st.text_input("Key value (optional; paste it when you create or rotate the key)", type="password",
+    #                       key="map-value")
+    # if st.button("Save mapping"):
+    #     expected = (platform.get("passthrough_model") or {}).get("backend_alias", "") if sid == PASSTHROUGH \
+    #         else lc.model_for(scenarios[sid], action).get("backend_alias", "")
+    #     body = {"faig_key_id": by_name[name]["faig_key_id"], "scenario_id": sid, "action": action,
+    #             "expected_model": expected}
+    #     if value.strip():
+    #         body["secret"] = value.strip()
+    #     status, data = broker("/_lab/internal/keys/map", body)
+    #     body = value = None
+    #     if status == 200:
+    #         load_keys(student, force=True)
+    #         st.success("Saved.")
+    #         for warning in data.get("warnings", []):
+    #             st.warning(warning)
+    #     else:
+    #         st.error(f"Not saved: {data.get('error', status)}")
+    saved = st.session_state.pop("map-saved", None)
+    if saved:
+        st.success("Saved.")
+        for warning in saved:
+            st.warning(warning)
+    unmapped = {n: k for n, k in by_name.items() if not k.get("scenario_id")}
+    if unmapped:
+        st.markdown("**Map a new key**")
+        map_form(student, scenarios, platform, unmapped, "map")
+    with st.expander("Change a mapping or paste a new value", expanded=False):
+        map_form(student, scenarios, platform, by_name, "remap")
 
     st.markdown("**Hello-world**")
     st.caption("Sends a harmless prompt through the key's own policy and model. A pass means the key works and "
@@ -422,8 +476,11 @@ def keys_tab(identity: dict[str, str], student: str, scenarios: dict[str, Any], 
         if st.button("Run hello-world"):
             key = ready[target]
             hello = platform.get("hello_world") or {}
+            # Change 2026-11-20: a key that allows several models has no single "model"; use the one its
+            # mapping expects (FAIG answers 400 "the model field is required" otherwise).
             plan = {"prompt": hello.get("prompt", "Reply with exactly: Hello."), "system_prompt": "", "tools": [],
-                    "max_rounds": 0, "model": key.get("model", "")}
+                    "max_rounds": 0, "model": key.get("model") or expected_model(
+                        scenarios, platform, key.get("scenario_id", ""), key.get("action", ""))}
             with st.spinner("Checking the key..."):
                 result = lc.run_case(agent=agent, fetch_logs=fetch_logs(identity), evaluate=default_grade(),
                                      contains_sensitive=contains_sensitive, test=lc.hello_world_test(platform),
@@ -509,6 +566,7 @@ def main() -> None:
                 st.warning("No students yet. Create them in [Lab Management](/manage/).")
                 return
             student = st.selectbox("Act as student", students, on_change=reset_chat)
+            st.session_state["acting_student"] = student
         else:
             student = identity["student"]
         keys, key_error = load_keys(student)
