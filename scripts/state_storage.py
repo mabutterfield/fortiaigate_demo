@@ -797,3 +797,65 @@ def configure_terraform_proxy(repo_root: Path, profile_path: Path) -> str:
     if directory not in parts:
         os.environ['PATH'] = directory + os.pathsep + os.environ.get('PATH', '')
     return real
+
+
+def _local_state_identities(module_root: Path) -> dict[str, tuple[str, int, int, str]]:
+    """Identities of a module's default-path local states, following shared-state symlinks."""
+    found = {}
+    candidates = [('default', module_root / 'terraform.tfstate')]
+    workspace_root = module_root / 'terraform.tfstate.d'
+    if workspace_root.is_dir():
+        for child in sorted(workspace_root.iterdir()):
+            if child.is_dir() and _WORKSPACE.fullmatch(child.name):
+                candidates.append((child.name, child / 'terraform.tfstate'))
+    for workspace, path in candidates:
+        if not path.is_file():
+            continue
+        if is_moved_sentinel(path):
+            raise ValueError(f'{module_root.name}/{workspace} state has moved to external storage; use the saved storage profile')
+        if path.stat().st_size:
+            found[workspace] = checked_state_identity(path)
+    return found
+
+
+def upgrade_implicit_local_backend(module_root: Path, terraform_binary: str = 'terraform') -> bool:
+    """One-time move from Terraform's implicit local backend to the explicit `backend "local" {}`.
+
+    Change 2026-11-23 (Agent2, fresh-build finding): the modules now declare an empty local
+    backend for opt-in external state. An existing checkout initialized before that change
+    fails every `terraform output`/`plan` with "Backend initialization required", and a plain
+    or -reconfigure `init` stops at an interactive "migrate all workspaces?" question. With the
+    default paths unchanged, `init -migrate-state -force-copy` (TF_WORKSPACE unset) keeps every
+    workspace at the same files. Lineage, serial, record count and resource digest are
+    compared before and after; any difference stops. Already-explicit modules are untouched.
+    """
+    import json
+    import os
+    import subprocess
+    module_root = Path(module_root)
+    if os.environ.get('TF_DATA_DIR'):
+        return False
+    metadata = module_root / '.terraform' / 'terraform.tfstate'
+    if metadata.is_file():
+        try:
+            backend = json.loads(metadata.read_text(encoding='utf-8')).get('backend') or {}
+        except (OSError, ValueError):
+            backend = {}
+        if backend.get('type') == 'local':
+            return False
+    declared = ' '.join((module_root / name).read_text(encoding='utf-8')
+                        for name in ('versions.tf', 'backend.tf') if (module_root / name).is_file())
+    if not re.search(r'backend\s+"local"\s*\{\s*\}', declared):
+        return False
+    before = _local_state_identities(module_root)
+    env = {key: value for key, value in os.environ.items() if key not in ('TF_WORKSPACE', 'TF_DATA_DIR')}
+    result = subprocess.run([terraform_binary, f'-chdir={module_root}', 'init', '-migrate-state', '-force-copy',
+                             '-input=false', '-no-color'], env=env, text=True, capture_output=True, check=False,
+                            umask=0o077)
+    if result.returncode:
+        raise ValueError(f'one-time local backend upgrade failed for {module_root.name}; no state paths changed. '
+                         'Run `terraform init -migrate-state` in that module and inspect the prompt.')
+    if _local_state_identities(module_root) != before:
+        raise ValueError(f'local state identity changed during the backend upgrade of {module_root.name}; '
+                         'stop and restore from the .backup files before continuing')
+    return True
