@@ -102,10 +102,30 @@ async function ensureAutoApproval(a) {
   catch (e) { el('aa-detail').textContent = 'Could not start auto-approval: ' + e.message; }
 }
 
+// Change 2026-11-23: offer (and default to) the instructor student password file when configured.
+let passwordFileDefaulted = false;
+function showPasswordFile(f) {
+  const kinds = {shared: '(one shared password)', base: '(base + student number)'};
+  const desc = f.kind === 'list' ? '(per-student list: ' + (f.students || []).map(n => String(n).padStart(2, '0')).join(', ') + ')'
+             : (kinds[f.kind] || '');
+  document.querySelectorAll('.pwfile').forEach(e => { e.hidden = !f.configured; });
+  document.querySelectorAll('.pwfile-desc').forEach(e => { e.textContent = desc; });
+  if (f.configured && !passwordFileDefaulted) {
+    passwordFileDefaulted = true;
+    document.querySelector('input[name=pwmode][value=file]').checked = true;
+    document.querySelector('input[name=rmode][value=file]').checked = true;
+    el('pwlabel').hidden = true; el('rlabel').hidden = true;
+  }
+  if (!f.configured) {
+    ['pwmode', 'rmode'].forEach(n => { const r = document.querySelector('input[name=' + n + '][value=file]'); if (r.checked) document.querySelector('input[name=' + n + '][value=generated]').checked = true; });
+  }
+}
+
 async function refresh() {
   const state = await api('api/state');
   el('user').textContent = state.user;
   el('gui-only').hidden = !state.gui_only;
+  showPasswordFile(state.student_password_file || {});
   showApproval(state.auto_approval || {});
   ensureAutoApproval(state.auto_approval || {});
   const p = state.pricing || {};
@@ -146,21 +166,23 @@ el('selection').addEventListener('submit', e => {
 });
 el('models').addEventListener('click', () => run(() => api('api/jobs/models', {})));
 function pwMode() { return document.querySelector('input[name=pwmode]:checked').value; }
-document.querySelectorAll('input[name=pwmode]').forEach(r => r.addEventListener('change', () => { el('pwlabel').hidden = pwMode() === 'generated'; }));
+// Change 2026-11-23: 'file' (instructor password file) types nothing, like 'generated'.
+const typed = mode => mode === 'shared' || mode === 'base';
+document.querySelectorAll('input[name=pwmode]').forEach(r => r.addEventListener('change', () => { el('pwlabel').hidden = !typed(pwMode()); }));
 el('students').addEventListener('submit', e => {
   e.preventDefault();
   const body = {count: Number(el('count').value), start_index: Number(el('start').value), prepopulate: el('prepopulate').checked, password_mode: pwMode()};
-  if (pwMode() !== 'generated') body.password = el('password').value;
+  if (typed(pwMode())) body.password = el('password').value;
   run(async () => { await api('api/jobs/students', body); el('password').value = ''; });
 });
 
 // Change 2026-11-20: password reset (moved here from the chatbot Admin tab).
 function rMode() { return document.querySelector('input[name=rmode]:checked').value; }
-document.querySelectorAll('input[name=rmode]').forEach(r => r.addEventListener('change', () => { el('rlabel').hidden = rMode() === 'generated'; }));
+document.querySelectorAll('input[name=rmode]').forEach(r => r.addEventListener('change', () => { el('rlabel').hidden = !typed(rMode()); }));
 el('reset').addEventListener('submit', e => {
   e.preventDefault();
   const body = {number: Number(el('rnumber').value), password_mode: rMode()};
-  if (rMode() !== 'generated') body.password = el('rpassword').value;
+  if (typed(rMode())) body.password = el('rpassword').value;
   run(async () => { await api('api/jobs/password', body); el('rpassword').value = ''; });
 });
 

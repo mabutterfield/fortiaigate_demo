@@ -240,6 +240,41 @@ class KubeSecret:
         self._call("PATCH", {"data": {self.data_key: base64.b64encode(json.dumps(value, indent=1).encode()).decode()}})
 
 
+def load_student_password_policy() -> dict:
+    """Instructor student password policy from lab-data/lab-student-passwords ({} when not configured).
+
+    Change 2026-11-23: written by the gateway deploy from lab_student_password_file; read-only here."""
+    if not DATA_NAMESPACE:
+        return {}
+    try:
+        return KubeSecret(DATA_NAMESPACE, lab_broker.STUDENT_PASSWORD_SECRET, "policy").load()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {}
+        raise
+
+
+def resolve_file_password(request: dict) -> tuple[dict, list]:
+    """Turn password mode "file" into an explicit per-student policy; other modes pass through.
+
+    Raises LookupError when no instructor file is configured."""
+    password = request.get("password") or {}
+    if not isinstance(password, dict) or password.get("mode") != "file":
+        return request, []
+    number = request.get("number")
+    if type(number) is not int or not 1 <= number <= 99:
+        raise ValueError("student number must be 1-99")
+    policy = load_student_password_policy()
+    if not policy:
+        raise LookupError("no instructor student password file is configured "
+                          "(set lab_student_password_file and redeploy the lab gateway)")
+    value = lab_broker.password_from_file(policy, number)
+    if value is None:
+        return dict(request, password={"mode": "generated"}), [
+            f"student{number:02d} has no line in the instructor password file; a password was generated"]
+    return dict(request, password={"mode": "shared", "value": value}), []
+
+
 class LabDataStore:
     """Per-student JSON values in lab-data Secrets (one data key per student, merge-patched)."""
 
@@ -438,6 +473,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.auto_approve_status()
         if url.path == "/_lab/internal/admin/auto-approve/history":
             return self.auto_approve_history(query)
+        if url.path == "/_lab/internal/admin/student-password-file":
+            return self.student_password_file_summary()
         return self.respond(404, page("Not found", "<h1>Not found</h1>"))
 
     def do_POST(self):
@@ -711,6 +748,14 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("unexpected fields")
         except ValueError:
             return self.json_reply(400, {"error": "bad request body"})
+        try:  # Change 2026-11-23: password mode "file" (instructor student password file)
+            request, file_notes = resolve_file_password(request)
+        except LookupError as exc:
+            return self.json_reply(409, {"error": str(exc)})
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"student password file unavailable ({type(exc).__name__})"})
         check = session.get("password_check")
         try:
             result = lab_broker.ensure_student(
@@ -725,6 +770,7 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, OSError) as exc:
             return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); re-run to reconcile"})
         request = None
+        result["notes"] = list(result.get("notes") or []) + file_notes
         sync = self.sync_fallback(result)
         result["fallback"] = sync
         print(f"student {result['student']} ensured by {session['identity']['user']}: account {result['account']}, "
@@ -794,6 +840,15 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return self.json_reply(200, AUTO_APPROVER.status())
 
+    def student_password_file_summary(self):
+        """Non-secret description of the instructor student password file for /manage/ (Change 2026-11-23)."""
+        if not broker_session(self, "admin"):
+            return None
+        try:
+            return self.json_reply(200, lab_broker.student_password_summary(load_student_password_policy()))
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self.json_reply(503, {"error": f"student password file unavailable ({type(exc).__name__})"})
+
     def auto_approve_history(self, query: dict):
         if not broker_session(self, "admin"):
             return None
@@ -834,6 +889,14 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("unexpected fields")
         except ValueError:
             return self.json_reply(400, {"error": "bad request body"})
+        try:  # Change 2026-11-23: password mode "file" (instructor student password file)
+            request, file_notes = resolve_file_password(request)
+        except LookupError as exc:
+            return self.json_reply(409, {"error": str(exc)})
+        except ValueError as exc:
+            return self.json_reply(400, {"error": str(exc)})
+        except (urllib.error.URLError, OSError) as exc:
+            return self.json_reply(503, {"error": f"student password file unavailable ({type(exc).__name__})"})
         check = session.get("password_check")
         try:
             result = lab_broker.reset_student_password(
@@ -850,6 +913,7 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, OSError) as exc:
             return self.json_reply(504, {"error": f"FAIG or Kubernetes unreachable ({type(exc).__name__}); run the reset again"})
         request = None
+        result["notes"] = file_notes
         try:  # the fallback sign-in entry carries the workspace (from the roster)
             roster = LabDataStore().get("roster", result["student"]) or {}
         except (urllib.error.URLError, OSError, ValueError):

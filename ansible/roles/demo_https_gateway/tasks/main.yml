@@ -297,6 +297,14 @@
   # - ansible.builtin.debug:
   #     var: lab_data_secrets.stdout_lines
 
+- name: Load the optional instructor student password file
+  # Change 2026-11-23: see student_password_file.yml.
+  ansible.builtin.include_tasks: student_password_file.yml
+  when:
+    - demo_https_gateway_enabled | bool
+    - lab_gateway_enabled | bool
+    - lab_management_enabled | default(true) | bool
+
 - name: Create empty lab fallback password Secret once
   # Admin password resets add salted PBKDF2 hashes here; redeploys keep them.
   ansible.builtin.shell: |

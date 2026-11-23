@@ -33,6 +33,9 @@ Sign in with your FAIG administrator account (super admin). Students get a
    scenario). Password options: one generated per student, one shared password,
    or a base plus the student number (`Base_` → `Base_01`). Passwords must pass
    FAIG's rules and differ from yours. Re-running the same numbers is safe.
+   If you configured a student password file (see *Same student passwords on
+   every build* below), **From the instructor password file** is selected by
+   default.
 4. **Prepopulate (optional).** Tick *Also prepopulate* (or use **Prepopulate
    existing students**) to create, for each student and selected scenario, the
    detectors, guardrails, policies and one key per action, plus a
@@ -59,9 +62,38 @@ Sign in with your FAIG administrator account (super admin). Students get a
     whose session approved it. Filter by student.
 - **Act as student** (chatbot sidebar). See any student's keys (read-only) and
   run their tests; results are graded against that student's Traffic Log.
-- **Reset a student's password.** Generated, typed, or base + number. The new
+- **Reset a student's password.** Generated, typed, base + number, or reset to
+  the instructor password file when one is configured. The new
   password is checked by signing in as the student before it is kept; if FAIG
   refuses or it does not work, the old one stays. The share page updates.
+- **Same student passwords on every build.** Keep an owner-only text file
+  (mode `0600`) outside the Git repository and point the deploy at it with the
+  Ansible variable `lab_student_password_file` (in ignored
+  `ansible/group_vars/user.yml`, or from tfvars once the quickstart passes it
+  through). One entry per line; lines starting with `#` are comments (a `#`
+  later in a line is part of the password). Use exactly one form per file:
+
+  ```text
+  # every student gets the same password
+  shared: Lab_Pass_2026
+  ```
+
+  ```text
+  # student07 gets Lab_2026_07
+  base: Lab_2026_
+  ```
+
+  ```text
+  # per student; unlisted students get a generated password
+  student01: First_Pass_2026
+  student02: Second_Pass_2026
+  ```
+
+  The deploy validates the file (no values are printed), refuses one that
+  matches a static admin password, and copies it into the cluster Secret
+  `lab-data/lab-student-passwords`, readable only by the lab gateway. Remove
+  the variable to delete that Secret on the next deploy. FAIG's password rules
+  still apply when students are created.
 - **Restore lost key values.** If a prepopulated key exists in FAIG but its
   value is lost (FAIG shows a key value only once), run **Prepopulate existing
   students** with *Also restore lost key values*. The key is rotated and the

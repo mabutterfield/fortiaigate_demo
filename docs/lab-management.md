@@ -19,7 +19,14 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
   selected scenario. Password modes:
   - generated per student;
   - one shared password;
-  - a base plus the student number.
+  - a base plus the student number;
+  - from the instructor password file (2026-11-23; shown and selected by
+    default only when `lab_student_password_file` is configured). The file
+    is parsed at deploy time into Secret `lab-data/lab-student-passwords`
+    (`get` only, by `lab_auth`). `lab_auth` resolves each student's value
+    from it; Lab Management never sees the values, only a summary (kind and,
+    for a per-student list, the numbers). A student without a line in a
+    per-student file gets a generated password and a note.
 
   Each password is checked against FAIG's rules and must differ from the
   instructor's. Re-running the same numbers is safe. Existing accounts without
@@ -50,7 +57,8 @@ chatbot's sign-in; only FAIG administrators get in, and students get a 403.
   about a minute. A definite FAIG refusal is reported as "nothing changed"; any
   other failure as "outcome unknown, restore again". Nothing is retried blindly.
 - **Reset a student's password** (2026-11-20, moved from the chatbot Admin
-  tab, which is retired): generated, typed, or base + number, with the same
+  tab, which is retired): generated, typed, base + number, or the instructor
+  password file, with the same
   rules as student creation. The new password is stored first, then confirmed
   by signing in as the student; if FAIG refuses or the new password does not
   work, the stored password is kept. The share page and the fallback sign-in

@@ -69,7 +69,8 @@ STATIC = {'/': ('index.html', 'text/html; charset=utf-8'),
           '/share.html': ('share.html', 'text/html; charset=utf-8'),
           '/share.js': ('share.js', 'text/javascript; charset=utf-8'),
           '/style.css': ('style.css', 'text/css; charset=utf-8')}
-PASSWORD_MODES = ('generated', 'shared', 'base')
+# Change 2026-11-23: 'file' = instructor student password file (resolved by lab_auth; no value sent).
+PASSWORD_MODES = ('generated', 'shared', 'base', 'file')
 AUTH_CACHE_SECONDS = 20
 _auth_cache = {}
 _auth_lock = threading.Lock()
@@ -138,6 +139,14 @@ def selected(db):
 # instructor's own FAIG session, so it starts when an instructor opens this page while it is stopped.
 AUTO_APPROVAL_DEFAULTS = {'enabled': True, 'hours': 8}
 AUTO_APPROVAL_MAX_HOURS = 8
+
+
+def student_password_file_summary(handle):
+    """{configured, kind, students?} from lab_auth; never values (Change 2026-11-23)."""
+    try:
+        return gateway(handle, '/_lab/internal/admin/student-password-file', timeout=15)
+    except (SessionLost, BrokerError, UnknownOutcome) as exc:
+        return {'configured': False, 'error': str(exc)}
 
 
 def auto_approval_preference(db):
@@ -470,7 +479,7 @@ def run_students_job(ensure, view, request, password, log):
     """Create or reconcile each student in turn with `ensure(body)` (the gateway endpoint)."""
     providers = catalog_providers(view, set(request['scenarios']))
     policy = {'mode': request['password_mode']}
-    if request['password_mode'] != 'generated':
+    if request['password_mode'] in ('shared', 'base'):  # Change 2026-11-23: 'file' sends no value
         policy['value'] = password
     failures = 0
     for number in range(request['start_index'], request['start_index'] + request['count']):
@@ -590,7 +599,7 @@ def execute(job, kind, request, handle, db_path=None, password=None):
                                                          timeout=600), load_faig_view(), request, log)
             elif kind == 'password':
                 policy = {'mode': request['password_mode']}
-                if request['password_mode'] != 'generated':
+                if request['password_mode'] in ('shared', 'base'):  # Change 2026-11-23: 'file' sends no value
                     policy['value'] = password
                 result = gateway(handle, '/_lab/internal/admin/students/password',
                                  {'number': request['number'], 'password': policy}, timeout=120)
@@ -745,6 +754,8 @@ class Handler(BaseHTTPRequestHandler):
                     'pricing': {k: platform.get(k) for k in ('currency', 'unit', 'pricing_note')},
                     'selected': selected(db), 'jobs': jobs(db), 'faig_actions': bool(caller_token()),
                     'gui_only': GUI_ONLY,
+                    # Change 2026-11-23: non-secret summary of the instructor student password file.
+                    'student_password_file': student_password_file_summary(self.headers.get('X-Lab-Session', '')),
                     # 'auto_approval': {'enabled': False, 'state': 'unavailable',
                     #                   'detail': 'Auto-approval is not connected yet.'}})  # Change 2026-11-20
                     'auto_approval': approval})
@@ -795,8 +806,8 @@ class Handler(BaseHTTPRequestHandler):
                     password = body.pop('password', None)
                     if body.get('password_mode') in ('shared', 'base') and (not isinstance(password, str) or not password):
                         raise ValueError('enter a password for this mode')
-                    if body.get('password_mode') == 'generated' and password:
-                        raise ValueError('generated mode takes no password')
+                    if body.get('password_mode') in ('generated', 'file') and password:
+                        raise ValueError('this password mode takes no typed password')
                 if path in ('/api/jobs/models', '/api/jobs/students', '/api/jobs/prepopulate', '/api/jobs/password'):
                     kind = path.rsplit('/', 1)[-1]
                     if kind in EXECUTABLE and not caller_token():
