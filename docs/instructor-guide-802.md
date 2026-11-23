@@ -89,7 +89,8 @@ Sign in with your FAIG administrator account (super admin). Students get a
   student02: Second_Pass_2026
   ```
 
-  The deploy validates the file (no values are printed), refuses one that
+  The file must not be inside any Git repository or worktree. The deploy
+  validates it (no values are printed), refuses one that
   matches a static admin password, and copies it into the cluster Secret
   `lab-data/lab-student-passwords`, readable only by the lab gateway. Remove
   the variable to delete that Secret on the next deploy. FAIG's password rules

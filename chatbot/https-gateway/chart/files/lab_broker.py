@@ -1026,6 +1026,20 @@ def student_password_summary(policy: dict) -> dict:
     return summary
 
 
+def git_checkout_containing(path) -> str:
+    """Return the Git checkout (repository or worktree) holding `path`, or "".
+
+    Change 2026-11-23 (Agent 1 review): the instructor file must live outside Git. Both the
+    path as given and its real path are checked, so a symlinked folder cannot hide a checkout.
+    A `.git` folder (repository) or `.git` file (linked worktree, submodule) marks a checkout."""
+    given = Path(path).expanduser().absolute()
+    for candidate in (given, given.resolve()):
+        for parent in candidate.parents:
+            if parent.name == ".git" or (parent / ".git").exists():
+                return str(parent)
+    return ""
+
+
 def _main(argv: list) -> int:
     """`python3 lab_broker.py parse-student-passwords FILE [ADMIN_PASSWORD_FILE]`: print
     {"policy": ..., "summary": ...} as JSON (contains passwords: callers use no_log)."""
@@ -1034,6 +1048,11 @@ def _main(argv: list) -> int:
     if len(argv) < 3 or argv[1] != "parse-student-passwords":
         print("usage: lab_broker.py parse-student-passwords FILE [ADMIN_PASSWORD_FILE]", file=_sys.stderr)
         return 2
+    checkout = git_checkout_containing(argv[2])
+    if checkout:
+        print(f"student password file rejected: it is inside a Git checkout ({checkout}); "
+              "keep it outside every repository and worktree", file=_sys.stderr)
+        return 1
     try:
         text = Path(argv[2]).read_text(encoding="utf-8")
         admin = Path(argv[3]).read_text(encoding="utf-8").strip() if len(argv) > 3 and argv[3] else ""

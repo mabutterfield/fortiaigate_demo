@@ -93,6 +93,51 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("Same_Pass_1", bad.stderr + bad.stdout)
 
 
+class OutsideGitTests(unittest.TestCase):
+    """Change 2026-11-23: the instructor file must be outside every repository and worktree."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, rel):
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("shared: Lab_Pass_2026\n")
+        return path
+
+    def cli(self, path):
+        return subprocess.run([sys.executable, str(GATEWAY / "lab_broker.py"), "parse-student-passwords", str(path)],
+                              capture_output=True, text=True, cwd=self.root)
+
+    def test_repository_worktree_and_git_dir_are_rejected(self):
+        (self.root / "repo" / ".git").mkdir(parents=True)
+        (self.root / "worktree").mkdir()
+        (self.root / "worktree" / ".git").write_text("gitdir: ../repo/.git/worktrees/wt\n")
+        for rel in ("repo/secrets/students.txt", "worktree/deep/students.txt", "repo/.git/students.txt"):
+            with self.subTest(rel=rel):
+                result = self.cli(self.write(rel))
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("inside a Git checkout", result.stderr)
+                self.assertNotIn("Lab_Pass_2026", result.stderr + result.stdout)
+
+    def test_symlinked_folder_into_a_checkout_is_rejected(self):
+        (self.root / "repo" / ".git").mkdir(parents=True)
+        self.write("repo/private/students.txt")
+        (self.root / "outside").symlink_to(self.root / "repo" / "private")
+        self.assertIn(str(self.root / "repo"), lab_broker.git_checkout_containing(self.root / "outside" / "students.txt"))
+
+    def test_file_outside_git_is_accepted(self):
+        result = self.cli(self.write("secrets/static/students.txt"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_this_repository_is_rejected(self):
+        self.assertTrue(lab_broker.git_checkout_containing(REPO_ROOT / "docs" / "students.txt"))
+
+
 class ResolveTests(unittest.TestCase):
     def setUp(self):
         self.auth = load("lab_auth_student_file", GATEWAY / "lab_auth.py")
