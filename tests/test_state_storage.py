@@ -437,6 +437,23 @@ class StateLayoutTests(unittest.TestCase):
             failed = subprocess.run(['terraform', '-chdir=' + str(module), 'state', 'list'], capture_output=True)
             self.assertNotEqual(failed.returncode, 0)
 
+    def test_legacy_guards_handle_symlink_worktree_before_owner(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            owner = root / 'owner'
+            other = root / 'other'
+            owner_module = owner / 'terraform/aws-ecr'
+            other_module = other / 'terraform/aws-ecr'
+            owner_module.mkdir(parents=True)
+            other_module.mkdir(parents=True)
+            (owner_module / 'terraform.tfstate.d').mkdir()
+            (other_module / 'terraform.tfstate.d').symlink_to(owner_module / 'terraform.tfstate.d')
+            plan = {name: {'workspaces': {'ohio-802': ()}} for name in
+                    ('aws-ecr', 'aws-prep', 'aws-ec2-k3s', 'aws-fortigate', 'aws-fortiweb')}
+            install_legacy_guards([other, owner], plan)
+            self.assertTrue(is_moved_sentinel(other_module / 'terraform.tfstate.d/ohio-802/terraform.tfstate'))
+
     def test_backend_data_initialization_preserves_legacy_guards(self):
         import os
         import shutil

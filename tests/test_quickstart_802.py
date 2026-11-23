@@ -141,7 +141,7 @@ class Quickstart802Tests(unittest.TestCase):
         module = self.root / 'host'
         module.mkdir()
         quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
-        path = module / '50-lab-storage.auto.tfvars'
+        path = module / '99-local.auto.tfvars'
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertIn('lab_generated_secrets_enabled = true', path.read_text())
         quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
@@ -151,9 +151,30 @@ class Quickstart802Tests(unittest.TestCase):
     def test_generated_secret_settings_reject_symlink(self):
         module = self.root / 'host'
         module.mkdir()
-        (module / '50-lab-storage.auto.tfvars').symlink_to(self.root / 'target')
+        (module / '99-local.auto.tfvars').symlink_to(self.root / 'target')
         with self.assertRaisesRegex(ValueError, 'symlink'):
             quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+
+    def test_generated_secret_settings_preserve_user_values(self):
+        module = self.root / 'host'
+        module.mkdir()
+        path = module / '99-local.auto.tfvars'
+        path.write_text('instance_type = "g6.4xlarge"\n')
+        quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+        self.assertTrue(path.read_text().startswith('instance_type = "g6.4xlarge"\n'))
+        before = path.read_text()
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            quickstart.persist_generated_secret_settings(module, self.root / 'other')
+        self.assertEqual(path.read_text(), before)
+
+    def test_host_override_rejects_generated_secret_settings(self):
+        directory = self.root / 'overrides'
+        directory.mkdir()
+        (directory / 'prep.tfvars').write_text('')
+        (directory / 'host.tfvars').write_text('lab_generated_secrets_enabled = false\n')
+        with mock.patch.dict(os.environ, {'TF_WORKSPACE': 'ohio-802'}):
+            with self.assertRaisesRegex(SystemExit, 'must not override'):
+                quickstart.validate_terraform_vars_dir(directory)
 
     def test_bare_terraform_plan_keeps_generated_secret_settings(self):
         import shutil

@@ -485,8 +485,10 @@ def install_legacy_guards(worktrees: list[Path], plan: dict[str, dict]) -> None:
     workspaces = {'default'}
     for item in plan.values():
         workspaces.update(item['workspaces'])
-    for tree in worktrees:
-        for module in MODULES:
+    for module in MODULES:
+        # Create guards in owning worktrees before following shared state dirs.
+        ordered = sorted(worktrees, key=lambda tree: (tree / 'terraform' / module / 'terraform.tfstate.d').is_symlink())
+        for tree in ordered:
             module_root = tree / 'terraform' / module
             if not module_root.is_dir():
                 continue

@@ -68,6 +68,12 @@ are restricted to the owner; do not commit or share them. Sensitive markings
 hide ordinary output but not named outputs, `-raw`, `-json`, state or plans.
 Pre-migration backups remain private until deliberately removed.
 
+For v1.0, run host Terraform only through quickstart or teardown from the
+checkout containing `terraform/aws-ec2-k3s/99-local.auto.tfvars`. Quickstart
+records the generated-secret settings there and refuses conflicting host
+overrides. These settings do not automatically follow a different worktree.
+Do not supply conflicting `-var` or `-var-file` arguments in manual runs.
+
 For each new EC2 instance, Terraform creates one owner-only
 `bootstrap-secrets.json` under `<secrets-root>/<workspace>/<instance-id>/`.
 It contains the generated admin and LiteLLM credentials. Same-instance reruns
