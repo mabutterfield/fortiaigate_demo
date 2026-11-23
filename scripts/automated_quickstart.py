@@ -2641,6 +2641,9 @@ def parse_args() -> argparse.Namespace:
         help="Export the current user profile archive and exit. Default path: ../user_profile.tgz.",
     )
     parser.add_argument("--terraform-vars-dir", type=Path, default=Path(os.environ["FAIG_TERRAFORM_VARS_DIR"]) if os.environ.get("FAIG_TERRAFORM_VARS_DIR") else None, help="Directory containing prep.tfvars and host.tfvars overrides for the selected workspace.")
+    parser.add_argument("--storage-profile", type=Path,
+                        default=Path(os.environ['FAIG_STORAGE_PROFILE']) if os.environ.get('FAIG_STORAGE_PROFILE') else None,
+                        help="Private storage preferences file outside Git; defaults to FAIG/.faig-storage-settings.json.")
     parser.add_argument(
         "--skip-terraform",
         action="store_true",
@@ -2779,7 +2782,11 @@ def _main() -> None:
     from scripts import state_storage
     import uuid
     workspace_root = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or REPO_ROOT.parent).expanduser().resolve()
-    storage_profile = workspace_root / '.faig-storage-settings.json'
+    selected_profile = args.storage_profile or workspace_root / '.faig-storage-settings.json'
+    try:
+        storage_profile = state_storage.resolve_state_root(str(selected_profile), workspace_root, REPO_ROOT)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
     storage = select_storage_settings(profile_path=storage_profile, noninteractive=args.yolo,
                                       workspace_root=workspace_root, terraform_vars_dir=args.terraform_vars_dir)
     os.environ['TF_WORKSPACE'] = storage.workspace

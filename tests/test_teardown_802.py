@@ -146,6 +146,22 @@ class TeardownTests(unittest.TestCase):
         self.assertFalse(stopped.exists())
         self.assertTrue(running.exists())
 
+    def test_cleanup_keeps_markers_from_other_account_even_if_instance_missing(self):
+        from scripts.lab_credentials import validate_instance_directory
+        from scripts.state_storage import StorageSettings
+        root = (self.root / 'secrets').resolve()
+        folder = root / 'ohio-802/i-123'
+        folder.mkdir(parents=True, mode=0o700)
+        validate_instance_directory(folder, root=root, workspace='ohio-802', instance='i-123',
+                                    account='123456789012', region='us-east-2')
+        (folder / 'quickstart-smoke-key.json').write_text('fictional')
+        identity = subprocess.CompletedProcess([], 0, '999999999999\n', '')
+        with mock.patch.object(teardown.subprocess, 'run', return_value=identity), \
+             mock.patch.object(teardown, 'instance_is_terminated') as query:
+            self.assertEqual(teardown.clean_retired_instance_secrets(StorageSettings(root, None), 'profile', 'us-east-2'), 0)
+            query.assert_not_called()
+        self.assertTrue(folder.exists())
+
     def test_instance_lookup_accepts_only_explicit_termination(self):
         terminated = subprocess.CompletedProcess([], 0, 'terminated\n', '')
         active = subprocess.CompletedProcess([], 0, 'running\n', '')

@@ -357,6 +357,11 @@ class StateLayoutTests(unittest.TestCase):
             self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
             activate_storage_settings(settings, profile, [tree], root / 'unused-backup')
             self.assertFalse((root / 'unused-backup').exists())
+            other = StorageSettings(root / '.secrets', settings.state, 'ohio-802')
+            other_profile = root / 'ohio-settings.json'
+            activate_storage_settings(other, other_profile, [tree], root / 'second-unused-backup')
+            self.assertEqual(read_storage_settings(other_profile), other)
+            self.assertFalse((root / 'second-unused-backup').exists())
 
     def test_secure_state_files_does_not_chmod_module_directory(self):
         import tempfile

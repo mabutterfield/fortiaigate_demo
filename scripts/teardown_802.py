@@ -154,9 +154,13 @@ def destroy(module, vars_file, auto_approve, *, target=None, variables=None):
     run(argv)
 
 
-def read_storage_profile():
+def storage_profile_path(path=None):
     workspace_root = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or ROOT.parent).expanduser().resolve()
-    return state_storage.read_storage_settings(workspace_root / '.faig-storage-settings.json')
+    return state_storage.resolve_state_root(str(path or workspace_root / '.faig-storage-settings.json'), workspace_root, ROOT)
+
+
+def read_storage_profile(path=None):
+    return state_storage.read_storage_settings(storage_profile_path(path))
 
 
 def initialize_teardown_module(module, settings):
@@ -278,6 +282,9 @@ def parse_args(argv=None):
     parser.add_argument('--terraform-vars-dir', type=Path,
                         default=Path(os.environ['FAIG_TERRAFORM_VARS_DIR']) if os.environ.get('FAIG_TERRAFORM_VARS_DIR') else None,
                         help='Directory containing prep.tfvars and host.tfvars for the selected workspace.')
+    parser.add_argument('--storage-profile', type=Path,
+                        default=Path(os.environ['FAIG_STORAGE_PROFILE']) if os.environ.get('FAIG_STORAGE_PROFILE') else None,
+                        help='Private storage preferences file outside Git.')
     parser.add_argument('--keep-eip', action='store_true', help='Keep the lab Elastic IP allocated.')
     parser.add_argument('--skip-ec2', action='store_true', help='Keep the EC2/VPC stack; implies --keep-eip.')
     parser.add_argument('--auto-approve', action='store_true', help='Pass -auto-approve to Terraform.')
@@ -293,7 +300,7 @@ def _main(argv=None):
     global _storage_operation_lock
     args = parse_args(argv)
     try:
-        storage = read_storage_profile()
+        storage = read_storage_profile(args.storage_profile)
         if storage is not None:
             requested = os.environ.get('TF_WORKSPACE')
             if requested and requested != storage.workspace:
@@ -311,8 +318,7 @@ def _main(argv=None):
             if (storage.state.root / '.migration-in-progress.json').exists():
                 raise ValueError('state migration is incomplete')
             state_storage.verify_state_manifest(storage.state)
-            workspace_root = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or ROOT.parent).expanduser().resolve()
-            state_storage.configure_terraform_proxy(ROOT, workspace_root / '.faig-storage-settings.json')
+            state_storage.configure_terraform_proxy(ROOT, storage_profile_path(args.storage_profile))
         profile, region, prep_vars, host_vars = resolve_profile_and_vars(args.terraform_vars_dir)
     except (OSError, ValueError) as exc:
         raise SystemExit(f'Cannot read storage settings: {exc}') from None

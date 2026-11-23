@@ -53,7 +53,11 @@ outside the repository and asks where to put generated secrets. Suggested
 locations are `FAIG/.state` and `FAIG/.secrets` (or a custom location); they
 must be separate and outside Git. The selection is stored in an owner-only
 `FAIG/.faig-storage-settings.json`, including the selected Terraform workspace
-and overrides directory, for later `--yolo` runs. External state is opt-in. Quickstart inventories all worktrees, backs up and migrates each
+and overrides directory, for later `--yolo` runs. External state is opt-in.
+Use `--storage-profile /absolute/path/outside/git.json` for a separate
+environment profile; a verified existing external state root can be shared
+without repeating migration. Pass the same option to teardown.
+Quickstart inventories all worktrees, backs up and migrates each
 module's default and named workspaces, then verifies their state identities
 before archiving the originals. An interrupted migration stops for inspection.
 Never run independent Terraform operations against these states concurrently.

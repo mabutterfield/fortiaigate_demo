@@ -606,6 +606,15 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
             if discover_worktree_states(worktrees, module, allow_moved=True):
                 raise ValueError(f'legacy state still exists for {module}; inspect the existing profile and migration')
         return
+    if (layout.root / '.state-inventory.json').exists():
+        # A second environment profile may reuse an already migrated state
+        # root, but only after verifying its inventory and absence of old state.
+        verify_state_manifest(layout)
+        for module in MODULES:
+            if discover_worktree_states(worktrees, module, allow_moved=True):
+                raise ValueError(f'legacy state still exists for {module}; inspect before using external state')
+        write_storage_settings(profile_path, settings)
+        return
     plan = build_migration_plan(worktrees, layout)
     print('Local Terraform state migration inventory (resource counts are state records, not AWS status):')
     for module, item in plan.items():
