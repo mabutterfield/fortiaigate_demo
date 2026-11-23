@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -90,6 +90,25 @@ class StateLayoutTests(unittest.TestCase):
             terraform('init', '-input=false', '-migrate-state', '-force-copy', *layout.backend_args('aws-ecr'))
             for workspace, identity in before.items():
                 self.assertEqual(checked_state_identity(layout.state_path('aws-ecr', workspace)), identity)
+
+    def test_migration_collision_is_refused(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / 'old'
+            module.mkdir()
+            (module / 'terraform.tfstate').write_text(json.dumps({'lineage': 'id', 'serial': 1, 'resources': []}))
+            layout = StateLayout((root / 'state').resolve())
+            expected = check_migration_source(module, layout, 'aws-ecr')
+            self.assertEqual(expected['default'], ('id', 1, 0))
+            target = layout.module_root('aws-ecr')
+            target.mkdir(parents=True)
+            (target / 'other').write_text('occupied')
+            with self.assertRaisesRegex(ValueError, 'not empty'):
+                check_migration_source(module, layout, 'aws-ecr')
+            with self.assertRaisesRegex(ValueError, 'verification failed'):
+                verify_migrated_states(layout, 'aws-ecr', expected)
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

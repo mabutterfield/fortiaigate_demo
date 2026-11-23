@@ -112,3 +112,38 @@ def write_state_settings(path: Path, layout: StateLayout | None) -> None:
     finally:
         if os.path.exists(name):
             os.unlink(name)
+
+
+def inventory_legacy_states(module_root: Path) -> dict[str, Path]:
+    """Find current and named-workspace snapshots without reading secret contents."""
+    result = {}
+    default = module_root / 'terraform.tfstate'
+    if default.exists():
+        result['default'] = default
+    workspace_root = module_root / 'terraform.tfstate.d'
+    if workspace_root.exists():
+        for child in workspace_root.iterdir():
+            if not child.is_dir() or not _WORKSPACE.fullmatch(child.name):
+                raise ValueError(f'unexpected workspace entry: {child}')
+            snapshot = child / 'terraform.tfstate'
+            if snapshot.exists():
+                result[child.name] = snapshot
+    return result
+
+
+def check_migration_source(module_root: Path, layout: StateLayout, module: str) -> dict[str, tuple[str, int, int]]:
+    """Fail closed on a target collision; never overwrite another state."""
+    source = inventory_legacy_states(module_root)
+    identities = {workspace: checked_state_identity(path) for workspace, path in source.items()}
+    target_root = layout.module_root(module)
+    if target_root.exists() and any(target_root.iterdir()):
+        raise ValueError(f'external state target is not empty: {target_root}')
+    return identities
+
+
+def verify_migrated_states(layout: StateLayout, module: str, expected: dict[str, tuple[str, int, int]]) -> None:
+    """Validate migration by lineage, serial, and managed instance count."""
+    for workspace, identity in expected.items():
+        path = layout.state_path(module, workspace)
+        if not path.is_file() or checked_state_identity(path) != identity:
+            raise ValueError(f'migrated state verification failed for {module}/{workspace}')
