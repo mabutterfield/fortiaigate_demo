@@ -1,0 +1,98 @@
+---
+# Keep the controller's owner-only copy of the shared LiteLLM key in step with the cluster
+# Secret, which shared_virtual_key.yml has just verified (Change 2026-11-20, revised 2026-11-23).
+#
+# Inputs: litellm_shared_virtual_key_local_file, litellm_shared_virtual_key_alias,
+#         litellm_shared_virtual_key_value (secret; never printed).
+# - missing file              -> written (0600)
+# - exact expected content    -> left alone; mode corrected to 0600 if needed
+# - different or unreadable   -> backed up as <file>.stale-<UTC time> (0600), then rewritten
+#   (covers an earlier instance's key, an edited alias and corrupt JSON)
+# - symlink                   -> refused (never follow or replace a link to somewhere else)
+# Writes use Ansible's atomic copy (temp file + rename), so an interrupted run leaves either the
+# old or the new file; re-running repeats the backup and write.
+
+- name: Inspect the local shared key file
+  ansible.builtin.stat:
+    path: "{{ litellm_shared_virtual_key_local_file }}"
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: litellm_shared_key_local_stat
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_local_stat.stat.mode
+
+- name: Refuse a symlinked local shared key file
+  ansible.builtin.fail:
+    msg: >-
+      {{ litellm_shared_virtual_key_local_file }} is a symbolic link. Replace it with a regular
+      owner-only file (or remove it) and re-run; the link target was not touched.
+  when: litellm_shared_key_local_stat.stat.islnk | default(false)
+
+- name: Read the existing local shared key file
+  ansible.builtin.slurp:
+    src: "{{ litellm_shared_virtual_key_local_file }}"
+  delegate_to: localhost
+  become: false
+  register: litellm_shared_key_local_current
+  no_log: true
+  when: litellm_shared_key_local_stat.stat.exists
+
+- name: Render the expected local shared key file content
+  ansible.builtin.set_fact:
+    litellm_shared_key_local_expected: "{{ {'key_alias': litellm_shared_virtual_key_alias, 'api_key': litellm_shared_virtual_key_value} | to_json }}"
+  no_log: true
+
+- name: Compare the local shared key file with the cluster key
+  # Text comparison with the exact content this role writes (surrounding whitespace ignored, since
+  # Ansible drops a template's trailing newline): no JSON parsing, so a corrupt file is simply
+  # "different" instead of failing the run.
+  ansible.builtin.set_fact:
+    litellm_shared_key_local_stale: >-
+      {{
+        litellm_shared_key_local_stat.stat.exists
+        and (litellm_shared_key_local_current.content | b64decode | trim) != (litellm_shared_key_local_expected | trim)
+      }}
+  no_log: true
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_local_stale
+
+- name: Back up a differing local shared key file
+  ansible.builtin.copy:
+    src: "{{ litellm_shared_virtual_key_local_file }}"
+    dest: "{{ litellm_shared_virtual_key_local_file }}.stale-{{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}"
+    remote_src: true
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: litellm_shared_key_local_stale | bool
+
+- name: Write the owner-only local shared key file
+  ansible.builtin.copy:
+    dest: "{{ litellm_shared_virtual_key_local_file }}"
+    content: "{{ litellm_shared_key_local_expected }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  # Missing, differing, or right content with the wrong mode (copy then only fixes the mode).
+  when: >-
+    not litellm_shared_key_local_stat.stat.exists
+    or litellm_shared_key_local_stale | bool
+    or litellm_shared_key_local_stat.stat.mode != '0600'
+  register: litellm_shared_key_local_write
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_local_write.changed
+
+- name: Record the local shared key file result
+  ansible.builtin.set_fact:
+    litellm_shared_key_local_result: >-
+      {{
+        'written (was missing)' if not litellm_shared_key_local_stat.stat.exists
+        else 'refreshed from the cluster; the earlier file was backed up as .stale-<time>' if litellm_shared_key_local_stale | bool
+        else 'mode corrected to 0600' if litellm_shared_key_local_stat.stat.mode != '0600'
+        else 'matches the cluster key'
+      }}
+  # - ansible.builtin.debug:
+  #     var: litellm_shared_key_local_result

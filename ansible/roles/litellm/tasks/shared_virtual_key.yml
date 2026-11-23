@@ -148,62 +148,9 @@
   # - ansible.builtin.debug:
   #     msg: "Admin probe status: {{ litellm_shared_key_admin_probe.status }}"
 
-- name: Check local shared key file
-  ansible.builtin.stat:
-    path: "{{ litellm_shared_virtual_key_local_file }}"
-  delegate_to: localhost
-  become: false
-  register: litellm_shared_key_local_stat
-  # - ansible.builtin.debug:
-  #     var: litellm_shared_key_local_stat.stat.exists
-
-# Change 2026-11-20: a reused private environment directory can hold the key of an earlier
-# instance (a rebuilt host has a new LiteLLM database and key). The cluster Secret, verified
-# above, is authoritative: back up a differing local file and rewrite it.
-- name: Read existing local shared key file
-  ansible.builtin.slurp:
-    src: "{{ litellm_shared_virtual_key_local_file }}"
-  delegate_to: localhost
-  become: false
-  register: litellm_shared_key_local_current
-  no_log: true
-  when: litellm_shared_key_local_stat.stat.exists
-  # - ansible.builtin.debug:
-  #     msg: "Local key file read: {{ litellm_shared_key_local_current is not skipped }}"
-
-- name: Compare local shared key file with the cluster key
-  ansible.builtin.set_fact:
-    litellm_shared_key_local_stale: >-
-      {{
-        litellm_shared_key_local_stat.stat.exists
-        and ((litellm_shared_key_local_current.content | b64decode | from_json).api_key | default(''))
-            != litellm_shared_virtual_key_value
-      }}
-  no_log: true
-  # - ansible.builtin.debug:
-  #     var: litellm_shared_key_local_stale
-
-- name: Back up a stale local shared key file
-  ansible.builtin.copy:
-    src: "{{ litellm_shared_virtual_key_local_file }}"
-    dest: "{{ litellm_shared_virtual_key_local_file }}.stale-{{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}"
-    remote_src: true
-    mode: "0600"
-  delegate_to: localhost
-  become: false
-  no_log: true
-  when: litellm_shared_key_local_stale | bool
-
-# - name: Write owner-only local shared key file when missing  (Change 2026-11-20: also when stale)
-- name: Write owner-only local shared key file when missing or stale
-  ansible.builtin.copy:
-    dest: "{{ litellm_shared_virtual_key_local_file }}"
-    content: "{{ {'key_alias': litellm_shared_virtual_key_alias, 'api_key': litellm_shared_virtual_key_value} | to_json }}\n"
-    mode: "0600"
-  delegate_to: localhost
-  become: false
-  no_log: true
-  when: not litellm_shared_key_local_stat.stat.exists or litellm_shared_key_local_stale | bool
+# Change 2026-11-23: local copy handling moved to sync_local_key_file.yml (testable on its own).
+- name: Keep the local shared key file in step with the cluster key
+  ansible.builtin.include_tasks: sync_local_key_file.yml
 
 - name: Show shared LiteLLM virtual key status
   ansible.builtin.debug:
@@ -212,4 +159,4 @@
       - "Kubernetes Secret: {{ litellm_namespace }}/{{ litellm_shared_virtual_key_secret_name }} (key api-key)"
       - "Local file: {{ litellm_shared_virtual_key_local_file }}"
       - "{{ 'Created this run' if litellm_shared_key_secret_check.rc != 0 else 'Existing key reused' }}; non-admin check passed"
-      - "{{ 'Local file refreshed from the cluster (an earlier key was backed up as .stale-<time>)' if litellm_shared_key_local_stale | default(false) | bool else 'Local file matches the cluster key' }}"
+      - "Local file status: {{ litellm_shared_key_local_result | default('not checked') }}"
