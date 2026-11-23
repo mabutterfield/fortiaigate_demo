@@ -62,15 +62,17 @@ def resolve_state_root(value: str, workspace_root: Path, repo_root: Path) -> Pat
     return selected
 
 
-def checked_state_identity(path: Path) -> tuple[str, int, int]:
-    """Return non-secret identity/serial/count for a private, existing state."""
+def checked_state_identity(path: Path) -> tuple[str, int, int, str]:
+    """Return lineage, serial, count and a digest without exposing state data."""
+    import hashlib
     import json
     data = json.loads(path.read_text(encoding='utf-8'))
     lineage, serial, resources = data.get('lineage'), data.get('serial'), data.get('resources')
     if not isinstance(lineage, str) or not lineage or not isinstance(serial, int) or not isinstance(resources, list):
         raise ValueError(f'invalid Terraform state: {path}')
     count = sum(len(item.get('instances', [])) for item in resources if item.get('mode') == 'managed')
-    return lineage, serial, count
+    canonical = json.dumps(resources, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return lineage, serial, count, hashlib.sha256(canonical).hexdigest()
 
 
 def read_state_settings(path: Path) -> StateLayout | None:
@@ -135,7 +137,7 @@ def inventory_legacy_states(module_root: Path) -> dict[str, Path]:
     return result
 
 
-def check_migration_source(module_root: Path, layout: StateLayout, module: str) -> dict[str, tuple[str, int, int]]:
+def check_migration_source(module_root: Path, layout: StateLayout, module: str) -> dict[str, tuple[str, int, int, str]]:
     """Fail closed on a target collision; never overwrite another state."""
     source = inventory_legacy_states(module_root)
     identities = {workspace: checked_state_identity(path) for workspace, path in source.items()}
@@ -145,8 +147,8 @@ def check_migration_source(module_root: Path, layout: StateLayout, module: str) 
     return identities
 
 
-def verify_migrated_states(layout: StateLayout, module: str, expected: dict[str, tuple[str, int, int]]) -> None:
-    """Validate migration by lineage, serial, and managed instance count."""
+def verify_migrated_states(layout: StateLayout, module: str, expected: dict[str, tuple[str, int, int, str]]) -> None:
+    """Validate migration by lineage, serial, count, and resource digest."""
     for workspace, identity in expected.items():
         path = layout.state_path(module, workspace)
         if not path.is_file() or checked_state_identity(path) != identity:
@@ -154,7 +156,7 @@ def verify_migrated_states(layout: StateLayout, module: str, expected: dict[str,
 
 
 def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str,
-                             expected: dict[str, tuple[str, int, int]], archive_root: Path) -> None:
+                             expected: dict[str, tuple[str, int, int, str]], archive_root: Path) -> None:
     """Archive verified old snapshots privately, leaving no active stale copy.
 
     Caller must hold the migration lease. This routine never touches cloud
@@ -353,7 +355,7 @@ def discover_worktree_states(worktrees: list[Path], module: str) -> dict[str, Pa
     return found
 
 
-def backup_legacy_states(module_root: Path, backup_root: Path) -> dict[str, tuple[str, int, int]]:
+def backup_legacy_states(module_root: Path, backup_root: Path) -> dict[str, tuple[str, int, int, str]]:
     """Copy old snapshots and state backups privately before running migration."""
     import os
     import shutil

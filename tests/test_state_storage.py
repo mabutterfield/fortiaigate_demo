@@ -40,7 +40,7 @@ class StateLayoutTests(unittest.TestCase):
             path.write_text(json.dumps({'lineage': 'synthetic', 'serial': 4, 'resources': [
                 {'mode': 'managed', 'instances': [{'attributes': {'secret': 'fictional'}}]},
                 {'mode': 'data', 'instances': [{}]}]}))
-            self.assertEqual(checked_state_identity(path), ('synthetic', 4, 1))
+            self.assertEqual(checked_state_identity(path)[:3], ('synthetic', 4, 1))
 
     def test_private_state_settings_round_trip_and_disable(self):
         import tempfile
@@ -101,7 +101,7 @@ class StateLayoutTests(unittest.TestCase):
             (module / 'terraform.tfstate').write_text(json.dumps({'lineage': 'id', 'serial': 1, 'resources': []}))
             layout = StateLayout((root / 'state').resolve())
             expected = check_migration_source(module, layout, 'aws-ecr')
-            self.assertEqual(expected['default'], ('id', 1, 0))
+            self.assertEqual(expected['default'][:3], ('id', 1, 0))
             target = layout.module_root('aws-ecr')
             target.mkdir(parents=True)
             (target / 'other').write_text('occupied')
@@ -219,6 +219,25 @@ class StateLayoutTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'multiple legacy state files'):
                 discover_worktree_states([root / 'one', root / 'two'], 'aws-ecr')
 
+    def test_migration_detects_changed_resource_with_same_lineage_and_count(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / 'old'
+            module.mkdir()
+            state = {'lineage': 'x', 'serial': 2, 'resources': [
+                {'mode': 'managed', 'instances': [{'attributes': {'id': 'resource-a'}}]}]}
+            (module / 'terraform.tfstate').write_text(json.dumps(state))
+            layout = StateLayout((root / 'new').resolve())
+            expected = check_migration_source(module, layout, 'aws-ecr')
+            target = layout.state_path('aws-ecr', 'default')
+            target.parent.mkdir(parents=True)
+            state['resources'][0]['instances'][0]['attributes']['id'] = 'resource-b'
+            target.write_text(json.dumps(state))
+            with self.assertRaisesRegex(ValueError, 'verification failed'):
+                verify_migrated_states(layout, 'aws-ecr', expected)
+
     def test_pre_migration_backup_is_private_and_leaves_sources_intact(self):
         import json
         import tempfile
@@ -229,7 +248,7 @@ class StateLayoutTests(unittest.TestCase):
             snapshot = module / 'terraform.tfstate'
             snapshot.write_text(json.dumps({'lineage': 'x', 'serial': 2, 'resources': []}))
             backup = root / 'backup'
-            self.assertEqual(backup_legacy_states(module, backup), {'default': ('x', 2, 0)})
+            self.assertEqual(backup_legacy_states(module, backup)['default'][:3], ('x', 2, 0))
             self.assertTrue(snapshot.exists())
             copy = backup / 'default' / 'terraform.tfstate'
             self.assertEqual(copy.read_bytes(), snapshot.read_bytes())
