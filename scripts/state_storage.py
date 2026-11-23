@@ -198,3 +198,35 @@ def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str
             raise ValueError(f'legacy state changed during archive: {source}')
     for _, path in files:
         path.unlink()
+
+
+def migrate_one_module(module_root: Path, layout: StateLayout, module: str, archive_root: Path) -> None:
+    """Migrate a module's local workspaces, verify them, then archive old copies.
+
+    This is deliberately not invoked by quickstart yet: callers must coordinate
+    all modules, exclusive access, persistent profile and recovery first.
+    """
+    import os
+    import subprocess
+    source = module_root.resolve()
+    if not (source / '.terraform').is_dir():
+        raise ValueError(f'Terraform module must already be initialized: {source}')
+    expected = check_migration_source(source, layout, module)
+    target = layout.module_root(module)
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(target, 0o700)
+    command = ['terraform', '-chdir=' + str(source), 'init', '-input=false', '-migrate-state', '-force-copy',
+               *layout.backend_args(module)]
+    env = os.environ.copy()
+    # A workspace override can make terraform init skip other workspaces.
+    env.pop('TF_WORKSPACE', None)
+    previous_umask = os.umask(0o077)
+    try:
+        result = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
+    finally:
+        os.umask(previous_umask)
+    if result.returncode:
+        # Do not emit Terraform's output: state diagnostics might include secrets.
+        raise RuntimeError(f'Terraform migration failed for {module}; inspect backend configuration before retrying')
+    verify_migrated_states(layout, module, expected)
+    archive_migrated_sources(source, layout, module, expected, archive_root)

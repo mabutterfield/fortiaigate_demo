@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -133,6 +133,32 @@ class StateLayoutTests(unittest.TestCase):
             self.assertEqual((archive / 'default' / 'terraform.tfstate').stat().st_mode & 0o777, 0o600)
             self.assertEqual((archive / 'default' / 'terraform.tfstate.backup').read_text(), 'fictional-backup')
             self.assertTrue(target.exists())
+
+    def test_module_migration_archives_both_original_workspaces(self):
+        import shutil
+        import subprocess
+        import tempfile
+        if not shutil.which('terraform'):
+            self.skipTest('terraform is unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / 'module'
+            module.mkdir()
+            (module / 'main.tf').write_text('terraform {\n backend "local" {}\n}\noutput "synthetic" { value = "example" }\n')
+            layout = StateLayout((root / 'state').resolve())
+            def terraform(*args):
+                return subprocess.run(['terraform', '-chdir=' + str(module), *args], check=True, capture_output=True, text=True)
+            terraform('init', '-input=false')
+            terraform('apply', '-input=false', '-auto-approve')
+            terraform('workspace', 'new', 'ohio-802')
+            terraform('apply', '-input=false', '-auto-approve')
+            original = check_migration_source(module, layout, 'aws-ecr')
+            migrate_one_module(module, layout, 'aws-ecr', root / 'private-archive')
+            verify_migrated_states(layout, 'aws-ecr', original)
+            self.assertFalse((module / 'terraform.tfstate').exists())
+            self.assertFalse((module / 'terraform.tfstate.d/ohio-802/terraform.tfstate').exists())
+            self.assertTrue((root / 'private-archive/default/terraform.tfstate').is_file())
+            self.assertTrue((root / 'private-archive/ohio-802/terraform.tfstate').is_file())
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')
