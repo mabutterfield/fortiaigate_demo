@@ -1443,6 +1443,13 @@ def prompt_profile_review() -> None:
 
 def terraform_init_validate(module_path: str, *, state_layout=None, require_existing_state: bool = False) -> None:
     if state_layout is None:
+        # Change 2026-11-23: existing checkouts move once from the implicit to the explicit local backend.
+        from scripts import state_storage
+        try:
+            if state_storage.upgrade_implicit_local_backend(REPO_ROOT / module_path):
+                print(f'Upgraded {module_path} to the explicit local backend; state files unchanged.')
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f'Terraform backend upgrade stopped: {exc}') from None
         run_command(["terraform", "-chdir=" + module_path, "init"])
     else:
         from scripts import state_storage
@@ -1607,6 +1614,9 @@ def run_terraform(
     print("Existing ECR repositories and images are preserved; ECR management is a separate workflow.")
     if state_layout is not None:
         terraform_init_validate('terraform/aws-ecr', state_layout=state_layout, require_existing_state=True)
+    else:
+        # Change 2026-11-23: read-only ECR outputs need an initialized backend too.
+        terraform_init_validate('terraform/aws-ecr')
     restore_existing_ecr_vars(profile, region)
 
     for label, module_path in TERRAFORM_MODULES[1:]:

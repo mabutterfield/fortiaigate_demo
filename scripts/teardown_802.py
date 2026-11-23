@@ -165,6 +165,12 @@ def read_storage_profile(path=None):
 
 def initialize_teardown_module(module, settings):
     if settings is None or settings.state is None:
+        # Change 2026-11-23: one-time move from the implicit to the explicit local backend.
+        try:
+            if state_storage.upgrade_implicit_local_backend(ROOT / module):
+                print(f'Upgraded {module} to the explicit local backend; state files unchanged.')
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f'Terraform backend upgrade stopped: {exc}') from None
         run(['terraform', '-chdir=' + module, 'init'])
         return []
     layout = settings.state
