@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -109,6 +109,30 @@ class StateLayoutTests(unittest.TestCase):
                 check_migration_source(module, layout, 'aws-ecr')
             with self.assertRaisesRegex(ValueError, 'verification failed'):
                 verify_migrated_states(layout, 'aws-ecr', expected)
+
+    def test_verified_source_is_archived_privately(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / 'old'
+            old.mkdir()
+            source = old / 'terraform.tfstate'
+            source.write_text(json.dumps({'lineage': 'x', 'serial': 2, 'resources': []}))
+            backup = old / 'terraform.tfstate.backup'
+            backup.write_text('fictional-backup')
+            layout = StateLayout((root / 'new').resolve())
+            expected = check_migration_source(old, layout, 'aws-ecr')
+            target = layout.state_path('aws-ecr', 'default')
+            target.parent.mkdir(parents=True)
+            target.write_bytes(source.read_bytes())
+            archive = root / 'archive'
+            archive_migrated_sources(old, layout, 'aws-ecr', expected, archive)
+            self.assertFalse(source.exists())
+            self.assertFalse(backup.exists())
+            self.assertEqual((archive / 'default' / 'terraform.tfstate').stat().st_mode & 0o777, 0o600)
+            self.assertEqual((archive / 'default' / 'terraform.tfstate.backup').read_text(), 'fictional-backup')
+            self.assertTrue(target.exists())
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

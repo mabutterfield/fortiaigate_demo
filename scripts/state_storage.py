@@ -147,3 +147,52 @@ def verify_migrated_states(layout: StateLayout, module: str, expected: dict[str,
         path = layout.state_path(module, workspace)
         if not path.is_file() or checked_state_identity(path) != identity:
             raise ValueError(f'migrated state verification failed for {module}/{workspace}')
+
+
+def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str,
+                             expected: dict[str, tuple[str, int, int]], archive_root: Path) -> None:
+    """Archive verified old snapshots privately, leaving no active stale copy.
+
+    Caller must hold the migration lease. This routine never touches cloud
+    resources or a target snapshot and refuses changed or symlinked sources.
+    """
+    import os
+    import shutil
+    sources = inventory_legacy_states(module_root)
+    if set(sources) != set(expected):
+        raise ValueError('legacy workspace set changed during migration')
+    verify_migrated_states(layout, module, expected)
+    for workspace, source in sources.items():
+        if source.is_symlink() or checked_state_identity(source) != expected[workspace]:
+            raise ValueError(f'legacy state changed or is a symlink: {source}')
+    if archive_root.exists() and any(archive_root.iterdir()):
+        raise ValueError(f'archive destination is not empty: {archive_root}')
+    files = []
+    for workspace, source in sources.items():
+        for path in (source, source.with_suffix(source.suffix + '.backup')):
+            if path.is_symlink():
+                raise ValueError(f'legacy state backup is a symlink: {path}')
+            if path.exists():
+                if not path.is_file():
+                    raise ValueError(f'legacy state backup is not a regular file: {path}')
+                files.append((workspace, path))
+    archive_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(archive_root, 0o700)
+    # Copy and verify *every* file before removing any source.
+    for workspace, path in files:
+        dest = archive_root / workspace
+        dest.mkdir(mode=0o700, exist_ok=True)
+        target = dest / path.name
+        with path.open('rb') as infile, target.open('xb') as outfile:
+            os.chmod(target, 0o600)
+            shutil.copyfileobj(infile, outfile)
+            outfile.flush()
+            os.fsync(outfile.fileno())
+        if path.read_bytes() != target.read_bytes():
+            raise ValueError(f'archive verification failed: {path}')
+    verify_migrated_states(layout, module, expected)
+    for workspace, source in sources.items():
+        if checked_state_identity(source) != expected[workspace]:
+            raise ValueError(f'legacy state changed during archive: {source}')
+    for _, path in files:
+        path.unlink()
