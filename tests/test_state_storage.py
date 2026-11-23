@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -196,6 +196,28 @@ class StateLayoutTests(unittest.TestCase):
             self.assertIn('-reconfigure', args)
             self.assertEqual(layout.root.stat().st_mode & 0o777, 0o700)
             self.assertEqual(layout.module_root('aws-prep').stat().st_mode & 0o777, 0o700)
+
+    def test_worktree_inventory_deduplicates_aliases_but_rejects_distinct_snapshots(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / 'one' / 'terraform' / 'aws-ecr'
+            second = root / 'two' / 'terraform' / 'aws-ecr'
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            state = first / 'terraform.tfstate.d/ohio-802/terraform.tfstate'
+            state.parent.mkdir(parents=True)
+            state.write_text(json.dumps({'lineage': 'x', 'serial': 2, 'resources': []}))
+            (second / 'terraform.tfstate.d').symlink_to(first / 'terraform.tfstate.d', target_is_directory=True)
+            found = discover_worktree_states([root / 'one', root / 'two'], 'aws-ecr')
+            self.assertEqual(found['ohio-802'], state.resolve())
+            (second / 'terraform.tfstate.d').unlink()
+            duplicate = second / 'terraform.tfstate.d/ohio-802/terraform.tfstate'
+            duplicate.parent.mkdir(parents=True)
+            duplicate.write_bytes(state.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'multiple legacy state files'):
+                discover_worktree_states([root / 'one', root / 'two'], 'aws-ecr')
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

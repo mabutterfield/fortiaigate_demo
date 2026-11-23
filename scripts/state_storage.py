@@ -313,3 +313,36 @@ def prepare_external_module(module_root: Path, layout: StateLayout, module: str,
     os.chmod(layout.root, 0o700)
     os.chmod(module_dir, 0o700)
     return ['init', '-input=false', '-reconfigure', *layout.backend_args(module)]
+
+
+def discover_worktree_states(worktrees: list[Path], module: str) -> dict[str, Path]:
+    """Find unique legacy state files across worktrees; reject ambiguous owners.
+
+    Existing symlinked worktrees can be inventoried read-only. A migration must
+    run from the real owning checkout, not from an alias.
+    """
+    if module not in MODULES:
+        raise ValueError('unknown Terraform module')
+    found: dict[str, Path] = {}
+    for tree in worktrees:
+        module_root = tree / 'terraform' / module
+        default = module_root / 'terraform.tfstate'
+        candidates = [('default', default)]
+        directory = module_root / 'terraform.tfstate.d'
+        if directory.is_dir():
+            for child in directory.iterdir():
+                if not child.is_dir() or not _WORKSPACE.fullmatch(child.name):
+                    raise ValueError(f'unexpected workspace entry: {child}')
+                candidates.append((child.name, child / 'terraform.tfstate'))
+        for workspace, path in candidates:
+            if not path.is_file():
+                continue
+            real = path.resolve()
+            prior = found.get(workspace)
+            if prior is not None and prior != real:
+                # Different on-disk snapshots are ambiguous even when their
+                # lineage/serial currently match; either could be written.
+                raise ValueError(f'multiple legacy state files for {module}/{workspace}: {prior}, {real}')
+            checked_state_identity(real)
+            found[workspace] = real
+    return found
