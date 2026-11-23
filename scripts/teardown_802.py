@@ -251,7 +251,13 @@ def remove_destroyed_host_backup(path, *, instance_terminated):
         raise ValueError('current host state is missing or unsafe; backup was preserved')
     try:
         doc = json.loads(path.read_text(encoding='utf-8'))
-        managed = [item for item in doc.get('resources', []) if item.get('mode') == 'managed' and item.get('instances')]
+        if (not isinstance(doc, dict) or not isinstance(doc.get('version'), int)
+                or not isinstance(doc.get('lineage'), str) or not doc['lineage']
+                or not isinstance(doc.get('resources'), list)
+                or any(not isinstance(item, dict) or not isinstance(item.get('instances'), list)
+                       for item in doc['resources'])):
+            raise ValueError('invalid Terraform state structure')
+        managed = [item for item in doc['resources'] if item.get('mode') == 'managed' and item['instances']]
     except (ValueError, TypeError, AttributeError) as exc:
         raise ValueError('cannot verify current host state; backup was preserved') from exc
     if managed:

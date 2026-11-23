@@ -162,13 +162,17 @@ class TeardownTests(unittest.TestCase):
         state = self.root / 'host.tfstate'
         backup = self.root / 'host.tfstate.backup'
         backup.write_text('fictional-generated-credentials')
-        state.write_text(json.dumps({'resources': [{'mode': 'managed', 'instances': [{}]}]}))
+        state.write_text(json.dumps({'version': 4, 'lineage': 'fixture', 'resources': [{'mode': 'managed', 'instances': [{}]}]}))
         self.assertFalse(teardown.remove_destroyed_host_backup(state, instance_terminated=False))
         self.assertTrue(backup.exists())
         with self.assertRaisesRegex(ValueError, 'still contains'):
             teardown.remove_destroyed_host_backup(state, instance_terminated=True)
         self.assertTrue(backup.exists())
-        state.write_text(json.dumps({'resources': []}))
+        state.write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'cannot verify'):
+            teardown.remove_destroyed_host_backup(state, instance_terminated=True)
+        self.assertTrue(backup.exists())
+        state.write_text(json.dumps({'version': 4, 'lineage': 'fixture', 'resources': []}))
         self.assertTrue(teardown.remove_destroyed_host_backup(state, instance_terminated=True))
         self.assertFalse(backup.exists())
 
