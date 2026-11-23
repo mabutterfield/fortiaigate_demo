@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan, activate_storage_settings
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -327,6 +327,29 @@ class StateLayoutTests(unittest.TestCase):
             self.assertTrue((layout.root / '.migration-in-progress.json').is_file())
             with self.assertRaisesRegex(ValueError, 'earlier state migration'):
                 migrate_plan(plan, layout, root / 'other-backup')
+
+    def test_storage_activation_migrates_then_remembers_both_roots(self):
+        import shutil
+        import subprocess
+        import tempfile
+        if not shutil.which('terraform'):
+            self.skipTest('terraform is unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            tree = root / 'repo'
+            module = tree / 'terraform/aws-ecr'
+            module.mkdir(parents=True)
+            (module / 'main.tf').write_text('terraform {\n backend "local" {}\n}\noutput "synthetic" { value = "example" }\n')
+            for args in (['init', '-input=false'], ['apply', '-input=false', '-auto-approve']):
+                subprocess.run(['terraform', '-chdir=' + str(module), *args], check=True, capture_output=True)
+            settings = StorageSettings(root / '.secrets', StateLayout(root / '.state'))
+            profile = root / 'storage-settings.json'
+            activate_storage_settings(settings, profile, [tree], root / 'private-backup')
+            self.assertEqual(read_storage_settings(profile), settings)
+            self.assertTrue(settings.state.state_path('aws-ecr', 'default').exists())
+            self.assertFalse((module / 'terraform.tfstate').exists())
+            activate_storage_settings(settings, profile, [tree], root / 'unused-backup')
+            self.assertFalse((root / 'unused-backup').exists())
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

@@ -304,8 +304,13 @@ def prepare_external_module(module_root: Path, layout: StateLayout, module: str,
     import os
     # The mere presence of a source snapshot must not be ignored: another
     # checkout might otherwise create fresh state for existing resources.
-    legacy = inventory_legacy_states(module_root)
-    if legacy:
+    # Read-only discovery can follow an old shared-worktree alias, but any
+    # actual legacy snapshot must be migrated before this checkout initializes.
+    workspace_root = module_root / 'terraform.tfstate.d'
+    legacy_default = (module_root / 'terraform.tfstate').is_file()
+    legacy_named = (workspace_root.is_dir() and any(
+        (child / 'terraform.tfstate').is_file() for child in workspace_root.iterdir() if child.is_dir()))
+    if legacy_default or legacy_named:
         raise ValueError(f'legacy state still exists for {module}; migrate and verify it first')
     target = layout.state_path(module, workspace)
     if require_existing and not target.is_file():
@@ -472,3 +477,42 @@ def migrate_plan(plan: dict[str, dict], layout: StateLayout, backup_root: Path) 
             journal.unlink()
     except BlockingIOError:
         raise ValueError('another state migration is already running') from None
+
+
+def activate_storage_settings(settings: StorageSettings, profile_path: Path, worktrees: list[Path],
+                              backup_root: Path) -> None:
+    """Persist a new selection and migrate old local state before it is used.
+
+    This function is not yet invoked by quickstart. It fails closed if an
+    incomplete migration or an ambiguous existing external state is found.
+    """
+    for tree in worktrees:
+        repo = tree.resolve()
+        for root in (settings.secrets_root, settings.state.root if settings.state else None):
+            if root is not None and (root == repo or repo in root.parents):
+                raise ValueError('state and generated secrets must be outside every Git worktree')
+    prior = read_storage_settings(profile_path)
+    if prior is not None and prior != settings:
+        raise ValueError('storage profile differs from existing settings; explicit migration is required')
+    if settings.state is None:
+        if prior is None:
+            write_storage_settings(profile_path, settings)
+        return
+    layout = settings.state
+    journal = layout.root / '.migration-in-progress.json'
+    if journal.exists() or journal.is_symlink():
+        raise ValueError('an earlier state migration needs inspection before continuing')
+    if prior is not None:
+        # An existing profile is authoritative. Refuse stale local copies;
+        # never silently create a fresh state while old snapshots still exist.
+        if not layout.root.is_dir():
+            raise ValueError('configured external state root is missing; inspect the profile before continuing')
+        for module in MODULES:
+            if discover_worktree_states(worktrees, module):
+                raise ValueError(f'legacy state still exists for {module}; inspect the existing profile and migration')
+        return
+    plan = build_migration_plan(worktrees, layout)
+    # Save the user's choice before migration. If interrupted, the migration
+    # journal prevents any later quickstart from using a partial state layout.
+    write_storage_settings(profile_path, settings)
+    migrate_plan(plan, layout, backup_root)
