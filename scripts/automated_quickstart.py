@@ -2328,6 +2328,41 @@ def select_experimental_init(override: bool | None, *, noninteractive: bool) -> 
     return selected
 
 
+def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspace_root: Path | None = None):
+    """Select both state and generated-secret locations without migrating state."""
+    from scripts import state_storage
+    workspace_root = (workspace_root or REPO_ROOT.parent).resolve()
+    try:
+        saved = state_storage.read_storage_settings(profile_path)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'Cannot read saved storage settings: {exc}') from None
+    if saved is not None:
+        # Recheck the repository boundary on every worktree, including a changed path.
+        secrets = state_storage.resolve_state_root(str(saved.secrets_root), workspace_root, REPO_ROOT)
+        if saved.state:
+            state = state_storage.resolve_state_root(str(saved.state.root), workspace_root, REPO_ROOT)
+            return state_storage.StorageSettings(secrets, state_storage.StateLayout(state))
+        return state_storage.StorageSettings(secrets, None)
+    if noninteractive:
+        # No saved opt-in: retain the default local backend while keeping generated secrets separate.
+        return state_storage.StorageSettings(workspace_root / '.secrets', None)
+    use_external = prompt_yes_no('Store Terraform state outside the repository?', False)
+    state = None
+    if use_external:
+        print('Suggested locations: FAIG/.state or ~/.state/fortiaigate; a custom path is also supported.')
+        selected = prompt_text('External state directory', str(workspace_root / '.state'))
+        try:
+            state = state_storage.StateLayout(state_storage.resolve_state_root(selected, workspace_root, REPO_ROOT))
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from None
+    selected_secrets = prompt_text('Generated lab secrets directory', str(workspace_root / '.secrets'))
+    try:
+        secret_root = state_storage.resolve_state_root(selected_secrets, workspace_root, REPO_ROOT)
+        return state_storage.StorageSettings(secret_root, state)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
+
+
 def prepare_802_initialization() -> dict[str, Path | str]:
     """Validate license selection and create/reuse private admin files before AWS changes."""
     from scripts import faig_bootstrap_802

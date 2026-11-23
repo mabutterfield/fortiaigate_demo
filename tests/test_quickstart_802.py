@@ -212,6 +212,21 @@ class Quickstart802Tests(unittest.TestCase):
         self.assertEqual(private['smoke_key'].name, 'quickstart-smoke-key-i-123abc.json')
         self.assertLess(sequence.index('deploy_demo_https_gateway.yml'), sequence.index('deploy_lab_chatbot.yml'))
 
+    def test_storage_preferences_coordinate_paths_without_writing_before_migration(self):
+        profile = self.root / 'storage.json'
+        workspace = (self.root / 'workspace').resolve()
+        workspace.mkdir()
+        with mock.patch.object(quickstart, 'REPO_ROOT', workspace / 'repo'), \
+             mock.patch.object(quickstart, 'prompt_yes_no', return_value=True), \
+             mock.patch.object(quickstart, 'prompt_text', side_effect=[str(workspace / '.state'), str(workspace / '.secrets')]):
+            selected = quickstart.select_storage_settings(profile_path=profile, noninteractive=False, workspace_root=workspace)
+        self.assertEqual(selected.state.root, workspace / '.state')
+        self.assertEqual(selected.secrets_root, workspace / '.secrets')
+        self.assertFalse(profile.exists())
+        default = quickstart.select_storage_settings(profile_path=profile, noninteractive=True, workspace_root=workspace)
+        self.assertIsNone(default.state)
+        self.assertEqual(default.secrets_root, workspace / '.secrets')
+
     def test_generated_bootstrap_activation_checks_terraform_identity(self):
         import json
         import os
