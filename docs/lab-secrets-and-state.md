@@ -63,11 +63,15 @@ initialization journal and the smoke key. The lab gateway's signing key,
 broker tokens and the FAIG chart's master key are generated inside the
 cluster and are never written to your machine.
 
-Teardown removes the instance folder only after AWS reports the instance
-terminated and the folder's marker matches the workspace and instance. If AWS
-says "not found" (possibly the wrong account or region), the files are kept
-for you to inspect. Static password files, licenses, tfvars and `user.yml`
-are never deleted.
+Each instance folder has a non-secret `.lab-instance` marker naming the
+workspace, instance ID, AWS account ID and region. Teardown removes the
+folder only when the marker matches the workspace and instance, the current
+AWS account and region match the marker, and AWS reports the instance
+terminated or not found. Folders whose marker has no account or region
+(older builds), or belongs to another account or region, are kept for you to
+inspect. Only the known generated files are removed; an unexpected file stops
+the cleanup. Static password files, licenses, tfvars and `user.yml` are never
+deleted.
 
 ## Static admin password
 
@@ -123,7 +127,9 @@ equal to a static admin password) and copied into Secret
 values are printed. `/manage/` then offers **From the instructor password
 file** when creating students and **Reset to the instructor password file**
 when resetting one. Remove the variable to delete that Secret on the next
-deploy. See the [Instructor Guide](instructor-guide-802.md) and
+deploy. When students are created or reset, every password from the file
+is also checked against the signed-in instructor's password, so it can never
+equal a generated admin password either. See the [Instructor Guide](instructor-guide-802.md) and
 [Lab Management](lab-management.md).
 
 ## What never goes in Git
