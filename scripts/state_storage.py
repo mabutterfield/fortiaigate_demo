@@ -69,3 +69,46 @@ def checked_state_identity(path: Path) -> tuple[str, int, int]:
         raise ValueError(f'invalid Terraform state: {path}')
     count = sum(len(item.get('instances', [])) for item in resources if item.get('mode') == 'managed')
     return lineage, serial, count
+
+
+def read_state_settings(path: Path) -> StateLayout | None:
+    """Read a previously chosen user setting; absence leaves external mode off."""
+    import json
+    if path.is_symlink():
+        raise ValueError(f'state settings must be a private regular file: {path}')
+    if not path.exists():
+        return None
+    if not path.is_file() or path.stat().st_mode & 0o077:
+        raise ValueError(f'state settings must be a private regular file: {path}')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict) or data.get('version') != 1 or not isinstance(data.get('external'), bool):
+        raise ValueError('invalid state settings')
+    if not data['external']:
+        return None
+    root = data.get('root')
+    if not isinstance(root, str) or not root:
+        raise ValueError('external state root is missing')
+    return StateLayout(Path(root))
+
+
+def write_state_settings(path: Path, layout: StateLayout | None) -> None:
+    """Write a non-secret profile atomically; reject a pre-existing symlink."""
+    import json
+    import os
+    import tempfile
+    if path.is_symlink():
+        raise ValueError('state settings may not be a symlink')
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    payload = {'version': 1, 'external': layout is not None}
+    if layout is not None:
+        payload['root'] = str(layout.root)
+    fd, name = tempfile.mkstemp(prefix='.state-settings-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(payload, stream, indent=2)
+            stream.write('\n')
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)

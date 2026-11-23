@@ -67,6 +67,10 @@ resource "local_sensitive_file" "lab_bootstrap" {
       condition     = trimspace(var.lab_secrets_root) != ""
       error_message = "lab_secrets_root must be set to a private directory outside the repository."
     }
+    precondition {
+      condition     = !startswith("${abspath(var.lab_secrets_root)}/", "${abspath("${path.root}/../..")}/")
+      error_message = "lab_secrets_root must be outside the repository."
+    }
   }
 }
 
