@@ -1,4 +1,7 @@
 terraform {
+  # External state is opt-in; quickstart supplies paths at terraform init.
+  backend "local" {}
+
   required_version = ">= 1.6.0"
 
   required_providers {
