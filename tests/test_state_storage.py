@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -159,6 +159,23 @@ class StateLayoutTests(unittest.TestCase):
             self.assertFalse((module / 'terraform.tfstate.d/ohio-802/terraform.tfstate').exists())
             self.assertTrue((root / 'private-archive/default/terraform.tfstate').is_file())
             self.assertTrue((root / 'private-archive/ohio-802/terraform.tfstate').is_file())
+
+    def test_coordinated_paths_are_private_and_cannot_overlap(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            file = base / 'settings.json'
+            expected = StorageSettings(base / '.secrets', StateLayout(base / '.state'))
+            write_storage_settings(file, expected)
+            self.assertEqual(read_storage_settings(file), expected)
+            self.assertEqual(file.stat().st_mode & 0o777, 0o600)
+            local = StorageSettings(base / '.secrets', None)
+            write_storage_settings(file, local)
+            self.assertEqual(read_storage_settings(file), local)
+            with self.assertRaisesRegex(ValueError, 'must not overlap'):
+                StorageSettings(base / '.state' / 'secrets', StateLayout(base / '.state'))
+            with self.assertRaisesRegex(ValueError, 'must not overlap'):
+                StorageSettings(base / '.secrets', StateLayout(base / '.secrets'))
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

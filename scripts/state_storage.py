@@ -230,3 +230,62 @@ def migrate_one_module(module_root: Path, layout: StateLayout, module: str, arch
         raise RuntimeError(f'Terraform migration failed for {module}; inspect backend configuration before retrying')
     verify_migrated_states(layout, module, expected)
     archive_migrated_sources(source, layout, module, expected, archive_root)
+
+
+@dataclass(frozen=True)
+class StorageSettings:
+    """Joint deployment preference; secrets stay separate even with local state."""
+    secrets_root: Path
+    state: StateLayout | None
+
+    def __post_init__(self):
+        if not self.secrets_root.is_absolute():
+            raise ValueError('secrets root must be an absolute path')
+        secrets = self.secrets_root.resolve()
+        object.__setattr__(self, 'secrets_root', secrets)
+        if self.state is not None:
+            state = self.state.root
+            if state == secrets or state in secrets.parents or secrets in state.parents:
+                raise ValueError('state and generated secrets directories must not overlap')
+
+
+def read_storage_settings(path: Path) -> StorageSettings | None:
+    import json
+    if path.is_symlink():
+        raise ValueError('storage settings may not be a symlink')
+    if not path.exists():
+        return None
+    if not path.is_file() or path.stat().st_mode & 0o077:
+        raise ValueError('storage settings must be an owner-only regular file')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict) or data.get('version') != 2 or not isinstance(data.get('external_state'), bool):
+        raise ValueError('invalid coordinated storage settings')
+    secrets_root = data.get('secrets_root')
+    if not isinstance(secrets_root, str) or not secrets_root:
+        raise ValueError('generated secrets root is missing')
+    state_root = data.get('state_root')
+    if data['external_state'] and (not isinstance(state_root, str) or not state_root):
+        raise ValueError('external state root is missing')
+    return StorageSettings(Path(secrets_root), StateLayout(Path(state_root)) if data['external_state'] else None)
+
+
+def write_storage_settings(path: Path, settings: StorageSettings) -> None:
+    import json
+    import os
+    import tempfile
+    if path.is_symlink():
+        raise ValueError('storage settings may not be a symlink')
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    payload = {'version': 2, 'external_state': settings.state is not None,
+               'state_root': str(settings.state.root) if settings.state else None,
+               'secrets_root': str(settings.secrets_root)}
+    fd, name = tempfile.mkstemp(prefix='.storage-settings-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(payload, stream, indent=2)
+            stream.write('\n')
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
