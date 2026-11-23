@@ -212,6 +212,30 @@ class Quickstart802Tests(unittest.TestCase):
         self.assertEqual(private['smoke_key'].name, 'quickstart-smoke-key-i-123abc.json')
         self.assertLess(sequence.index('deploy_demo_https_gateway.yml'), sequence.index('deploy_lab_chatbot.yml'))
 
+    def test_generated_bootstrap_activation_checks_terraform_identity(self):
+        import json
+        import os
+        from unittest.mock import patch
+        root = self.root / 'private'
+        directory = root / 'ohio-802' / 'i-123abc'
+        directory.mkdir(parents=True, mode=0o700)
+        bootstrap = directory / 'bootstrap-secrets.json'
+        bootstrap.write_text(json.dumps({'workspace': 'ohio-802', 'instance_id': 'i-123abc',
+             'faig_admin': {'password': 'Fictional_123', 'static_password_file': None},
+             'litellm': {'master_key': 'fictional', 'ui_password': 'fictional', 'postgres_password': 'fictional'}}))
+        bootstrap.chmod(0o600)
+        with patch.dict(os.environ, {'TF_WORKSPACE': 'ohio-802'}, clear=True), \
+             patch.object(quickstart, 'get_ec2_instance_id', return_value='i-123abc'), \
+             patch.object(quickstart, 'command_output', return_value=str(directory)), \
+             patch.object(quickstart, 'get_layered_yaml_scalar', return_value='admin@example.test'):
+            result = quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x')
+            self.assertEqual(result['instance_id'], 'i-123abc')
+            self.assertTrue((directory / '.lab-instance').exists())
+            self.assertEqual(os.environ['FAIG_ENV_DIR'], str(directory))
+            os.environ['FAIG_ENV_DIR'] = str(self.root / 'old-instance')
+            with self.assertRaisesRegex(SystemExit, 'conflicts'):
+                quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x')
+
     def test_802_generated_bootstrap_uses_one_canonical_file(self):
         from scripts import faig_bootstrap_802
         import catalog802.loader

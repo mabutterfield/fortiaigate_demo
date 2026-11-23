@@ -2375,6 +2375,31 @@ def prepare_802_initialization() -> dict[str, Path | str]:
             'smoke_key': environment / 'quickstart-smoke-key.json'}
 
 
+def activate_802_generated_bootstrap(*, secrets_root: Path, license_dir: Path, license_regex: str) -> dict:
+    """Select the current instance's canonical file after Terraform completes."""
+    from scripts import lab_credentials
+    workspace = os.environ.get('TF_WORKSPACE', '')
+    instance = get_ec2_instance_id()
+    if not re.fullmatch(r'i-[0-9a-f]+', instance or ''):
+        raise SystemExit('Cannot identify the current EC2 instance for generated credentials.')
+    expected = secrets_root / workspace / instance
+    returned = command_output(['terraform', '-chdir=terraform/aws-ec2-k3s', 'output', '-raw',
+                               'lab_instance_secrets_dir'], check=False)
+    if not returned or Path(returned) != expected:
+        raise SystemExit('Terraform instance secret directory does not match the selected workspace and instance.')
+    existing = os.environ.get('FAIG_ENV_DIR')
+    if existing and Path(existing).expanduser() != expected:
+        raise SystemExit('FAIG_ENV_DIR conflicts with the instance secret directory; remove it or select the current instance path.')
+    try:
+        result = lab_credentials.activate_bootstrap(secrets_root, workspace, instance, repo_root=REPO_ROOT,
+                    email=get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab'))
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'Cannot load instance bootstrap credentials: {exc}') from None
+    result.update(license_dir=license_dir, license_regex=license_regex)
+    os.environ['FAIG_ENV_DIR'] = str(expected)
+    return result
+
+
 def validate_terraform_vars_dir(directory: Path | None) -> Path | None:
     if directory is None:
         return None
