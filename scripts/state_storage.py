@@ -289,3 +289,27 @@ def write_storage_settings(path: Path, settings: StorageSettings) -> None:
     finally:
         if os.path.exists(name):
             os.unlink(name)
+
+
+def prepare_external_module(module_root: Path, layout: StateLayout, module: str, workspace: str,
+                            *, require_existing: bool = False) -> list[str]:
+    """Build safe init arguments only after legacy state has been migrated."""
+    import os
+    # The mere presence of a source snapshot must not be ignored: another
+    # checkout might otherwise create fresh state for existing resources.
+    legacy = inventory_legacy_states(module_root)
+    if legacy:
+        raise ValueError(f'legacy state still exists for {module}; migrate and verify it first')
+    target = layout.state_path(module, workspace)
+    if require_existing and not target.is_file():
+        raise ValueError(f'required external state is missing for {module}/{workspace}')
+    if target.is_symlink():
+        raise ValueError(f'external state file may not be a symlink: {target}')
+    module_dir = layout.module_root(module)
+    if layout.root.is_symlink() or module_dir.is_symlink():
+        raise ValueError('external state directories may not be symlinks')
+    layout.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    module_dir.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(layout.root, 0o700)
+    os.chmod(module_dir, 0o700)
+    return ['init', '-input=false', '-reconfigure', *layout.backend_args(module)]

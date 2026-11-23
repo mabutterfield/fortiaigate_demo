@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -176,6 +176,26 @@ class StateLayoutTests(unittest.TestCase):
                 StorageSettings(base / '.state' / 'secrets', StateLayout(base / '.state'))
             with self.assertRaisesRegex(ValueError, 'must not overlap'):
                 StorageSettings(base / '.secrets', StateLayout(base / '.secrets'))
+
+    def test_external_initialization_refuses_unmigrated_or_missing_required_state(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            module = root / 'module'
+            module.mkdir()
+            layout = StateLayout(root / 'state')
+            with self.assertRaisesRegex(ValueError, 'required external state is missing'):
+                prepare_external_module(module, layout, 'aws-ecr', 'ohio-802', require_existing=True)
+            legacy = module / 'terraform.tfstate'
+            legacy.write_text(json.dumps({'lineage': 'x', 'serial': 0, 'resources': []}))
+            with self.assertRaisesRegex(ValueError, 'legacy state still exists'):
+                prepare_external_module(module, layout, 'aws-ecr', 'ohio-802')
+            legacy.unlink()
+            args = prepare_external_module(module, layout, 'aws-prep', 'ohio-802')
+            self.assertIn('-reconfigure', args)
+            self.assertEqual(layout.root.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(layout.module_root('aws-prep').stat().st_mode & 0o777, 0o700)
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')
