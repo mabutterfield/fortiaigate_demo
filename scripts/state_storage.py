@@ -11,6 +11,15 @@ import re
 
 MODULES = ('aws-ecr', 'aws-prep', 'aws-ec2-k3s', 'aws-fortigate', 'aws-fortiweb')
 _WORKSPACE = re.compile(r'^[A-Za-z0-9_-]+$')
+MOVED_SENTINEL = 'FAIG TERRAFORM STATE MOVED: use the configured external-state quickstart.\n'
+
+
+def is_moved_sentinel(path: Path) -> bool:
+    """Recognize a non-secret marker that makes legacy raw Terraform fail closed."""
+    try:
+        return path.is_file() and path.stat().st_size == len(MOVED_SENTINEL) and path.read_text(encoding='utf-8') == MOVED_SENTINEL
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 @dataclass(frozen=True)
@@ -164,6 +173,7 @@ def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str
     """
     import os
     import shutil
+    import tempfile
     sources = inventory_legacy_states(module_root)
     if set(sources) != set(expected):
         raise ValueError('legacy workspace set changed during migration')
@@ -201,7 +211,22 @@ def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str
         if checked_state_identity(source) != expected[workspace]:
             raise ValueError(f'legacy state changed during archive: {source}')
     for _, path in files:
-        path.unlink()
+        if path.name == 'terraform.tfstate':
+            # Keep an intentionally invalid marker at every old active state
+            # path: old checkout Terraform must not create a fresh empty state.
+            fd, temporary = tempfile.mkstemp(prefix='.faig-state-moved-', dir=path.parent)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as marker:
+                    os.fchmod(marker.fileno(), 0o600)
+                    marker.write(MOVED_SENTINEL)
+                    marker.flush()
+                    os.fsync(marker.fileno())
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        else:
+            path.unlink()
 
 
 def migrate_one_module(module_root: Path, layout: StateLayout, module: str, archive_root: Path) -> None:
@@ -222,19 +247,34 @@ def migrate_one_module(module_root: Path, layout: StateLayout, module: str, arch
     target = layout.module_root(module)
     target.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(target, 0o700)
-    command = ['terraform', '-chdir=' + str(source), 'init', '-input=false', '-migrate-state', '-force-copy',
-               *layout.backend_args(module)]
+    # An implicit local backend ignores -backend-config in older checkouts.
+    # Migrate private copies through a minimal explicit-backend working dir;
+    # never alter the old checkout's Terraform configuration or state in place.
+    import shutil
+    import tempfile
     env = os.environ.copy()
-    # A workspace override can make terraform init skip other workspaces.
     env.pop('TF_WORKSPACE', None)
+    env.pop('TF_DATA_DIR', None)
     previous_umask = os.umask(0o077)
     try:
-        result = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
+        with tempfile.TemporaryDirectory(prefix='faig-state-migration-', dir=backup.parent) as tmp:
+            staging = Path(tmp)
+            (staging / 'main.tf').write_text('terraform {\n  backend "local" {}\n}\n', encoding='utf-8')
+            def init(*args):
+                command = ['terraform', '-chdir=' + str(staging), 'init', '-input=false', *args]
+                result = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
+                if result.returncode:
+                    raise RuntimeError(f'Terraform migration failed for {module}; inspect backend configuration before retrying')
+            init()
+            for workspace, path in inventory_legacy_states(source).items():
+                destination = (staging / 'terraform.tfstate' if workspace == 'default' else
+                               staging / 'terraform.tfstate.d' / workspace / 'terraform.tfstate')
+                destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                shutil.copyfile(path, destination)
+                os.chmod(destination, 0o600)
+            init('-migrate-state', '-force-copy', *layout.backend_args(module))
     finally:
         os.umask(previous_umask)
-    if result.returncode:
-        # Do not emit Terraform's output: state diagnostics might include secrets.
-        raise RuntimeError(f'Terraform migration failed for {module}; inspect backend configuration before retrying')
     verify_migrated_states(layout, module, expected)
     archive_migrated_sources(source, layout, module, expected, archive_root)
 
@@ -244,12 +284,20 @@ class StorageSettings:
     """Joint deployment preference; secrets stay separate even with local state."""
     secrets_root: Path
     state: StateLayout | None
+    workspace: str = 'default'
+    terraform_vars_dir: Path | None = None
 
     def __post_init__(self):
         if not self.secrets_root.is_absolute():
             raise ValueError('secrets root must be an absolute path')
         secrets = self.secrets_root.resolve()
         object.__setattr__(self, 'secrets_root', secrets)
+        if not _WORKSPACE.fullmatch(self.workspace) or self.workspace.lower() == 'static':
+            raise ValueError('invalid Terraform workspace name')
+        if self.terraform_vars_dir is not None:
+            if not self.terraform_vars_dir.is_absolute():
+                raise ValueError('Terraform overrides directory must be absolute')
+            object.__setattr__(self, 'terraform_vars_dir', self.terraform_vars_dir.resolve())
         if self.state is not None:
             state = self.state.root
             if state == secrets or state in secrets.parents or secrets in state.parents:
@@ -258,11 +306,12 @@ class StorageSettings:
 
 def read_storage_settings(path: Path) -> StorageSettings | None:
     import json
+    import os
     if path.is_symlink():
         raise ValueError('storage settings may not be a symlink')
     if not path.exists():
         return None
-    if not path.is_file() or path.stat().st_mode & 0o077:
+    if not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_uid != os.getuid():
         raise ValueError('storage settings must be an owner-only regular file')
     data = json.loads(path.read_text(encoding='utf-8'))
     if not isinstance(data, dict) or data.get('version') != 2 or not isinstance(data.get('external_state'), bool):
@@ -273,7 +322,12 @@ def read_storage_settings(path: Path) -> StorageSettings | None:
     state_root = data.get('state_root')
     if data['external_state'] and (not isinstance(state_root, str) or not state_root):
         raise ValueError('external state root is missing')
-    return StorageSettings(Path(secrets_root), StateLayout(Path(state_root)) if data['external_state'] else None)
+    workspace = data.get('workspace', 'default')
+    vars_dir = data.get('terraform_vars_dir')
+    if not isinstance(workspace, str) or (vars_dir is not None and not isinstance(vars_dir, str)):
+        raise ValueError('invalid workspace or Terraform overrides directory')
+    return StorageSettings(Path(secrets_root), StateLayout(Path(state_root)) if data['external_state'] else None,
+                           workspace, Path(vars_dir) if vars_dir else None)
 
 
 def write_storage_settings(path: Path, settings: StorageSettings) -> None:
@@ -285,7 +339,8 @@ def write_storage_settings(path: Path, settings: StorageSettings) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     payload = {'version': 2, 'external_state': settings.state is not None,
                'state_root': str(settings.state.root) if settings.state else None,
-               'secrets_root': str(settings.secrets_root)}
+               'secrets_root': str(settings.secrets_root), 'workspace': settings.workspace,
+               'terraform_vars_dir': str(settings.terraform_vars_dir) if settings.terraform_vars_dir else None}
     fd, name = tempfile.mkstemp(prefix='.storage-settings-', dir=path.parent)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
@@ -307,9 +362,11 @@ def prepare_external_module(module_root: Path, layout: StateLayout, module: str,
     # Read-only discovery can follow an old shared-worktree alias, but any
     # actual legacy snapshot must be migrated before this checkout initializes.
     workspace_root = module_root / 'terraform.tfstate.d'
-    legacy_default = (module_root / 'terraform.tfstate').is_file()
+    default_state = module_root / 'terraform.tfstate'
+    legacy_default = default_state.is_file() and not is_moved_sentinel(default_state)
     legacy_named = (workspace_root.is_dir() and any(
-        (child / 'terraform.tfstate').is_file() for child in workspace_root.iterdir() if child.is_dir()))
+        (child / 'terraform.tfstate').is_file() and not is_moved_sentinel(child / 'terraform.tfstate')
+        for child in workspace_root.iterdir() if child.is_dir()))
     if legacy_default or legacy_named:
         raise ValueError(f'legacy state still exists for {module}; migrate and verify it first')
     target = layout.state_path(module, workspace)
@@ -324,10 +381,10 @@ def prepare_external_module(module_root: Path, layout: StateLayout, module: str,
     module_dir.mkdir(mode=0o700, exist_ok=True)
     os.chmod(layout.root, 0o700)
     os.chmod(module_dir, 0o700)
-    return ['init', '-input=false', '-reconfigure', *layout.backend_args(module)]
+    return ['init', '-input=false', *layout.backend_args(module)]
 
 
-def discover_worktree_states(worktrees: list[Path], module: str) -> dict[str, Path]:
+def discover_worktree_states(worktrees: list[Path], module: str, *, allow_moved: bool = False) -> dict[str, Path]:
     """Find unique legacy state files across worktrees; reject ambiguous owners.
 
     Existing symlinked worktrees can be inventoried read-only. A migration must
@@ -350,6 +407,10 @@ def discover_worktree_states(worktrees: list[Path], module: str) -> dict[str, Pa
             if not path.is_file():
                 continue
             real = path.resolve()
+            if is_moved_sentinel(real):
+                if allow_moved:
+                    continue
+                raise ValueError(f'{module}/{workspace} has moved-state marker; inspect the saved storage profile')
             prior = found.get(workspace)
             if prior is not None and prior != real:
                 # Different on-disk snapshots are ambiguous even when their
@@ -418,7 +479,38 @@ def build_migration_plan(worktrees: list[Path], layout: StateLayout) -> dict[str
     return plan
 
 
-def migrate_plan(plan: dict[str, dict], layout: StateLayout, backup_root: Path) -> None:
+def install_legacy_guards(worktrees: list[Path], plan: dict[str, dict]) -> None:
+    """Block raw local Terraform for known workspaces in every old checkout."""
+    import os
+    workspaces = {'default'}
+    for item in plan.values():
+        workspaces.update(item['workspaces'])
+    for tree in worktrees:
+        for module in MODULES:
+            module_root = tree / 'terraform' / module
+            if not module_root.is_dir():
+                continue
+            for workspace in sorted(workspaces):
+                path = (module_root / 'terraform.tfstate' if workspace == 'default' else
+                        module_root / 'terraform.tfstate.d' / workspace / 'terraform.tfstate')
+                if path.exists() or path.is_symlink():
+                    if is_moved_sentinel(path):
+                        continue
+                    raise ValueError(f'legacy state guard would overwrite an existing file: {path}')
+                for parent in (path.parent, *path.parent.parents):
+                    if parent == tree.parent:
+                        break
+                    if parent.is_symlink():
+                        raise ValueError(f'legacy state guard path contains a symlink: {parent}')
+                path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+                with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                    stream.write(MOVED_SENTINEL)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+
+
+def migrate_plan(plan: dict[str, dict], layout: StateLayout, backup_root: Path, *, worktrees: list[Path] | None = None) -> None:
     """Migrate an inventoried set with private backups and a fail-closed journal.
 
     No cloud resources are changed. An interrupted journal is intentionally not
@@ -474,6 +566,8 @@ def migrate_plan(plan: dict[str, dict], layout: StateLayout, backup_root: Path) 
                     migrate_one_module(source, layout, module, backup_root / 'retired' / module)
             for module in MODULES:
                 verify_migrated_states(layout, module, plan[module]['workspaces'])
+            if worktrees is not None:
+                install_legacy_guards(worktrees, plan)
             journal.unlink()
     except BlockingIOError:
         raise ValueError('another state migration is already running') from None
@@ -507,15 +601,26 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
         # never silently create a fresh state while old snapshots still exist.
         if not layout.root.is_dir():
             raise ValueError('configured external state root is missing; inspect the profile before continuing')
+        verify_state_manifest(layout)
         for module in MODULES:
-            if discover_worktree_states(worktrees, module):
+            if discover_worktree_states(worktrees, module, allow_moved=True):
                 raise ValueError(f'legacy state still exists for {module}; inspect the existing profile and migration')
         return
     plan = build_migration_plan(worktrees, layout)
+    print('Local Terraform state migration inventory (resource counts are state records, not AWS status):')
+    for module, item in plan.items():
+        if not item['workspaces']:
+            print(f'- {module}: no existing snapshots')
+        for workspace, identity in sorted(item['workspaces'].items()):
+            print(f'- {module}/{workspace}: {identity[2]} managed instance records')
+    print(f'Private state backup location: {backup_root}')
     # Save the user's choice before migration. If interrupted, the migration
     # journal prevents any later quickstart from using a partial state layout.
     write_storage_settings(profile_path, settings)
-    migrate_plan(plan, layout, backup_root)
+    migrate_plan(plan, layout, backup_root, worktrees=worktrees)
+    manifest = {module: {workspace: identity[0] for workspace, identity in item['workspaces'].items()}
+                for module, item in plan.items()}
+    write_state_manifest(layout, manifest)
 
 
 def secure_state_files(path: Path, *, named_workspace: bool) -> None:
@@ -534,3 +639,142 @@ def secure_state_files(path: Path, *, named_workspace: bool) -> None:
         if path.parent.is_symlink() or path.parent.stat().st_uid != os.getuid():
             raise ValueError('workspace state directory must be owned by the current user and not a symlink')
         os.chmod(path.parent, 0o700)
+
+
+def read_state_manifest(layout: StateLayout) -> dict[str, dict[str, str]]:
+    """Read the non-secret inventory of state lineages expected to persist."""
+    import json
+    import os
+    path = layout.root / '.state-inventory.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_uid != os.getuid():
+        raise ValueError('external state inventory is missing or unsafe')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict) or data.get('version') != 1 or not isinstance(data.get('modules'), dict):
+        raise ValueError('external state inventory has an invalid format')
+    return data['modules']
+
+
+def write_state_manifest(layout: StateLayout, modules: dict[str, dict[str, str]]) -> None:
+    import json
+    import os
+    import tempfile
+    path = layout.root / '.state-inventory.json'
+    if path.is_symlink():
+        raise ValueError('external state inventory may not be a symlink')
+    fd, tmp = tempfile.mkstemp(prefix='.state-inventory-', dir=layout.root)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump({'version': 1, 'modules': modules}, stream, indent=2, sort_keys=True)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def verify_state_manifest(layout: StateLayout) -> None:
+    """Never treat a missing or wrong-lineage managed state as a fresh lab."""
+    modules = read_state_manifest(layout)
+    for module, workspaces in modules.items():
+        if module not in MODULES or not isinstance(workspaces, dict):
+            raise ValueError('external state inventory names an invalid module')
+        for workspace, lineage in workspaces.items():
+            path = layout.state_path(module, workspace)
+            if path.is_symlink() or not path.is_file() or checked_state_identity(path)[0] != lineage:
+                raise ValueError(f'external state is missing or has the wrong lineage for {module}/{workspace}')
+
+
+def register_state(layout: StateLayout, module: str, workspace: str) -> None:
+    """Record a newly created workspace or verify its original lineage."""
+    modules = read_state_manifest(layout)
+    lineage = checked_state_identity(layout.state_path(module, workspace))[0]
+    known = modules.setdefault(module, {})
+    if workspace in known and known[workspace] != lineage:
+        raise ValueError(f'external state lineage changed for {module}/{workspace}')
+    known[workspace] = lineage
+    write_state_manifest(layout, modules)
+
+
+def acquire_operation_lock(layout: StateLayout):
+    """Hold an exclusive cross-worktree lock until the returned file closes."""
+    import fcntl
+    import os
+    if layout.root.is_symlink():
+        raise ValueError('external state root may not be a symlink')
+    layout.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(layout.root, 0o700)
+    path = layout.root / '.operation.lock'
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, 'O_NOFOLLOW', 0)
+    fd = os.open(path, flags, 0o600)
+    stream = os.fdopen(fd, 'r+', encoding='utf-8')
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError):
+        stream.close()
+        raise ValueError('another operation is using the shared Terraform state') from None
+    return stream
+
+
+def terraform_data_dir(layout: StateLayout, repo_root: Path, module: str) -> Path:
+    """A private, checkout-specific TF_DATA_DIR sharing one authoritative state."""
+    import hashlib
+    if module not in MODULES:
+        raise ValueError('unknown Terraform module')
+    checkout = hashlib.sha256(str(repo_root.resolve()).encode()).hexdigest()[:16]
+    return layout.root / '.terraform-data' / checkout / module
+
+
+def prime_backend_data(layout: StateLayout, repo_root: Path, module: str, terraform_binary: str) -> Path:
+    """Initialize backend metadata without touching a checkout's guard files."""
+    import os
+    import subprocess
+    import tempfile
+    data_dir = terraform_data_dir(layout, repo_root, module)
+    metadata = data_dir / 'terraform.tfstate'
+    parents = (layout.root / '.terraform-data', data_dir.parent, data_dir)
+    if any(path.is_symlink() for path in parents) or metadata.is_symlink():
+        raise ValueError('Terraform data directory or backend metadata may not be a symlink')
+    for path in parents:
+        path.mkdir(mode=0o700, exist_ok=True)
+        if path.stat().st_uid != os.getuid():
+            raise ValueError('Terraform data directory must be owned by the current user')
+        os.chmod(path, 0o700)
+    if metadata.is_file():
+        if metadata.stat().st_uid != os.getuid():
+            raise ValueError('Terraform backend metadata must be owned by the current user')
+        os.chmod(metadata, 0o600)
+        return data_dir
+    with tempfile.TemporaryDirectory(prefix='faig-backend-prime-') as tmp:
+        staging = Path(tmp)
+        (staging / 'main.tf').write_text('terraform {\n  backend "local" {}\n}\n', encoding='utf-8')
+        env = os.environ.copy()
+        env['TF_DATA_DIR'] = str(data_dir)
+        # Backend initialization must not select or create a workspace.
+        env.pop('TF_WORKSPACE', None)
+        command = [terraform_binary, '-chdir=' + str(staging), 'init', '-input=false', *layout.backend_args(module)]
+        result = subprocess.run(command, env=env, text=True, capture_output=True, check=False, umask=0o077)
+        if result.returncode:
+            raise RuntimeError(f'Cannot initialize external Terraform backend metadata for {module}.')
+    return data_dir
+
+
+def configure_terraform_proxy(repo_root: Path, profile_path: Path) -> str:
+    """Make controller-side Ansible and Python use the same state backend."""
+    import os
+    import shutil
+    wrapper = (repo_root / 'scripts/bin/terraform').resolve()
+    real = os.environ.get('FAIG_REAL_TERRAFORM') or shutil.which('terraform')
+    if not real or not Path(real).is_absolute() or Path(real).resolve() == wrapper:
+        raise ValueError('cannot locate the real Terraform executable for external state')
+    if not wrapper.is_file():
+        raise ValueError('external Terraform launcher is missing')
+    os.environ['FAIG_REAL_TERRAFORM'] = real
+    os.environ['FAIG_STORAGE_PROFILE'] = str(profile_path)
+    directory = str(wrapper.parent)
+    parts = os.environ.get('PATH', '').split(os.pathsep)
+    if directory not in parts:
+        os.environ['PATH'] = directory + os.pathsep + os.environ.get('PATH', '')
+    return real

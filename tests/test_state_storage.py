@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan, activate_storage_settings, secure_state_files
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan, activate_storage_settings, secure_state_files, is_moved_sentinel, verify_state_manifest, register_state, acquire_operation_lock, install_legacy_guards, terraform_data_dir, prime_backend_data
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -128,7 +128,7 @@ class StateLayoutTests(unittest.TestCase):
             target.write_bytes(source.read_bytes())
             archive = root / 'archive'
             archive_migrated_sources(old, layout, 'aws-ecr', expected, archive)
-            self.assertFalse(source.exists())
+            self.assertTrue(is_moved_sentinel(source))
             self.assertFalse(backup.exists())
             self.assertEqual((archive / 'default' / 'terraform.tfstate').stat().st_mode & 0o777, 0o600)
             self.assertEqual((archive / 'default' / 'terraform.tfstate.backup').read_text(), 'fictional-backup')
@@ -153,10 +153,17 @@ class StateLayoutTests(unittest.TestCase):
             terraform('workspace', 'new', 'ohio-802')
             terraform('apply', '-input=false', '-auto-approve')
             original = check_migration_source(module, layout, 'aws-ecr')
-            migrate_one_module(module, layout, 'aws-ecr', root / 'private-archive')
+            from unittest.mock import patch
+            with patch.dict('os.environ', {'TF_DATA_DIR': str(root / 'wrong-metadata')}):
+                migrate_one_module(module, layout, 'aws-ecr', root / 'private-archive')
             verify_migrated_states(layout, 'aws-ecr', original)
-            self.assertFalse((module / 'terraform.tfstate').exists())
-            self.assertFalse((module / 'terraform.tfstate.d/ohio-802/terraform.tfstate').exists())
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate.d/ohio-802/terraform.tfstate'))
+            # A legacy checkout's raw Terraform command must not act on an
+            # empty local state after the authoritative copy has moved.
+            failed = subprocess.run(['terraform', '-chdir=' + str(module), 'state', 'list'],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0)
             self.assertTrue((root / 'private-archive/default/terraform.tfstate').is_file())
             self.assertTrue((root / 'private-archive/ohio-802/terraform.tfstate').is_file())
 
@@ -165,7 +172,7 @@ class StateLayoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory).resolve()
             file = base / 'settings.json'
-            expected = StorageSettings(base / '.secrets', StateLayout(base / '.state'))
+            expected = StorageSettings(base / '.secrets', StateLayout(base / '.state'), 'ohio-802', base / 'ohio-vars')
             write_storage_settings(file, expected)
             self.assertEqual(read_storage_settings(file), expected)
             self.assertEqual(file.stat().st_mode & 0o777, 0o600)
@@ -193,7 +200,7 @@ class StateLayoutTests(unittest.TestCase):
                 prepare_external_module(module, layout, 'aws-ecr', 'ohio-802')
             legacy.unlink()
             args = prepare_external_module(module, layout, 'aws-prep', 'ohio-802')
-            self.assertIn('-reconfigure', args)
+            self.assertIn('-input=false', args)
             self.assertEqual(layout.root.stat().st_mode & 0o777, 0o700)
             self.assertEqual(layout.module_root('aws-prep').stat().st_mode & 0o777, 0o700)
 
@@ -305,7 +312,7 @@ class StateLayoutTests(unittest.TestCase):
             for name in ('aws-ecr', 'aws-prep'):
                 self.assertTrue(layout.state_path(name, 'default').is_file())
                 self.assertTrue((backup / 'preflight' / name / 'default/terraform.tfstate').is_file())
-                self.assertFalse((tree / 'terraform' / name / 'terraform.tfstate').exists())
+                self.assertTrue(is_moved_sentinel(tree / 'terraform' / name / 'terraform.tfstate'))
 
     def test_interrupted_migration_retains_journal_and_source(self):
         import json
@@ -347,7 +354,7 @@ class StateLayoutTests(unittest.TestCase):
             activate_storage_settings(settings, profile, [tree], root / 'private-backup')
             self.assertEqual(read_storage_settings(profile), settings)
             self.assertTrue(settings.state.state_path('aws-ecr', 'default').exists())
-            self.assertFalse((module / 'terraform.tfstate').exists())
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
             activate_storage_settings(settings, profile, [tree], root / 'unused-backup')
             self.assertFalse((root / 'unused-backup').exists())
 
@@ -369,6 +376,88 @@ class StateLayoutTests(unittest.TestCase):
             secure_state_files(named, named_workspace=True)
             self.assertEqual(named.stat().st_mode & 0o777, 0o600)
             self.assertEqual(named.parent.stat().st_mode & 0o777, 0o700)
+
+    def test_inventory_refuses_missing_or_wrong_lineage(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            settings = StorageSettings(root / '.secrets', StateLayout(root / '.state'))
+            profile = root / 'settings.json'
+            activate_storage_settings(settings, profile, [], root / 'backup')
+            state = settings.state.state_path('aws-prep', 'ohio-802')
+            state.parent.mkdir(parents=True)
+            state.write_text(json.dumps({'lineage': 'first', 'serial': 1, 'resources': []}))
+            register_state(settings.state, 'aws-prep', 'ohio-802')
+            verify_state_manifest(settings.state)
+            state.write_text(json.dumps({'lineage': 'wrong', 'serial': 1, 'resources': []}))
+            with self.assertRaisesRegex(ValueError, 'wrong lineage'):
+                verify_state_manifest(settings.state)
+            state.unlink()
+            with self.assertRaisesRegex(ValueError, 'missing or has the wrong lineage'):
+                verify_state_manifest(settings.state)
+
+    def test_shared_state_operation_lock_prevents_concurrent_worktrees(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            layout = StateLayout((Path(directory) / 'state').resolve())
+            first = acquire_operation_lock(layout)
+            try:
+                with self.assertRaisesRegex(ValueError, 'another operation'):
+                    acquire_operation_lock(layout)
+            finally:
+                first.close()
+            second = acquire_operation_lock(layout)
+            second.close()
+
+    def test_legacy_guards_block_known_workspaces_in_other_worktrees(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            tree = root / 'other'
+            module = tree / 'terraform/aws-ecr'
+            module.mkdir(parents=True)
+            (module / 'main.tf').write_text('output "synthetic" { value = "example" }\n')
+            subprocess.run(['terraform', '-chdir=' + str(module), 'init', '-input=false'], check=True, capture_output=True)
+            plan = {name: {'module_root': None, 'workspaces': {}} for name in ('aws-ecr', 'aws-prep', 'aws-ec2-k3s', 'aws-fortigate', 'aws-fortiweb')}
+            plan['aws-ecr']['workspaces']['ohio-802'] = ('id', 1, 0, 'digest')
+            install_legacy_guards([tree], plan)
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate.d/ohio-802/terraform.tfstate'))
+            failed = subprocess.run(['terraform', '-chdir=' + str(module), 'state', 'list'], capture_output=True)
+            self.assertNotEqual(failed.returncode, 0)
+
+    def test_backend_data_initialization_preserves_legacy_guards(self):
+        import os
+        import shutil
+        import subprocess
+        import tempfile
+        if not shutil.which('terraform'):
+            self.skipTest('terraform is unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            old, new = root / 'old', root / 'new'
+            code = 'terraform {\n backend "local" {}\n}\noutput "synthetic" { value = "example" }\n'
+            for tree in (old, new):
+                module = tree / 'terraform/aws-ecr'
+                module.mkdir(parents=True)
+                (module / 'main.tf').write_text(code)
+            source = old / 'terraform/aws-ecr'
+            for args in (['init', '-input=false'], ['apply', '-auto-approve', '-input=false']):
+                subprocess.run(['terraform', '-chdir=' + str(source), *args], check=True, capture_output=True)
+            layout = StateLayout(root / 'state')
+            plan = build_migration_plan([old, new], layout)
+            migrate_plan(plan, layout, root / 'backup', worktrees=[old, new])
+            module = new / 'terraform/aws-ecr'
+            data = prime_backend_data(layout, new, 'aws-ecr', shutil.which('terraform'))
+            self.assertEqual(data, terraform_data_dir(layout, new, 'aws-ecr'))
+            env = dict(os.environ, TF_DATA_DIR=str(data))
+            args = prepare_external_module(module, layout, 'aws-ecr', 'default', require_existing=True)
+            subprocess.run(['terraform', '-chdir=' + str(module), *args], env=env, check=True, capture_output=True)
+            result = subprocess.run(['terraform', '-chdir=' + str(module), 'output', '-raw', 'synthetic'], env=env, check=True, capture_output=True, text=True)
+            self.assertEqual(result.stdout, 'example')
+            self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

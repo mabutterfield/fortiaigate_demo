@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -15,8 +16,14 @@ import automated_quickstart as quickstart
 
 class Quickstart802Tests(unittest.TestCase):
     def setUp(self):
+        try:
+            original_cwd = Path.cwd()
+        except FileNotFoundError:
+            original_cwd = Path(__file__).resolve().parents[1]
+            os.chdir(original_cwd)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        self.addCleanup(os.chdir, original_cwd)
         self.root = Path(self.temp.name)
         self.user = self.root / "ansible/group_vars/user.yml"
         self.user.parent.mkdir(parents=True)
@@ -226,7 +233,7 @@ class Quickstart802Tests(unittest.TestCase):
         workspace.mkdir()
         with mock.patch.object(quickstart, 'REPO_ROOT', workspace / 'repo'), \
              mock.patch.object(quickstart, 'prompt_yes_no', return_value=True), \
-             mock.patch.object(quickstart, 'prompt_text', side_effect=[str(workspace / '.state'), str(workspace / '.secrets')]):
+             mock.patch.object(quickstart, 'prompt_text', side_effect=['default', str(workspace / '.state'), str(workspace / '.secrets')]):
             selected = quickstart.select_storage_settings(profile_path=profile, noninteractive=False, workspace_root=workspace)
         self.assertEqual(selected.state.root, workspace / '.state')
         self.assertEqual(selected.secrets_root, workspace / '.secrets')
@@ -234,6 +241,22 @@ class Quickstart802Tests(unittest.TestCase):
         default = quickstart.select_storage_settings(profile_path=profile, noninteractive=True, workspace_root=workspace)
         self.assertIsNone(default.state)
         self.assertEqual(default.secrets_root, workspace / '.secrets')
+
+    def test_yolo_reads_saved_workspace_and_overrides_without_environment(self):
+        from scripts.state_storage import StateLayout, StorageSettings, write_storage_settings
+        workspace = (self.root / 'workspace').resolve()
+        workspace.mkdir()
+        overrides = workspace / 'ohio-vars'
+        overrides.mkdir()
+        profile = workspace / 'storage.json'
+        expected = StorageSettings(workspace / '.secrets', StateLayout(workspace / '.state'), 'ohio-802', overrides)
+        write_storage_settings(profile, expected)
+        with mock.patch.object(quickstart, 'REPO_ROOT', workspace / 'repo'), mock.patch.dict(os.environ, {}, clear=True):
+            actual = quickstart.select_storage_settings(profile_path=profile, noninteractive=True, workspace_root=workspace)
+        self.assertEqual(actual, expected)
+        with mock.patch.object(quickstart, 'REPO_ROOT', workspace / 'repo'), mock.patch.dict(os.environ, {'TF_WORKSPACE':'other'}, clear=True):
+            with self.assertRaisesRegex(SystemExit, 'conflicts'):
+                quickstart.select_storage_settings(profile_path=profile, noninteractive=True, workspace_root=workspace)
 
     def test_generated_bootstrap_activation_checks_terraform_identity(self):
         import json
@@ -249,15 +272,15 @@ class Quickstart802Tests(unittest.TestCase):
         bootstrap.chmod(0o600)
         with patch.dict(os.environ, {'TF_WORKSPACE': 'ohio-802'}, clear=True), \
              patch.object(quickstart, 'get_ec2_instance_id', return_value='i-123abc'), \
-             patch.object(quickstart, 'command_output', return_value=str(directory)), \
+             patch.object(quickstart, 'command_output', side_effect=lambda argv, **_kw: '123456789012' if argv[0] == 'aws' else str(directory)), \
              patch.object(quickstart, 'get_layered_yaml_scalar', return_value='admin@example.test'):
-            result = quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x')
+            result = quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x', profile='lab', region='us-east-2')
             self.assertEqual(result['instance_id'], 'i-123abc')
             self.assertTrue((directory / '.lab-instance').exists())
             self.assertEqual(os.environ['FAIG_ENV_DIR'], str(directory))
             os.environ['FAIG_ENV_DIR'] = str(self.root / 'old-instance')
             with self.assertRaisesRegex(SystemExit, 'conflicts'):
-                quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x')
+                quickstart.activate_802_generated_bootstrap(secrets_root=root, license_dir=self.root, license_regex='x', profile='lab', region='us-east-2')
 
     def test_802_generated_bootstrap_uses_one_canonical_file(self):
         from scripts import faig_bootstrap_802
@@ -283,6 +306,50 @@ class Quickstart802Tests(unittest.TestCase):
         self.assertEqual(private['journal'].name, 'faig-init.json')
         self.assertEqual(play.call_args_list[0].kwargs['extra_vars']['lab_bootstrap_secrets_file'], str(private['bootstrap_file']))
         self.assertNotIn('fictional', repr(play.call_args_list))
+
+    def test_yolo_orchestrates_generated_instance_credentials(self):
+        import contextlib
+        import os
+        import sys
+        from scripts import state_storage
+        from types import SimpleNamespace
+        (self.root / 'terraform').mkdir(exist_ok=True)
+        (self.root / 'terraform/user.tfvars').write_text('aws_profile = "lab"\naws_region = "us-east-2"\nssh_key_name = "fixture"\n')
+        playbooks = self.root / 'ansible/playbooks'
+        playbooks.mkdir(parents=True, exist_ok=True)
+        for name in ('deploy_lab_management.yml', 'deploy_lab_chatbot.yml', 'deploy_demo_https_gateway.yml'):
+            (playbooks / name).write_text('---\n')
+        secrets_root = (self.root.parent / 'fixture-secrets').resolve()
+        settings = state_storage.StorageSettings(secrets_root, None, 'ohio-802')
+        runtime = {'instance_id': 'i-123', 'bootstrap_file': self.root / 'bootstrap.json'}
+        old_cwd = os.getcwd()
+        with contextlib.ExitStack() as stack:
+            self.addCleanup(os.chdir, old_cwd)
+            stack.enter_context(mock.patch.dict(os.environ, {'TF_WORKSPACE':'ohio-802', 'FAIG_WORKSPACE_ROOT':str(self.root.parent)}, clear=True))
+            stack.enter_context(mock.patch.object(sys, 'argv', ['automated_quickstart.py', '--yolo']))
+            for name in ('check_repo_root', 'check_requirements', 'validate_yolo_aws_profile', 'preflight_static_password_files',
+                         'ensure_aws_login', 'configure_ansible_env', 'configure_disabled_appliance_tfvars',
+                         'ensure_appliance_prep_tfvars', 'ensure_appliance_collections', 'configure_appliance_license_preflight',
+                         'prompt_ec2_status', 'show_appliance_ec2_statuses'):
+                stack.enter_context(mock.patch.object(quickstart, name))
+            stack.enter_context(mock.patch.object(quickstart, 'ensure_user_profile', return_value='existing'))
+            stack.enter_context(mock.patch.object(quickstart, 'preflight_802_license', return_value=(self.root, 'x')))
+            stack.enter_context(mock.patch.object(quickstart, 'select_storage_settings', return_value=settings))
+            stack.enter_context(mock.patch.object(quickstart, 'repo_worktrees', return_value=[]))
+            stack.enter_context(mock.patch.object(state_storage, 'read_storage_settings', return_value=None))
+            stack.enter_context(mock.patch.object(state_storage, 'activate_storage_settings'))
+            stack.enter_context(mock.patch.object(quickstart.profile_tool, 'warn_legacy_files'))
+            stack.enter_context(mock.patch.object(quickstart.profile_tool, 'ensure_ec2_instance_type'))
+            stack.enter_context(mock.patch.object(quickstart, 'selected_appliance_keys', return_value=[]))
+            stack.enter_context(mock.patch.object(quickstart, 'filter_existing_appliances_for_skipped_terraform', return_value=[]))
+            stack.enter_context(mock.patch.object(quickstart, 'filter_noninteractive_default_appliances', return_value=[]))
+            deploy = stack.enter_context(mock.patch.object(quickstart, 'run_terraform'))
+            stack.enter_context(mock.patch.object(quickstart, 'activate_802_generated_bootstrap', return_value=runtime))
+            ansible = stack.enter_context(mock.patch.object(quickstart, 'run_802_ansible_flow'))
+            quickstart.main()
+        self.assertEqual(deploy.call_args.kwargs['secrets_root'], secrets_root)
+        self.assertEqual(ansible.call_args.args[1], runtime)
+        self.assertEqual(ansible.call_args.kwargs['runtime'], runtime)
 
     def test_missing_management_integration_stops_before_deployment(self):
         (self.root / "terraform").mkdir()

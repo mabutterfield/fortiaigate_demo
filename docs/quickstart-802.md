@@ -16,21 +16,22 @@ files, for example the Ohio lab:
 cd /path/to/FAIG/fortiaigate_demo_802
 export TF_WORKSPACE=ohio-802
 export FAIG_TERRAFORM_VARS_DIR=/path/to/FAIG/ohio-802
-export FAIG_ENV_DIR=/path/to/FAIG/.secrets/ohio-lab
 python3 scripts/automated_quickstart.py --yolo
 ```
 
 `--terraform-vars-dir` is the equivalent CLI option. The directory must contain
 `prep.tfvars` and `host.tfvars`; their region and profile must agree. An
-explicit `TF_WORKSPACE` is required with these overrides. Review the selected
-workspace and private values before using `--yolo`: Terraform applies changes
+workspace and overrides directory are saved in the storage profile for later
+`--yolo` runs. An explicitly supplied environment value that conflicts with
+the saved profile stops the run. Review the selected workspace and private
+values before using `--yolo`: Terraform applies changes
 without prompting. The option does not mean Terraform itself cannot change or
 replace an instance. Existing ECR repositories and images are not managed by
-by the quickstart. Manage repositories through the separate ECR maintainer
+the quickstart. Manage repositories through the separate ECR maintainer
 workflow; image publishing and repository changes are not quickstart options.
 When preserving ECR, quickstart rebuilds the local Ansible registry settings
 from the selected workspace's existing `terraform/aws-ecr` outputs and checks
-the account and region. That ECR state must already exist in the checkout;
+the account and region. That ECR state must exist in the selected local or external backend;
 otherwise initialize or import it through the separate ECR workflow first.
 
 Experimental FAIG initialization defaults on. Use
@@ -38,20 +39,41 @@ Experimental FAIG initialization defaults on. Use
 in ignored `ansible/group_vars/user.yml` to leave setup and licensing manual.
 The instructor page cannot authenticate until the administrator completes that
 manual setup. See [manual FAIG setup](lab-management.md#if-you-set-up-faig-yourself).
-The initializer checks the setup API, uses a private administrator setup file,
-rotates a matching license, reads back Active and scanning-enabled status,
-creates or verifies the direct LiteLLM `pass-model` provider, then sends a
-governed request and checks a matched Traffic Log entry. It keeps an owner-only
-journal and smoke key per EC2 instance in `FAIG_ENV_DIR`; uncertain writes stop
-rather than being repeated blindly. A previous instance's private files are not
-deleted. If existing credentials or the provider differ, reconcile them rather
-than overwriting them automatically.
+The initializer checks the setup API, uses the instance's canonical private
+bootstrap credentials, rotates a matching license, checks Active and scanning
+status, creates or verifies the direct LiteLLM `pass-model` provider, then
+sends a governed request and checks a Traffic Log entry. Its journal and
+smoke key belong to the instance; uncertain writes stop rather than being
+repeated blindly.
 
-The directory in `FAIG_ENV_DIR` must be owner-only. If the admin setup/login
-files are absent, quickstart generates them there, using `admin@fortiai.lab` by
-default. To choose a password, set `faig_admin_password_file` in ignored
-`user.yml` to an owner-only, one-line file. Do not put passwords in CLI flags or
-tracked files. Set `faig_admin_email` to change the address.
+### State and generated secrets
+
+On first interactive setup, quickstart asks whether to store Terraform state
+outside the repository and asks where to put generated secrets. Suggested
+locations are `FAIG/.state` and `FAIG/.secrets` (or a custom location); they
+must be separate and outside Git. The selection is stored in an owner-only
+`FAIG/.faig-storage-settings.json`, including the selected Terraform workspace
+and overrides directory, for later `--yolo` runs. External state is opt-in. Quickstart inventories all worktrees, backs up and migrates each
+module's default and named workspaces, then verifies their state identities
+before archiving the originals. An interrupted migration stops for inspection.
+Never run independent Terraform operations against these states concurrently.
+
+**Terraform host state, its backups, and saved plans contain generated FAIG
+and LiteLLM credentials in plaintext.** State files and private directories
+are restricted to the owner; do not commit or share them. Sensitive markings
+hide ordinary output but not named outputs, `-raw`, `-json`, state or plans.
+Pre-migration backups remain private until deliberately removed.
+
+For each new EC2 instance, Terraform creates one owner-only
+`bootstrap-secrets.json` under `<secrets-root>/<workspace>/<instance-id>/`.
+It contains the generated admin and LiteLLM credentials. Same-instance reruns
+reuse them. Set `faig_admin_static_password_file` in ignored host tfvars to an
+absolute, owner-only, one-line instructor file outside Git to use a static
+admin password instead; Terraform records only the path. The static file and
+licenses are never included in instance cleanup. An old `FAIG_ENV_DIR` that
+does not name the selected instance directory stops the run; unset it when
+moving from the old environment layout. Set `faig_admin_email` in ignored
+`user.yml` to change the administrator address.
 
 By default FAIG license filenames must fully match `FAIG.*\.lic` in the
 configured `license_source_dir`. Set `quickstart_faig_license_regex` in ignored
@@ -84,7 +106,9 @@ appliances are untouched. `--yolo` skips confirmations and approves the
 Terraform actions; review the workspace and effective profile first. EIP
 release uses a saved plan that must contain only that IP's deletion. An EC2
 failure stops before the IP is released. GPU termination may take several
-minutes; the VPC remains until AWS releases its dependencies.
+minutes; the VPC remains until AWS releases its dependencies. Generated
+instance secrets are cleaned only after AWS confirms termination. A missing,
+ambiguous or unrecognized file is preserved for inspection.
 
 **Known limitations (v1.0):**
 

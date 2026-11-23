@@ -64,6 +64,10 @@ resource "local_sensitive_file" "lab_bootstrap" {
   })
   lifecycle {
     precondition {
+      condition     = lower(terraform.workspace) != "static"
+      error_message = "The workspace name static is reserved for instructor-owned files."
+    }
+    precondition {
       condition     = trimspace(var.lab_secrets_root) != ""
       error_message = "lab_secrets_root must be set to a private directory outside the repository."
     }

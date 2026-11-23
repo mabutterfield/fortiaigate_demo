@@ -150,6 +150,8 @@ def run_command(
         text=True,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
+        # Terraform state and saved plans may contain generated lab secrets.
+        umask=0o077 if argv and argv[0] == 'terraform' else -1,
     )
     if check and result.returncode != 0:
         if capture and result.stdout:
@@ -1449,6 +1451,10 @@ def terraform_init_validate(module_path: str, *, state_layout=None, require_exis
         try:
             args = state_storage.prepare_external_module(REPO_ROOT / module_path, state_layout, module,
                                                          workspace, require_existing=require_existing_state)
+            state_storage.secure_state_files(state_layout.state_path(module, workspace),
+                                             named_workspace=(workspace != 'default'))
+            state_storage.prime_backend_data(state_layout, REPO_ROOT, module,
+                                             os.environ.get('FAIG_REAL_TERRAFORM') or shutil.which('terraform'))
         except (OSError, ValueError) as exc:
             raise SystemExit(f'External Terraform state is not ready: {exc}') from None
         run_command(['terraform', '-chdir=' + module_path, *args])
@@ -1564,10 +1570,17 @@ def run_terraform(
             variables.extend(state_layout.dependency_vars(Path(module_path).name, os.environ['TF_WORKSPACE']))
         if secrets_root is not None and module_path == 'terraform/aws-ec2-k3s':
             variables.extend(['lab_generated_secrets_enabled=true', f'lab_secrets_root={secrets_root}'])
-        if not variables:
-            terraform_apply(module_path, auto_approve, var_file=override)
-        else:
-            terraform_apply(module_path, auto_approve, variables, var_file=override)
+        try:
+            if not variables:
+                terraform_apply(module_path, auto_approve, var_file=override)
+            else:
+                terraform_apply(module_path, auto_approve, variables, var_file=override)
+        finally:
+            if state_layout is not None:
+                from scripts import state_storage
+                workspace = os.environ['TF_WORKSPACE']
+                if state_layout.state_path(Path(module_path).name, workspace).is_file():
+                    state_storage.register_state(state_layout, Path(module_path).name, workspace)
 
     for appliance_key in appliance_keys:
         label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
@@ -1579,7 +1592,14 @@ def run_terraform(
         variables = [f"{appliance_key}_enabled=true"] if appliance_key in (transient_appliance_enables or set()) else []
         if state_layout is not None:
             variables += state_layout.dependency_vars(Path(module_path).name, os.environ['TF_WORKSPACE'])
-        terraform_apply(module_path, auto_approve, variables)
+        try:
+            terraform_apply(module_path, auto_approve, variables)
+        finally:
+            if state_layout is not None:
+                from scripts import state_storage
+                workspace = os.environ['TF_WORKSPACE']
+                if state_layout.state_path(Path(module_path).name, workspace).is_file():
+                    state_storage.register_state(state_layout, Path(module_path).name, workspace)
 
 
 def restore_existing_ecr_vars(profile: str, region: str) -> None:
@@ -2155,15 +2175,16 @@ def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inv
         run_fortiaigate_status_once("Ansible: Final FortiAIGate Status", inventory=inventory)
 
 
-def run_802_ansible_flow(args: argparse.Namespace, initialization: dict | None, appliance_keys: list[str] | None = None, *, inventory: str | None = None) -> None:
+def run_802_ansible_flow(args: argparse.Namespace, initialization: dict | None, appliance_keys: list[str] | None = None, *, inventory: str | None = None, runtime: dict | None = None) -> None:
     """Deploy the 8.0.2 single-node services; student provisioning is separate."""
-    if initialization and initialization.get('bootstrap_file'):
-        if initialization.get('instance_id') != get_ec2_instance_id():
+    bootstrap = runtime or initialization
+    if bootstrap and bootstrap.get('bootstrap_file'):
+        if bootstrap.get('instance_id') != get_ec2_instance_id():
             raise SystemExit('Bootstrap credentials do not match the current EC2 instance; no Ansible deployment started.')
     env_dir = os.environ.get('FAIG_ENV_DIR')
     extra = {'faig_env_dir': env_dir} if env_dir else None
-    if initialization and initialization.get('bootstrap_file'):
-        extra = dict(extra or {}, lab_bootstrap_secrets_file=str(initialization['bootstrap_file']))
+    if bootstrap and bootstrap.get('bootstrap_file'):
+        extra = dict(extra or {}, lab_bootstrap_secrets_file=str(bootstrap['bootstrap_file']))
     def deploy(name):
         run_ansible_playbook(name, inventory=inventory, extra_vars=extra)
     print_header('Ansible: Bootstrap k3s')
@@ -2360,7 +2381,8 @@ def select_experimental_init(override: bool | None, *, noninteractive: bool) -> 
     return selected
 
 
-def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspace_root: Path | None = None):
+def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspace_root: Path | None = None,
+                            terraform_vars_dir: Path | None = None):
     """Select both state and generated-secret locations without migrating state."""
     from scripts import state_storage
     workspace_root = (workspace_root or REPO_ROOT.parent).resolve()
@@ -2369,15 +2391,22 @@ def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspa
     except (OSError, ValueError) as exc:
         raise SystemExit(f'Cannot read saved storage settings: {exc}') from None
     if saved is not None:
+        requested_workspace = os.environ.get('TF_WORKSPACE')
+        if requested_workspace and requested_workspace != saved.workspace:
+            raise SystemExit('TF_WORKSPACE conflicts with the saved storage profile; select or configure the intended profile.')
+        if terraform_vars_dir is not None and saved.terraform_vars_dir != terraform_vars_dir.resolve():
+            raise SystemExit('Terraform overrides directory conflicts with the saved storage profile.')
         # Recheck the repository boundary on every worktree, including a changed path.
         secrets = state_storage.resolve_state_root(str(saved.secrets_root), workspace_root, REPO_ROOT)
         if saved.state:
             state = state_storage.resolve_state_root(str(saved.state.root), workspace_root, REPO_ROOT)
-            return state_storage.StorageSettings(secrets, state_storage.StateLayout(state))
-        return state_storage.StorageSettings(secrets, None)
+            return state_storage.StorageSettings(secrets, state_storage.StateLayout(state), saved.workspace, saved.terraform_vars_dir)
+        return state_storage.StorageSettings(secrets, None, saved.workspace, saved.terraform_vars_dir)
+    workspace = os.environ.get('TF_WORKSPACE') or 'default'
     if noninteractive:
         # No saved opt-in: retain the default local backend while keeping generated secrets separate.
-        return state_storage.StorageSettings(workspace_root / '.secrets', None)
+        return state_storage.StorageSettings(workspace_root / '.secrets', None, workspace, terraform_vars_dir)
+    workspace = prompt_text('Terraform workspace', workspace)
     use_external = prompt_yes_no('Store Terraform state outside the repository?', False)
     state = None
     if use_external:
@@ -2390,7 +2419,7 @@ def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspa
     selected_secrets = prompt_text('Generated lab secrets directory', str(workspace_root / '.secrets'))
     try:
         secret_root = state_storage.resolve_state_root(selected_secrets, workspace_root, REPO_ROOT)
-        return state_storage.StorageSettings(secret_root, state)
+        return state_storage.StorageSettings(secret_root, state, workspace, terraform_vars_dir)
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
 
@@ -2406,6 +2435,32 @@ def preflight_802_license() -> tuple[Path, str]:
     except (OSError, ValueError) as exc:
         raise SystemExit(f'FAIG license preflight failed: {exc}') from None
     return license_dir, pattern
+
+
+def preflight_static_password_files(terraform_vars_dir: Path | None) -> None:
+    """Validate explicit instructor files before any cloud/state operations."""
+    from scripts import lab_credentials
+    pieces = [read_existing_file(module_system_tfvars_path('terraform/aws-ec2-k3s')),
+              read_existing_file(REPO_ROOT / 'terraform/user.tfvars'),
+              read_existing_file(module_local_tfvars_path('terraform/aws-ec2-k3s'))]
+    if terraform_vars_dir is not None:
+        pieces.append(read_existing_file(terraform_vars_dir / 'host.tfvars'))
+    values = '\n'.join(pieces)
+    admin = get_tf_string(values, 'faig_admin_static_password_file', '')
+    student = get_tf_string(values, 'lab_student_password_file', '')
+    try:
+        if admin:
+            lab_credentials.read_static_password(Path(admin).expanduser(), REPO_ROOT)
+        if student:
+            path = Path(student).expanduser()
+            if not path.is_absolute():
+                raise ValueError('student password file path must be absolute')
+            lab_credentials.private_regular_file(path)
+            resolved = path.resolve()
+            if any((ancestor / '.git').exists() for ancestor in resolved.parents):
+                raise ValueError('student password file must be outside every Git worktree')
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'Static password file preflight failed: {exc}') from None
 
 
 def repo_worktrees() -> list[Path]:
@@ -2467,13 +2522,18 @@ def prepare_802_initialization() -> dict[str, Path | str]:
             'smoke_key': environment / 'quickstart-smoke-key.json'}
 
 
-def activate_802_generated_bootstrap(*, secrets_root: Path, license_dir: Path, license_regex: str) -> dict:
+def activate_802_generated_bootstrap(*, secrets_root: Path, license_dir: Path, license_regex: str,
+                                     profile: str, region: str) -> dict:
     """Select the current instance's canonical file after Terraform completes."""
     from scripts import lab_credentials
     workspace = os.environ.get('TF_WORKSPACE', '')
     instance = get_ec2_instance_id()
     if not re.fullmatch(r'i-[0-9a-f]+', instance or ''):
         raise SystemExit('Cannot identify the current EC2 instance for generated credentials.')
+    account = command_output(['aws', 'sts', 'get-caller-identity', '--profile', profile,
+                              '--query', 'Account', '--output', 'text'], check=False)
+    if not re.fullmatch(r'[0-9]{12}', account or '') or not re.fullmatch(r'[a-z0-9-]+', region or ''):
+        raise SystemExit('Cannot verify the AWS account and region for generated credentials.')
     expected = secrets_root / workspace / instance
     returned = command_output(['terraform', '-chdir=terraform/aws-ec2-k3s', 'output', '-raw',
                                'lab_instance_secrets_dir'], check=False)
@@ -2484,7 +2544,7 @@ def activate_802_generated_bootstrap(*, secrets_root: Path, license_dir: Path, l
         raise SystemExit('FAIG_ENV_DIR conflicts with the instance secret directory; remove it or select the current instance path.')
     try:
         result = lab_credentials.activate_bootstrap(secrets_root, workspace, instance, repo_root=REPO_ROOT,
-                    email=get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab'))
+                    email=get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab'), account=account, region=region)
     except (OSError, ValueError) as exc:
         raise SystemExit(f'Cannot load instance bootstrap credentials: {exc}') from None
     result.update(license_dir=license_dir, license_regex=license_regex)
@@ -2669,7 +2729,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+_storage_operation_lock = None
+
+
+def _main() -> None:
+    global _storage_operation_lock
     args = parse_args()
     os.chdir(REPO_ROOT)
     check_repo_root()
@@ -2697,12 +2761,11 @@ def main() -> None:
     profile_action = ensure_user_profile(args)
     if profile_action == "export":
         return
-    if args.yolo and args.target == "aws":
-        validate_yolo_aws_profile(read_file(REPO_ROOT / "terraform/user.tfvars"))
     initialization = None
-    args.terraform_vars_dir = validate_terraform_vars_dir(args.terraform_vars_dir)
-    if args.target == "aws":
-        effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
+    license_preflight = None
+    experimental_init = False
+    if args.terraform_vars_dir is not None:
+        args.terraform_vars_dir = args.terraform_vars_dir.expanduser().resolve()
     if not args.skip_ansible:
         if args.target != 'aws':
             raise SystemExit('The new 8.0.2 quickstart currently supports AWS only; no deployment was started.')
@@ -2712,7 +2775,45 @@ def main() -> None:
             raise SystemExit('8.0.2 quickstart requires the reviewed Lab Management integration before deployment: ' + ', '.join(missing))
         experimental_init = select_experimental_init(args.experimental_faig_init, noninteractive=args.yolo)
         if experimental_init:
-            initialization = prepare_802_initialization()
+            license_preflight = preflight_802_license()
+    from scripts import state_storage
+    import uuid
+    workspace_root = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or REPO_ROOT.parent).expanduser().resolve()
+    storage_profile = workspace_root / '.faig-storage-settings.json'
+    storage = select_storage_settings(profile_path=storage_profile, noninteractive=args.yolo,
+                                      workspace_root=workspace_root, terraform_vars_dir=args.terraform_vars_dir)
+    os.environ['TF_WORKSPACE'] = storage.workspace
+    args.terraform_vars_dir = validate_terraform_vars_dir(storage.terraform_vars_dir)
+    if args.target == "aws":
+        effective = effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
+        if args.yolo:
+            validate_yolo_aws_profile(effective)
+        preflight_static_password_files(args.terraform_vars_dir)
+    existing_env = os.environ.get('FAIG_ENV_DIR')
+    if existing_env:
+        selected = Path(existing_env).expanduser()
+        expected_parent = storage.secrets_root / os.environ['TF_WORKSPACE']
+        if selected.parent != expected_parent or not re.fullmatch(r'i-[0-9a-f]+', selected.name):
+            raise SystemExit('FAIG_ENV_DIR conflicts with the selected per-instance secrets root; unset it before deployment.')
+    try:
+        prior = state_storage.read_storage_settings(storage_profile)
+        if storage.state is not None:
+            if prior is not None and not storage.state.root.is_dir():
+                raise ValueError('configured external state root is missing')
+            _storage_operation_lock = state_storage.acquire_operation_lock(storage.state)
+        if args.skip_terraform and storage.state is not None and prior is None:
+            raise ValueError('external state must be migrated before using --skip-terraform')
+        trees = repo_worktrees()
+        for module in state_storage.MODULES:
+            for workspace, path in state_storage.discover_worktree_states(
+                    trees, module, allow_moved=bool(prior and prior.state)).items():
+                state_storage.secure_state_files(path, named_workspace=(workspace != 'default'))
+        backup_root = workspace_root / '.state-migration-backups' / uuid.uuid4().hex
+        state_storage.activate_storage_settings(storage, storage_profile, trees, backup_root)
+        if storage.state is not None:
+            state_storage.configure_terraform_proxy(REPO_ROOT, storage_profile)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise SystemExit(f'Storage setup stopped: {exc}') from None
     profile_tool.warn_legacy_files()
 
     requested_appliances = requested_appliance_keys(
@@ -2815,14 +2916,11 @@ def main() -> None:
     # FAIG 8.0.2 licensing is uploaded via the experimental initializer after deployment.
     if not args.skip_terraform:
         configure_appliance_license_preflight(appliance_keys, noninteractive=args.yolo)
-    if profile_action == "init":
-        print_header("LiteLLM Credentials")
-        print("Using LiteLLM credential values configured during profile initialization.")
-    elif profile_action == "import":
-        print_header("LiteLLM Credentials")
-        print("Using LiteLLM credential values from the imported user profile.")
-    else:
-        configure_litellm_credentials(noninteractive=args.yolo)
+    print_header("LiteLLM Credentials")
+    # Change 2026-11-23: generated instance credentials supersede legacy
+    # LiteLLM passwords in user.yml; they are loaded from one private file.
+    # configure_litellm_credentials(noninteractive=args.yolo)
+    print("LiteLLM credentials are generated per instance and kept in the private bootstrap file.")
 
     if not args.yolo:
         prompt_profile_review()
@@ -2830,6 +2928,9 @@ def main() -> None:
         print_header("Terraform")
         print("Skipped by --skip-terraform.")
         if not args.skip_ansible:
+            if storage.state is not None:
+                terraform_init_validate('terraform/aws-ecr', state_layout=storage.state, require_existing_state=True)
+                terraform_init_validate('terraform/aws-ec2-k3s', state_layout=storage.state, require_existing_state=True)
             restore_existing_ecr_vars(profile, region)
     else:
         if not args.yolo and not prompt_yes_no("Ready to start Terraform execution?", True):
@@ -2842,6 +2943,8 @@ def main() -> None:
             region,
             transient_appliance_enables=explicitly_requested_appliance_keys(args),
             terraform_vars_dir=args.terraform_vars_dir,
+            state_layout=storage.state,
+            secrets_root=storage.secrets_root,
         )
     prompt_ec2_status(
         profile,
@@ -2868,10 +2971,28 @@ def main() -> None:
         print("\nStopped before Ansible because --skip-ansible was set.")
         return
 
-    run_802_ansible_flow(args, initialization, appliance_keys)
+    if license_preflight is None:
+        # Manual FAIG setup still needs generated LiteLLM credentials, but no
+        # license is selected/uploaded by the quickstart.
+        license_preflight = (workspace_root / 'licenses', '')
+    runtime = activate_802_generated_bootstrap(secrets_root=storage.secrets_root,
+                                               license_dir=license_preflight[0], license_regex=license_preflight[1],
+                                               profile=profile, region=region)
+    initialization = runtime if experimental_init else None
+    run_802_ansible_flow(args, initialization, appliance_keys, runtime=runtime)
 
     print_header("8.0.2 Deployment Stages Finished")
     print("Review the initialization and governed-test status above before using the lab.")
+
+
+def main() -> None:
+    global _storage_operation_lock
+    try:
+        _main()
+    finally:
+        if _storage_operation_lock is not None:
+            _storage_operation_lock.close()
+            _storage_operation_lock = None
 
 
 if __name__ == "__main__":

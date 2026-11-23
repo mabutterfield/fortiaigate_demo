@@ -71,6 +71,27 @@ class TeardownTests(unittest.TestCase):
                 self.assertFalse(any(teardown.PREP in ' '.join(c.args[0]) for c in run.call_args_list))
                 self.assertEqual(destroy.call_count, 0 if '--skip-ec2' in args else 1)
 
+    def test_external_teardown_uses_saved_workspace_and_dependency_paths(self):
+        from scripts.state_storage import StateLayout, StorageSettings
+        layout = StateLayout((self.root / 'external-state').resolve())
+        layout.root.mkdir(mode=0o700)
+        settings = StorageSettings((self.root / 'external-secrets').resolve(), layout, 'ohio-802')
+        with mock.patch.object(teardown, 'read_storage_profile', return_value=settings), \
+             mock.patch.object(teardown.state_storage, 'verify_state_manifest'), \
+             mock.patch.object(teardown.state_storage, 'configure_terraform_proxy'), \
+             mock.patch.object(teardown, 'initialize_teardown_module', side_effect=[['aws_prep_state_path=/state/prep'], ['aws_ecr_state_path=/state/ecr']]), \
+             mock.patch.object(teardown, 'run', side_effect=lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, 'i-123\n') if 'output' in argv else None), \
+             mock.patch.object(teardown, 'instance_is_terminated', return_value=False), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[['aws_instance.this'], [teardown.EIP]]), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
+             mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
+            teardown.main(['--yolo'])
+        host_vars = destroy.call_args_list[0].kwargs['variables']
+        self.assertIn('aws_prep_state_path=/state/prep', host_vars)
+        self.assertIn('lab_generated_secrets_enabled=true', host_vars)
+        self.assertTrue(any(v.startswith('lab_secrets_root=') for v in host_vars))
+        self.assertEqual(destroy.call_args_list[1].kwargs['variables'], ['aws_ecr_state_path=/state/ecr'])
+
     def test_target_plan_refuses_any_other_resource_change(self):
         plan = {'resource_changes': [
             {'mode':'managed', 'address':teardown.EIP, 'change':{'actions':['delete']}},
@@ -106,6 +127,50 @@ class TeardownTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, 'other changes'):
                 teardown.destroy(teardown.HOST, None, True)
             self.assertEqual(run.call_count, 2)
+
+    def test_cleanup_only_deletes_verified_terminated_instance_files(self):
+        from scripts.lab_credentials import validate_instance_directory
+        from scripts.state_storage import StorageSettings
+        root = (self.root / 'secrets').resolve()
+        stopped = root / 'ohio-802/i-123'
+        running = root / 'ohio-802/i-456'
+        for folder in (stopped, running):
+            folder.mkdir(parents=True, mode=0o700)
+            validate_instance_directory(folder, root=root, workspace='ohio-802', instance=folder.name,
+                                        account='123456789012', region='us-east-2')
+            (folder / 'quickstart-smoke-key.json').write_text('fictional')
+        account = subprocess.CompletedProcess([], 0, '123456789012\n', '')
+        with mock.patch.object(teardown.subprocess, 'run', return_value=account), \
+             mock.patch.object(teardown, 'instance_is_terminated', side_effect=lambda _p, _r, i, **_k: i == 'i-123'):
+            self.assertEqual(teardown.clean_retired_instance_secrets(StorageSettings(root, None), 'profile', 'us-east-2'), 1)
+        self.assertFalse(stopped.exists())
+        self.assertTrue(running.exists())
+
+    def test_instance_lookup_accepts_only_explicit_termination(self):
+        terminated = subprocess.CompletedProcess([], 0, 'terminated\n', '')
+        active = subprocess.CompletedProcess([], 0, 'running\n', '')
+        missing = subprocess.CompletedProcess([], 255, '', 'InvalidInstanceID.NotFound')
+        denied = subprocess.CompletedProcess([], 255, '', 'AccessDenied')
+        with mock.patch.object(teardown.subprocess, 'run', side_effect=[terminated, active, missing, denied]):
+            self.assertTrue(teardown.instance_is_terminated('p', 'r', 'i-123'))
+            self.assertFalse(teardown.instance_is_terminated('p', 'r', 'i-123'))
+            self.assertFalse(teardown.instance_is_terminated('p', 'r', 'i-123'))
+            with self.assertRaisesRegex(ValueError, 'could not verify'):
+                teardown.instance_is_terminated('p', 'r', 'i-123')
+
+    def test_generated_state_backup_removed_only_after_termination_and_empty_state(self):
+        state = self.root / 'host.tfstate'
+        backup = self.root / 'host.tfstate.backup'
+        backup.write_text('fictional-generated-credentials')
+        state.write_text(json.dumps({'resources': [{'mode': 'managed', 'instances': [{}]}]}))
+        self.assertFalse(teardown.remove_destroyed_host_backup(state, instance_terminated=False))
+        self.assertTrue(backup.exists())
+        with self.assertRaisesRegex(ValueError, 'still contains'):
+            teardown.remove_destroyed_host_backup(state, instance_terminated=True)
+        self.assertTrue(backup.exists())
+        state.write_text(json.dumps({'resources': []}))
+        self.assertTrue(teardown.remove_destroyed_host_backup(state, instance_terminated=True))
+        self.assertFalse(backup.exists())
 
     def test_host_destroy_failure_prevents_eip_release(self):
         with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
