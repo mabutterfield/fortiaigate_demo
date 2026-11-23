@@ -57,3 +57,37 @@ def load_bootstrap(path: Path, *, instance: str, workspace: str, repo_root: Path
     return setup, login, {'litellm_master_key': litellm['master_key'],
                           'litellm_ui_password': litellm['ui_password'],
                           'litellm_postgres_password': litellm['postgres_password']}
+
+
+def validate_instance_directory(path: Path, *, root: Path, workspace: str, instance: str) -> Path:
+    """Verify the exact, private instance directory and record a non-secret marker."""
+    import stat
+    expected = root / workspace / instance
+    if not root.is_absolute() or not re.fullmatch(r'[A-Za-z0-9_-]+', workspace):
+        raise ValueError('invalid instance secrets root or workspace')
+    if not re.fullmatch(r'i-[0-9a-f]+', instance):
+        raise ValueError('invalid EC2 instance ID')
+    if path != expected:
+        raise ValueError('instance secrets directory does not match instance and workspace')
+    current = root
+    for part in (workspace, instance):
+        if current.is_symlink():
+            raise ValueError('instance secrets path must not contain symlinks')
+        current = current / part
+    if current.is_symlink() or not current.is_dir():
+        raise ValueError('instance secrets directory must be a regular directory')
+    info = current.stat()
+    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        raise ValueError('instance secrets directory must be owned by the user and owner-only')
+    marker = current / '.lab-instance'
+    expected_marker = {'instance_id': instance, 'workspace': workspace}
+    if marker.exists() or marker.is_symlink():
+        private_regular_file(marker)
+        if json.loads(marker.read_text(encoding='utf-8')) != expected_marker:
+            raise ValueError('instance secrets marker does not match')
+    else:
+        fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(expected_marker, stream)
+            stream.write('\n')
+    return current

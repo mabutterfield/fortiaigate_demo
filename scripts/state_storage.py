@@ -121,9 +121,11 @@ def inventory_legacy_states(module_root: Path) -> dict[str, Path]:
     if default.exists():
         result['default'] = default
     workspace_root = module_root / 'terraform.tfstate.d'
+    if workspace_root.is_symlink():
+        raise ValueError(f'legacy workspace directory is a symlink: {workspace_root}')
     if workspace_root.exists():
         for child in workspace_root.iterdir():
-            if not child.is_dir() or not _WORKSPACE.fullmatch(child.name):
+            if child.is_symlink() or not child.is_dir() or not _WORKSPACE.fullmatch(child.name):
                 raise ValueError(f'unexpected workspace entry: {child}')
             snapshot = child / 'terraform.tfstate'
             if snapshot.exists():

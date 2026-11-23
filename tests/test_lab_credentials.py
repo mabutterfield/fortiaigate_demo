@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts.lab_credentials import load_bootstrap, read_static_password
+from scripts.lab_credentials import load_bootstrap, read_static_password, validate_instance_directory
 
 
 class LabCredentialsTests(unittest.TestCase):
@@ -56,6 +56,19 @@ class LabCredentialsTests(unittest.TestCase):
         password.write_text('weak')
         with self.assertRaisesRegex(ValueError, 'requirements'):
             self.load()
+
+    def test_instance_directory_marker_and_boundary(self):
+        directory = self.root / 'generated' / 'ohio-802' / 'i-123'
+        directory.mkdir(parents=True, mode=0o700)
+        result = validate_instance_directory(directory, root=self.root / 'generated', workspace='ohio-802', instance='i-123')
+        self.assertEqual(result, directory)
+        self.assertEqual((directory / '.lab-instance').stat().st_mode & 0o777, 0o600)
+        self.assertEqual(validate_instance_directory(directory, root=self.root / 'generated', workspace='ohio-802', instance='i-123'), directory)
+        with self.assertRaisesRegex(ValueError, 'does not match'):
+            validate_instance_directory(directory, root=self.root / 'generated', workspace='ohio-802', instance='i-456')
+        (directory / '.lab-instance').write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'marker does not match'):
+            validate_instance_directory(directory, root=self.root / 'generated', workspace='ohio-802', instance='i-123')
 
     def test_symlink_and_dual_password_source_are_refused(self):
         actual = self.root / 'actual'
