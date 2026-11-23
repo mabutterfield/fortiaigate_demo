@@ -1439,17 +1439,29 @@ def prompt_profile_review() -> None:
         print("Choose a listed number or done.")
 
 
-def terraform_init_validate(module_path: str) -> None:
-    run_command(["terraform", "-chdir=" + module_path, "init"])
+def terraform_init_validate(module_path: str, *, state_layout=None, require_existing_state: bool = False) -> None:
+    if state_layout is None:
+        run_command(["terraform", "-chdir=" + module_path, "init"])
+    else:
+        from scripts import state_storage
+        workspace = os.environ.get('TF_WORKSPACE', '')
+        module = Path(module_path).name
+        try:
+            args = state_storage.prepare_external_module(REPO_ROOT / module_path, state_layout, module,
+                                                         workspace, require_existing=require_existing_state)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f'External Terraform state is not ready: {exc}') from None
+        run_command(['terraform', '-chdir=' + module_path, *args])
     run_command(["terraform", "-chdir=" + module_path, "validate"])
 
 
 def terraform_apply(module_path: str, auto_approve: bool, variables: list[str] | None = None, *, var_file: Path | None = None) -> None:
     argv = ["terraform", "-chdir=" + module_path, "apply"]
-    for variable in variables or []:
-        argv.extend(["-var", variable])
     if var_file is not None:
         argv.append("-var-file=" + str(var_file))
+    # Explicit dependency paths must override values in user/module var files.
+    for variable in variables or []:
+        argv.extend(["-var", variable])
     if auto_approve:
         argv.append("-auto-approve")
     run_command(argv)
@@ -1531,22 +1543,42 @@ def run_terraform(
     *,
     transient_appliance_enables: set[str] | None = None,
     terraform_vars_dir: Path | None = None,
+    state_layout=None,
+    secrets_root: Path | None = None,
 ) -> None:
     print("Existing ECR repositories and images are preserved; ECR management is a separate workflow.")
+    if state_layout is not None:
+        terraform_init_validate('terraform/aws-ecr', state_layout=state_layout, require_existing_state=True)
     restore_existing_ecr_vars(profile, region)
 
     for label, module_path in TERRAFORM_MODULES[1:]:
         print_header(f"Terraform: {label}")
-        terraform_init_validate(module_path)
+        if state_layout is None:
+            terraform_init_validate(module_path)
+        else:
+            terraform_init_validate(module_path, state_layout=state_layout)
         name = {"terraform/aws-prep": "prep.tfvars", "terraform/aws-ec2-k3s": "host.tfvars"}.get(module_path)
         override = terraform_vars_dir / name if terraform_vars_dir is not None and name else None
-        terraform_apply(module_path, auto_approve, var_file=override)
+        variables = []
+        if state_layout is not None:
+            variables.extend(state_layout.dependency_vars(Path(module_path).name, os.environ['TF_WORKSPACE']))
+        if secrets_root is not None and module_path == 'terraform/aws-ec2-k3s':
+            variables.extend(['lab_generated_secrets_enabled=true', f'lab_secrets_root={secrets_root}'])
+        if not variables:
+            terraform_apply(module_path, auto_approve, var_file=override)
+        else:
+            terraform_apply(module_path, auto_approve, variables, var_file=override)
 
     for appliance_key in appliance_keys:
         label, module_path = APPLIANCE_TERRAFORM_MODULES[appliance_key]
         print_header(f"Terraform: {label}")
-        terraform_init_validate(module_path)
+        if state_layout is None:
+            terraform_init_validate(module_path)
+        else:
+            terraform_init_validate(module_path, state_layout=state_layout)
         variables = [f"{appliance_key}_enabled=true"] if appliance_key in (transient_appliance_enables or set()) else []
+        if state_layout is not None:
+            variables += state_layout.dependency_vars(Path(module_path).name, os.environ['TF_WORKSPACE'])
         terraform_apply(module_path, auto_approve, variables)
 
 

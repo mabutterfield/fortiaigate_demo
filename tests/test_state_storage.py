@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -218,6 +218,25 @@ class StateLayoutTests(unittest.TestCase):
             duplicate.write_bytes(state.read_bytes())
             with self.assertRaisesRegex(ValueError, 'multiple legacy state files'):
                 discover_worktree_states([root / 'one', root / 'two'], 'aws-ecr')
+
+    def test_pre_migration_backup_is_private_and_leaves_sources_intact(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / 'module'
+            module.mkdir()
+            snapshot = module / 'terraform.tfstate'
+            snapshot.write_text(json.dumps({'lineage': 'x', 'serial': 2, 'resources': []}))
+            backup = root / 'backup'
+            self.assertEqual(backup_legacy_states(module, backup), {'default': ('x', 2, 0)})
+            self.assertTrue(snapshot.exists())
+            copy = backup / 'default' / 'terraform.tfstate'
+            self.assertEqual(copy.read_bytes(), snapshot.read_bytes())
+            self.assertEqual(copy.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(backup.stat().st_mode & 0o777, 0o700)
+            with self.assertRaisesRegex(ValueError, 'new empty'):
+                backup_legacy_states(module, backup)
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

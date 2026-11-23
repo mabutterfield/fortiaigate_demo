@@ -95,6 +95,18 @@ class TeardownTests(unittest.TestCase):
                 teardown.destroy(teardown.HOST, None, True)
             self.assertEqual(run.call_count, 2)
 
+    def test_host_plan_allows_only_named_generated_credential_resources(self):
+        changes = [{'mode': 'managed', 'type': kind, 'address': address, 'change': {'actions': ['delete']}}
+                   for address, kind in teardown.HOST_SECRET_ADDRESSES.items()]
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps({'resource_changes': changes})), None]) as run:
+            teardown.destroy(teardown.HOST, None, True)
+            self.assertIn('apply', run.call_args_list[-1].args[0])
+        changes.append({'mode': 'managed', 'type': 'random_password', 'address': 'random_password.other', 'change': {'actions': ['delete']}})
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps({'resource_changes': changes}))]) as run:
+            with self.assertRaisesRegex(SystemExit, 'other changes'):
+                teardown.destroy(teardown.HOST, None, True)
+            self.assertEqual(run.call_count, 2)
+
     def test_host_destroy_failure_prevents_eip_release(self):
         with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \

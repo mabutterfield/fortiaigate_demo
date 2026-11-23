@@ -17,6 +17,9 @@ EIP = 'aws_eip.public["k3s"]'
 HOST_TYPES = {'aws_instance', 'aws_vpc', 'aws_subnet', 'aws_security_group',
               'aws_internet_gateway', 'aws_route_table', 'aws_route_table_association',
               'aws_route', 'aws_eip_association', 'local_file'}
+HOST_SECRET_ADDRESSES = {'local_sensitive_file.lab_bootstrap[0]': 'local_sensitive_file',
+                         **{f'random_password.lab["{name}"]': 'random_password' for name in
+                            ('faig_admin', 'litellm_master', 'litellm_ui', 'litellm_postgres')}}
 
 
 def run(argv, *, capture=False):
@@ -121,7 +124,9 @@ def destroy(module, vars_file, auto_approve, *, target=None):
             if target:
                 invalid = any(address != target or actions != ['delete'] for address, _, actions in affected)
             else:
-                invalid = any(kind not in HOST_TYPES or actions != ['delete'] for _, kind, actions in affected)
+                invalid = any((kind not in HOST_TYPES and
+                               (address not in HOST_SECRET_ADDRESSES or HOST_SECRET_ADDRESSES[address] != kind))
+                              or actions != ['delete'] for address, kind, actions in affected)
             if invalid:
                 raise SystemExit('Teardown plan contains other changes; nothing in that plan was applied.')
             if not affected:

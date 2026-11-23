@@ -212,6 +212,14 @@ class Quickstart802Tests(unittest.TestCase):
         self.assertEqual(private['smoke_key'].name, 'quickstart-smoke-key-i-123abc.json')
         self.assertLess(sequence.index('deploy_demo_https_gateway.yml'), sequence.index('deploy_lab_chatbot.yml'))
 
+    def test_external_state_paths_override_user_var_file(self):
+        with mock.patch.object(quickstart, 'run_command') as run:
+            quickstart.terraform_apply('terraform/aws-prep', True,
+                ['aws_ecr_state_path=/private/state/ecr'], var_file=self.root / 'prep.tfvars')
+        args = run.call_args.args[0]
+        self.assertLess(args.index('-var-file=' + str(self.root / 'prep.tfvars')), args.index('-var'))
+        self.assertIn('aws_ecr_state_path=/private/state/ecr', args)
+
     def test_storage_preferences_coordinate_paths_without_writing_before_migration(self):
         profile = self.root / 'storage.json'
         workspace = (self.root / 'workspace').resolve()

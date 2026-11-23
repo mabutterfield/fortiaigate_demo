@@ -169,7 +169,7 @@ def archive_migrated_sources(module_root: Path, layout: StateLayout, module: str
     for workspace, source in sources.items():
         if source.is_symlink() or checked_state_identity(source) != expected[workspace]:
             raise ValueError(f'legacy state changed or is a symlink: {source}')
-    if archive_root.exists() and any(archive_root.iterdir()):
+    if archive_root.is_symlink() or (archive_root.exists() and any(archive_root.iterdir())):
         raise ValueError(f'archive destination is not empty: {archive_root}')
     files = []
     for workspace, source in sources.items():
@@ -214,6 +214,9 @@ def migrate_one_module(module_root: Path, layout: StateLayout, module: str, arch
     if not (source / '.terraform').is_dir():
         raise ValueError(f'Terraform module must already be initialized: {source}')
     expected = check_migration_source(source, layout, module)
+    backup = archive_root.with_name(archive_root.name + '-before')
+    if backup_legacy_states(source, backup) != expected:
+        raise ValueError('source state changed while preparing the migration backup')
     target = layout.module_root(module)
     target.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(target, 0o700)
@@ -348,3 +351,34 @@ def discover_worktree_states(worktrees: list[Path], module: str) -> dict[str, Pa
             checked_state_identity(real)
             found[workspace] = real
     return found
+
+
+def backup_legacy_states(module_root: Path, backup_root: Path) -> dict[str, tuple[str, int, int]]:
+    """Copy old snapshots and state backups privately before running migration."""
+    import os
+    import shutil
+    sources = inventory_legacy_states(module_root)
+    expected = {workspace: checked_state_identity(path) for workspace, path in sources.items()}
+    if backup_root.is_symlink() or (backup_root.exists() and any(backup_root.iterdir())):
+        raise ValueError(f'backup destination must be a new empty directory: {backup_root}')
+    backup_root.mkdir(parents=True, mode=0o700, exist_ok=True)
+    os.chmod(backup_root, 0o700)
+    for workspace, source in sources.items():
+        destination = backup_root / workspace
+        destination.mkdir(mode=0o700)
+        for path in (source, source.with_suffix(source.suffix + '.backup')):
+            if path.is_symlink():
+                raise ValueError(f'legacy state backup is a symlink: {path}')
+            if not path.exists():
+                continue
+            if not path.is_file():
+                raise ValueError(f'legacy state backup is not a regular file: {path}')
+            target = destination / path.name
+            with path.open('rb') as src, target.open('xb') as dst:
+                os.chmod(target, 0o600)
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            if path.read_bytes() != target.read_bytes():
+                raise ValueError(f'legacy state backup verification failed: {path}')
+    return expected
