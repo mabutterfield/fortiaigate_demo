@@ -49,6 +49,13 @@
     - litellm_enabled | bool
     - litellm_use_catalog | bool
 
+- name: Load Terraform-generated per-instance LiteLLM credentials
+  ansible.builtin.include_tasks: bootstrap_credentials.yml
+  when:
+    - litellm_enabled | bool
+    - lab_bootstrap_secrets_file | default('') | length > 0
+  no_log: true
+
 - name: Build LiteLLM catalog matrix on the controller
   ansible.builtin.command:
     argv:
