@@ -355,7 +355,11 @@ class StateLayoutTests(unittest.TestCase):
             self.assertEqual(read_storage_settings(profile), settings)
             self.assertTrue(settings.state.state_path('aws-ecr', 'default').exists())
             self.assertTrue(is_moved_sentinel(module / 'terraform.tfstate'))
-            activate_storage_settings(settings, profile, [tree], root / 'unused-backup')
+            new_tree = root / 'new-worktree'
+            new_module = new_tree / 'terraform/aws-ecr'
+            new_module.mkdir(parents=True)
+            activate_storage_settings(settings, profile, [tree, new_tree], root / 'unused-backup')
+            self.assertTrue(is_moved_sentinel(new_module / 'terraform.tfstate'))
             self.assertFalse((root / 'unused-backup').exists())
             other = StorageSettings(root / '.secrets', settings.state, 'ohio-802')
             other_profile = root / 'ohio-settings.json'

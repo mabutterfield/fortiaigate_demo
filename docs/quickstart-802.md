@@ -59,7 +59,7 @@ environment profile; a verified existing external state root can be shared
 without repeating migration. Pass the same option to teardown.
 Quickstart inventories all worktrees, backs up and migrates each
 module's default and named workspaces, then verifies their state identities
-before archiving the originals. An interrupted migration stops for inspection.
+before archiving the originals. An interrupted migration stops for inspection; see the [recovery runbook](state-migration-recovery.md).
 Never run independent Terraform operations against these states concurrently.
 
 **Terraform host state, its backups, and saved plans contain generated FAIG

@@ -136,6 +136,45 @@ class Quickstart802Tests(unittest.TestCase):
             self.assertTrue(apply.called)
             self.assertFalse(any(call.args[0] == 'terraform/aws-ecr' for call in apply.call_args_list))
 
+    def test_generated_secret_settings_are_private_and_reused(self):
+        module = self.root / 'host'
+        module.mkdir()
+        quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+        path = module / '50-lab-storage.auto.tfvars'
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertIn('lab_generated_secrets_enabled = true', path.read_text())
+        quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+        with self.assertRaisesRegex(ValueError, 'differ'):
+            quickstart.persist_generated_secret_settings(module, self.root / 'other')
+
+    def test_generated_secret_settings_reject_symlink(self):
+        module = self.root / 'host'
+        module.mkdir()
+        (module / '50-lab-storage.auto.tfvars').symlink_to(self.root / 'target')
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+
+    def test_bare_terraform_plan_keeps_generated_secret_settings(self):
+        import shutil
+        import subprocess
+        if not shutil.which('terraform'):
+            self.skipTest('terraform is unavailable')
+        module = self.root / 'host'
+        module.mkdir()
+        (module / 'main.tf').write_text('''
+variable "lab_generated_secrets_enabled" {\n type = bool\n default = false\n}
+variable "lab_secrets_root" {\n type = string\n default = ""\n}
+resource "terraform_data" "fixture" {
+  count = var.lab_generated_secrets_enabled ? 1 : 0
+  input = var.lab_secrets_root
+}
+''')
+        quickstart.persist_generated_secret_settings(module, self.root / 'secrets')
+        for command in (['init', '-input=false'], ['apply', '-input=false', '-auto-approve']):
+            subprocess.run(['terraform', '-chdir=' + str(module), *command], check=True, capture_output=True)
+        result = subprocess.run(['terraform', '-chdir=' + str(module), 'plan', '-input=false', '-detailed-exitcode'], capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+
     def test_quickstart_does_not_offer_ecr_mutation_flags(self):
         import sys
         with mock.patch.object(sys, 'argv', ['quickstart', '--manage-ecr']), \

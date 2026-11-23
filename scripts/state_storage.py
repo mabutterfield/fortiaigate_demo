@@ -605,6 +605,10 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
         for module in MODULES:
             if discover_worktree_states(worktrees, module, allow_moved=True):
                 raise ValueError(f'legacy state still exists for {module}; inspect the existing profile and migration')
+        inventory = read_state_manifest(layout)
+        install_legacy_guards(worktrees, {
+            module: {'workspaces': inventory.get(module, {})} for module in MODULES
+        })
         return
     if (layout.root / '.state-inventory.json').exists():
         # A second environment profile may reuse an already migrated state
@@ -613,6 +617,10 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
         for module in MODULES:
             if discover_worktree_states(worktrees, module, allow_moved=True):
                 raise ValueError(f'legacy state still exists for {module}; inspect before using external state')
+        inventory = read_state_manifest(layout)
+        install_legacy_guards(worktrees, {
+            module: {'workspaces': inventory.get(module, {})} for module in MODULES
+        })
         write_storage_settings(profile_path, settings)
         return
     plan = build_migration_plan(worktrees, layout)
