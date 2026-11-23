@@ -384,3 +384,30 @@ def backup_legacy_states(module_root: Path, backup_root: Path) -> dict[str, tupl
             if path.read_bytes() != target.read_bytes():
                 raise ValueError(f'legacy state backup verification failed: {path}')
     return expected
+
+
+def build_migration_plan(worktrees: list[Path], layout: StateLayout) -> dict[str, dict]:
+    """Inventory every state workspace and identify its real source module."""
+    plan = {}
+    for module in MODULES:
+        snapshots = discover_worktree_states(worktrees, module)
+        owners = set()
+        for workspace, snapshot in snapshots.items():
+            owner = snapshot.parent if workspace == 'default' else snapshot.parents[2]
+            if owner.name != module or owner.parent.name != 'terraform':
+                raise ValueError(f'cannot identify owning Terraform module for {module}/{workspace}')
+            owners.add(owner)
+        if len(owners) > 1:
+            raise ValueError(f'{module} workspaces have different owning checkouts; reconcile before migration')
+        target = layout.module_root(module)
+        if target.exists() and any(target.iterdir()):
+            raise ValueError(f'external state target is not empty: {target}')
+        owner = next(iter(owners), None)
+        if owner is not None:
+            source = check_migration_source(owner, layout, module)
+            if set(source) != set(snapshots):
+                raise ValueError(f'incomplete source state inventory for {module}')
+        else:
+            source = {}
+        plan[module] = {'module_root': owner, 'workspaces': source}
+    return plan

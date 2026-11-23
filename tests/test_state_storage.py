@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -256,6 +256,31 @@ class StateLayoutTests(unittest.TestCase):
             self.assertEqual(backup.stat().st_mode & 0o777, 0o700)
             with self.assertRaisesRegex(ValueError, 'new empty'):
                 backup_legacy_states(module, backup)
+
+    def test_plan_requires_one_real_owner_for_all_module_workspaces(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            trees = [root / 'one', root / 'two']
+            one = trees[0] / 'terraform/aws-ecr'
+            two = trees[1] / 'terraform/aws-ecr'
+            one.mkdir(parents=True)
+            two.mkdir(parents=True)
+            doc = json.dumps({'lineage': 'x', 'serial': 2, 'resources': []})
+            (one / 'terraform.tfstate').write_text(doc)
+            named = one / 'terraform.tfstate.d/ohio-802/terraform.tfstate'
+            named.parent.mkdir(parents=True)
+            named.write_text(doc)
+            layout = StateLayout((root / 'state').resolve())
+            plan = build_migration_plan(trees, layout)
+            self.assertEqual(plan['aws-ecr']['module_root'], one.resolve())
+            self.assertEqual(set(plan['aws-ecr']['workspaces']), {'default', 'ohio-802'})
+            other = two / 'terraform.tfstate.d/other/terraform.tfstate'
+            other.parent.mkdir(parents=True)
+            other.write_text(doc)
+            with self.assertRaisesRegex(ValueError, 'different owning checkouts'):
+                build_migration_plan(trees, layout)
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')
