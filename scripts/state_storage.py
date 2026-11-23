@@ -577,8 +577,8 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
                               backup_root: Path) -> None:
     """Persist a new selection and migrate old local state before it is used.
 
-    This function is not yet invoked by quickstart. It fails closed if an
-    incomplete migration or an ambiguous existing external state is found.
+    Fail closed if an incomplete migration or an ambiguous existing external
+    state is found.
     """
     for tree in worktrees:
         repo = tree.resolve()
