@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -281,6 +281,52 @@ class StateLayoutTests(unittest.TestCase):
             other.write_text(doc)
             with self.assertRaisesRegex(ValueError, 'different owning checkouts'):
                 build_migration_plan(trees, layout)
+
+    def test_multi_module_migration_writes_private_backups_and_removes_journal(self):
+        import shutil
+        import subprocess
+        import tempfile
+        if not shutil.which('terraform'):
+            self.skipTest('terraform is unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            tree = root / 'repo'
+            for name in ('aws-ecr', 'aws-prep'):
+                module = tree / 'terraform' / name
+                module.mkdir(parents=True)
+                (module / 'main.tf').write_text('terraform {\n backend "local" {}\n}\noutput "synthetic" { value = "example" }\n')
+                for args in (['init', '-input=false'], ['apply', '-input=false', '-auto-approve']):
+                    subprocess.run(['terraform', '-chdir=' + str(module), *args], check=True, capture_output=True)
+            layout = StateLayout(root / 'state')
+            plan = build_migration_plan([tree], layout)
+            backup = root / 'backup'
+            migrate_plan(plan, layout, backup)
+            self.assertFalse((layout.root / '.migration-in-progress.json').exists())
+            for name in ('aws-ecr', 'aws-prep'):
+                self.assertTrue(layout.state_path(name, 'default').is_file())
+                self.assertTrue((backup / 'preflight' / name / 'default/terraform.tfstate').is_file())
+                self.assertFalse((tree / 'terraform' / name / 'terraform.tfstate').exists())
+
+    def test_interrupted_migration_retains_journal_and_source(self):
+        import json
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            tree = root / 'repo'
+            module = tree / 'terraform/aws-ecr'
+            module.mkdir(parents=True)
+            snapshot = module / 'terraform.tfstate'
+            snapshot.write_text(json.dumps({'lineage': 'x', 'serial': 2, 'resources': []}))
+            layout = StateLayout(root / 'state')
+            plan = build_migration_plan([tree], layout)
+            with patch('scripts.state_storage.migrate_one_module', side_effect=RuntimeError('synthetic interruption')):
+                with self.assertRaisesRegex(RuntimeError, 'interruption'):
+                    migrate_plan(plan, layout, root / 'backup')
+            self.assertTrue(snapshot.exists())
+            self.assertTrue((layout.root / '.migration-in-progress.json').is_file())
+            with self.assertRaisesRegex(ValueError, 'earlier state migration'):
+                migrate_plan(plan, layout, root / 'other-backup')
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

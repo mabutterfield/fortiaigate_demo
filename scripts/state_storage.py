@@ -411,3 +411,64 @@ def build_migration_plan(worktrees: list[Path], layout: StateLayout) -> dict[str
             source = {}
         plan[module] = {'module_root': owner, 'workspaces': source}
     return plan
+
+
+def migrate_plan(plan: dict[str, dict], layout: StateLayout, backup_root: Path) -> None:
+    """Migrate an inventoried set with private backups and a fail-closed journal.
+
+    No cloud resources are changed. An interrupted journal is intentionally not
+    replayed automatically: verify both copies before explicitly recovering it.
+    """
+    import fcntl
+    import json
+    import os
+    if layout.root.is_symlink() or backup_root.is_symlink():
+        raise ValueError('state and backup roots must not be symlinks')
+    layout.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(layout.root, 0o700)
+    lock_path = layout.root / '.migration.lock'
+    if lock_path.is_symlink():
+        raise ValueError('migration lock must not be a symlink')
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        with os.fdopen(fd, 'r+', encoding='utf-8') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            journal = layout.root / '.migration-in-progress.json'
+            if journal.exists() or journal.is_symlink():
+                raise ValueError('an earlier state migration needs inspection before retrying')
+            if backup_root.exists() and any(backup_root.iterdir()):
+                raise ValueError('migration backup destination must be new or empty')
+            backup_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.chmod(backup_root, 0o700)
+            for name in ('preflight', 'retired'):
+                directory = backup_root / name
+                directory.mkdir(mode=0o700, exist_ok=True)
+                os.chmod(directory, 0o700)
+            # Confirm and back up every source before moving any module.
+            for module in MODULES:
+                item = plan[module]
+                source = item['module_root']
+                if source is None:
+                    continue
+                current = check_migration_source(source, layout, module)
+                if current != item['workspaces']:
+                    raise ValueError(f'{module} source changed since the migration plan')
+                if backup_legacy_states(source, backup_root / 'preflight' / module) != current:
+                    raise ValueError(f'{module} source changed while backing it up')
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            journal_fd = os.open(journal, flags, 0o600)
+            with os.fdopen(journal_fd, 'w', encoding='utf-8') as out:
+                json.dump({'version': 1, 'modules': [name for name in MODULES if plan[name]['module_root']],
+                           'backup_root': str(backup_root)}, out)
+                out.flush()
+                os.fsync(out.fileno())
+            # Keep the journal if any migration fails or execution is interrupted.
+            for module in MODULES:
+                source = plan[module]['module_root']
+                if source is not None:
+                    migrate_one_module(source, layout, module, backup_root / 'retired' / module)
+            for module in MODULES:
+                verify_migrated_states(layout, module, plan[module]['workspaces'])
+            journal.unlink()
+    except BlockingIOError:
+        raise ValueError('another state migration is already running') from None
