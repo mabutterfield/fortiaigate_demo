@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -197,6 +198,7 @@ resource "terraform_data" "fixture" {
         import json
         data = {'registry': {'value': '123456789012.dkr.ecr.us-east-2.amazonaws.com'},
                 'account_id': {'value': '123456789012'},
+                'repository_arns': {'value': {'api': 'arn:aws:ecr:us-east-2:123456789012:repository/fortiaigate/api'}},
                 'repository_urls': {'value': {'api': '123456789012.dkr.ecr.us-east-2.amazonaws.com/fortiaigate/api'}}}
         with mock.patch.object(quickstart, 'REPO_ROOT', self.root), \
              mock.patch.object(quickstart, 'parse_ecr_tfvars', return_value=('fortiaigate', ['api'])), \
@@ -211,6 +213,7 @@ resource "terraform_data" "fixture" {
         import json
         data = {'registry': {'value': '123456789012.dkr.ecr.us-east-2.amazonaws.com'},
                 'account_id': {'value': '123456789012'},
+                'repository_arns': {'value': {'api': 'arn:aws:ecr:us-east-2:123456789012:repository/fortiaigate/api'}},
                 'repository_urls': {'value': {'api': '123456789012.dkr.ecr.us-east-2.amazonaws.com/fortiaigate/api'}}}
         with mock.patch.object(quickstart, 'REPO_ROOT', self.root), \
              mock.patch.object(quickstart, 'parse_ecr_tfvars', return_value=('fortiaigate', ['api'])), \
@@ -218,6 +221,25 @@ resource "terraform_data" "fixture" {
             with self.assertRaisesRegex(SystemExit, 'matching existing ECR'):
                 quickstart.restore_existing_ecr_vars('test', 'us-east-2')
             self.assertFalse((self.root / 'ansible/group_vars/ecr.generated.yml').exists())
+
+    def test_existing_ecr_vars_reject_incomplete_or_wrong_arns(self):
+        data = {'registry': {'value': '123456789012.dkr.ecr.us-east-2.amazonaws.com'},
+                'account_id': {'value': '123456789012'},
+                'repository_urls': {'value': {'api': '123456789012.dkr.ecr.us-east-2.amazonaws.com/fortiaigate/api'}},
+                'repository_arns': {'value': {'api': 'arn:aws:ecr:us-east-1:123456789012:repository/fortiaigate/api'}}}
+        with mock.patch.object(quickstart, 'REPO_ROOT', self.root), \
+             mock.patch.object(quickstart, 'parse_ecr_tfvars') as config, \
+             mock.patch.object(quickstart, 'command_output') as command:
+            for expected in (['api'], ['api', 'core']):
+                config.return_value = ('fortiaigate', expected)
+                command.side_effect = [json.dumps(data), '123456789012']
+                with self.assertRaisesRegex(SystemExit, 'matching existing ECR'):
+                    quickstart.restore_existing_ecr_vars('test', 'us-east-2')
+            data['repository_arns']['value']['api'] = 'arn:aws:ecr:us-east-2:123456789012:repository/fortiaigate/api'
+            config.return_value = ('fortiaigate', ['api', 'core'])
+            command.side_effect = [json.dumps(data), '123456789012']
+            with self.assertRaisesRegex(SystemExit, 'matching existing ECR'):
+                quickstart.restore_existing_ecr_vars('test', 'us-east-2')
 
     def test_802_service_order_and_manual_setup(self):
         args = Namespace(faig_status_retries=1, faig_status_delay=1)

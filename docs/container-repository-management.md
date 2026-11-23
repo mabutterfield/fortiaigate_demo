@@ -87,6 +87,30 @@ Import is a separate maintainer action; quickstart does not import or apply ECR.
 Review Terraform plans carefully so an import mistake does not create a
 competing repository or lifecycle policy.
 
+Lifecycle policies are owned by this same ECR module, not by lab deployment.
+For each repository, first inspect whether AWS already has a lifecycle policy:
+
+```bash
+aws ecr get-lifecycle-policy --profile <profile-name> --region <region> \
+  --repository-name fortiaigate/api
+```
+
+If one exists, import it into the **same ECR workspace** as its repository:
+
+```bash
+terraform -chdir=terraform/aws-ecr import \
+  'aws_ecr_lifecycle_policy.this["api"]' fortiaigate/api
+```
+
+Repeat for the configured repositories, keeping Virginia and Ohio in separate
+state workspaces. Do not import a policy that AWS reports does not exist. The
+repository import helper does not import policies automatically. After imports,
+inspect a plan and compare all existing lifecycle rules before applying: the
+tracked policy can expire images and may differ from the policy in AWS. An
+import does not itself change the live policy, but an apply can. Never use a
+broad ECR destroy for a lab teardown. Once the ECR state has complete outputs,
+quickstart reads them and rebuilds `ecr.generated.yml` without applying ECR.
+
 ## Publish FortiAIGate Images
 
 **8.0.2 status:** The following publisher workflow is inherited from earlier

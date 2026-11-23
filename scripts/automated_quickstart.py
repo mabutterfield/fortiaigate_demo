@@ -1642,13 +1642,20 @@ def restore_existing_ecr_vars(profile: str, region: str) -> None:
         registry = outputs['registry']['value']
         account = outputs['account_id']['value']
         repositories = outputs['repository_urls']['value']
-        prefix, _ = parse_ecr_tfvars()
+        arns = outputs['repository_arns']['value']
+        prefix, expected_repositories = parse_ecr_tfvars()
         if (not isinstance(account, str) or not account.isdigit() or caller_account != account or
                 not isinstance(registry, str) or
                 not registry.startswith(f'{account}.dkr.ecr.{region}.') or
                 not isinstance(repositories, dict) or not repositories or
-                any(not isinstance(url, str) or not url.startswith(f'{registry}/{prefix}/')
-                    for url in repositories.values())):
+                not isinstance(arns, dict) or set(arns) != set(repositories) or
+                not set(expected_repositories).issubset(repositories) or
+                any(not isinstance(url, str) or url != f'{registry}/{prefix}/{name}'
+                    for name, url in repositories.items()) or
+                any(not isinstance(arn, str) or
+                    not re.fullmatch(r'arn:aws(?:-[a-z]+)*:ecr:' + re.escape(region) + ':' +
+                                     re.escape(account) + ':repository/' + re.escape(prefix) + '/' +
+                                     re.escape(name), arn) for name, arn in arns.items())):
             raise ValueError('ECR outputs do not match the selected region and repository prefix')
     except (ValueError, KeyError, TypeError):
         raise SystemExit('Cannot derive matching existing ECR settings from the selected Terraform workspace; '
