@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts.lab_credentials import load_bootstrap, read_static_password, validate_instance_directory
+from scripts.lab_credentials import load_bootstrap, read_static_password, validate_instance_directory, activate_bootstrap, remove_generated_instance_files
 
 
 class LabCredentialsTests(unittest.TestCase):
@@ -56,6 +56,38 @@ class LabCredentialsTests(unittest.TestCase):
         password.write_text('weak')
         with self.assertRaisesRegex(ValueError, 'requirements'):
             self.load()
+
+    def test_activation_uses_one_canonical_file(self):
+        directory = self.root / 'generated' / 'ohio-802' / 'i-123'
+        directory.mkdir(parents=True, mode=0o700)
+        canonical = directory / 'bootstrap-secrets.json'
+        canonical.write_text(json.dumps(self.doc))
+        canonical.chmod(0o600)
+        state = activate_bootstrap(self.root / 'generated', 'ohio-802', 'i-123',
+                                   repo_root=self.repo, email='admin@example.test')
+        self.assertEqual(state['setup_data']['email'], 'admin@example.test')
+        self.assertEqual(state['bootstrap_file'], canonical)
+        self.assertFalse((directory / 'admin-login.json').exists())
+        self.assertFalse((directory / 'admin-setup.json').exists())
+
+    def test_cleanup_requires_termination_and_preserves_unknown_files(self):
+        root = self.root / 'generated'
+        directory = root / 'ohio-802' / 'i-123'
+        directory.mkdir(parents=True, mode=0o700)
+        validate_instance_directory(directory, root=root, workspace='ohio-802', instance='i-123')
+        (directory / 'litellm-shared-key.json').write_text('fictional')
+        static = directory / 'instructor.txt'
+        static.write_text('preserve')
+        with self.assertRaisesRegex(ValueError, 'termination'):
+            remove_generated_instance_files(root, 'ohio-802', 'i-123', terminated=False)
+        with self.assertRaisesRegex(ValueError, 'unknown or unsafe'):
+            remove_generated_instance_files(root, 'ohio-802', 'i-123', terminated=True)
+        self.assertTrue(static.exists())
+        self.assertTrue((directory / 'litellm-shared-key.json').exists())
+        static.unlink()
+        self.assertTrue(remove_generated_instance_files(root, 'ohio-802', 'i-123', terminated=True))
+        self.assertFalse(directory.exists())
+        self.assertFalse(remove_generated_instance_files(root, 'ohio-802', 'i-123', terminated=True))
 
     def test_instance_directory_marker_and_boundary(self):
         directory = self.root / 'generated' / 'ohio-802' / 'i-123'
