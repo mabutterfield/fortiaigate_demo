@@ -1557,8 +1557,16 @@ def persist_generated_secret_settings(module_root: Path, secrets_root: Path) -> 
     additions = []
     for key, expected in (('lab_generated_secrets_enabled', 'true'),
                           ('lab_secrets_root', json.dumps(str(secrets_root)))):
-        matches = re.findall(r'^\s*' + key + r'\s*=\s*([^\n#]+?)(?:\s*#.*)?\s*$', content, re.MULTILINE)
-        if len(matches) > 1 or (matches and matches[0].strip() != expected):
+        matches = re.findall(r'^[ \t]*' + key + r'[ \t]*=[ \t]*([^\n]*)', content, re.MULTILINE)
+        valid = not matches
+        if len(matches) == 1:
+            try:
+                value, end = json.JSONDecoder().raw_decode(matches[0].lstrip())
+                remainder = matches[0].lstrip()[end:].strip()
+                valid = (not remainder or remainder.startswith(('#', '//'))) and value == json.loads(expected)
+            except (ValueError, TypeError):
+                valid = False
+        if not valid:
             raise ValueError(f'{key} differs or is ambiguous in {path}; restore matching settings or tear down before changing profiles')
         if not matches:
             additions.append(f'{key} = {expected}')
