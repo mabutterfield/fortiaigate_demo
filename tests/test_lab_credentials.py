@@ -53,6 +53,14 @@ class LabCredentialsTests(unittest.TestCase):
         bad.chmod(0o600)
         with self.assertRaisesRegex(ValueError, 'outside'):
             read_static_password(bad, self.repo)
+        other_repo = self.root / 'other-worktree'
+        other_repo.mkdir()
+        (other_repo / '.git').write_text('gitdir: elsewhere')
+        other = other_repo / 'admin-password'
+        other.write_text('Fictional_123')
+        other.chmod(0o600)
+        with self.assertRaisesRegex(ValueError, 'every Git worktree'):
+            read_static_password(other, self.repo)
         password.write_text('weak')
         with self.assertRaisesRegex(ValueError, 'requirements'):
             self.load()

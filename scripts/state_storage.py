@@ -57,6 +57,8 @@ def resolve_state_root(value: str, workspace_root: Path, repo_root: Path) -> Pat
     repo = repo_root.resolve()
     if selected == repo or repo in selected.parents:
         raise ValueError('external state root must be outside the repository')
+    if any((ancestor / '.git').exists() for ancestor in (selected, *selected.parents)):
+        raise ValueError('external storage root must be outside every Git worktree')
     return selected
 
 

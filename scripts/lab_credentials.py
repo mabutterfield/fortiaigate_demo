@@ -22,6 +22,8 @@ def read_static_password(path: Path, repo_root: Path) -> str:
     resolved, repo = path.resolve(), repo_root.resolve()
     if resolved == repo or repo in resolved.parents:
         raise ValueError('static admin password file must be outside the repository')
+    if any((ancestor / '.git').exists() for ancestor in resolved.parents):
+        raise ValueError('static admin password file must be outside every Git worktree')
     password = path.read_text(encoding='utf-8').removesuffix('\n').removesuffix('\r')
     if ('\n' in password or '\r' in password or len(password) < 8
             or not re.search(r'[A-Z]', password) or not re.search(r'[a-z]', password)
