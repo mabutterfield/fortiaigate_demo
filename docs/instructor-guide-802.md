@@ -95,6 +95,7 @@ Sign in with your FAIG administrator account (super admin). Students get a
   `lab-data/lab-student-passwords`, readable only by the lab gateway. Remove
   the variable to delete that Secret on the next deploy. FAIG's password rules
   still apply when students are created.
+  Where files and generated secrets live: [Lab Secrets and State](lab-secrets-and-state.md).
 - **Restore lost key values.** If a prepopulated key exists in FAIG but its
   value is lost (FAIG shows a key value only once), run **Prepopulate existing
   students** with *Also restore lost key values*. The key is rotated and the
