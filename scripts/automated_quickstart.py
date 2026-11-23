@@ -2125,8 +2125,13 @@ def run_ansible_flow(args: argparse.Namespace, appliance_keys: list[str], *, inv
 
 def run_802_ansible_flow(args: argparse.Namespace, initialization: dict | None, appliance_keys: list[str] | None = None, *, inventory: str | None = None) -> None:
     """Deploy the 8.0.2 single-node services; student provisioning is separate."""
+    if initialization and initialization.get('bootstrap_file'):
+        if initialization.get('instance_id') != get_ec2_instance_id():
+            raise SystemExit('Bootstrap credentials do not match the current EC2 instance; no Ansible deployment started.')
     env_dir = os.environ.get('FAIG_ENV_DIR')
     extra = {'faig_env_dir': env_dir} if env_dir else None
+    if initialization and initialization.get('bootstrap_file'):
+        extra = dict(extra or {}, lab_bootstrap_secrets_file=str(initialization['bootstrap_file']))
     def deploy(name):
         run_ansible_playbook(name, inventory=inventory, extra_vars=extra)
     print_header('Ansible: Bootstrap k3s')
@@ -2164,9 +2169,15 @@ def run_802_ansible_flow(args: argparse.Namespace, initialization: dict | None, 
             instance_id = get_ec2_instance_id()
             if not re.fullmatch(r'i-[0-9a-f]+', instance_id or ''):
                 raise ValueError('cannot identify the current EC2 instance for initialization state')
-            initialization['journal'] = initialization['environment'] / ('faig-init-' + instance_id + '.json')
-            initialization['smoke_key'] = initialization['environment'] / ('quickstart-smoke-key-' + instance_id + '.json')
-            setup = faig_bootstrap_802.private_json(initialization['setup'])
+            if initialization.get('bootstrap_file') and initialization.get('instance_id') != instance_id:
+                raise ValueError('bootstrap credentials no longer match the current instance')
+            if not initialization.get('bootstrap_file'):
+                initialization['journal'] = initialization['environment'] / ('faig-init-' + instance_id + '.json')
+                initialization['smoke_key'] = initialization['environment'] / ('quickstart-smoke-key-' + instance_id + '.json')
+            # Change 2026-11-23: a generated bootstrap has one canonical
+            # credential file; the setup request is derived in memory.
+            setup = (initialization['setup_data'] if 'setup_data' in initialization
+                     else faig_bootstrap_802.private_json(initialization['setup']))
             token = faig_bootstrap_802.private_json(initialization['litellm_key']).get('api_key')
             if not isinstance(token, str) or not token:
                 raise ValueError('LiteLLM shared non-admin key file is incomplete')

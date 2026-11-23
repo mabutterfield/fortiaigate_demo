@@ -212,6 +212,31 @@ class Quickstart802Tests(unittest.TestCase):
         self.assertEqual(private['smoke_key'].name, 'quickstart-smoke-key-i-123abc.json')
         self.assertLess(sequence.index('deploy_demo_https_gateway.yml'), sequence.index('deploy_lab_chatbot.yml'))
 
+    def test_802_generated_bootstrap_uses_one_canonical_file(self):
+        from scripts import faig_bootstrap_802
+        import catalog802.loader
+        args = Namespace(faig_status_retries=1, faig_status_delay=1)
+        setup = {'email': 'admin@example.test', 'password': 'fictional'}
+        private = {'environment': self.root, 'instance_id': 'i-123abc', 'bootstrap_file': self.root / 'bootstrap.json',
+                   'setup_data': setup, 'litellm_key': self.root / 'shared-key.json',
+                   'license_dir': self.root, 'license_regex': 'x', 'journal': self.root / 'faig-init.json',
+                   'smoke_key': self.root / 'quickstart-smoke-key.json'}
+        fake_client = mock.Mock()
+        fake_client.call.return_value = {'needs_setup': True}
+        with mock.patch.object(quickstart, 'run_ansible_playbook') as play, \
+             mock.patch.object(quickstart, 'get_layered_yaml_scalar', return_value='192.0.2.1'), \
+             mock.patch.object(quickstart, 'get_layered_yaml_bool', return_value=True), \
+             mock.patch.object(quickstart, 'get_ec2_instance_id', return_value='i-123abc'), \
+             mock.patch.object(faig_bootstrap_802, 'Client', return_value=fake_client), \
+             mock.patch.object(faig_bootstrap_802, 'private_json', return_value={'api_key': 'synthetic'}), \
+             mock.patch.object(catalog802.loader, 'load', return_value=({'models': {'pass-model': {}}}, [])), \
+             mock.patch.object(faig_bootstrap_802, 'initialize', return_value={'license_active': True, 'scanning_enabled': True, 'provider_verified': True, 'governed_verified': True}) as init:
+            quickstart.run_802_ansible_flow(args, private)
+        self.assertEqual(init.call_args.args[1], setup)
+        self.assertEqual(private['journal'].name, 'faig-init.json')
+        self.assertEqual(play.call_args_list[0].kwargs['extra_vars']['lab_bootstrap_secrets_file'], str(private['bootstrap_file']))
+        self.assertNotIn('fictional', repr(play.call_args_list))
+
     def test_missing_management_integration_stops_before_deployment(self):
         (self.root / "terraform").mkdir()
         (self.root / "terraform/user.tfvars").write_text("")

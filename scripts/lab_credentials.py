@@ -103,7 +103,7 @@ def activate_bootstrap(root: Path, workspace: str, instance: str, *, repo_root: 
     setup, _login, _litellm = load_bootstrap(bootstrap, instance=instance, workspace=workspace,
                                              repo_root=repo_root, email=email,
                                              display_name=display_name, organization=organization)
-    return {'environment': directory, 'bootstrap_file': bootstrap, 'setup_data': setup,
+    return {'environment': directory, 'instance_id': instance, 'bootstrap_file': bootstrap, 'setup_data': setup,
             'journal': directory / 'faig-init.json', 'smoke_key': directory / 'quickstart-smoke-key.json',
             'litellm_key': directory / 'litellm-shared-key.json'}
 
