@@ -557,6 +557,10 @@ resource "local_file" "ansible_terraform_vars" {
     k3s_service_cidr                   = var.k3s_service_cidr
     k3s_cluster_dns                    = var.k3s_cluster_dns
     instance_id                        = aws_instance.this.id
+    lab_student_password_file          = var.lab_student_password_file
+    faig_admin_static_password_file    = var.faig_admin_static_password_file
+    faig_env_dir                       = local.lab_instance_secrets_dir
+    lab_bootstrap_secrets_file         = var.lab_generated_secrets_enabled ? "${local.lab_instance_secrets_dir}/bootstrap-secrets.json" : ""
     public_ip                          = local.k3s_public_ip
     private_ip                         = aws_instance.this.private_ip
     ansible_host                       = local.k3s_inventory_host

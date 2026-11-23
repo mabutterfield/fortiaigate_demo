@@ -9,3 +9,8 @@
 # Use CIDR overrides only when the default lab networks overlap with your
 # environment.
 # vpc_cidr = "10.30.0.0/16"
+
+# Optional instructor-owned files outside every Git checkout. Terraform stores
+# the paths only; it does not read either file's contents.
+# faig_admin_static_password_file = "/path/outside/git/admin-password"
+# lab_student_password_file = "/path/outside/git/student-passwords"

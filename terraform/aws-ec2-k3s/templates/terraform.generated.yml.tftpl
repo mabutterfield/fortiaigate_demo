@@ -33,3 +33,10 @@ k3s_instance_id: ${jsonencode(instance_id)}
 k3s_public_ip: ${jsonencode(public_ip)}
 k3s_private_ip: ${jsonencode(private_ip)}
 k3s_ansible_host: ${jsonencode(ansible_host)}
+
+lab_student_password_file: ${jsonencode(lab_student_password_file)}
+faig_admin_static_password_file: ${jsonencode(faig_admin_static_password_file)}
+%{ if faig_env_dir != "" ~}
+faig_env_dir: ${jsonencode(faig_env_dir)}
+lab_bootstrap_secrets_file: ${jsonencode(lab_bootstrap_secrets_file)}
+%{ endif ~}
