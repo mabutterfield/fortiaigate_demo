@@ -953,3 +953,117 @@ class AutoApprover:
         while self.tick(generation):
             if wake.wait(self.interval):
                 return
+
+
+# ---------------------------------------------------------------- instructor student password file (Change 2026-11-23)
+# Owner decision: predictable student passwords across rebuilds come from an instructor-owned file outside
+# Git. tfvars/Ansible pass only its path (lab_student_password_file); the gateway deploy parses it with
+# parse_student_password_file() and stores the result in Secret lab-data/lab-student-passwords, which only
+# lab_auth can read. Error messages never contain password values.
+
+STUDENT_PASSWORD_SECRET = "lab-student-passwords"
+_STUDENT_LINE = re.compile(r"student(\d{2})")
+
+
+def parse_student_password_file(text: str, admin_password: str = "") -> dict:
+    """Parse the instructor file into {"kind": "shared"|"base"|"list", ...}.
+
+    One entry per line, `key: value`; blank lines and lines starting with # are ignored. Exactly one of:
+      shared: <password>        every student gets it
+      base: <prefix>            student NN gets <prefix>NN
+      studentNN: <password>     per-student lines (unlisted students get a generated password)
+    """
+    shared, base, listed = [], [], {}
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, value = line.partition(":")
+        key, value = key.strip().lower(), value.strip()
+        if not sep or not value:
+            raise ValueError(f"line {number}: expected 'key: value'")
+        if len(value) > 128:
+            raise ValueError(f"line {number}: value longer than 128 characters")
+        if key == "shared":
+            shared.append(value)
+        elif key == "base":
+            base.append(value)
+        elif _STUDENT_LINE.fullmatch(key) and 1 <= int(key[7:]) <= 99:
+            if key in listed:
+                raise ValueError(f"line {number}: {key} appears more than once")
+            listed[key] = value
+        else:
+            raise ValueError(f"line {number}: unknown key (use shared, base or studentNN)")
+    kinds = [k for k, present in (("shared", shared), ("base", base), ("list", listed)) if present]
+    if len(kinds) != 1 or len(shared) > 1 or len(base) > 1:
+        raise ValueError("use exactly one of: one 'shared' line, one 'base' line, or 'studentNN' lines")
+    policy = ({"kind": "shared", "value": shared[0]} if shared else
+              {"kind": "base", "value": base[0]} if base else {"kind": "list", "passwords": listed})
+    if admin_password and any(password_from_file(policy, n) == admin_password for n in range(1, 100)):
+        raise ValueError("a student password equals the static FAIG admin password; they must differ")
+    return policy
+
+
+def password_from_file(policy: dict, number: int) -> str | None:
+    """The configured password for student NN, or None when a list file has no line for them."""
+    kind = (policy or {}).get("kind")
+    if kind == "shared":
+        return policy["value"]
+    if kind == "base":
+        return f"{policy['value']}{number:02d}"
+    if kind == "list":
+        return (policy.get("passwords") or {}).get(f"student{number:02d}")
+    raise ValueError("unknown student password file policy")
+
+
+def student_password_summary(policy: dict) -> dict:
+    """Non-secret description for /manage/."""
+    if not policy:
+        return {"configured": False}
+    summary = {"configured": True, "kind": policy.get("kind")}
+    if policy.get("kind") == "list":
+        summary["students"] = sorted(int(k[7:]) for k in (policy.get("passwords") or {}))
+    return summary
+
+
+def git_checkout_containing(path) -> str:
+    """Return the Git checkout (repository or worktree) holding `path`, or "".
+
+    Change 2026-11-23 (Agent 1 review): the instructor file must live outside Git. Both the
+    path as given and its real path are checked, so a symlinked folder cannot hide a checkout.
+    A `.git` folder (repository) or `.git` file (linked worktree, submodule) marks a checkout."""
+    given = Path(path).expanduser().absolute()
+    for candidate in (given, given.resolve()):
+        for parent in candidate.parents:
+            if parent.name == ".git" or (parent / ".git").exists():
+                return str(parent)
+    return ""
+
+
+def _main(argv: list) -> int:
+    """`python3 lab_broker.py parse-student-passwords FILE [ADMIN_PASSWORD_FILE]`: print
+    {"policy": ..., "summary": ...} as JSON (contains passwords: callers use no_log)."""
+    import json as _json
+    import sys as _sys
+    if len(argv) < 3 or argv[1] != "parse-student-passwords":
+        print("usage: lab_broker.py parse-student-passwords FILE [ADMIN_PASSWORD_FILE]", file=_sys.stderr)
+        return 2
+    checkout = git_checkout_containing(argv[2])
+    if checkout:
+        print(f"student password file rejected: it is inside a Git checkout ({checkout}); "
+              "keep it outside every repository and worktree", file=_sys.stderr)
+        return 1
+    try:
+        text = Path(argv[2]).read_text(encoding="utf-8")
+        admin = Path(argv[3]).read_text(encoding="utf-8").strip() if len(argv) > 3 and argv[3] else ""
+        policy = parse_student_password_file(text, admin)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        print(f"student password file rejected: {exc}", file=_sys.stderr)
+        return 1
+    print(_json.dumps({"policy": policy, "summary": student_password_summary(policy)}))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    raise SystemExit(_main(sys.argv))

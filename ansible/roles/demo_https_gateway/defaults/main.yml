@@ -103,6 +103,9 @@ lab_gateway_callers:
 # namespace, readable and patchable only by lab_auth. Students are
 # student<NN>@<domain>.
 lab_data_namespace: lab-data
+# Change 2026-11-23: optional instructor-owned student password file outside Git (path only).
+# Set by tfvars lab_student_password_file through terraform.generated.yml, or in user.yml.
+lab_student_password_file: ""
 lab_gateway_student_domain: fortiai.lab
 # Change 2026-11-19: always keep a fallback Secret so admin password resets
 # (lab chatbot Admin tab) store matching fallback hashes; mode stays faig.

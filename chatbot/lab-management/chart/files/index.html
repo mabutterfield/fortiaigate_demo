@@ -55,6 +55,7 @@
     <label>How many <input type="number" id="count" min="1" max="99" value="2" required></label>
     <fieldset>
       <legend>Passwords</legend>
+      <label class="pwfile" hidden><input type="radio" name="pwmode" value="file"> From the instructor password file <span class="pwfile-desc muted"></span></label><br class="pwfile" hidden>
       <label><input type="radio" name="pwmode" value="generated" checked> Generate a unique password per student</label><br>
       <label><input type="radio" name="pwmode" value="shared"> One password for everyone</label><br>
       <label><input type="radio" name="pwmode" value="base"> Base + student number (e.g. Base_ → Base_01)</label><br>
@@ -80,6 +81,7 @@
     <label>Student number <input type="number" id="rnumber" min="1" max="99" value="1" required></label>
     <fieldset>
       <legend>New password</legend>
+      <label class="pwfile" hidden><input type="radio" name="rmode" value="file"> Reset to the instructor password file <span class="pwfile-desc muted"></span></label><br class="pwfile" hidden>
       <label><input type="radio" name="rmode" value="generated" checked> Generate one</label><br>
       <label><input type="radio" name="rmode" value="shared"> Use this password</label><br>
       <label><input type="radio" name="rmode" value="base"> Base + student number (e.g. Base_ → Base_01)</label><br>
