@@ -2395,6 +2395,31 @@ def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspa
         raise SystemExit(str(exc)) from None
 
 
+def preflight_802_license() -> tuple[Path, str]:
+    """Validate an available license before any cloud resources are changed."""
+    from scripts import faig_bootstrap_802
+    raw_dir = get_layered_yaml_scalar('license_source_dir', '{{ faig_workspace_root }}/licenses')
+    license_dir = resolve_ansible_path(raw_dir)
+    pattern = get_layered_yaml_scalar('quickstart_faig_license_regex', r'FAIG.*\.lic')
+    try:
+        faig_bootstrap_802.select_license(license_dir, pattern)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'FAIG license preflight failed: {exc}') from None
+    return license_dir, pattern
+
+
+def repo_worktrees() -> list[Path]:
+    """List all worktrees before state migration; fail closed on errors."""
+    result = subprocess.run(['git', '-C', str(REPO_ROOT), 'worktree', 'list', '--porcelain'],
+                            text=True, capture_output=True, check=False)
+    if result.returncode:
+        raise SystemExit('Cannot inventory Git worktrees before state migration.')
+    trees = [Path(line[9:]) for line in result.stdout.splitlines() if line.startswith('worktree ')]
+    if not trees:
+        raise SystemExit('No Git worktrees found; refusing to initialize Terraform state.')
+    return trees
+
+
 def prepare_802_initialization() -> dict[str, Path | str]:
     """Validate license selection and create/reuse private admin files before AWS changes."""
     from scripts import faig_bootstrap_802

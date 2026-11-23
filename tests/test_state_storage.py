@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan, activate_storage_settings
+from scripts.state_storage import StateLayout, checked_state_identity, resolve_state_root, read_state_settings, write_state_settings, check_migration_source, verify_migrated_states, archive_migrated_sources, migrate_one_module, StorageSettings, read_storage_settings, write_storage_settings, prepare_external_module, discover_worktree_states, backup_legacy_states, build_migration_plan, migrate_plan, activate_storage_settings, secure_state_files
 
 
 class StateLayoutTests(unittest.TestCase):
@@ -350,6 +350,25 @@ class StateLayoutTests(unittest.TestCase):
             self.assertFalse((module / 'terraform.tfstate').exists())
             activate_storage_settings(settings, profile, [tree], root / 'unused-backup')
             self.assertFalse((root / 'unused-backup').exists())
+
+    def test_secure_state_files_does_not_chmod_module_directory(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / 'module'
+            module.mkdir(mode=0o755)
+            state = module / 'terraform.tfstate'
+            state.write_text('fictional')
+            state.chmod(0o644)
+            secure_state_files(state, named_workspace=False)
+            self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(module.stat().st_mode & 0o777, 0o755)
+            named = module / 'terraform.tfstate.d/ohio-802/terraform.tfstate'
+            named.parent.mkdir(parents=True, mode=0o755)
+            named.write_text('fictional')
+            secure_state_files(named, named_workspace=True)
+            self.assertEqual(named.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(named.parent.stat().st_mode & 0o777, 0o700)
 
     def test_backend_config_includes_default_and_workspace_locations(self):
         args = self.layout.backend_args('aws-prep')

@@ -516,3 +516,21 @@ def activate_storage_settings(settings: StorageSettings, profile_path: Path, wor
     # journal prevents any later quickstart from using a partial state layout.
     write_storage_settings(profile_path, settings)
     migrate_plan(plan, layout, backup_root)
+
+
+def secure_state_files(path: Path, *, named_workspace: bool) -> None:
+    """Restrict an existing Terraform snapshot and its backup to the owner."""
+    import os
+    if path.is_symlink():
+        raise ValueError(f'state snapshot may not be a symlink: {path}')
+    for candidate in (path, path.with_suffix(path.suffix + '.backup')):
+        if candidate.is_symlink():
+            raise ValueError(f'state snapshot or backup may not be a symlink: {candidate}')
+        if candidate.exists():
+            if not candidate.is_file() or candidate.stat().st_uid != os.getuid():
+                raise ValueError(f'state must be an owner-owned regular file: {candidate}')
+            os.chmod(candidate, 0o600)
+    if named_workspace and path.parent.exists():
+        if path.parent.is_symlink() or path.parent.stat().st_uid != os.getuid():
+            raise ValueError('workspace state directory must be owned by the current user and not a symlink')
+        os.chmod(path.parent, 0o700)
