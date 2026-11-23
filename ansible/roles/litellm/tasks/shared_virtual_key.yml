@@ -148,24 +148,9 @@
   # - ansible.builtin.debug:
   #     msg: "Admin probe status: {{ litellm_shared_key_admin_probe.status }}"
 
-- name: Check local shared key file
-  ansible.builtin.stat:
-    path: "{{ litellm_shared_virtual_key_local_file }}"
-  delegate_to: localhost
-  become: false
-  register: litellm_shared_key_local_stat
-  # - ansible.builtin.debug:
-  #     var: litellm_shared_key_local_stat.stat.exists
-
-- name: Write owner-only local shared key file when missing
-  ansible.builtin.copy:
-    dest: "{{ litellm_shared_virtual_key_local_file }}"
-    content: "{{ {'key_alias': litellm_shared_virtual_key_alias, 'api_key': litellm_shared_virtual_key_value} | to_json }}\n"
-    mode: "0600"
-  delegate_to: localhost
-  become: false
-  no_log: true
-  when: not litellm_shared_key_local_stat.stat.exists
+# Change 2026-11-23: local copy handling moved to sync_local_key_file.yml (testable on its own).
+- name: Keep the local shared key file in step with the cluster key
+  ansible.builtin.include_tasks: sync_local_key_file.yml
 
 - name: Show shared LiteLLM virtual key status
   ansible.builtin.debug:
@@ -174,3 +159,4 @@
       - "Kubernetes Secret: {{ litellm_namespace }}/{{ litellm_shared_virtual_key_secret_name }} (key api-key)"
       - "Local file: {{ litellm_shared_virtual_key_local_file }}"
       - "{{ 'Created this run' if litellm_shared_key_secret_check.rc != 0 else 'Existing key reused' }}; non-admin check passed"
+      - "Local file status: {{ litellm_shared_key_local_result | default('not checked') }}"
