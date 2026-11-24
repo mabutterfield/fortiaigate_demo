@@ -21,7 +21,10 @@ and two fully prepopulated student workspaces were created; both students
 signed in. Catalog tests produced eight passes and the known Resume Block
 failure below. The code suite passed 343 tests (16 skipped). Teardown removes
 the lab host, networking, IAM, Elastic IPs and disposable prep buckets; ECR and
-the separately managed NVIDIA package caches are retained.
+the separately managed NVIDIA package caches are retained. After the Ohio test,
+teardown exited successfully and AWS inventory confirmed the host, lab VPC,
+EIP and lab IAM role were gone while the Ohio ECR repositories and both regional
+NVIDIA caches remained.
 
 ## Known limitations
 
