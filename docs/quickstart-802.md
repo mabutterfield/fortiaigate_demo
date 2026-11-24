@@ -154,6 +154,8 @@ and approves the Terraform actions; review the workspace and profile first.
 Saved destroy plans are restricted to the expected resources; an unapproved
 S3/ECR change stops that plan. GPU termination may take several minutes.
 Generated instance secrets are cleaned only after AWS confirms termination.
+The FortiWeb cloud-init bucket policy is removed with its IAM role and recreated
+on the next build; the bucket and its other retained settings remain.
 
 **Known limitations (v1.2.0):**
 

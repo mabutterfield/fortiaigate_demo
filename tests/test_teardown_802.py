@@ -149,6 +149,13 @@ class TeardownTests(unittest.TestCase):
                 teardown.destroy_selected(teardown.PREP, [teardown.EIP], {'aws_eip.public'}, None, True)
             self.assertEqual(run.call_count, 2)
 
+    def test_prep_plan_can_remove_fortiweb_role_and_dependent_bucket_policy(self):
+        changes = [{'mode': 'managed', 'address': address, 'change': {'actions': ['delete']}}
+                   for address in ('aws_iam_role.fortiweb_cloudinit[0]', 'aws_s3_bucket_policy.fortiweb_cloudinit[0]')]
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps({'resource_changes': changes})), None]) as run:
+            teardown.destroy_selected(teardown.PREP, ['aws_iam_role.fortiweb_cloudinit[0]'], teardown.PREP_IAM_RESOURCES, None, True)
+            self.assertEqual(run.call_count, 3)
+
     def test_target_plan_applies_only_single_ip(self):
         plan = {'resource_changes': [{'mode':'managed', 'address':teardown.EIP, 'change':{'actions':['delete']}}]}
         with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps(plan)), None]) as run:

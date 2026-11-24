@@ -41,6 +41,9 @@ PREP_IAM_RESOURCES = {
     'aws_iam_instance_profile.fortiweb_cloudinit', 'aws_iam_policy.fortiweb_cloudinit_s3_read',
     'aws_iam_role_policy_attachment.fortiweb_cloudinit_s3_read', 'aws_iam_user.bedrock',
     'aws_iam_access_key.bedrock', 'aws_iam_user_policy.bedrock', 'time_offset.bedrock_expiration',
+    # This policy references the disposable FortiWeb IAM role and must be
+    # deleted with it; the bucket, its objects and other settings are retained.
+    'aws_s3_bucket_policy.fortiweb_cloudinit',
 }
 HOST_TYPES = {'aws_instance', 'aws_vpc', 'aws_subnet', 'aws_security_group',
               'aws_internet_gateway', 'aws_route_table', 'aws_route_table_association',
