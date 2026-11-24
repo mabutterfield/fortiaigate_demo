@@ -16,12 +16,8 @@ import automated_quickstart as quickstart
 BACKEND = 'terraform {\n backend "local" {}\n}\n'
 MODULES = {
     'aws-ecr': BACKEND + 'output "registry" { value = "fixture-registry" }\n',
-    'aws-prep': BACKEND + '''variable "aws_ecr_state_path" { type = string }
-data "terraform_remote_state" "ecr" {
-  backend = "local"
-  config = { path = var.aws_ecr_state_path }
-}
-output "from_ecr" { value = data.terraform_remote_state.ecr.outputs.registry }
+    'aws-prep': BACKEND + '''variable "ecr_repository_prefix" { type = string }
+output "from_ecr" { value = "fixture-registry" }
 ''',
     'aws-ec2-k3s': BACKEND + '''variable "aws_prep_state_path" { type = string }
 variable "lab_generated_secrets_enabled" { type = bool }
@@ -54,7 +50,7 @@ class ExternalStateIntegrationTests(unittest.TestCase):
                                check=True, capture_output=True)
                 args = ['apply', '-input=false', '-auto-approve']
                 if name == 'aws-prep':
-                    args.append('-var=aws_ecr_state_path=' + str(old / 'terraform/aws-ecr/terraform.tfstate'))
+                    args.append('-var=ecr_repository_prefix=fortiaigate')
                 elif name == 'aws-ec2-k3s':
                     args += ['-var=aws_prep_state_path=' + str(old / 'terraform/aws-prep/terraform.tfstate'),
                              '-var=lab_generated_secrets_enabled=false', '-var=lab_secrets_root=' + str(root / 'secrets')]
@@ -78,6 +74,7 @@ class ExternalStateIntegrationTests(unittest.TestCase):
                 with mock.patch.object(quickstart, 'REPO_ROOT', new), \
                      mock.patch.object(quickstart, 'run_command', side_effect=run), \
                      mock.patch.object(quickstart, 'restore_existing_ecr_vars'), \
+                     mock.patch.object(quickstart, 'parse_ecr_tfvars', return_value=('fortiaigate', [])), \
                      mock.patch.object(quickstart, 'TERRAFORM_MODULES', modules):
                     quickstart.run_terraform(True, [], 'profile', 'region',
                                              state_layout=settings.state, secrets_root=settings.secrets_root)

@@ -1,5 +1,6 @@
 registry_backend   = "ecr"
-aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
+# Change 2026-11-24: ECR discovery and prep pull rights no longer use ECR state.
+# aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
 
 ec2_iam_role_name                = ""
 ec2_instance_profile_name        = ""

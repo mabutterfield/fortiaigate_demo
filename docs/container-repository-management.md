@@ -68,8 +68,8 @@ triton-models, custom-triton, chatbot-basic, guardrail,
 guardrail-scanner, llm-gateway, faig-models, vllm-server
 ```
 
-`terraform/aws-prep` reads ECR state and grants the k3s EC2 role scoped pull
-permissions when `registry_backend = "ecr"`. Do not place static AWS access
+`terraform/aws-prep` grants the k3s EC2 role pull permissions scoped to the
+configured ECR namespace in the current account and region; it does not read ECR state. Do not place static AWS access
 keys in Terraform or Ansible files.
 
 ### Existing Repositories
@@ -108,8 +108,7 @@ repository import helper does not import policies automatically. After imports,
 inspect a plan and compare all existing lifecycle rules before applying: the
 tracked policy can expire images and may differ from the policy in AWS. An
 import does not itself change the live policy, but an apply can. Never use a
-broad ECR destroy for a lab teardown. Once the ECR state has complete outputs,
-quickstart reads them and rebuilds `ecr.generated.yml` without applying ECR.
+broad ECR destroy for a lab teardown. Quickstart discovers the registry directly from AWS and rebuilds `ecr.generated.yml` without applying ECR.
 
 ## Publish FortiAIGate Images
 
@@ -258,9 +257,7 @@ with a known compatible chart/release combination.
 
 ## Current Quickstart Boundary
 
-The AWS quickstart consumes registry values from existing ECR Terraform outputs
-as a transitional read-only adapter; it does not import, apply or publish
-repositories. The intended final boundary is:
+The AWS quickstart discovers the registry, repositories and required tags through read-only AWS calls; it does not import, apply or publish repositories. The intended final boundary is:
 
 - repository maintenance creates/imports registries and publishes immutable,
   verified release images;

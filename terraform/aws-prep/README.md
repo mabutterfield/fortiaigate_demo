@@ -3,7 +3,7 @@
 This module prepares shared AWS resources used by the FortiAIGate demo:
 
 - EC2 IAM role and instance profile for the k3s host
-- scoped ECR pull permissions from the ECR Terraform state when `registry_backend = "ecr"`
+- scoped ECR pull permissions for the configured repository namespace when `registry_backend = "ecr"`
 - trusted source CIDR outputs
 - preallocated public EIPs for selected entry points
 - FortiWeb S3 cloud-init bucket and IAM instance profile when enabled
@@ -11,7 +11,7 @@ This module prepares shared AWS resources used by the FortiAIGate demo:
 - optional private S3 bucket for FortiAIGate syslog preservation
 - optional temporary Bedrock IAM credentials for FortiAIGate provider setup
 
-Run it after the registry module and before the EC2 k3s foundation module:
+Run it before the EC2 k3s foundation module; ECR repository management is independent:
 
 ```bash
 terraform -chdir=terraform/aws-prep init
@@ -21,9 +21,7 @@ terraform -chdir=terraform/aws-prep apply
 Copy `99-local.auto.tfvars.example` to `99-local.auto.tfvars` only when
 overriding the tracked defaults in `00-system.auto.tfvars`.
 
-This module reads `terraform/aws-ecr` local state by default when
-`registry_backend = "ecr"`. The EC2 module reads this module's local Terraform
-state by default.
+The ECR pull policy covers `repository/<ecr_repository_prefix>/*` in the selected account and region. Set the prefix to the ECR namespace; the quickstart passes the configured value. The EC2 module reads this module's local Terraform state by default.
 
 The default full AWS deployment creates one shared k3s EC2 role and, when
 FortiWeb is enabled, one FortiWeb cloud-init role. Optional ECR, Bedrock,
