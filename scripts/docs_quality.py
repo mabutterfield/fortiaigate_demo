@@ -144,7 +144,8 @@ def validate_doc_filenames(markdown_paths: list[Path]) -> list[str]:
     for path in markdown_paths:
         if not path.parts or path.parts[0] != "docs":
             continue
-        if path.name == "README.md":
+        # Change 2026-11-23: release notes use the actual dotted version tag.
+        if path.name == "README.md" or re.fullmatch(r"release-notes-\d+\.\d+\.\d+-rc\.\d+\.md", path.name):
             continue
         if not LOWER_KEBAB_MARKDOWN.fullmatch(path.name):
             errors.append(f"{path}: documentation filename must be lowercase kebab-case")

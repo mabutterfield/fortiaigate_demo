@@ -2937,11 +2937,14 @@ def _main() -> None:
         run_ansible_flow(args, appliance_keys, inventory=LOCAL_INVENTORY)
         print_header("Automated Quick Start Complete")
         print("Local Ansible deployment steps completed.")
-        print("Next: configure FortiAIGate before functional validation:")
-        print("  docs/FortiAIGate-initial-config.MD")
-        print("  docs/fortiaigate-gui-config.md")
-        print("After the required FortiAIGate flows are configured, validate from the repo root:")
-        print("  python3 -m functional_test validate")
+        # Change 2026-11-23: old local scenario/flow instructions retired.
+        # print("Next: configure FortiAIGate before functional validation:")
+        # print("  docs/FortiAIGate-initial-config.MD")
+        # print("  docs/fortiaigate-gui-config.md")
+        # print("After the required FortiAIGate flows are configured, validate from the repo root:")
+        # print("  python3 -m functional_test validate")
+        print("The local deployment path is not validated for the 8.0.2 release candidate.")
+        print("For the supported AWS workflow, see docs/quickstart-802.md")
         return
 
     if profile_action != "init":
