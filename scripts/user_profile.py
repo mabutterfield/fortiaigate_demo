@@ -606,6 +606,23 @@ def prompt_cidr_list(default_values: list[str]) -> list[str]:
             print(error)
 
 
+def suggested_trusted_cidrs(existing: list[str]) -> list[str]:
+    """Preserve real choices; replace the shipped example with the caller's public IPv4."""
+    if existing and existing != ['203.0.113.10/32']:
+        return existing
+    import urllib.request
+    try:
+        with urllib.request.urlopen('https://checkip.amazonaws.com/', timeout=4) as response:
+            address = ipaddress.ip_address(response.read(128).decode('ascii').strip())
+        if address.version != 4 or not address.is_global:
+            raise ValueError('not a public IPv4 address')
+        print(f'Detected public address: {address}/32 (confirm it matches your network).')
+        return [f'{address}/32']
+    except (OSError, ValueError, UnicodeError):
+        print('Could not detect a public IPv4 address; enter a trusted CIDR manually.')
+        return []
+
+
 def list_aws_profiles() -> list[str]:
     output = command_output(["aws", "configure", "list-profiles"])
     return [line.strip() for line in output.splitlines() if line.strip()]
@@ -867,7 +884,7 @@ def configure_terraform_user_profile() -> None:
     ensure_aws_login(profile)
     key_name = choose_ec2_key_pair(profile, region, get_tf_string(content, "ssh_key_name"))
     private_key = choose_local_ssh_private_key(get_tf_string(content, "ssh_private_key_file"), key_name)
-    cidrs = prompt_cidr_list(get_tf_list_strings(content, "allowed_ingress_cidr"))
+    cidrs = prompt_cidr_list(suggested_trusted_cidrs(get_tf_list_strings(content, "allowed_ingress_cidr")))
     tags = parse_tags_text(prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(get_tf_map_strings(content, "tags"))))
 
     content = set_tf_string(content, "aws_profile", profile)
@@ -899,9 +916,10 @@ def configure_ansible_user_profile() -> None:
     content = set_yaml_list_strings(content, "fortiaigate_license_files", [selected_license])
 
     credential_fields = [
-        ("litellm_master_key", "LiteLLM API/master key"),
+        # Change 2026-11-24: LiteLLM keys and passwords are generated per instance.
+        # ("litellm_master_key", "LiteLLM API/master key"),
         ("litellm_ui_username", "LiteLLM admin username"),
-        ("litellm_ui_password", "LiteLLM admin password"),
+        # ("litellm_ui_password", "LiteLLM admin password"),
         ("openwebui_enabled", "Enable OpenWebUI true/false"),
     ]
     print("Press Enter to keep the current value.")

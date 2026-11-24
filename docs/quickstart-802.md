@@ -10,6 +10,22 @@ Ohio GPU host deployment and teardown were exercised for v1.2.0-rc.1; see the
 For using the deployed lab, see the [instructor guide](instructor-guide-802.md)
 and [student guide](student-guide-802.md).
 
+## Start an interactive deployment
+
+After completing [first-run preparation](first-run-preparation.md), signing in
+to AWS and placing the 8.0.2 chart and FAIG license in the workspace, run:
+
+```bash
+python3 scripts/automated_quickstart.py
+```
+
+The prompts configure your profile and deploy the lab. Quickstart detects your
+public IPv4 when possible; verify the suggested address before accepting it.
+LiteLLM credentials are generated per instance. Once the profile is saved,
+`--yolo` reuses it and applies infrastructure changes without prompting.
+Check that `ansible-playbook --version` and `ansible-galaxy --version` work;
+finding a command on PATH does not guarantee its Python interpreter exists.
+
 For an existing named Terraform workspace with separate prep and host variable
 files, for example the Ohio lab:
 
@@ -92,6 +108,13 @@ only after FAIG confirms an Active license. A missing marker target or an
 uncertain upload requires manual reconciliation. FortiGate and FortiWeb are
 optional and excluded unless explicitly enabled in their local overrides or CLI
 flags; their existing license workflows are separate.
+
+For a FAIG license with a different filename prefix, verify that it is a
+FortiAIGate license, then set a matching regular expression, for example
+`quickstart_faig_license_regex: '^CUSTOM.*\.lic$'`. The older
+`fortiaigate_license_files` list does not select the 8.0.2 automatic license:
+the initializer rotates files matching this regex. Alternatively, use
+`--no-experimental-faig-init` and upload the license manually.
 
 Quickstart prints the FAIG and instructor URLs, administrator email and private
 credential directory, not passwords. The FAIG re-entry provider is not yet

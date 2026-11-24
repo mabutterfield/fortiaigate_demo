@@ -230,6 +230,13 @@ def check_requirements(target: str = "aws") -> None:
     for command in required_commands:
         path = shutil.which(command)
         if path:
+            if command in {'ansible-playbook', 'ansible-galaxy'}:
+                try:
+                    result = subprocess.run([path, '--version'], capture_output=True, text=True, timeout=15, check=False)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    raise SystemExit(f'{command} was found at {path} but cannot run: {exc}. Repair or reinstall Ansible and check its Python interpreter.') from None
+                if result.returncode:
+                    raise SystemExit(f'{command} was found at {path} but --version failed. Repair or reinstall Ansible and check its Python interpreter.')
             print(f"{command}: {path}")
         else:
             missing.append(command)
@@ -1002,7 +1009,7 @@ def configure_user_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
     name_prefix = prompt_text("Deployment name prefix", current_prefix)
     key_name = choose_ec2_key_pair(profile, region, current_key_name)
     private_key = choose_local_ssh_private_key(current_private_key, key_name)
-    cidr_default = ", ".join(current_cidrs) if current_cidrs else ""
+    cidr_default = ", ".join(profile_tool.suggested_trusted_cidrs(current_cidrs))
     cidrs = prompt_cidr_list("Trusted source CIDR list, comma-separated", cidr_default, "Trusted source CIDR list")
     tags_text = prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(current_tags))
     tags = parse_tags_text(tags_text)
@@ -2529,7 +2536,9 @@ def preflight_802_license() -> tuple[Path, str]:
     try:
         faig_bootstrap_802.select_license(license_dir, pattern)
     except (OSError, ValueError) as exc:
-        raise SystemExit(f'FAIG license preflight failed: {exc}') from None
+        raise SystemExit(f'FAIG license preflight failed: {exc}. Checked {license_dir} with regex {pattern!r}. '
+                         'Verify the file is a FortiAIGate license and set quickstart_faig_license_regex in '
+                         'ansible/group_vars/user.yml to match your filename, or use --no-experimental-faig-init.') from None
     return license_dir, pattern
 
 

@@ -66,6 +66,14 @@ aws --version
 docker version
 ```
 
+Both Ansible version commands must actually run. If an Ansible executable is
+found but reports “No such file or directory,” inspect its first line with
+`head -n 1 "$(command -v ansible-playbook)"`: a stale Python interpreter in
+the shebang can cause this after moving or upgrading a machine. Repair or
+reinstall the Ansible installation, then rerun both version commands. Tests
+that need Ansible are skipped when its executable cannot run; that is not a
+substitute for installing Ansible before quickstart.
+
 The quickstart performs its own required-command check before changing the
 environment.
 

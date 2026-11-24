@@ -16,6 +16,18 @@ import automated_quickstart as quickstart
 
 
 class Quickstart802Tests(unittest.TestCase):
+    def test_requirements_rejects_broken_ansible_interpreter(self):
+        with mock.patch.object(quickstart, 'check_host_os'), \
+             mock.patch.object(quickstart.shutil, 'which', return_value='/tmp/ansible-playbook'), \
+             mock.patch.object(quickstart.subprocess, 'run', side_effect=FileNotFoundError('missing interpreter')):
+            with self.assertRaisesRegex(SystemExit, 'cannot run'):
+                quickstart.check_requirements('local')
+
+    def test_license_preflight_explains_filename_mismatch(self):
+        with mock.patch.object(quickstart, 'resolve_ansible_path', return_value=self.root), \
+             mock.patch.object(quickstart, 'get_layered_yaml_scalar', side_effect=lambda key, default: default):
+            with self.assertRaisesRegex(SystemExit, 'quickstart_faig_license_regex'):
+                quickstart.preflight_802_license()
     def setUp(self):
         try:
             original_cwd = Path.cwd()

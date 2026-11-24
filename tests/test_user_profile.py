@@ -49,6 +49,17 @@ class UserProfileInstanceTypeTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 user_profile.safe_member_path(bad)
 
+    def test_public_ip_suggestion_preserves_existing_and_replaces_sample(self) -> None:
+        with mock.patch('urllib.request.urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = b'8.8.8.8\n'
+            self.assertEqual(user_profile.suggested_trusted_cidrs(['203.0.113.10/32']), ['8.8.8.8/32'])
+            self.assertEqual(user_profile.suggested_trusted_cidrs(['1.1.1.1/32']), ['1.1.1.1/32'])
+            self.assertEqual(request.call_count, 1)
+
+    def test_public_ip_failure_requires_manual_entry(self) -> None:
+        with mock.patch('urllib.request.urlopen', side_effect=OSError('offline')):
+            self.assertEqual(user_profile.suggested_trusted_cidrs([]), [])
+
     def test_config_profile_export_import_round_trip(self) -> None:
         for path in user_profile.REQUIRED_PROFILE_FILES:
             target = self.test_root / path
