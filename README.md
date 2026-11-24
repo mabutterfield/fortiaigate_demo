@@ -84,7 +84,6 @@ ansible/         Host, appliance, deployment, status, and validation automation
 k8s-overlays/    Helm post-render patches and notes
 chatbot/         Custom chatbot, scenarios, instructions, and demo application assets
 functional_test/ Metadata-driven scenario validation for operators
-load_test/       Developer-focused dashboard traffic generation
 docs/            Quick starts, operations, reference, and authoring documentation
 scripts/         Setup, scenario, build, and maintenance helpers
 ```

@@ -146,8 +146,8 @@ enabled on that flow.
 
 Use `python3 -m functional_test validate` after scenario flows and guards are
 configured. That command owns installed-scenario path and expected-disposition
-validation. The separate LiteLLM direct test retains its optional
-`litellm_direct_test_poll_all_endpoints` alias sweep.
+validation. (Change 2026-11-23: the separate LiteLLM direct test playbook was
+removed from v1.2.0 until it reads the 8.0.2 catalog.)
 
 ## Refresh Expiration
 

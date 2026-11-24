@@ -18,12 +18,13 @@ class RetiredCliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn('catalog-baseline', result.stderr)
 
-    def test_load_runner_stops_before_legacy_traffic(self):
-        for command in ('validate', 'paths', 'run'):
-            with self.subTest(command=command):
-                result = self.invoke('load_test', command, '--yes')
-                self.assertEqual(result.returncode, 2)
-                self.assertIn('disabled', result.stderr)
+    # Change 2026-11-23: load_test/ was removed from v1.2.0, so there is no runner to retire.
+    # def test_load_runner_stops_before_legacy_traffic(self):
+    #     for command in ('validate', 'paths', 'run'):
+    #         with self.subTest(command=command):
+    #             result = self.invoke('load_test', command, '--yes')
+    #             self.assertEqual(result.returncode, 2)
+    #             self.assertIn('disabled', result.stderr)
 
     def test_functional_help_still_shows_supported_catalog_command(self):
         result = self.invoke('functional_test', '--help')

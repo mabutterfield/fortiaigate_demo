@@ -42,8 +42,9 @@ REQUIRED_PATHS = [
     "functional_test/__main__.py",
     "functional_test/curl_renderer.py",
     "functional_test/validation.py",
-    "load_test/__main__.py",
-    "load_test/traffic_generator.py",
+    # Change 2026-11-23: load_test/ removed from v1.2.0 (tag faig_8.0.2_gui_experiment).
+    # "load_test/__main__.py",
+    # "load_test/traffic_generator.py",
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -132,8 +133,9 @@ def check_required_paths() -> None:
 def check_python_compile() -> None:
     for path in sorted((REPO_ROOT / "scripts").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
-    for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
-        py_compile.compile(str(path), doraise=True)
+    # Change 2026-11-23: load_test/ removed from v1.2.0.
+    # for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
+    #     py_compile.compile(str(path), doraise=True)
     for path in sorted((REPO_ROOT / "functional_test").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
     print("ok python compile")
@@ -156,7 +158,8 @@ def check_script_help() -> None:
             [sys.executable, "-m", "functional_test", command, "--help"],
             show_stdout=False,
         )
-    run([sys.executable, "-m", "load_test", "--help"], show_stdout=False)
+    # Change 2026-11-23: load_test/ removed from v1.2.0.
+    # run([sys.executable, "-m", "load_test", "--help"], show_stdout=False)
 
 
 def check_tracked_secrets() -> None:

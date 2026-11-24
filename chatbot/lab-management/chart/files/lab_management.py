@@ -1,6 +1,7 @@
 """FortiAIGate 8.0.2 lab management service (instructor page at /manage/).
 
-Adapted from the undeployed instructor-management/ prototype. Standard library
+Adapted from the undeployed instructor-management/ prototype (removed 2026-11-23;
+kept at tag faig_8.0.2_gui_experiment). Standard library
 only, so it runs on the stock python image with code from a ConfigMap.
 
 Served behind the lab login gateway: nginx strips the /manage prefix, so this

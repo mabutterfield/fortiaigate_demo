@@ -45,15 +45,9 @@ the old performance runner is disabled pending a separate 8.0.2 migration.
 These commands are user-executable, but they are not part of the normal
 quickstart path.
 
-- `export_fortiaigate_syslog.py` — downloads FortiAIGate syslog objects from
-  the configured S3 archive and reconstructs a combined JSON Lines log plus a
-  manifest. The guided teardown can also preserve syslog automatically.
 - `fortigate_ai_app_proxy_touch.py` — generates controlled AI application,
   MCP, or Bedrock traffic for FortiGate Application Control investigation. It
   defaults to dry-run and sends traffic only with `--execute`.
-- `local_var_cleanup.py` — exports or restores ignored, generated local
-  inventory and variable files without uninstalling workloads or changing
-  Terraform state. Its archive may contain secrets and must be protected.
 
 ## Supporting scripts called by automation
 
@@ -92,9 +86,9 @@ not steps in the end-user quickstart.
   Terraform formatting, inventory links, tracked-secret safeguards, retired
   runtime residue checks, unit tests, and Ansible syntax validation.
 
-Developer-only historical dashboard workload code lives in `load_test/`. Its
-legacy traffic entry points are disabled until the later 8.0.2 migration; see
-`docs/development/load-testing.md`.
+The load generator (`load_test/`), FortiAIGate syslog export and local
+variable export were removed from v1.2.0 until they are rewritten for 8.0.2;
+the previous code is preserved at tag `faig_8.0.2_gui_experiment`.
 
 FortiAIGate image publishing is handled by
 `ansible/playbooks/publish_images.yml`, not by a Python script.
