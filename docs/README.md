@@ -2,8 +2,8 @@
 
 Use this page to find the shortest path from a task to its owning document.
 The [Current Baseline](reference/current-baseline.md) is the authority for what
-is supported today. The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the
-authority for validated, candidate, and archived scenario status.
+is supported today. For 8.0.2, `catalog802/data/index.json` is the authority for active scenarios;
+see [Scenario Management](scenario-management.md).
 
 All commands are run from the repository root unless a document explicitly
 changes directories.
@@ -20,9 +20,9 @@ changes directories.
 | Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
 | Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
 | Complete first login and create passthrough | [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) |
-| Configure scenario flows and guards | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
-| Install, update, remove, or validate scenarios | [Scenario Management](scenario-management.md) |
-| Prove passthrough and all installed scenarios | [Functional Validation](functional-validation.md) |
+| Configure scenario flows and guards (8.0.1, historical) | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
+| Select, provision, test or change 8.0.2 scenarios | [Scenario Management](scenario-management.md) |
+| Test scenarios (student Tests tab, `catalog-baseline`) | [Scenario Management](scenario-management.md#testing-scenarios) and [Functional Validation](functional-validation.md) |
 | Check a documented limitation or workaround | [Known Issues](known-issues.md) |
 | Sign students in to the shared lab chatbot | [Lab Login Gateway](lab-gateway.md) |
 | Run the 8.0.2 student lab chatbot | [Student Lab Chatbot](lab-chatbot.md) |
@@ -81,9 +81,9 @@ experiments are available from Git history rather than the release tree.
 
 | Document | Owns |
 |---|---|
-| [Scenario Management](scenario-management.md) | Install, update, remove, inspect, and validate local scenarios |
-| [Advanced Scenario Management](advanced-scenario-management.md) | Candidate/archive inspection, local tuning, matrix diagnostics, Detailed controls, and optional chaining |
-| [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Scenario lifecycle and support classification |
+| [Scenario Management](scenario-management.md) | 8.0.2 catalog, Lab Management provisioning, testing and changing scenarios |
+| [Advanced Scenario Management](advanced-scenario-management.md) | Historical (8.0.1): package tuning, matrix diagnostics, Detailed controls, optional chaining |
+| [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) | Historical (8.0.1) package classification; 8.0.2 active set is `catalog802/data/index.json` |
 | [MCP](mcp.md) | Deterministic tools, tool profiles, and MCP transports |
 | [Functional Validation](functional-validation.md) | Operator-facing metadata-driven validation, evidence, filters, and direct-flow curl rendering |
 
@@ -105,7 +105,7 @@ experiments are available from Git history rather than the release tree.
 
 | Document | Owns |
 |---|---|
-| [Scenario Authoring](scenario-authoring.md) | Scenario package schema and deployment boundaries |
+| [Scenario Authoring](scenario-authoring.md) | Historical (8.0.1) package schema; 8.0.2 authoring is in [Scenario Management](scenario-management.md#changing-a-scenario) |
 
 ### Maintain
 

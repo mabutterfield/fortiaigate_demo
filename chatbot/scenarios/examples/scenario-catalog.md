@@ -1,5 +1,9 @@
 # Scenario Catalog
 
+> **Historical (8.0.1).** This page classifies the 8.0.1 packages in this folder; the 8.0.2 active set is `catalog802/data/index.json`. The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](../../../docs/scenario-management.md) and [Lab Management](../../../docs/lab-management.md).
+
 This page is the human-readable view of the adjacent machine-readable
 [`catalog.json`](catalog.json). The catalog classifies tracked templates; it
 does not report what is installed. Use

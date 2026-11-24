@@ -1,5 +1,9 @@
 # Resume Tool Injection
 
+> **Historical (8.0.1).** This README describes the 8.0.1 package. The 8.0.2 definition is `catalog802/data/scenarios/resume-tool-injection.json`; 8.0.2 calls the stopping action **block** (8.0.1: *deny*). The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](../../../../docs/scenario-management.md) and [Lab Management](../../../../docs/lab-management.md).
+
 ## Security Story
 
 This MCP-enabled scenario demonstrates indirect prompt injection from a

@@ -1,5 +1,9 @@
 # HR Sensitive Lookup
 
+> **Historical (8.0.1).** This candidate is not in the 8.0.2 catalog. The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](../../../../docs/scenario-management.md) and [Lab Management](../../../../docs/lab-management.md).
+
 > Status: candidate. This scenario is retained for future tuning and is not
 > installed by default or included in release validation.
 

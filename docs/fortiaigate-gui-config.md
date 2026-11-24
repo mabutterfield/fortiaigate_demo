@@ -1,5 +1,9 @@
 # FortiAIGate Scenario GUI Configuration
 
+> **Historical (8.0.1).** This page configures FortiAIGate by hand from an 8.0.1 work order; in 8.0.2 Lab Management creates the per-student objects. The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](scenario-management.md) and [Lab Management](lab-management.md).
+
 This guide turns an installed scenario's generated work order into reusable
 FortiAIGate 8.x GUI objects. Complete
 [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) first so the
@@ -305,7 +309,7 @@ model connection differs from Test Connectivity, use
 [Troubleshooting](troubleshooting.md#fortiaigate-returns-401-404-or-the-wrong-guard).
 
 Chatbot profile selection and presenter comparisons belong to
-[Scenario Management: Select A Chatbot Profile](scenario-management.md#8-select-a-chatbot-profile)
+the 8.0.1 Scenario Management page (preserved on branch `archive/8.0.1`)
 and the individual scenario runbooks, not this administrator configuration
 guide.
 
