@@ -3,8 +3,9 @@
 This experimental AWS workflow provisions the existing Terraform foundation,
 installs k3s, FAIG, LiteLLM, MCP and the integrated Lab Management/chatbot
 services, and optionally initializes FAIG through GUI-observed APIs. Those
-application APIs are unsupported and can change between releases. The full
-fresh-host workflow must be validated before it is treated as release-ready.
+application APIs are unsupported and can change between releases. A fresh
+Ohio GPU host deployment and teardown were exercised for v1.2.0-rc.1; see the
+[release notes](release-notes-1.2.0-rc.1.md) for the tested scope and limitations.
 
 For using the deployed lab, see the [instructor guide](instructor-guide-802.md)
 and [student guide](student-guide-802.md).
@@ -20,7 +21,7 @@ python3 scripts/automated_quickstart.py --yolo
 ```
 
 `--terraform-vars-dir` is the equivalent CLI option. The directory must contain
-`prep.tfvars` and `host.tfvars`; their region and profile must agree. An
+`prep.tfvars` and `host.tfvars`; their region and profile must agree. The
 workspace and overrides directory are saved in the storage profile for later
 `--yolo` runs. An explicitly supplied environment value that conflicts with
 the saved profile stops the run. Review the selected workspace and private
@@ -106,7 +107,7 @@ teardown command:
 ```bash
 export TF_WORKSPACE=ohio-802
 export FAIG_TERRAFORM_VARS_DIR=/path/to/FAIG/ohio-802
-python3 scripts/automated_teardown.py
+python3 scripts/teardown_802.py
 ```
 
 By default it destroys the EC2/VPC stack and releases its lab Elastic IP.
@@ -129,8 +130,9 @@ ambiguous or unrecognized file is preserved for inspection.
   does not prove that no non-network dependency exists; AWS or Terraform may
   still reject deletion. A configured `aws_route` is permitted in the host
   destroy plan after this guard passes.
-- **Not yet run end to end** on a disposable deployment; the plan checks and
-  ordering are covered by unit tests.
+- The default EC2/VPC/EIP teardown was validated end to end on a disposable
+  Ohio deployment. Optional appliance teardown and every interruption/retry
+  path were not part of that live test.
 - After an Elastic IP is released, the next deployment gets a new address.
   Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
 

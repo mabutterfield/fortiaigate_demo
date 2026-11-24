@@ -19,8 +19,8 @@ otherwise.
 |---|---|
 | Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](docs/first-run-preparation.md) |
 | Review defaults and optional components | [Deployment Options](docs/deployment-options.md) |
-| Deploy the default AWS lab | [Deployment Quickstart](docs/quickstart.md#aws-lane) |
-| Deploy to an existing local Ubuntu GPU host | [Deployment Quickstart](docs/quickstart.md#local-ubuntu-lane) |
+| Deploy the 8.0.2 AWS lab | [8.0.2 Quickstart](docs/quickstart-802.md) |
+| Earlier local Ubuntu GPU workflow | [Legacy Deployment Quickstart](docs/quickstart.md#local-ubuntu-lane) |
 | Check, update, recover, or remove a deployment | [Operations](docs/operations.md) |
 | Diagnose a failed checkpoint | [Troubleshooting](docs/troubleshooting.md) |
 | Understand the components and traffic paths | [Architecture](docs/architecture.md) |
