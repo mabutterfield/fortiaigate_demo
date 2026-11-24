@@ -3,7 +3,11 @@
 This file summarizes major user-facing changes. It is intentionally written as
 a "what's new" guide rather than a raw commit log.
 
-## Unreleased
+## v1.2.0-rc.1 — FortiAIGate 8.0.2
+
+See the [release candidate notes](docs/release-notes-1.2.0-rc.1.md) for the tested scope and limitations. The historical entries below include earlier development steps and may not reflect the final 8.0.2 interface.
+
+## Earlier development history
 
 - Removed the 8.0.1 demo chatbot from the 8.0.2 branch (`chatbot/app`,
   `chatbot/chart`, `deploy_chatbots.yml`, `status_chatbots.yml`,

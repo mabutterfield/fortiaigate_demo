@@ -44,7 +44,7 @@ the same GPU on mixed local hosts.
 
 AWS LiteLLM defaults do not expose a raw Ollama alias and the AWS quickstart
 does not deploy Ollama. Use AWS Bedrock through LiteLLM for the supported AWS
-path. Treat AWS Ollama experiments as advanced local overrides, not v1.0
+path. Treat AWS Ollama experiments as advanced local overrides, not v1.2.0
 defaults.
 
 ## Variables

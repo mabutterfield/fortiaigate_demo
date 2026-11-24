@@ -1,8 +1,7 @@
 # FortiAIGate Demo Documentation
 
 Use this page to find the shortest path from a task to its owning document.
-The [Current Baseline](reference/current-baseline.md) is the authority for what
-is supported today. The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the
+For FortiAIGate 8.0.2, use the [8.0.2 quickstart](quickstart-802.md), [instructor guide](instructor-guide-802.md), and [release notes](release-notes-1.2.0-rc.1.md). The [legacy baseline](reference/current-baseline.md) describes the earlier 8.0.1 workflow. The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) is the
 authority for validated, candidate, and archived scenario status.
 
 All commands are run from the repository root unless a document explicitly

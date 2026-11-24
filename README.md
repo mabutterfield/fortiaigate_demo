@@ -1,5 +1,7 @@
 # FortiAIGate Demo
 
+> **FortiAIGate 8.0.2 release candidate:** The project release is `v1.2.0-rc.1`, targeting `v1.2.0`. Start with the [8.0.2 quickstart](docs/quickstart-802.md), [instructor guide](docs/instructor-guide-802.md), and [release notes](docs/release-notes-1.2.0-rc.1.md). The older material below is retained for the 8.0.1 workflow and may not apply to 8.0.2.
+
 Version 1.0 of this repository provides infrastructure-as-code for a repeatable
 FortiAIGate 8.x demonstration on an AWS GPU instance or an operator-owned
 Ubuntu 24.04 GPU host. The deployed lab combines FortiAIGate, LiteLLM, a custom

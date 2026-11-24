@@ -4,11 +4,11 @@ What the 8.0.2 lab stores, where, how sensitive it is, and what teardown
 removes. The [Quickstart](quickstart-802.md) owns the setup prompts and
 commands; this page is the reference for instructors and reviewers.
 
-> **Status (v1.0).** Per-instance generated credentials under
+> **Status (v1.2.0).** Per-instance generated credentials under
 > `FAIG/.secrets/` are on by default: the quickstart creates them and teardown
 > removes them. Terraform state stays in the repository's
 > `terraform/*/terraform.tfstate.d/` folders; external state under
-> `FAIG/.state/` is opt-in and not turned on by default in v1.0. Everything on
+> `FAIG/.state/` is opt-in and not turned on by default in v1.2.0; real-environment migration is unvalidated and deferred to v1.2.1. Everything on
 > this page about sensitivity applies either way.
 
 ## Summary

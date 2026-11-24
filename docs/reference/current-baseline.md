@@ -1,6 +1,8 @@
-# Current Baseline
+# Legacy Baseline (8.0.1)
 
-This is the authoritative status reference for the FortiAIGate demo v1.0
+> This page describes the previous demo baseline and is not the authority for the 8.0.2 release candidate. Start with the [8.0.2 quickstart](../quickstart-802.md) and [instructor guide](../instructor-guide-802.md).
+
+This is the historical status reference for the FortiAIGate demo v1.0
 baseline. It distinguishes what is enabled by default from what is optional,
 validated, candidate, or deferred. For request flows and component
 relationships, see [Architecture](../architecture.md).

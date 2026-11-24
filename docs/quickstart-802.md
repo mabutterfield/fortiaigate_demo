@@ -53,7 +53,7 @@ outside the repository and asks where to put generated secrets. Suggested
 locations are `FAIG/.state` and `FAIG/.secrets` (or a custom location); they
 must be separate and outside Git. The selection is stored in an owner-only
 `FAIG/.faig-storage-settings.json`, including the selected Terraform workspace
-and overrides directory, for later `--yolo` runs. External state is opt-in.
+and overrides directory, for later `--yolo` runs. External state is opt-in, but real-environment migration is unvalidated and deferred to v1.2.1; use local state for this release candidate.
 Use `--storage-profile /absolute/path/outside/git.json` for a separate
 environment profile; a verified existing external state root can be shared
 without repeating migration. Pass the same option to teardown.
@@ -68,7 +68,7 @@ are restricted to the owner; do not commit or share them. Sensitive markings
 hide ordinary output but not named outputs, `-raw`, `-json`, state or plans.
 Pre-migration backups remain private until deliberately removed.
 
-For v1.0, run host Terraform only through quickstart or teardown from the
+For v1.2.0, run host Terraform only through quickstart or teardown from the
 checkout containing `terraform/aws-ec2-k3s/99-local.auto.tfvars`. Quickstart
 records the generated-secret settings there and refuses conflicting host
 overrides. These settings do not automatically follow a different worktree.
@@ -77,7 +77,7 @@ Do not supply conflicting `-var` or `-var-file` arguments in manual runs.
 For each new EC2 instance, Terraform creates one owner-only
 `bootstrap-secrets.json` under `<secrets-root>/<workspace>/<instance-id>/`.
 It contains the generated admin and LiteLLM credentials. Same-instance reruns
-reuse them. Set `faig_admin_static_password_file` in ignored host tfvars to an
+reuse them. Static password files have not yet been live-tested in the fresh 8.0.2 deployment. Set `faig_admin_static_password_file` in ignored host tfvars to an
 absolute, owner-only, one-line instructor file outside Git to use a static
 admin password instead; Terraform records only the path. The static file and
 licenses are never included in instance cleanup. An old `FAIG_ENV_DIR` that
@@ -120,7 +120,7 @@ minutes; the VPC remains until AWS releases its dependencies. Generated
 instance secrets are cleaned only after AWS confirms termination. A missing,
 ambiguous or unrecognized file is preserved for inspection.
 
-**Known limitations (v1.0):**
+**Known limitations (v1.2.0):**
 
 - **Optional FortiGate/FortiWeb appliances are not destroyed.** Before
   planning, teardown checks AWS for VPC network interfaces belonging to other

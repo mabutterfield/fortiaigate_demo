@@ -112,7 +112,7 @@ Sign in with your FAIG administrator account (super admin). Students get a
 - A lab gateway restart signs everyone out and stops auto-approval until you
   reopen Lab Management.
 
-## Known limitations (v1.0)
+## Known limitations (v1.2.0)
 
 - **Resume Block** (Resume tool injection, block action) is a known failure:
   FAIG blocks before the `document_read` tool runs, so the test reports
@@ -121,7 +121,7 @@ Sign in with your FAIG administrator account (super admin). Students get a
   changes; turn it off when you need to review changes yourself.
 - Tests that the 8-hour limit and a mid-run FAIG rejection stop auto-approval
   are covered by unit tests, not yet by a live run.
-- The GUI-only (no GPU, no license) mode is not supported in v1.0.
+- The GUI-only (no GPU, no license) mode is not supported in v1.2.0.
 
 ## Troubleshooting
 
