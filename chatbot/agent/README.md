@@ -5,12 +5,17 @@ the conversation to an OpenAI-compatible endpoint, offers the scenario's tools
 from the standards MCP endpoint, executes tool calls over MCP, and loops until
 the model answers or the round limit is reached.
 
-It is shared so the validation baseline and the student chatbot exercise the
+It is shared so the student chatbot and the command-line checks exercise the
 same logic:
 
-- `functional_test baseline` stages it into the MCP pod with
-  `functional_test/baseline_agent.py`;
-- the 8.0.2 student chatbot imports it (planned).
+- the 8.0.2 lab chatbot imports it for chat, **Try a prompt** and graded
+  tests (`deploy_lab_chatbot.yml` copies it into the chart; see
+  [Lab Chatbot](../../docs/lab-chatbot.md));
+- `functional_test catalog-baseline` and `functional_test baseline` stage it
+  into the MCP pod with `functional_test/baseline_agent.py`.
+
+The scenario's model alias, tools and round limit come from the 8.0.2 catalog
+(`catalog802/`); see [Scenario Management](../../docs/scenario-management.md).
 
 Endpoints:
 

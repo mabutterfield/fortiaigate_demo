@@ -1,5 +1,9 @@
 # Advanced Scenario Management
 
+> **Historical (8.0.1).** This page tunes installed 8.0.1 scenario packages. The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](scenario-management.md) and [Lab Management](lab-management.md).
+
 This page contains optional operator workflows intentionally omitted from the
 normal [Scenario Management](scenario-management.md) path. Use it to inspect
 non-baseline packages, tune an installed scenario, diagnose generated matrix

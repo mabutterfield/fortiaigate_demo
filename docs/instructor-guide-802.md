@@ -66,11 +66,11 @@ Sign in with your FAIG administrator account (super admin). Students get a
   the instructor password file when one is configured. The new
   password is checked by signing in as the student before it is kept; if FAIG
   refuses or it does not work, the old one stays. The share page updates.
-- **Same student passwords on every build.** Keep an owner-only text file
-  (mode `0600`) outside the Git repository and point the deploy at it with the
-  Ansible variable `lab_student_password_file` (in ignored
-  `ansible/group_vars/user.yml`, or from tfvars once the quickstart passes it
-  through). One entry per line; lines starting with `#` are comments (a `#`
+- **Same student passwords on every build** (not yet tested on a live lab
+  in v1.2.0). Keep an owner-only text file (mode `0600`) outside the Git
+  repository and set its absolute path as `lab_student_password_file` in the
+  ignored host tfvars (`terraform/aws-ec2-k3s/99-local.auto.tfvars`), or in
+  ignored `ansible/group_vars/user.yml`, which takes precedence. One entry per line; lines starting with `#` are comments (a `#`
   later in a line is part of the password). Use exactly one form per file:
 
   ```text

@@ -1,230 +1,180 @@
-# Scenario Management
+# Scenario Management (FortiAIGate 8.0.2)
 
-Scenarios are installable demo packages that generate LiteLLM aliases,
-backend instructions, chatbot profiles, MCP tool selections, FortiAIGate
-routes, and a manual FortiAIGate GUI work order. The tracked packages under
-`chatbot/scenarios/examples/` are read-only sources. Each installation is an
-editable, Git-ignored copy under `chatbot/scenarios/local/<scenario-id>/`.
+How lab scenarios get from the repository to students in 8.0.2: where they
+are defined, how an instructor selects and provisions them, how they are
+tested, and how to change one.
 
-The [Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md)
-classifies tracked packages. Catalog status does not mean a scenario is
-installed. `list-installed` is the authority for the current installation.
+> **8.0.1 users:** the scenario installer (`scripts/scenario_profiles.py`
+> add/update/remove, `render-work-order`, manual GUI work orders and
+> `functional_test validate`) is **retired** in 8.0.2 and refuses to run. See
+> [Historical 8.0.1 workflow](#historical-801-workflow) at the end of this page.
 
-All commands run from `<repo_root>`.
+## Overview
 
-## Select The Deployment
+| Step | Who | Where |
+|---|---|---|
+| Define scenarios | maintainers | `catalog802/data/` in Git |
+| Deploy the lab, including models, MCP tools and the student chatbot | instructor | the [quickstart](quickstart-802.md) (one command) |
+| Select scenarios, apply models, create students, prepopulate | instructor | Lab Management, `https://<host>:30444/manage/` |
+| Chat, inspect keys, run graded tests | students (or instructor via *Act as student*) | the lab chatbot, `https://<host>:30444/` |
+| Command-line check of one case | maintainers | `python3 -m functional_test catalog-baseline` |
 
-The repository-root `local` and `cloud` links point at the generated Ansible
-inventories. Choose the one you are operating on and its host alias:
+There is no installed local copy, no work order and no manual FortiAIGate
+flow or guard configuration per scenario. Lab Management creates every
+per-student FortiAIGate object from the catalog.
 
-```bash
-export FAIG_INVENTORY=local
-export FAIG_HOST_ALIAS={{ubuntu-hostname}}
-# or
-export FAIG_INVENTORY=cloud
-export FAIG_HOST_ALIAS=faig-aws
-```
+## The catalog is the source of truth
 
-For local mode, use the Ubuntu hostname recorded as the host alias by
-`local_setup.py`.
+`catalog802/data/index.json` lists the active scenarios. Each
+`catalog802/data/scenarios/<id>.json` defines:
 
-`FAIG_INVENTORY` is a shell convenience used throughout the documentation.
-Set it once in each new shell so the same commands operate on either the
-repository-root `cloud` or `local` inventory link.
+- learning goals, display name and description;
+- the model alias and its backend instructions (rendered into LiteLLM);
+- the MCP tools it uses (contracts in `catalog802/data/tools/`);
+- actions with their detector, guardrail and policy templates;
+- prompt groups (`clean`, `attack`) and graded tests.
 
-## 1. Discover And Inspect
+Active scenarios in this release:
 
-List the validated built-ins or inspect one profile without installing it:
+| Scenario | Actions | MCP tools | Graded tests |
+|---|---|---|---|
+| `fortistore-injection` (FortiStore Injection Product Advisor) | alert, block | none | alert/block attack; alert/block with the compromised frontend (opt-in) |
+| `hr-tool-dlp` (HR Tool DLP) | alert, redact, block | employee directory and lookups | alert, redact, block attack |
+| `resume-tool-injection` (Resume Tool Injection) | alert, block | document upload/read/check, resume search/summary | alert, block attack (block is a documented KNOWN FAIL) |
 
-```bash
-python3 scripts/scenario_profiles.py list
-python3 scripts/scenario_profiles.py show hr-tool-dlp
-```
+8.0.2 names the stopping action **block** (8.0.1 used *deny*). Object names
+follow `studentNN_<scenario>_<action>`, for example
+`student03_hr-tool-dlp_redact`, plus one `studentNN_passthrough` key with no
+policy.
 
-Candidate and archived package inspection is intentionally omitted from the
-normal installation path. See
-[Advanced Scenario Management](advanced-scenario-management.md#candidate-and-archived-packages)
-when evaluating non-baseline material.
-
-## 2. Install An Editable Copy
-
-Install one or more validated scenarios:
-
-```bash
-python3 scripts/scenario_profiles.py add fortistore-injection
-python3 scripts/scenario_profiles.py add hr-tool-dlp
-python3 scripts/scenario_profiles.py add resume-tool-injection
-python3 scripts/scenario_profiles.py list-installed
-```
-
-`add` copies the tracked template into ignored local state. It will not
-overwrite an existing local package. Pulling repository changes also leaves
-installed packages untouched.
-
-## 3. Optionally Tune A Local Scenario
-
-Normal installation uses the scenario exactly as shipped. To change backend
-or frontend instructions, prompts, tool sets, transport intent, round limits,
-or FAIG re-entry, edit only the ignored installed copy and follow
-[Advanced Scenario Management: Tuning](advanced-scenario-management.md#tuning).
-
-## 4. Render The Work Order
-
-Render the manual GUI work order:
+Read the catalog without editing anything:
 
 ```bash
-python3 scripts/scenario_profiles.py render-work-order
+python3 -m catalog802 student   # what students see (no backend instructions)
+python3 -m catalog802 faig      # what Lab Management provisions
+python3 -m catalog802 models    # model aliases and instructions
+python3 -m catalog802 mcp       # resolved MCP tool contracts
 ```
 
-The command validates installed packages first. On success it prints a
-terminal-friendly list of the required scenario objects and ends with:
+Lab Management shows the same information under **Scenarios** (models and
+lab prices, actions, tools, prompts and tests). See
+[catalog802/README.md](../catalog802/README.md) for views, hashes and the
+result contract.
 
-```text
-Markdown version: docs/raw-output/scenario-work-orders/faig-scenario-work-order.md
-```
+## Before class
 
-Open that ignored Markdown file for the formatted table. An invalid installed
-package instead produces a specific error and exits nonzero; use
-[Advanced Scenario Management: Matrix Validation And Diagnostics](advanced-scenario-management.md#matrix-validation-and-diagnostics)
-to diagnose it.
+Follow the [Instructor Guide](instructor-guide-802.md#before-class). In short,
+in Lab Management:
 
-Re-render after every install, local edit, forced update, or removal. The work
-order owns each scenario path, Flow Name, Guard Name, Guard Protections, and
-next-hop model alias.
+1. **Scenarios:** tick the scenarios for this class and **Save selection**.
+2. **Apply models to FAIG:** adds the selected scenario models and
+   `pass-model` to the `litellm-direct` provider with lab prices, then reads
+   them back.
+3. **Create students:** one workspace per student and one project per
+   selected scenario.
+4. **Prepopulate (optional):** creates each student's detectors, guardrails,
+   policies and one key per action. Leave it off when students should build
+   their own objects.
 
-## 5. Deploy Matrix Consumers
+Re-running any step for the same students and scenarios is safe; existing
+objects and keys are kept. Selecting another scenario later and
+prepopulating again adds only what is missing. Details:
+[Lab Management](lab-management.md).
 
-Deploy LiteLLM after installing or changing a scenario (the 8.0.1 chatbot this
-step used to redeploy was removed; the 8.0.2 lab chatbot reads the catalog):
+## Testing scenarios
 
-```bash
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml
-```
+- **Students and instructors:** the chatbot **Tests** tab runs a catalog test
+  against the student's key and grades it from the FortiAIGate Traffic Log
+  (PASS, FAIL, KNOWN FAIL or INCOMPLETE). **Try a prompt** shows the verdict
+  without grading. Instructors use *Act as student*. See the
+  [Student Guide](student-guide-802.md#tests) and
+  [Lab Chatbot](lab-chatbot.md).
+- **Command line (maintainers):** `catalog-baseline` runs one live case with
+  an owner-only key file and FAIG admin credentials and checks the matching
+  Traffic Log rows:
 
-Deploy MCP only when MCP server code, schemas, fixtures, or credentials
-changed. Installing a scenario normally selects tools that already exist on
-the shared MCP server.
+  ```bash
+  python3 -m functional_test catalog-baseline --help
+  python3 -m functional_test evaluate-catalog --help   # grade saved observations
+  ```
 
-| Change | Required deployment |
-|---|---|
-| Add or remove a built-in scenario whose tools already exist | LiteLLM and Chatbot; no MCP redeploy |
-| Backend instructions or model mapping | LiteLLM |
-| Installed profile, generated routes, frontend instructions, or Simplified profiles | Chatbot; LiteLLM when backend mapping/instructions also changed |
-| MCP code, schema, fixture, or credential wiring | MCP |
-| Detailed UI selection only | None |
-| Scenario entry point or action | Render a new work order and update FortiAIGate manually |
+  `python3 -m functional_test baseline` checks prepopulated per-student keys
+  without the chatbot. See [Functional Validation](functional-validation.md).
 
-Ansible brings a deployed component back to the declared state, so these
-playbooks are safe to rerun after an interrupted or partial deployment.
+The test suite needs PyYAML; run it with the workspace virtual environment
+(`../.venv/bin/python -m unittest discover -s tests`) if your system Python
+lacks it.
 
-## 6. Configure FortiAIGate
+## Changing a scenario
 
-Complete [FortiAIGate Initial Configuration](fortiaigate-initial-config.md)
-once, then follow [Scenario GUI Configuration](fortiaigate-gui-config.md) for
-each row in the generated work order. Built-in paths follow:
+Scenario changes are repository changes, reviewed like code. There is no
+per-lab tuning copy in 8.0.2.
 
-```text
-/v1/<scenario-id>/<action>/*
-```
+1. Edit `catalog802/data/scenarios/<id>.json` (and any instruction file or
+   tool fixture it references). Add a new scenario's file to
+   `catalog802/data/index.json`. The structure is documented in
+   `catalog802/schema/scenario.schema.json`; the loader also checks
+   cross-references.
+2. Check it:
 
-Create every required guard and flow. FortiAIGate activates each object when
-it is created; there is no separate scenario-object deployment step. The
-normal built-in next hop is the LiteLLM model alias matching the scenario ID.
+   ```bash
+   python3 -m unittest discover -s catalog802/tests
+   python3 -m catalog802 faig > /dev/null
+   ```
 
-## 7. Validate The Configured Paths
+3. Redeploy what the change affects (each role renders the catalog at deploy
+   time from the checkout it runs in):
 
-Immediately after the FortiAIGate objects are created, validate passthrough
-and every declared case for the installed scenarios:
+   | Change | Redeploy |
+   |---|---|
+   | Model alias or backend instructions | `deploy_litellm.yml` |
+   | MCP tool contract or fixture | `deploy_mcp.yml` (a new tool *handler* is code: develop and test it first) |
+   | Prompts, tests, actions or display text | `deploy_lab_chatbot.yml` and `deploy_lab_management.yml` |
+   | Detector, guardrail or policy templates | `deploy_lab_management.yml`, then prepopulate; existing student objects are **not** changed |
 
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS"
-```
+   ```bash
+   TF_WORKSPACE=<workspace> ansible-playbook -i ansible/inventory/aws.generated.ini ansible/playbooks/deploy_lab_management.yml
+   ```
 
-The validator selects the declared chatbot profiles itself; you do not need
-to select one manually in the browser first. Restrict a troubleshooting run
-without changing its expected-result rules:
+   Rerunning the quickstart on the same instance (it resumes and reuses the
+   instance's credentials) also redeploys these components.
+4. In Lab Management, **Apply models to FAIG** if models changed, then
+   prepopulate. Prepopulation keeps existing objects, so a student who
+   already has an object under the same name keeps the old version: delete it
+   in FortiAIGate first, or use new student numbers.
+5. Run the scenario's tests from the chatbot.
 
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --scenario-id hr-tool-dlp
-```
+Candidate scenarios (for example `hr-sensitive-lookup`) and archived ones are
+not in the 8.0.2 catalog. Moving one in means writing its catalog definition
+and validating it live; the old package files are reference material only.
 
-The live path test exercises frontend instructions, MCP execution, FortiWeb
-transport, tool order, denial before a forbidden tool, and visible redaction.
-Use its timestamp to confirm the actual Alert, Deny, or Redact action in
-FortiAIGate Traffic logs.
+## Removing a scenario from a class
 
-## 8. Select A Chatbot Profile
+Untick it in Lab Management and save. Existing student projects, objects and
+keys stay in FortiAIGate until you delete them there. To drop a scenario from
+the release, remove it from `catalog802/data/index.json` and redeploy.
 
-Use Simplified mode for the validated comparison. One profile selects the
-model, LLM path, frontend instructions, MCP state and transport, scoped tools,
-context, and tool-round limit together.
+## Known limitations
 
-Use Detailed mode to deliberately change one component—for example Direct MCP
-instead of FortiWeb, a least-privilege base tool profile instead of an extended
-profile, or `all-installed` for a cross-domain demonstration. Reset the
-conversation when comparing profiles so previous messages do not change the
-result.
+- **Resume Block** is a documented KNOWN FAIL: FortiAIGate blocks before the
+  `document_read` tool runs.
+- Prepopulation never updates or deletes existing objects.
+- The optional FortiAIGate re-entry chain is not part of 8.0.2 yet.
+- Scenario editing in the browser is not built; change the catalog in Git.
 
-## 9. Update Without Losing Local Work
+## Historical 8.0.1 workflow
 
-Check whether an installed package differs from its source without modifying
-it:
+In 8.0.1, scenarios were packages under `chatbot/scenarios/examples/`,
+installed as editable ignored copies with `scripts/scenario_profiles.py`, and
+configured by hand in the FortiAIGate GUI from a rendered work order. That
+workflow, the 8.0.1 chatbot and `functional_test validate` are retired in
+8.0.2; the commands print a retirement message. The package folders remain
+temporarily for migration and parity tests only.
 
-```bash
-python3 scripts/scenario_profiles.py update <scenario-id>
-```
-
-Replace it only when you intend to discard its current installed contents:
-
-```bash
-python3 scripts/scenario_profiles.py update <scenario-id> --force
-```
-
-The forced operation first copies the installed package into the ignored
-`chatbot/scenarios/local/_backups/` tree. Review or restore local tuning from
-that backup, redeploy the affected consumers, update manual FortiAIGate
-objects when the work order changed, and rerun functional validation.
-
-To move registered installed scenarios and operator configuration to another
-checkout, use the user-profile archive:
-
-```bash
-python3 scripts/user_profile.py export ../user_profile.tgz
-python3 scripts/user_profile.py import ../user_profile.tgz
-```
-
-Export includes each registered package and `installed-scenarios.json`, but
-excludes `_backups/` and `_removed/`. Import merges new scenario IDs with the
-destination. An existing package is never replaced without an individual
-confirmation or the explicit `--yes` option. After import, render the work
-order, deploy LiteLLM and the chatbot, and validate the configured paths.
-
-## 10. Remove An Installed Scenario
-
-```bash
-python3 scripts/scenario_profiles.py remove <scenario-id>
-python3 scripts/scenario_profiles.py render-work-order
-ansible-playbook -i "$FAIG_INVENTORY" ansible/playbooks/deploy_litellm.yml
-```
-
-Removal moves the local package into the ignored `_removed/` tree. It does not
-delete FortiAIGate GUI objects; disable or remove those flows and guards
-manually after confirming nothing references them.
-
-## Scenario Catalog And Runbooks
-
-Use the authoritative
-[Scenario Catalog](../chatbot/scenarios/examples/scenario-catalog.md) to find
-the current validated scenarios and their individual runbooks. Keeping that
-list with `catalog.json` avoids duplicating scenario membership here.
-
-For package schema and authoring decisions, see
-[Scenario Authoring](scenario-authoring.md). For tuning, candidate inspection,
-matrix diagnostics, and expanded tool/transport controls, see
-[Advanced Scenario Management](advanced-scenario-management.md). For
-deployment failures, see [Troubleshooting](troubleshooting.md).
+The complete 8.0.1 code and documentation are preserved on branch
+`archive/8.0.1` and tag `v1.0_faig8.0.1`. Pages that still describe the
+8.0.1 model, kept for reference:
+[Advanced Scenario Management](advanced-scenario-management.md),
+[Scenario Authoring](scenario-authoring.md),
+[Scenario GUI Configuration](fortiaigate-gui-config.md) and the
+[package READMEs](../chatbot/scenarios/README.md).

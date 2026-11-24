@@ -1,5 +1,9 @@
 # HR Tool DLP
 
+> **Historical (8.0.1).** This README describes the 8.0.1 package. The 8.0.2 definition is `catalog802/data/scenarios/hr-tool-dlp.json`; 8.0.2 calls the stopping action **block** (8.0.1: *deny*). The scenario installer, work orders and
+> `functional_test validate` are retired in 8.0.2. For the current workflow see
+> [Scenario Management](../../../../docs/scenario-management.md) and [Lab Management](../../../../docs/lab-management.md).
+
 ## Security Story
 
 This MCP-enabled scenario shows what happens when a read-only HR tool returns

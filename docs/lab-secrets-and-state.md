@@ -5,19 +5,21 @@ removes. The [Quickstart](quickstart-802.md) owns the setup prompts and
 commands; this page is the reference for instructors and reviewers.
 
 > **Status (v1.2.0).** Per-instance generated credentials under
-> `FAIG/.secrets/` are on by default: the quickstart creates them and teardown
-> removes them. Terraform state stays in the repository's
-> `terraform/*/terraform.tfstate.d/` folders; external state under
-> `FAIG/.state/` is opt-in and not turned on by default in v1.2.0; real-environment migration is unvalidated and deferred to v1.2.1. Everything on
-> this page about sensitivity applies either way.
-> Static administrator and student password files have not been live-tested
-> on the fresh 8.0.2 deployment; use generated passwords for the release candidate.
+> `FAIG/.secrets/` are on by default and validated live: the quickstart
+> creates them and teardown removes them. Terraform state stays in the
+> repository's `terraform/*/terraform.tfstate.d/` folders. External state
+> under `FAIG/.state/` is **not validated in this release**: moving existing
+> state there and re-importing ECR is planned for v1.2.1, so do not turn it on
+> for a lab you care about. Static admin and student password files are
+> checked by unit tests but **not yet tested on a live lab**; use generated
+> passwords for the release candidate. Everything on this page about
+> sensitivity applies either way.
 
 ## Summary
 
 | What | Where (defaults) | Contains secrets | Created by | Removed by |
 |---|---|---|---|---|
-| Terraform state, backups, saved plans | `FAIG/.state/` (external state, opt-in) or the repository's `terraform/*/terraform.tfstate.d/` | **yes, in plain text** (host module) | Terraform | never automatically, except the host state backup after a confirmed destroy |
+| Terraform state, backups, saved plans | `FAIG/.state/` (external state, opt-in, not validated in v1.2.0) or the repository's `terraform/*/terraform.tfstate.d/` | **yes, in plain text** (host module) | Terraform | never automatically, except the host state backup after a confirmed destroy |
 | Per-instance generated credentials | `FAIG/.secrets/<workspace>/<instance-id>/` | yes | Terraform and the quickstart | teardown, after AWS confirms the instance terminated |
 | Static admin password file | anywhere you choose, outside Git | yes | you | never (yours) |
 | Static student password file | anywhere you choose, outside Git | yes | you | never (yours) |
@@ -78,6 +80,8 @@ deleted.
 
 ## Static admin password
 
+*Not yet tested on a live lab (v1.2.0).*
+
 Leave it unset to get a new FAIG admin password on every rebuild. To keep
 one, create an owner-only, one-line file outside Git and set its absolute
 path in the ignored host tfvars:
@@ -94,6 +98,8 @@ The password must meet FAIG's rules. A path under `.secrets/static/` is
 outside every instance folder, so teardown never touches it.
 
 ## Static student passwords
+
+*Not yet tested on a live lab (v1.2.0).*
 
 By default Lab Management generates a password for each student, or you type
 a shared password or base. To use the same student passwords on every build,
