@@ -408,7 +408,7 @@ resource "aws_s3_bucket_versioning" "fortiweb_cloudinit" {
   bucket = aws_s3_bucket.fortiweb_cloudinit[0].id
 
   versioning_configuration {
-    status = "Enabled"
+    status = "Suspended"
   }
 }
 
