@@ -26,8 +26,9 @@ FAIG/
     └── <fortiweb-license>.lic     optional FortiWeb BYOL license
 ```
 
-Use the exact three-part vendor release directory, such as `8.0.0` or `8.0.1`,
-for both the chart and image inputs. Override `faig_workspace_root`, chart,
+Use the exact three-part vendor release directory, `8.0.2` for this release,
+for both the chart and image inputs (for example `FAIG_helm/8.0.2/fortiaigate`
+and `images/8.0.2/`). Override `faig_workspace_root`, chart,
 image, or license paths in operator-owned local configuration if the workspace
 differs.
 
@@ -40,7 +41,7 @@ macOS and Linux are tested control platforms. Use WSL2 Ubuntu for Windows (not t
 
 AWS deployment requires:
 
-- Python 3;
+- Python 3, plus PyYAML for the unit tests (see *Python environment* below);
 - Terraform;
 - AWS CLI v2;
 - Ansible, `ansible-playbook`, and `ansible-galaxy`;
@@ -67,6 +68,42 @@ docker version
 
 The quickstart performs its own required-command check before changing the
 environment.
+
+### Python environment
+
+The deployment itself needs only the standard library on the workstation
+(the lab host installs its own `python3-yaml`). The unit tests need PyYAML,
+which a plain Python install (for example Homebrew's) may not have, and
+Homebrew's Python refuses `pip install` into itself. Create one virtual
+environment in the parent workspace, outside the repository, and use it for
+the repository's Python commands:
+
+```bash
+python3 -m venv ../.venv
+../.venv/bin/python -m pip install --upgrade pip
+../.venv/bin/python -m pip install PyYAML
+../.venv/bin/python -c 'import yaml; print("PyYAML", yaml.__version__)'
+```
+
+Activate it in each shell (`source ../.venv/bin/activate`) so `python3` and the
+quickstart use it, or call `../.venv/bin/python` directly. Check the checkout
+with the unit tests:
+
+```bash
+../.venv/bin/python -m unittest discover -s tests
+../.venv/bin/python -m unittest discover -s catalog802/tests
+```
+
+A few MCP endpoint tests are skipped unless the MCP SDK is installed. To run
+them too, install the pinned server dependencies into the same environment:
+
+```bash
+../.venv/bin/python -m pip install -r mcp/chart/files/requirements-standard.txt
+```
+
+The quickstart checks that the Ansible collections it needs are installed; to
+install them up front, run
+`ansible-galaxy collection install -r ansible/collections/requirements.yml`.
 
 ## 3. Prepare One Deployment Target
 
