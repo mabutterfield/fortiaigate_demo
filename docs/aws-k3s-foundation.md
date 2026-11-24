@@ -17,8 +17,8 @@ The current AWS foundation creates a single-node FortiAIGate lab:
 - k3s local-path volumes on encrypted root EBS (300 GiB by default)
 - on fresh AWS hosts, container image cache on a instance-store NVMe disk without detected signatures
 
-The 8.0.2 application path is under live development; see
-[FortiAIGate 8.0.2 Deployment](fortiaigate-802-deployment.md).
+The quickstart deploys the 8.0.2 applications on this foundation; see the
+[8.0.2 quickstart](quickstart-802.md).
 
 `terraform/aws-prep` creates the EC2 IAM role/profile and attaches scoped ECR
 pull access when `registry_backend = "ecr"`. The EC2 module consumes the prep

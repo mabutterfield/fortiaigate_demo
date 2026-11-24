@@ -98,8 +98,8 @@ prepopulating again adds only what is missing. Details:
   python3 -m functional_test evaluate-catalog --help   # grade saved observations
   ```
 
-  `python3 -m functional_test baseline` checks prepopulated per-student keys
-  without the chatbot. See [Functional Validation](functional-validation.md).
+  See [Functional Validation](functional-validation.md) for the key and
+  credential file formats.
 
 The test suite needs PyYAML; run it with the workspace virtual environment
 (`../.venv/bin/python -m unittest discover -s tests`) if your system Python
@@ -146,7 +146,8 @@ per-lab tuning copy in 8.0.2.
 
 Candidate scenarios (for example `hr-sensitive-lookup`) and archived ones are
 not in the 8.0.2 catalog. Moving one in means writing its catalog definition
-and validating it live; the old package files are reference material only.
+and validating it live; the old package files (at tag
+`faig_8.0.2_gui_experiment`) are reference material only.
 
 ## Removing a scenario from a class
 
@@ -167,14 +168,8 @@ the release, remove it from `catalog802/data/index.json` and redeploy.
 In 8.0.1, scenarios were packages under `chatbot/scenarios/examples/`,
 installed as editable ignored copies with `scripts/scenario_profiles.py`, and
 configured by hand in the FortiAIGate GUI from a rendered work order. That
-workflow, the 8.0.1 chatbot and `functional_test validate` are retired in
-8.0.2; the commands print a retirement message. The package folders remain
-temporarily for migration and parity tests only.
-
-The complete 8.0.1 code and documentation are preserved on branch
-`archive/8.0.1` and tag `v1.0_faig8.0.1`. Pages that still describe the
-8.0.1 model, kept for reference:
-[Advanced Scenario Management](advanced-scenario-management.md),
-[Scenario Authoring](scenario-authoring.md),
-[Scenario GUI Configuration](fortiaigate-gui-config.md) and the
-[package READMEs](../chatbot/scenarios/README.md).
+workflow, its tools, the 8.0.1 chatbot and its documentation (advanced
+scenario management, scenario authoring, GUI configuration) were removed in
+8.0.2. They are preserved on branch `archive/8.0.1` (tag `v1.0_faig8.0.1`);
+the scenario packages as they stood during the 8.0.2 work are at tag
+`faig_8.0.2_gui_experiment`.

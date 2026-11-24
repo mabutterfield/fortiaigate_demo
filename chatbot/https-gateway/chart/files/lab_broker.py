@@ -368,7 +368,7 @@ DISPLAY_NAME = re.compile(r"[^\x00-\x1f<>]{0,80}")
 # Creates one student's detectors, guardrails, policies and keys from the
 # catalog plan, acting AS THE STUDENT (workspace objects must be created by a
 # workspace admin) and approving each layer with the instructor's session.
-# Ported from experiments/faig-api-lab/scenario_lab.py (Prepopulate).
+# Ported from experiments/faig-api-lab/scenario_lab.py (Prepopulate; kept at tag faig_8.0.2_gui_experiment).
 # New key secrets are written to the lab-keys Secret as soon as FAIG returns
 # them; FAIG shows a secret only once.
 
@@ -774,7 +774,8 @@ def apply_mapping(records: list, faig_key_id: str, scenario_id: str, action: str
 # ---------------------------------------------------------------- auto-approval (Change 2026-11-20)
 # Owner decisions: when on, approve EVERY pending FAIG change (deletions included, any workspace),
 # using the instructor's own FAIG session held by lab_auth; no stored credential. Reference behavior:
-# experiments/faig-api-lab/scenario_lab.py auto-approve (same queue, endpoints and order).
+# experiments/faig-api-lab/scenario_lab.py auto-approve (same queue, endpoints and order; kept at tag
+# faig_8.0.2_gui_experiment).
 
 APPROVAL_ORDER = {"detector": 0, "guardrail": 1, "policy": 2}
 

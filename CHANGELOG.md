@@ -7,6 +7,31 @@ a "what's new" guide rather than a raw commit log.
 
 See the [release candidate notes](docs/release-notes-1.2.0-rc.1.md) for the tested scope and limitations. The historical entries below include earlier development steps and may not reflect the final 8.0.2 interface.
 
+### Removed from the release tree: experiments, tools awaiting a rewrite, 8.0.1 docs
+
+Files the release does not need were removed. Everything is preserved at tag
+`faig_8.0.2_gui_experiment`; the 8.0.1 workflow is on branch `archive/8.0.1`.
+
+- Experiments: `experiments/faig-api-lab/` (Lab Management and the quickstart's
+  FAIG initializer replace it) and the `gpu_tests/` reports (the 8.0.2 GPU
+  experiments are maintained in the separate `fortiaigate_gpu_split`
+  repository, linked from AWS Instance Sizing).
+- Tools to be rewritten for 8.0.2 later: `load_test/` (load generator),
+  `test_litellm_direct.yml` with role `litellm_direct_test`,
+  `scripts/export_fortiaigate_syslog.py`, `scripts/local_var_cleanup.py`.
+- The `instructor-management/` prototype (replaced by Lab Management).
+- 8.0.1-only documentation: the local/8.0.1 quickstart, operations,
+  troubleshooting, architecture, deployment options, command inventory,
+  current baseline, FortiAIGate initial and scenario GUI configuration (with
+  their screenshots), advanced scenario management, scenario authoring,
+  transcript replays, release validation matrix, load testing, syslog
+  preservation, and the superseded 8.0.2 development pages
+  (`fortiaigate-802-deployment.md`, `environment-selection-802.md`,
+  `quickstart-802-integration.md`).
+- Rewritten for 8.0.2: the docs index, the root README, Functional Validation
+  (now `catalog-baseline` only), Known Issues and First-Run Preparation (AWS
+  only).
+
 ## Earlier development history
 
 - Removed the 8.0.1 demo chatbot from the 8.0.2 branch (`chatbot/app`,

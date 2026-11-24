@@ -238,15 +238,17 @@ litellm_faig_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_base_path }}
 litellm_faig_backend_base_path: /v1/passthrough
 litellm_faig_backend_base_url: "{{ faig_internal_base_url }}{{ litellm_faig_backend_base_path }}"
 litellm_faig_backend_api_key: "{{ fortiaigate_test_api_key | default('not-used', true) }}"
-litellm_direct_test_poll_all_endpoints: false
-litellm_direct_test_models:
-  - pass-model
-  - fortistore-injection
-  - hr-tool-dlp
-litellm_direct_test_expected_text_by_model:
-  fortistore-injection: FORTISTORE_DEMO_BOT
-  hr-tool-dlp: FORTI_HR_DLP_DEMO_BOT
-litellm_direct_test_fail_on_missing_expected_text: true
+# Change 2026-11-23: test_litellm_direct.yml and role litellm_direct_test were removed from v1.2.0
+# until they read the 8.0.2 catalog (see tag faig_8.0.2_gui_experiment). Previous settings:
+# litellm_direct_test_poll_all_endpoints: false
+# litellm_direct_test_models:
+#   - pass-model
+#   - fortistore-injection
+#   - hr-tool-dlp
+# litellm_direct_test_expected_text_by_model:
+#   fortistore-injection: FORTISTORE_DEMO_BOT
+#   hr-tool-dlp: FORTI_HR_DLP_DEMO_BOT
+# litellm_direct_test_fail_on_missing_expected_text: true
 
 # === Optional Open WebUI deployment: ansible/playbooks/deploy_openwebui.yml ===
 # Open WebUI is available as an optional secondary chat UI. The default lab

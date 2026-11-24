@@ -13,5 +13,6 @@ Run commands from the repository root. For the 8.0.2 lab use
 
 Use `python3 -m catalog802` and Lab Management for scenarios, and
 `python3 -m functional_test catalog-baseline --help` for a catalog-driven test.
-The 8.0.1 tools are preserved in `archive/8.0.1` and the `802-experimental`
-restore point.
+The 8.0.1 tools are preserved on branch `archive/8.0.1`. Tools removed from
+this release until they are rewritten for 8.0.2 (the load generator, FortiAIGate
+syslog export, local variable export) are at tag `faig_8.0.2_gui_experiment`.

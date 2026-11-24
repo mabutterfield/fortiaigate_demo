@@ -1,14 +1,11 @@
 # FortiAIGate Demo
 
-> **FortiAIGate 8.0.2 release candidate:** The project release is `v1.2.0-rc.1`, targeting `v1.2.0`. Start with the [8.0.2 quickstart](docs/quickstart-802.md), [instructor guide](docs/instructor-guide-802.md), and [release notes](docs/release-notes-1.2.0-rc.1.md). The older material below is retained for the 8.0.1 workflow and may not apply to 8.0.2.
+> **FortiAIGate 8.0.2 release candidate:** The project release is `v1.2.0-rc.1`, targeting `v1.2.0`. Start with the [8.0.2 quickstart](docs/quickstart-802.md), [instructor guide](docs/instructor-guide-802.md), and [release notes](docs/release-notes-1.2.0-rc.1.md). The 8.0.1 workflow is preserved on branch `archive/8.0.1`.
 
-Version 1.0 of this repository provides infrastructure-as-code for a repeatable
-FortiAIGate 8.x demonstration on an AWS GPU instance or an operator-owned
-Ubuntu 24.04 GPU host. The deployed lab combines FortiAIGate, LiteLLM, a custom
-chatbot, deterministic MCP tools, and installable security scenarios.
-
-AWS with Amazon Bedrock is the primary deployment. Local hardware with Ollama
-uses the same k3s application layer and scenario model.
+This repository deploys a repeatable FortiAIGate 8.0.2 training lab on an AWS
+GPU instance: k3s, FortiAIGate, LiteLLM with Amazon Bedrock, deterministic MCP
+demo tools, and a lab gateway with an instructor page (Lab Management) and a
+student chatbot. One command builds the lab and one command tears it down.
 
 ## Start Here
 
@@ -17,81 +14,61 @@ otherwise.
 
 | Goal | Start here |
 |---|---|
-| Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](docs/first-run-preparation.md) |
-| Review defaults and optional components | [Deployment Options](docs/deployment-options.md) |
-| Deploy the 8.0.2 AWS lab | [8.0.2 Quickstart](docs/quickstart-802.md) |
-| Earlier local Ubuntu GPU workflow | [Legacy Deployment Quickstart](docs/quickstart.md#local-ubuntu-lane) |
-| Check, update, recover, or remove a deployment | [Operations](docs/operations.md) |
-| Diagnose a failed checkpoint | [Troubleshooting](docs/troubleshooting.md) |
-| Understand the components and traffic paths | [Architecture](docs/architecture.md) |
-| See exactly what is supported now | [Current Baseline](docs/reference/current-baseline.md) |
-| Review validated and candidate scenarios | [Scenario Catalog](chatbot/scenarios/examples/scenario-catalog.md) |
-| Prove passthrough and installed scenario behavior | [Functional Validation](docs/functional-validation.md) |
-| Find an operator, author, or maintainer task | [Documentation Map](docs/README.md) |
+| Prepare the workstation, AWS account, files and licenses | [First-Run Preparation](docs/first-run-preparation.md) |
+| Deploy or tear down the 8.0.2 AWS lab | [8.0.2 Quickstart](docs/quickstart-802.md) |
+| Run a class | [Instructor Guide](docs/instructor-guide-802.md) |
+| Select, provision, test or change scenarios | [Scenario Management](docs/scenario-management.md) |
+| Check a documented limitation | [Known Issues](docs/known-issues.md) and [release notes](docs/release-notes-1.2.0-rc.1.md) |
+| Find any other document | [Documentation Map](docs/README.md) |
 
-## What The Default Lab Provides
+## What The Lab Provides
 
-- A single-node k3s application layer with FortiAIGate, LiteLLM, the custom
-  chatbot, deterministic MCP tools, Demo Home, syslog preservation when its
-  AWS bucket is available, and a self-signed HTTPS gateway.
-- FortiGate and FortiWeb appliances desired by default, with explicit opt-outs
-  and safe skips when their licenses, inventory, or other prerequisites are
-  unavailable.
-- FortiWeb as the preferred chatbot-to-MCP transport when it is installed and
-  desired; the chatbot falls back to direct MCP with a warning.
-- Optional Open WebUI as a secondary UI. The custom chatbot remains the
-  primary scenario UI.
-- Scenario-owned FAIG paths using `/v1/<scenario>/<action>/*`, plus the
-  canonical `/v1/passthrough/*` test path.
-- A globally available FAIG re-entry capability that is disabled in each
-  built-in scenario unless an operator explicitly enables it in local scenario
-  metadata.
+- A single-node k3s host on an AWS GPU instance running FortiAIGate 8.0.2,
+  LiteLLM (Amazon Bedrock models) and the MCP demo tools.
+- HTTPS everywhere a browser connects: FAIG's GUI and API, and the lab
+  gateway on port 30444, which serves the student chatbot and, for FAIG
+  administrators, Lab Management at `/manage/`. Plain HTTP ports redirect.
+- Lab Management: select scenarios, add their models to FAIG, create student
+  accounts and workspaces, prepopulate per-student detectors, guardrails,
+  policies and keys, and auto-approve student changes.
+- A student chatbot that chats through the student's own FAIG keys and runs
+  graded tests against the FortiAIGate Traffic Log.
+- Three catalog scenarios: FortiStore Injection, HR Tool DLP and Resume Tool
+  Injection, defined in `catalog802/`. See
+  [Scenario Management](docs/scenario-management.md).
+- Generated per-instance credentials kept outside the repository, removed by
+  teardown. See [Lab Secrets and State](docs/lab-secrets-and-state.md).
 
-See [Deployment Options](docs/deployment-options.md#option-matrix)
-for the distinction between defaults, optional components, validated behavior,
-and deferred paths.
-
-Scenario content is synthetic and intended for repeatable demonstrations, not
-production policy guidance. Installed scenarios are local, editable runtime
-state; tracked examples remain read-only templates. The
-[Scenario Catalog](chatbot/scenarios/examples/scenario-catalog.md) is the authority for validated,
-candidate, and archived scenario status.
+FortiGate and FortiWeb appliances are optional and not required for the lab.
+Scenario content is synthetic and intended for training, not production
+policy guidance.
 
 ## Deployment Model
 
-Terraform owns AWS infrastructure. Ansible publishes images, configures the
-GPU/k3s host and optional appliances, and deploys the application layer.
-Local mode replaces Terraform with `scripts/local_setup.py`, which creates
-environment-owned inventory and variable files excluded from version control.
-
-Tracked inventory shortcuts are available at the repository root:
-
-```bash
-ansible-playbook -i local ansible/playbooks/status_demo_home.yml
-ansible-playbook -i cloud ansible/playbooks/status_demo_home.yml
-```
-
-Additional `local-*` and `cloud-*` aliases target the k3s host, FortiGate, and
-FortiWeb inventories. The aliases point to generated files excluded by
-`.gitignore`, so lab addresses and credentials are never stored in the links
-themselves.
+Terraform owns the AWS infrastructure (`terraform/aws-prep`,
+`terraform/aws-ec2-k3s`; ECR in `terraform/aws-ecr` is maintained
+separately). Ansible configures the GPU/k3s host and deploys the
+applications. `scripts/automated_quickstart.py` runs both and initializes
+FAIG; `scripts/teardown_802.py` removes the lab while keeping ECR, S3 and
+shared IAM. See the [8.0.2 quickstart](docs/quickstart-802.md).
 
 ## Repository Layout
 
 ```text
 terraform/       AWS infrastructure modules
-ansible/         Host, appliance, deployment, status, and validation automation
+ansible/         Host and application deployment, status and validation
 k8s-overlays/    Helm post-render patches and notes
-chatbot/         Custom chatbot, scenarios, instructions, and demo application assets
-functional_test/ Metadata-driven scenario validation for operators
-load_test/       Developer-focused dashboard traffic generation
-docs/            Quick starts, operations, reference, and authoring documentation
-scripts/         Setup, scenario, build, and maintenance helpers
+catalog802/      Scenario catalog: models, tools, actions, prompts and tests
+chatbot/         Lab gateway, Lab Management, student chatbot, shared agent loop
+mcp/             MCP demo tool server
+functional_test/ Command-line catalog checks (catalog-baseline)
+docs/            Guides and reference
+scripts/         Quickstart, teardown, state and setup helpers
+tests/           Unit tests
 ```
 
-See [CHANGELOG.md](CHANGELOG.md) for user-facing changes and
-the [Current Baseline](docs/reference/current-baseline.md) for supported
-functionality.
+See [CHANGELOG.md](CHANGELOG.md) for changes. The 8.0.1 workflow is preserved
+on branch `archive/8.0.1` (tag `v1.0_faig8.0.1`).
 
 ## Future Direction
 
@@ -103,6 +80,6 @@ supported setup steps:
 - separate container-repository creation and image publishing from the normal
   deployment quickstart;
 - integrate FortiFlex-based licensing choices;
-- add locally owned blank and copied scenario creation workflows;
+- add a scenario editor for the 8.0.2 catalog;
 - publish selected repository documentation in Demo Home; and
 - validate additional candidate scenarios and optional appliance paths.
