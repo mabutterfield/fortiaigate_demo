@@ -145,31 +145,38 @@ python3 scripts/teardown_802.py
 ```
 
 Teardown removes the EC2 lab environment as one unit: tracked FortiWeb and
-FortiGate appliances first, then the EC2/VPC stack, then the lab EIPs and lab
-IAM resources. FortiWeb cloud-init objects tracked by its Terraform module are
-deleted with the appliance. The FortiWeb cloud-init bucket policy is removed
-with its IAM role and recreated on the next build; the bucket and its other
-settings remain. The FortiAIGate syslog S3 bucket and contents are retained.
+FortiGate appliances first, then the EC2/VPC stack, then everything in
+`aws-prep` (lab IAM, Elastic IPs and the lab S3 buckets: FortiWeb cloud-init,
+scenario documents and FortiAIGate syslog). Buckets are emptied, including
+earlier object versions, before Terraform deletes them. ECR repositories and
+the NVIDIA driver cache are managed outside this lifecycle and are not touched.
 
-`--keep-eip` preserves the lab EIPs; `--skip-ec2` keeps the whole lab
-environment and implies `--keep-eip`. `--yolo` skips confirmations and approves
-the Terraform actions; review the workspace and profile first.
+If the FortiAIGate syslog bucket has objects, teardown asks where to export
+them first. With `--yes` or `--yolo`, choose up front: `--export-syslog DIR`
+downloads the current objects to a directory outside the repository, and
+`--discard-syslog` deletes them; without either, teardown stops before
+destroying anything.
+
+`--keep-eip` preserves the lab EIPs and removes the rest of `aws-prep`;
+`--skip-ec2` keeps the whole lab environment and implies `--keep-eip`. `--yolo`
+skips confirmations and approves the Terraform actions; review the workspace
+and profile first.
 
 Each destroy plan is saved and checked before it is applied: it may delete
-only lab environment resources. The IAM/EIP plan is also checked before
+only lab environment resources. The `aws-prep` plan is also checked before
 anything is destroyed, so a refused plan stops the run with nothing removed and
 names the resource and action. GPU termination may take several minutes.
 Generated instance secrets are cleaned after AWS confirms termination, before
-the IAM/EIP step.
+the `aws-prep` step.
 
 **Known limitations (v1.2.0):**
 
 - Teardown removes only appliances present in the selected workspace's state.
   It stops if other VPC network interfaces remain. AWS or Terraform may still
   reject deletion due to other dependencies.
-- The prior EC2/VPC/EIP teardown was validated live. The expanded appliance,
-  IAM and FortiWeb cloud-init cleanup has local test coverage but has not yet
-  been validated in a live deployment.
+- The EC2/VPC stack and the lab IAM and Elastic IP removal were validated
+  live. Appliance teardown, bucket emptying and syslog export have local test
+  coverage but have not yet been validated in a live deployment.
 - After an Elastic IP is released, the next deployment gets a new address.
   Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
 
