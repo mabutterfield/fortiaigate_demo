@@ -15,7 +15,10 @@
       - fortiaigate_tls_enabled | bool
       - not (fortiaigate_tls_enabled | bool) or fortiaigate_ssl_cert_path is file
       - not (fortiaigate_tls_enabled | bool) or fortiaigate_ssl_key_path is file
-    fail_msg: "8.0.2 currently requires a chart, an explicit GPU profile, TLS files, and an instance-role ECR pull secret."
+    fail_msg: >-
+      8.0.2 requires a chart, an explicit GPU profile, TLS files, and an
+      instance-role ECR pull secret. Controller chart path: {{ fortiaigate_chart_path }}.
+      Check the failed assertion above and set fortiaigate_chart_path in user.yml if needed.
 
 - name: Ensure FortiAIGate namespace exists
   ansible.builtin.shell: |

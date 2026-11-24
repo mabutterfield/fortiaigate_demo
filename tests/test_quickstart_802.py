@@ -29,6 +29,27 @@ class Quickstart802Tests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, 'quickstart_faig_license_regex'):
                 quickstart.preflight_802_license()
 
+    def test_chart_preflight_reports_missing_chart_before_deployment(self):
+        chart = self.root / 'missing-chart'
+        with mock.patch.object(quickstart, 'get_layered_yaml_scalar', side_effect=lambda key, default: str(chart) if key == 'fortiaigate_chart_path' else default):
+            with self.assertRaisesRegex(SystemExit, 'expected Chart.yaml'):
+                quickstart.preflight_802_chart()
+
+    def test_chart_preflight_checks_chart_yaml_and_custom_path(self):
+        chart = self.root / 'vendor-chart'
+        chart.mkdir()
+        (chart / 'Chart.yaml').write_text('apiVersion: v2\nname: fixture\nversion: 1.0.0\n')
+        with mock.patch.object(quickstart, 'get_layered_yaml_scalar', side_effect=lambda key, default: str(chart) if key == 'fortiaigate_chart_path' else default):
+            self.assertEqual(quickstart.preflight_802_chart(), chart)
+
+    def test_chart_preflight_resolves_workspace_and_version(self):
+        chart = self.root / 'FAIG_helm/8.0.2/fortiaigate'
+        chart.mkdir(parents=True)
+        (chart / 'Chart.yaml').write_text('name: fixture\n')
+        with mock.patch.dict(os.environ, {'FAIG_WORKSPACE_ROOT': str(self.root)}), \
+             mock.patch.object(quickstart, 'get_layered_yaml_scalar', side_effect=lambda key, default: default):
+            self.assertEqual(quickstart.preflight_802_chart(), chart)
+
     def test_yolo_warns_on_prep_override_excluding_public_ip(self):
         directory = self.root / 'overrides'
         directory.mkdir()
@@ -446,7 +467,7 @@ resource "terraform_data" "fixture" {
             self.addCleanup(os.chdir, old_cwd)
             stack.enter_context(mock.patch.dict(os.environ, {'TF_WORKSPACE':'ohio-802', 'FAIG_WORKSPACE_ROOT':str(self.root.parent)}, clear=True))
             stack.enter_context(mock.patch.object(sys, 'argv', ['automated_quickstart.py', '--yolo']))
-            for name in ('check_repo_root', 'check_requirements', 'validate_yolo_aws_profile', 'preflight_static_password_files',
+            for name in ('check_repo_root', 'check_requirements', 'validate_yolo_aws_profile', 'preflight_static_password_files', 'preflight_802_chart',
                          'ensure_aws_login', 'configure_ansible_env', 'configure_disabled_appliance_tfvars',
                          'ensure_appliance_prep_tfvars', 'ensure_appliance_collections', 'configure_appliance_license_preflight',
                          'prompt_ec2_status', 'show_appliance_ec2_statuses'):
