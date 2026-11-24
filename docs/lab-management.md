@@ -111,8 +111,10 @@ Do these in the FAIG GUI (`https://<host>/ui`), in order:
    - endpoint `http://litellm.litellm.svc.cluster.local:4000/v1` (in-cluster
      LiteLLM; it is not reachable from outside);
    - one enabled API key: the LiteLLM shared non-admin virtual key. It is in
-     the owner-only file `litellm-shared-key.json` in your `FAIG_ENV_DIR`
-     (or `.litellm_shared_virtual_key.json` in the workspace root), and in
+     the owner-only file `litellm-shared-key.json` in the lab's instance
+     folder `FAIG/.secrets/<workspace>/<instance-id>/` (older builds: your
+     `FAIG_ENV_DIR`, or `.litellm_shared_virtual_key.json` in the workspace
+     root), and in
      Secret `litellm-shared-virtual-key` in namespace `litellm`. Copy it from
      the file; don't print it in a shared terminal.
    - at least the model `pass-model` (custom model). Apply models adds the

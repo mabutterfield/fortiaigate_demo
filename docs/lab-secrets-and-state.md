@@ -4,11 +4,12 @@ What the 8.0.2 lab stores, where, how sensitive it is, and what teardown
 removes. The [Quickstart](quickstart-802.md) owns the setup prompts and
 commands; this page is the reference for instructors and reviewers.
 
-> **Status (v1.0 release work).** External Terraform state and
-> Terraform-generated per-instance credentials are being integrated into the
-> quickstart and teardown. Until that ships, state stays in the repository's
-> `terraform/*/terraform.tfstate.d/` folders and generated files stay in
-> `FAIG_ENV_DIR`. Everything on this page about sensitivity applies either way.
+> **Status (v1.0).** Per-instance generated credentials under
+> `FAIG/.secrets/` are on by default: the quickstart creates them and teardown
+> removes them. Terraform state stays in the repository's
+> `terraform/*/terraform.tfstate.d/` folders; external state under
+> `FAIG/.state/` is opt-in and not turned on by default in v1.0. Everything on
+> this page about sensitivity applies either way.
 
 ## Summary
 
@@ -101,9 +102,11 @@ keep an owner-only file outside Git and point the deploy at it:
 lab_student_password_file = "/path/to/FAIG/.secrets/static/student-passwords"
 ```
 
-Until the quickstart passes it through, set the same variable in ignored
-`ansible/group_vars/user.yml`. Format: one entry per line, lines starting
-with `#` are comments, exactly one form per file:
+The quickstart checks the file before it changes anything, and Terraform
+passes only the path to Ansible. You can instead set
+`lab_student_password_file` in ignored `ansible/group_vars/user.yml`, which
+takes precedence. Format: one entry per line, lines starting with `#` are
+comments, exactly one form per file:
 
 ```text
 shared: Lab_Pass_2026
