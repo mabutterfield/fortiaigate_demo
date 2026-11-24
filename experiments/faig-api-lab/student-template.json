@@ -1,9 +1,0 @@
-{
-  "student_prefix": "student",
-  "email_domain": "fortiai.lab",
-  "workspace_suffix": "workspace",
-  "workspace_description": "Student lab workspace",
-  "project_description": "Student scenario project",
-  "projects": ["fortistore-injection", "hr-tool-dlp", "resume-tool-injection"],
-  "providers": ["litellm-direct", "litellm-faig-chain"]
-}

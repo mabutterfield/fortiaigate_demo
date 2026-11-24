@@ -26,7 +26,9 @@ lab_chatbot_image_repository: python
 lab_chatbot_image_tag: "3.12-slim"
 lab_chatbot_rollout_timeout: 420s
 
-# Student key files from experiments/faig-api-lab/scenario_lab.py
+# Change 2026-11-23: file-based key seeding is inactive (its tasks are commented out; Lab Management
+# stores keys in lab-data/lab-keys) and experiments/faig-api-lab was removed from v1.2.0 (kept at tag
+# faig_8.0.2_gui_experiment). Original note: student key files from experiments/faig-api-lab/scenario_lab.py
 # (<dir>/studentNN-keys/*.json, owner-only). Each student directory seeds one
 # Secret <prefix><student>; existing Secrets are kept because students may
 # have replaced keys in the chatbot. Set lab_chatbot_reseed_keys: true to
