@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -50,7 +51,14 @@ class LocalBackendUpgradeTests(unittest.TestCase):
         self.assertNotEqual(tf(self.module, "output", workspace="ohio-802").returncode, 0)
         self.assertNotEqual(tf(self.module, "init", "-input=false").returncode, 0)
 
-        self.assertTrue(state_storage.upgrade_implicit_local_backend(self.module, TERRAFORM))
+        backups = Path(self.tmp.name) / 'backups'
+        self.assertTrue(state_storage.upgrade_implicit_local_backend(self.module, TERRAFORM, backup_root=backups))
+        saved = list(backups.iterdir())
+        self.assertEqual(len(saved), 1)
+        for workspace, identity in before.items():
+            snapshot = saved[0] / workspace / 'terraform.tfstate'
+            self.assertEqual(state_storage.checked_state_identity(snapshot), identity)
+            self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
         self.assertEqual(state_storage._local_state_identities(self.module), before)
         for ws in (None, "ohio-802"):
             plan = tf(self.module, "plan", "-detailed-exitcode", "-input=false", workspace=ws)
@@ -62,6 +70,17 @@ class LocalBackendUpgradeTests(unittest.TestCase):
         (self.module / "terraform.tfstate").write_text(state_storage.MOVED_SENTINEL)
         with self.assertRaises(ValueError):
             state_storage.upgrade_implicit_local_backend(self.module, TERRAFORM)
+
+    def test_failed_upgrade_keeps_verified_private_backups(self):
+        before = state_storage._local_state_identities(self.module)
+        backups = Path(self.tmp.name) / 'backups'
+        with mock.patch('subprocess.run', return_value=subprocess.CompletedProcess([], 1)):
+            with self.assertRaisesRegex(ValueError, 'Pre-upgrade backup'):
+                state_storage.upgrade_implicit_local_backend(self.module, TERRAFORM, backup_root=backups)
+        saved = list(backups.iterdir())
+        self.assertEqual(len(saved), 1)
+        for workspace, identity in before.items():
+            self.assertEqual(state_storage.checked_state_identity(saved[0] / workspace / 'terraform.tfstate'), identity)
 
     def test_module_without_empty_local_backend_is_left_alone(self):
         (self.module / "versions.tf").write_text("terraform {\n}\n")

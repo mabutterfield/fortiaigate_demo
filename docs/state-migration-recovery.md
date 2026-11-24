@@ -1,5 +1,13 @@
 # Recover an interrupted local state migration
 
+For the one-time implicit-to-explicit local backend upgrade, quickstart saves
+verified owner-only snapshots under `FAIG/.state-backend-backups/<module>-*/`
+before running Terraform. The output and any failure message give the exact
+directory. These snapshots contain plaintext state and are retained after a
+successful upgrade; protect them and remove them only after verification.
+On failure, stop all Terraform runs, compare the snapshots and current state,
+and restore only after confirming which copy is authoritative.
+
 Terraform state, its backups and temporary copies can contain credentials in
 plaintext. Keep them private. Stop all Terraform, quickstart and teardown runs
 in every worktree before investigating; do not run Terraform against an

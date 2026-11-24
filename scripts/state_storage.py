@@ -818,7 +818,7 @@ def _local_state_identities(module_root: Path) -> dict[str, tuple[str, int, int,
     return found
 
 
-def upgrade_implicit_local_backend(module_root: Path, terraform_binary: str = 'terraform') -> bool:
+def upgrade_implicit_local_backend(module_root: Path, terraform_binary: str = 'terraform', *, backup_root: Path | None = None) -> bool:
     """One-time move from Terraform's implicit local backend to the explicit `backend "local" {}`.
 
     Change 2026-11-23 (Agent2, fresh-build finding): the modules now declare an empty local
@@ -832,6 +832,8 @@ def upgrade_implicit_local_backend(module_root: Path, terraform_binary: str = 't
     import json
     import os
     import subprocess
+    import tempfile
+    import shutil
     module_root = Path(module_root)
     if os.environ.get('TF_DATA_DIR'):
         return False
@@ -848,14 +850,44 @@ def upgrade_implicit_local_backend(module_root: Path, terraform_binary: str = 't
     if not re.search(r'backend\s+"local"\s*\{\s*\}', declared):
         return False
     before = _local_state_identities(module_root)
+    backup = None
+    if before:
+        root = Path(backup_root or (module_root.resolve().parents[2] / '.state-backend-backups'))
+        if root.is_symlink():
+            raise ValueError('backend backup root cannot be a symlink')
+        root.mkdir(parents=True, mode=0o700, exist_ok=True)
+        if not root.is_dir() or root.stat().st_uid != os.getuid():
+            raise ValueError('backend backup root must be an owner-owned directory')
+        os.chmod(root, 0o700)
+        backup = Path(tempfile.mkdtemp(prefix=f'{module_root.name}-', dir=root))
+        for workspace, identity in before.items():
+            source = (module_root / 'terraform.tfstate' if workspace == 'default' else
+                      module_root / 'terraform.tfstate.d' / workspace / 'terraform.tfstate')
+            destination = backup / workspace
+            destination.mkdir(mode=0o700)
+            for item in (source, source.with_suffix(source.suffix + '.backup')):
+                if item.is_file():
+                    target = destination / item.name
+                    with item.open('rb') as src, target.open('xb') as dst:
+                        os.chmod(target, 0o600)
+                        shutil.copyfileobj(src, dst)
+                        dst.flush()
+                        os.fsync(dst.fileno())
+                    if item.read_bytes() != target.read_bytes():
+                        raise ValueError(f'backend backup changed while copying; inspect {backup}')
+            if checked_state_identity(destination / 'terraform.tfstate') != identity:
+                raise ValueError(f'backend backup verification failed for {module_root.name}/{workspace}; backup retained at {backup}')
+        if _local_state_identities(module_root) != before:
+            raise ValueError(f'local state changed during backend backup; stop and inspect {backup}')
+        print(f'Private pre-upgrade state backup: {backup}')
     env = {key: value for key, value in os.environ.items() if key not in ('TF_WORKSPACE', 'TF_DATA_DIR')}
     result = subprocess.run([terraform_binary, f'-chdir={module_root}', 'init', '-migrate-state', '-force-copy',
                              '-input=false', '-no-color'], env=env, text=True, capture_output=True, check=False,
                             umask=0o077)
     if result.returncode:
-        raise ValueError(f'one-time local backend upgrade failed for {module_root.name}; no state paths changed. '
-                         'Run `terraform init -migrate-state` in that module and inspect the prompt.')
+        raise ValueError(f'one-time local backend upgrade failed for {module_root.name}; stop and inspect state. '
+                         f'Pre-upgrade backup: {backup if backup else "no prior state found"}')
     if _local_state_identities(module_root) != before:
         raise ValueError(f'local state identity changed during the backend upgrade of {module_root.name}; '
-                         'stop and restore from the .backup files before continuing')
+                         f'stop and inspect the pre-upgrade backup at {backup if backup else "no prior state found"}')
     return True
