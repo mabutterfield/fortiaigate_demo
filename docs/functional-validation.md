@@ -1,287 +1,66 @@
-# Functional Validation
+# Functional Validation (8.0.2)
 
-> **8.0.2:** The legacy chatbot-based `validate` path described below is
-> retired. Use `python3 -m functional_test catalog-baseline --help` and the
-> student portal Tests tab for current catalog-driven validation. Remaining
-> legacy renderer and profile material on this page is historical.
+Two ways to check that a scenario behaves as the catalog expects on a live
+lab. Both send a catalog test prompt through FortiAIGate with the student's
+key, run the scenario's MCP tools, and grade the result against the matching
+FortiAIGate Traffic Log entry: PASS, FAIL, KNOWN FAIL (a documented
+limitation) or INCOMPLETE (the verdict could not be confirmed).
 
-The catalog runner uses HTTPS to the in-cluster FAIG ingress. Its default lab
-certificate does not match the service DNS, so the runner does not verify that
-internal certificate by default for the standard lab service address: traffic is encrypted but the server identity
-is not authenticated. Supply a trusted, service-DNS-matching certificate and
-`--internal-verify-tls` to require verification. Other service addresses require
-verification by default. This setting is separate from
-`--insecure`, which controls verification of the external admin API.
+- **Student chatbot Tests tab** (normal path): students run their own tests;
+  instructors use *Act as student*. See the
+  [Student Guide](student-guide-802.md#tests) and
+  [Lab Chatbot](lab-chatbot.md).
+- **`catalog-baseline`** (maintainers): one case from the command line,
+  described below.
 
-Functional validation is the supported post-installation path test for
-FortiAIGate passthrough and every installed scenario. It uses the deployed
-chatbot agent, installed scenario matrix, live MCP transport, and the expected
-results declared in each scenario's `validation.cases` to confirm that each
-configured path produces its expected observable result.
+These are functional path checks, not exhaustive security assertions. Unit
+tests (`python3 -m unittest discover -s tests`) check code and catalog data
+without contacting a lab.
 
-This is a functional path smoke test, not an exhaustive security assertion or
-a substitute for FortiAIGate telemetry. It is different from repository unit
-tests, which verify code and metadata without contacting the deployment, and
-developer load testing, which creates bounded dashboard traffic rather than
-checking configured paths.
-
-All commands run from `<repo_root>`.
-
-## Prerequisites
-
-- LiteLLM, chatbot, and required MCP components are ready.
-- Installed scenario packages match the version you intend to test.
-- Required FortiAIGate guards and wildcard flows from the generated work order
-  have been created and are active.
-- The workstation can SSH to the selected k3s inventory host.
-
-Select the deployment:
+## Run one case from the command line
 
 ```bash
-export FAIG_INVENTORY=local
-export FAIG_HOST_ALIAS={{ubuntu-hostname}}
-# or
-export FAIG_INVENTORY=cloud
-export FAIG_HOST_ALIAS=faig-aws
+python3 -m functional_test catalog-baseline \
+  --scenario hr-tool-dlp --action redact \
+  --key-file /path/outside/git/student01_hr-tool-dlp_redact.json \
+  --admin-credentials /path/outside/git/admin-login.json \
+  --inventory ansible/inventory/aws.generated.ini \
+  --faig-url https://<lab-ip> --insecure
 ```
 
-For local mode, use the Ubuntu hostname recorded as the host alias by
-`local_setup.py`.
+- `--key-file`: an owner-only (`0600`) JSON file for that student key:
+  `scenario`, `action`, `model` (the catalog model alias), `keyName` and
+  `secretKey`. The scenario, action and model must match the catalog case.
+  Key values come from Lab Management (Secret `lab-data/lab-keys`); never
+  paste them into a shared terminal.
+- `--admin-credentials`: an owner-only JSON file with the FAIG administrator
+  `username` and `password`, used only to read the Traffic Log.
+- `--test`: a specific catalog test ID; the default is the action's attack
+  test. List them with `python3 -m catalog802 student`.
+- `--block-message-file`: required when the case checks for FAIG's exact block
+  message.
+- `--insecure`: accept the lab's self-signed certificate on the external FAIG
+  address. The in-cluster FAIG address is reached over HTTPS without
+  certificate verification by default, because the lab certificate doesn't
+  match the service name; supply a matching certificate and
+  `--internal-verify-tls` to require it.
 
-## Validate The Complete Installation
+The runner stages the shared agent loop in the MCP pod over SSH, adds a
+unique marker to the prompt, and looks for the Traffic Log rows that carry it
+for up to `--log-wait` seconds (default 20). It never prints keys, passwords,
+prompts or responses. If the marker itself trips a detector or the row isn't
+found in time, the result is INCOMPLETE, not PASS.
 
-Run passthrough and all declared cases for every installed scenario:
+`python3 -m functional_test evaluate-catalog --help` grades a saved
+observations file against a catalog test without contacting a lab.
 
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS"
-```
+## Known limitations
 
-The validator checks the following observable path behavior:
+- **Resume Block** reports KNOWN FAIL: FortiAIGate blocks before the
+  `document_read` tool runs.
+- One case per run. A catalog-driven batch runner over all Lab Management keys
+  is planned.
 
-- expected completion, block, redaction, sensitive result, or synthetic tool
-  pivot;
-- every required MCP tool;
-- absence of every forbidden tool;
-- Resume Deny enforcement before `cloud_bucket_list_demo` executes;
-- the declared FAIG route, model alias, MCP transport, tool profile, and
-  frontend instruction profile used by the probe; and
-- global passthrough without scenario MCP tools.
-
-Each path prints `expected results / total results`. A fully successful run
-ends with:
-
-```text
-INSTALLATION READY: <expected>/<total> expected results
-```
-
-Any unexpected result returns a nonzero exit code and prints missing tools,
-forbidden tools, disposition mismatches, or the saved agent-probe error.
-
-Passing means the declared paths are reachable and returned the response and
-tool behavior expected by the smoke-test metadata. It does not independently
-prove that an Alert event was recorded, or that response text classified as a
-Deny came from FortiAIGate rather than a model refusal. Correlate the saved UTC
-timestamp with FortiAIGate Traffic logs for that evidence.
-
-## FortiAIGate 8.0.2 Baseline Without The Chatbot
-
-`validate` above drives the deployed chatbot and the 8.0.1 URI-path routes.
-For FortiAIGate 8.0.2, `baseline` validates the deployment before the chatbot
-exists, so the chatbot can later be checked against a known-good result. It
-uses one virtual key per student, scenario and action (created by
-`experiments/faig-api-lab/scenario_lab.py prepopulate`, including a
-`studentNN-passthrough` key with no student policy) and the standards MCP
-endpoint.
-
-For each key file the baseline:
-
-- takes the scenario's declared `validation.cases` entry for that action
-  (prompt, expected result, required and forbidden tools);
-- takes the model, frontend instructions, MCP tool profile and round limit from
-  the installed scenario matrix, the same settings a chatbot user would select;
-- runs the shared agent loop (`chatbot/agent/faig_agent.py`, the same code the
-  8.0.2 chatbot will use) through `functional_test/baseline_agent.py` inside
-  the MCP pod's `mcp-standard` container: requests go to the in-cluster FAIG
-  ingress at `/ai/openai/v1` with the key, and tool calls go to the standards
-  MCP endpoint;
-- classifies the reply with the same contract as `validate` (8.0.2 redaction
-  markers such as `[REDACTED_SSN_1]` are recognized); and
-- with `--admin-credentials`, reads the FAIG Traffic Log for that key and
-  requires the action's verdict: alert → Alert, deny → Block, redact → Redact,
-  passthrough → Log (the most severe verdict across the turn's requests).
-
-Keys travel to the pod on stdin and are not written to the output.
-
-```bash
-python3 -m functional_test baseline \
-  --inventory cloud --host-alias faig-aws \
-  --key-dir "$FAIG_STUDENT_CREDENTIALS_DIR/student01-keys" \
-  --admin-credentials "$FAIG_ADMIN_FILE" --insecure
-```
-
-Limit with `--scenario` and `--action`; `--retries` (default 1) reruns a failed
-case to absorb model variance. Results are written below
-`functional_test/output/baseline-run-<timestamp>/`. A complete run ends with
-`BASELINE READY: <passed>/<total> expected results`.
-
-Observed on 2026-11-18 (Ohio lab), identical for student01 and student02:
-7/8. Passthrough, FortiStore alert/deny, HR alert/redact/deny and Resume alert
-passed with matching Traffic Log verdicts. Resume Deny was blocked before the
-declared `document_read` call; see Known Issues. The ported deployment smoke
-test also passes:
-
-```bash
-ansible-playbook -i cloud ansible/playbooks/test_fortiaigate_chat.yml \
-  -e fortiaigate_test_api_key_file="$FAIG_STUDENT_CREDENTIALS_DIR/student01-keys/student01-passthrough.json"
-```
-
-## Result Classification And Future Tuning
-
-The current path test classifies Deny and Redact from the returned response.
-Observed FortiAIGate prompt-injection Deny responses use patterns such as:
-
-```text
-This request was blocked by FortiAIGate as it detected Prompt Injection violations in the system prompt.
-This request was blocked by FortiAIGate as it triggered our safety systems.
-```
-
-The rendered product response normally makes `FortiAIGate` a link. Output-DLP
-Deny is expected to use a similar product-owned block response; confirm its
-exact wording before making that signature a strict test contract. Redact is
-identified through the returned FortiAIGate replacement markers.
-
-A future validator revision can tighten Deny classification around these
-product-owned signatures and correlate a request identifier with FortiAIGate
-telemetry. Until then, the command remains a path test and Traffic logs remain
-the authority for the appliance action.
-
-## Troubleshooting Filters
-
-Restrict by installed scenario:
-
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --scenario-id hr-tool-dlp
-```
-
-Restrict further by action or exact case:
-
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --scenario-id hr-tool-dlp \
-  --action redact
-
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --scenario-id resume-tool-injection \
-  --case deny-attack
-```
-
-Action and case filters omit passthrough so the run stays focused. Use
-`--skip-passthrough` to omit it from an otherwise unfiltered run. Override MCP
-transport, tool profile, or frontend profile only for deliberate Detailed-mode
-troubleshooting; the normal run uses the installed Simplified profile.
-
-Preview planned cases without contacting the deployment:
-
-```bash
-python3 -m functional_test validate \
-  --inventory "$FAIG_INVENTORY" \
-  --host-alias "$FAIG_HOST_ALIAS" \
-  --dry-run
-```
-
-## Output And Evidence
-
-Each run writes to:
-
-```text
-functional_test/output/all-scenarios/<run-label>/
-```
-
-The ignored output contains one request/response/event capture per case and a
-`summary.json`. Events record scenario, action, validation case, generated
-route, model alias, MCP transport, tool profile, frontend profile, expected
-and actual result, observed/required/forbidden tools, and failure details.
-
-Correlate its UTC timestamps with FortiAIGate traffic logs. Review captures
-before sharing because they may contain local endpoints and synthetic attack
-or DLP values. Never commit credentials or environment-specific captures.
-
-## Render A Direct-Flow Curl Test
-
-Each validated scenario stores metadata-checked request templates in its
-`functional-tests/` directory. Render one installed case:
-
-```bash
-python3 -m functional_test render-curl \
-  --scenario hr-tool-dlp \
-  --action redact \
-  --case redact-attack
-```
-
-The command writes a JSON body under
-`functional_test/output/rendered-curl/`, prints the exact scenario request
-path, and emits a curl command using `$FAIG_BASE_URL`:
-
-```bash
-export FAIG_BASE_URL=https://<fortiaigate-host>
-```
-
-Normal lab flows disable client API-key validation, so generated curl omits
-authorization. For an explicitly authenticated flow:
-
-```bash
-python3 -m functional_test render-curl \
-  --scenario hr-tool-dlp \
-  --action redact \
-  --case redact-attack \
-  --authenticated
-```
-
-That variant adds `Authorization: Bearer $FAIG_API_KEY`. Keep the actual key
-only in ignored local configuration and never paste it into a template,
-screenshot, transcript, or committed shell history.
-
-The generated request goes directly from the operator shell to the selected
-FortiAIGate flow. It looks like the OpenAI-compatible LLM request the chatbot
-would submit and includes selected frontend instructions, but it does not
-claim chatbot origin.
-
-## What Curl Does Not Prove
-
-A direct curl request or transcript replay can deterministically exercise a
-FAIG/LiteLLM guard boundary. A single request cannot prove:
-
-- Simplified profile selection in the chatbot UI;
-- live MCP schema discovery or tool execution;
-- FortiWeb MCP transport;
-- multiple model/tool rounds; or
-- stop-before-tool enforcement across a live agent loop.
-
-Use the live `validate` command for those assertions. Transcript replays are
-described separately in [Transcript Replays](transcript-replays.md).
-
-## Failure Order
-
-When a case fails:
-
-1. compare the generated path, flow, guard, and model alias with the work
-   order;
-2. confirm the flow is active and client API-key validation matches the
-   request;
-3. test the guard in the FortiAIGate GUI;
-4. confirm the installed chatbot profile resolves the expected MCP transport,
-   tool profile, and frontend profile;
-5. inspect the saved tool sequence and failure details; and
-6. correlate the case timestamp with FortiAIGate telemetry.
-
-See [Troubleshooting](troubleshooting.md#functional-scenario-validation-fails)
-for component probes.
+The 8.0.1 `functional_test validate`, `scenario-pack`, `baseline` and
+`render-curl` commands are retired; they are preserved on branch
+`archive/8.0.1` and tag `faig_8.0.2_gui_experiment`.

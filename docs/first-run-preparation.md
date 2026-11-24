@@ -1,9 +1,9 @@
 # First-Run Preparation
 
-Complete this preparation before running the automated quickstart. This page
-owns files and prerequisites; [Deployment Options](deployment-options.md) owns
-feature choices, and [Deployment Quickstart](quickstart.md) owns the
-deployment journey.
+Complete this preparation before running the
+[8.0.2 quickstart](quickstart-802.md), which owns the deployment itself. This
+release deploys to AWS only; the 8.0.1 local Ubuntu lane is preserved on
+branch `archive/8.0.1`.
 
 All commands run from `<repo_root>`, the `fortiaigate_demo/` directory that
 contains `README.md`, `terraform/`, `ansible/`, and `scripts/`.
@@ -50,11 +50,7 @@ AWS deployment requires:
   tags, and comparison pulls (allow roughly two to three times the archive
   size).
 
-Local deployment requires Python 3, Ansible, `ansible-galaxy`, and SSH. Docker
-is also required on the workstation when it publishes images to the local
-registry.
-
-Check the tools needed by the selected lane:
+Check the tools:
 
 ```bash
 python3 --version
@@ -62,11 +58,10 @@ ansible-playbook --version
 ansible-galaxy --version
 ssh -V
 
-# AWS lane
 terraform version
 aws --version
 
-# Any lane that publishes images
+# only when publishing images
 docker version
 ```
 
@@ -74,9 +69,6 @@ The quickstart performs its own required-command check before changing the
 environment.
 
 ## 3. Prepare One Deployment Target
-
-Choose either the AWS lane or the local Ubuntu lane. They are alternatives,
-not sequential preparation steps.
 
 ### 3A. AWS
 
@@ -112,50 +104,6 @@ Model listing does not by itself guarantee invocation permission or capacity.
 Use the AWS console or account-specific quota process to resolve access and
 quota issues before the deployment window.
 
-### 3B. Local Ubuntu GPU Host
-
-The supported local lane starts with an existing Ubuntu 24.04 GPU host.
-Prepare:
-
-- key- or agent-based SSH from the control workstation;
-- a user that can run the required bootstrap operations with `sudo`;
-- one or more supported NVIDIA GPUs; separate GPU UUIDs for FortiAIGate and
-  Ollama are preferred when capacity allows;
-- sufficient storage for k3s, images, models, logs, and temporary chart data;
-- a local or LAN container registry reachable by both the workstation and the
-  Ubuntu host;
-- outbound access needed to install packages and obtain the configured Ollama
-  image/model, or equivalent local mirrors;
-- trusted-LAN reachability for the generated NodePorts; and
-- optional FortiGate/FortiWeb management and backend addresses plus bootstrap
-  credentials when those existing appliances will be configured.
-
-Do not preinstall k3s merely for this workflow; Ansible owns the k3s
-foundation. NVIDIA discovery may be incomplete before bootstrap. If so, local
-quickstart intentionally stops after GPU setup so `local_setup.py` can be run
-again to record GPU UUID assignments.
-
-Generate the environment-owned local inventory and variables before running
-local quickstart:
-
-```bash
-python3 scripts/local_setup.py
-```
-
-This produces, as applicable:
-
-```text
-ansible/inventory/local.generated.ini
-ansible/inventory/fortigate.local.generated.ini
-ansible/inventory/fortiweb.local.generated.ini
-ansible/group_vars/local.generated.yml
-ansible/group_vars/local.secrets.yml
-ansible/group_vars/registry.generated.yml
-```
-
-`local.secrets.yml` is written with mode `0600`. Treat generated local exports
-as sensitive because they can contain managed appliance credentials.
-
 ## 4. Optionally Pre-Stage Operator Configuration
 
 Manual profile initialization is not required for a normal interactive first
@@ -169,9 +117,6 @@ starting quickstart:
 ```bash
 # AWS pre-staging
 python3 scripts/user_profile.py init
-
-# Local pre-staging without AWS onboarding
-python3 scripts/user_profile.py init --local
 
 python3 scripts/user_profile.py check
 ```
@@ -208,17 +153,8 @@ Run `python3 scripts/user_profile.py init` again to add or change these AWS
 appliance choices in an existing profile. Do not copy or edit the tracked
 `00-system.auto.tfvars` files.
 
-Profile archives contain the operator tfvars/YAML files, existing module-local
-overrides, and every registered package under
-`chatbot/scenarios/local/<scenario-id>/` plus its installed-state file. They do
-not include scenario `_backups/` or `_removed/` history. Treat the archive as
-sensitive. Import merges scenarios that are not already installed and requires
-confirmation before replacing each colliding installed package; `--yes`
-explicitly accepts all configuration and scenario replacements.
-
-Unlike profile initialization, `local_setup.py` remains a required preparation
-step for the local lane because quickstart consumes its generated inventory and
-variables.
+Profile archives contain the operator tfvars/YAML files and existing
+module-local overrides. Treat the archive as sensitive.
 
 ## 5. Place Licenses And Optional Tokens
 
@@ -258,7 +194,6 @@ Do not commit:
   state backups;
 - `ansible/group_vars/user.yml`, `*.generated.yml`, generated inventories, or
   files under `ansible/secrets/`;
-- installed local scenarios or locally tuned instructions;
 - kubeconfigs, private keys, certificates, registry credentials, or profile
   archives;
 - appliance licenses, FortiFlex tokens, generated API keys/passwords, or
@@ -282,16 +217,13 @@ Before quickstart, confirm:
 
 - [ ] the shell is in `<repo_root>`;
 - [ ] required control-workstation commands are installed;
-- [ ] the selected AWS or local host is reachable;
 - [ ] AWS login, region, quota, model availability, key pair, and Marketplace
-      terms are ready when using the AWS lane;
+      terms are ready;
 - [ ] vendor chart, image archives, and FortiAIGate license are outside Git;
 - [ ] desired appliance licenses or explicit opt-outs are ready;
 - [ ] operator configuration is ready, or interactive quickstart will be
       allowed to create/import it;
-- [ ] `local_setup.py` generated the local files when using the local lane;
-- [ ] Docker can reach the selected registry if publishing is required; and
-- [ ] [Deployment Options](deployment-options.md) has been reviewed.
+- [ ] Docker can reach the selected registry if publishing is required.
 
 Quickstart checks required commands and local files before deployment. If
 operator configuration was pre-staged manually, this optional check confirms
@@ -301,6 +233,7 @@ that its required files exist:
 python3 scripts/user_profile.py check
 ```
 
-Successful output includes `Required user profile files exist.` After
-deployment, complete the FortiAIGate initial and scenario GUI configuration;
-then use `python3 -m functional_test validate` for scenario validation.
+Successful output includes `Required user profile files exist.` Then run the
+[8.0.2 quickstart](quickstart-802.md); it initializes FAIG, and scenarios are
+provisioned from Lab Management (see the
+[instructor guide](instructor-guide-802.md)).

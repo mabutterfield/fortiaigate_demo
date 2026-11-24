@@ -450,12 +450,9 @@ non-empty `fortiweb_public_private_ip` and `fortiweb_mcp_http_base_url` values,
 then configure FortiWeb and redeploy the chatbot. An admin URL alone does not
 prove that the MCP listener endpoint was generated.
 
-Frontend instructions are owned by installed named scenarios. The scenario
-matrix always includes a `none` profile and adds any scenario-specific profiles
-declared under `matrix.frontend_instruction_profiles`. Tune instruction files
-only in the ignored installed scenario package; see [Scenario
-Management](scenario-management.md) and [Advanced Scenario
-Management](advanced-scenario-management.md).
+In 8.0.2, each scenario's tools, instructions and round limit come from the
+catalog (`catalog802/`); change them there and redeploy, as described in
+[Scenario Management](scenario-management.md#changing-a-scenario).
 
 When FortiWeb Terraform has generated `fortiweb.generated.yml`,
 `chatbot_mcp_fortiweb_base_url` defaults to FortiWeb's port1 private IP on the

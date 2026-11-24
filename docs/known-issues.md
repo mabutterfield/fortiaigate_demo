@@ -1,8 +1,9 @@
 # Known Issues And Workarounds
 
-This page records current operational constraints. Use
-[Troubleshooting](troubleshooting.md) for symptom-driven diagnosis and
-[Operations](operations.md) for normal reruns and recovery.
+This page records current operational constraints of the 8.0.2 lab. The
+[release notes](release-notes-1.2.0-rc.1.md) list what was tested for this
+release; the [instructor guide](instructor-guide-802.md#troubleshooting) covers
+common classroom problems.
 
 ## NVIDIA Driver Downloads Can Be Slow On AWS
 
@@ -19,19 +20,6 @@ by the current quickstart.
 Do not commit downloaded packages, cache manifests, Terraform state, or
 rendered user data.
 
-## FortiAIGate GUI Object Creation Is Manual
-
-Automation deploys the services and generates scenario-specific work orders,
-but the corresponding provider, flow, route, and guard objects must still be
-created in the FortiAIGate 8.x GUI.
-
-Create the minimal passthrough configuration first, then use the installed
-scenario work order for protected paths. See
-[FortiAIGate Initial Configuration](fortiaigate-initial-config.md),
-[Scenario GUI Configuration](fortiaigate-gui-config.md), and
-[Scenario Management](scenario-management.md). Functional validation cannot repair a
-missing or stale GUI flow.
-
 ## FortiWeb MCP Security Policy Automation Is Deferred
 
 FortiWeb reverse-proxy objects for demo HTTP paths are automated. FortiWeb MCP
@@ -44,24 +32,10 @@ integration task.
 
 ## Open WebUI Is Deployed Without Demo Configuration
 
-Open WebUI can be deployed as an optional secondary interface, but the
-repository does not configure its model provider, FortiAIGate paths, MCP tools,
-or scenario profiles. The custom chatbot is the configured scenario UI.
-
-## Local Ollama NodePort Is Trusted-Lab Only
-
-Local mode exposes Ollama through plain HTTP for validation and operator
-convenience. Stock Ollama does not provide built-in API authentication. Keep
-the NodePort restricted to a trusted lab network and do not expose it to the
-internet.
-
-## Local Lab Uninstall Is Not Automated
-
-The repository supports local reconciliation and updates through repeated
-quickstart or component playbooks. It does not currently provide an automated
-uninstall for the local k3s host. Exporting generated local state moves local
-inventory and variable files; it does not remove k3s, images, applications, or
-appliances.
+Open WebUI is off by default. When enabled it is deployed as a secondary
+interface, but the repository does not configure its model provider,
+FortiAIGate paths or MCP tools, and its FAIG path still defaults to the 8.0.1
+value. The lab chatbot is the configured scenario UI.
 
 ## HR DLP Payment Cards Are Withheld From MCP Responses
 
@@ -79,39 +53,31 @@ DLP detectors were extended with the `Credit/debit card` category and the
 whole five-row synthetic table, including card numbers, was replayed as one
 tool result through each student's HR keys. Whenever the model reproduced the
 table, all five DOB, SSN and card values were redacted by the Redact key,
-blocked by the Deny key, and passed through with an Alert verdict by the Alert
+blocked by the Block key, and passed through with an Alert verdict by the Alert
 key. This was a single tool result checked on model output, not the earlier
 five-tool-loop chatbot flow, so card fields stay hidden from MCP responses
 until that flow is retested. The model sometimes refuses to print the table;
-the validator reports that as inconclusive rather than as a DLP result. See
-`experiments/faig-api-lab/README.md` for the procedure.
+the validator reports that as inconclusive rather than as a DLP result. The
+procedure is in `experiments/faig-api-lab/README.md` at tag
+`faig_8.0.2_gui_experiment`.
 
-## FortiAIGate 8.0.2 Migration Holds
+## Resume Block Is A Known Failure
 
-These 8.0.1 features are intentionally on hold on the 8.0.2 branch:
-
-- FAIG re-entry (LiteLLM → FAIG chain): `faig_chain_capability_enabled` is
-  `false`. The 8.0.1 `/v1/passthrough` re-entry path does not exist in 8.0.2;
-  the re-entry provider, key and loop prevention need a new design.
-- Chatbot, the scenario installer and the demo home page wait for a
-  multi-tenant (per-student) design. The chatbot still routes by 8.0.1 URI
-  paths and headers with one FAIG key, so `functional_test validate` and
-  `load_test` are 8.0.1-only until it is ported; use
-  `functional_test baseline` for 8.0.2.
-- Open WebUI remains disabled; its FAIG path still defaults to the 8.0.1 value.
-- `automated_quickstart.py` stops before the application flow on 8.0.2; deploy
-  and validate the individual playbooks until the chatbot works.
-
-## Resume Deny Blocks On Upload Metadata In 8.0.2
-
-In the 8.0.2 baseline, Resume Deny is blocked when the result of
+In 8.0.2, Resume Block is blocked when the result of
 `document_upload_simulation` reaches FortiAIGate, before the model calls
 `document_read`. The upload result's metadata for the attack fixture
 describes the attack in plain text (summary "Synthetic poisoned resume fixture
 containing hidden instructions…", tags `prompt-injection` and `cloud-pivot`),
 and the OWASP detectors block on that description rather than on the poisoned
 resume content. The security outcome is correct (`cloud_bucket_list_demo`
-never runs), but the scenario's deny case requires `document_read`, so the
-baseline reports it as unexpected. Resolving it means either withholding the
-self-describing metadata from tool results or changing the case contract; it
-is deferred with the scenario installer redesign.
+never runs), but the scenario's block test requires `document_read`, so the
+Tests tab reports KNOWN FAIL. Resolving it means either withholding the
+self-describing metadata from tool results or changing the test contract in
+the catalog.
+
+## FAIG Re-entry Is Not Available
+
+The 8.0.1 LiteLLM → FAIG re-entry chain is off (`faig_chain_capability_enabled:
+false`): the 8.0.1 `/v1/passthrough` re-entry path does not exist in 8.0.2, and
+the re-entry provider, key and loop prevention need a new design (planned for
+v1.2.1).
