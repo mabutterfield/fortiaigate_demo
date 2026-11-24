@@ -13,22 +13,24 @@ and verify a governed request. This initialization uses GUI-observed FAIG APIs;
 Fortinet does not support this automation and a product change may break it.
 Students use individual workspaces and can exercise the catalog scenarios.
 
-A fresh Ohio deployment was tested with generated credentials and local
-Terraform state. The instructor and two students signed in, prepopulated
-scenarios were exercised, FAIG scanning was active, and an unchanged Terraform
-plan was confirmed. Teardown removed the host, VPC and EIP and cleaned the
-instance credentials. It retained the shared prep IAM resources, ECR and S3.
-The integrated automated suite passed 403 tests with 16 skipped before this
-release documentation and backend-backup change; rerun it on the final tag.
+An Ohio `g6.4xlarge` deployment at commit `7a53f3e` was validated with
+existing ECR images and the NVIDIA package cache. Quickstart was resumed with
+`--skip-terraform` after its EC2 health-check wait was interrupted. The license,
+scanning and governed pass-model smoke test passed. All three scenario models
+and two fully prepopulated student workspaces were created; both students
+signed in. Catalog tests produced eight passes and the known Resume Block
+failure below. The code suite passed 343 tests (16 skipped). Teardown removes
+the lab host, networking, IAM, Elastic IPs and disposable prep buckets; ECR and
+the separately managed NVIDIA package caches are retained.
 
 ## Known limitations
 
 - Resume tool injection's Block test is a known failure: FAIG blocks before
   `document_read` executes, so the test cannot verify the intended tool result.
-- External Terraform state migration and re-import are not validated against
-  the real environment; use the tested local-state path for this RC.
+- External Terraform state was exercised on a fresh deployment. Migration
+  of existing state and recovery across environments remain unvalidated.
 - Static instructor and student password files have unit coverage but have not
-  been live-tested in the fresh deployment. Use generated passwords for the RC.
+  been validated live. Use generated credentials for the default deployment.
 - HTTPS uses a lab certificate. Browser trust and credentials must be handled
   as described in the instructor guide.
 - Terraform state and backups contain generated credentials in plaintext;
@@ -36,6 +38,11 @@ release documentation and backend-backup change; rerun it on the final tag.
   [Lab Secrets and State](lab-secrets-and-state.md).
 - Auto-approval approves all pending FAIG changes while enabled. The non-GPU
   mode and the separate FAIG re-entry provider are deferred.
+- Syslog bucket export and teardown of buckets containing objects or older
+  object versions have automated coverage but have not been validated live.
+- FortiGate and FortiWeb appliance deployment logic is carried forward from
+  8.0.1 (with Terraform backend wiring changes). It has not been validated for
+  this 8.0.2 release; appliance testing is deferred to v1.2.1.
 - ECR maintenance, including lifecycle policies and image deletion, is
   separate from normal deployment and teardown. Existing images are retained.
 
