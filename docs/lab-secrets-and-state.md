@@ -10,6 +10,8 @@ commands; this page is the reference for instructors and reviewers.
 > `terraform/*/terraform.tfstate.d/` folders; external state under
 > `FAIG/.state/` is opt-in and not turned on by default in v1.2.0; real-environment migration is unvalidated and deferred to v1.2.1. Everything on
 > this page about sensitivity applies either way.
+> Static administrator and student password files have not been live-tested
+> on the fresh 8.0.2 deployment; use generated passwords for the release candidate.
 
 ## Summary
 
