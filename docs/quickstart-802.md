@@ -146,13 +146,11 @@ python3 scripts/teardown_802.py
 
 By default it destroys tracked FortiWeb and FortiGate appliances first, then
 the EC2/VPC stack, lab EIPs and lab IAM resources. FortiWeb cloud-init objects
-tracked by its Terraform module are deleted with the appliance. ECR images,
-the NVIDIA driver S3 cache, the FortiAIGate syslog S3 bucket and contents, and
-other S3 resources are retained. `--keep-eip` preserves the lab EIPs;
+tracked by its Terraform module are deleted with the appliance. The FortiAIGate
+syslog S3 bucket and contents are retained. `--keep-eip` preserves the lab EIPs;
 `--skip-ec2` keeps the lab and implies `--keep-eip`. `--yolo` skips confirmations
 and approves the Terraform actions; review the workspace and profile first.
-Saved destroy plans are restricted to the expected resources; an unapproved
-S3/ECR change stops that plan. GPU termination may take several minutes.
+Saved destroy plans are restricted to the expected resources; an unapproved change outside the lab environment stops that plan. GPU termination may take several minutes.
 Generated instance secrets are cleaned only after AWS confirms termination.
 The FortiWeb cloud-init bucket policy is removed with its IAM role and recreated
 on the next build; the bucket and its other retained settings remain.

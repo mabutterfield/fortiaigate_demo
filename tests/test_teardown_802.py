@@ -134,6 +134,14 @@ class TeardownTests(unittest.TestCase):
                     teardown.destroy_selected('terraform/aws-fortiweb', ['aws_s3_object.license[0]'], teardown.APPLIANCE_RESOURCES, None, True)
                 self.assertEqual(run.call_count, 2)
 
+    def test_rejected_plan_identifies_resource_and_action(self):
+        plan = {'resource_changes': [
+            {'mode': 'managed', 'address': 'aws_s3_bucket_policy.example[0]',
+             'change': {'actions': ['delete']}}]}
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps(plan))]):
+            with self.assertRaisesRegex(SystemExit, r'aws_s3_bucket_policy\.example\[0\] \(delete\)'):
+                teardown.destroy_selected(teardown.PREP, ['aws_iam_role.ec2'], teardown.PREP_IAM_RESOURCES, None, True)
+
     def test_selected_plan_allows_fortiweb_cloud_init_objects(self):
         changes = [{'mode': 'managed', 'address': f'aws_s3_object.{name}[0]', 'change': {'actions': ['delete']}}
                    for name in ('config_generated', 'config_file', 'license')]

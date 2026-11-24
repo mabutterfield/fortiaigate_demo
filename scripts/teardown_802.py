@@ -184,7 +184,7 @@ def resource_base(address):
 
 
 def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve, *, variables=None):
-    """Apply only a reviewed destroy plan; reject unapproved S3/ECR side effects."""
+    """Apply only a reviewed destroy plan within the lab environment."""
     if not addresses:
         return
     if any(resource_base(address) not in permitted_bases for address in addresses):
@@ -202,10 +202,13 @@ def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve
         changes = json.loads(raw.stdout).get('resource_changes', [])
         affected = [(item['address'], item.get('change', {}).get('actions')) for item in changes
                     if item.get('mode') == 'managed' and item.get('change', {}).get('actions') != ['no-op']]
-        if any(resource_base(address) not in permitted_bases or actions != ['delete'] or
-               (resource_base(address) == 'aws_eip.public' and address not in LAB_EIPS)
-               for address, actions in affected):
-            raise SystemExit('Teardown plan includes an unapproved change (including protected S3/ECR); nothing in that plan was applied.')
+        rejected = [(address, actions) for address, actions in affected
+                    if resource_base(address) not in permitted_bases or actions != ['delete'] or
+                    (resource_base(address) == 'aws_eip.public' and address not in LAB_EIPS)]
+        if rejected:
+            details = ', '.join(f'{address} ({", ".join(actions or [])})' for address, actions in rejected)
+            raise SystemExit('Teardown plan includes an unapproved change outside the lab environment: '
+                             + details + '; nothing in that plan was applied.')
         if not affected:
             print('Selected teardown plan has no changes.')
             return
@@ -366,7 +369,7 @@ def parse_args(argv=None):
                         default=Path(os.environ['FAIG_STORAGE_PROFILE']) if os.environ.get('FAIG_STORAGE_PROFILE') else None,
                         help='Private storage preferences file outside Git.')
     parser.add_argument('--keep-eip', action='store_true', help='Keep the lab Elastic IP allocated.')
-    parser.add_argument('--skip-ec2', action='store_true', help='Keep the EC2/VPC stack; implies --keep-eip.')
+    parser.add_argument('--skip-ec2', action='store_true', help='Keep the whole lab environment; implies --keep-eip.')
     parser.add_argument('--auto-approve', action='store_true', help='Pass -auto-approve to Terraform.')
     parser.add_argument('--yes', action='store_true', help='Skip the script-level confirmation.')
     parser.add_argument('--yolo', action='store_true', help='Equivalent to --yes --auto-approve.')
@@ -404,12 +407,11 @@ def _main(argv=None):
         raise SystemExit(f'Cannot read storage settings: {exc}') from None
     keep_eip = args.keep_eip or args.skip_ec2
     print(f'AWS profile: {profile}; region: {region}; workspace: {os.environ.get("TF_WORKSPACE", "default")}')
-    print('EC2/VPC: ' + ('retain' if args.skip_ec2 else 'destroy'))
+    print('EC2 lab environment: ' + ('retain' if args.skip_ec2 else 'destroy'))
     print('Lab Elastic IP: ' + ('retain' if keep_eip else 'release after EC2 teardown'))
     print('FortiGate/FortiWeb and lab IAM: ' + ('retain' if args.skip_ec2 else 'destroy when tracked'))
-    print('ECR images and NVIDIA driver cache: retain')
     print('FortiAIGate syslog S3 bucket and contents: retain')
-    print('Other S3 buckets and contents: retain, except tracked FortiWeb cloud-init objects')
+    print('Tracked FortiWeb cloud-init objects: ' + ('retain' if args.skip_ec2 else 'destroy'))
     if not (args.yes or args.yolo):
         if input('Proceed with lab teardown? [y/N] ').strip().lower() not in ('y', 'yes'):
             raise SystemExit('Stopped before teardown.')
@@ -477,7 +479,7 @@ def _main(argv=None):
         except (OSError, ValueError) as exc:
             raise SystemExit(f'Cloud teardown completed, but generated secret cleanup stopped: {exc}') from None
         print(f'Cleaned generated credentials for {removed} confirmed terminated instance(s).')
-    print('Lab teardown finished; ECR, NVIDIA cache and syslog S3 were retained.')
+    print('Lab teardown finished; the syslog S3 bucket and its contents were retained.')
 
 
 def main(argv=None):
