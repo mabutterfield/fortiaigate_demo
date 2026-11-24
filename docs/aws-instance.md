@@ -39,6 +39,13 @@ and vLLM. Verify the **Security Scanning** status: uncovered GPUs can disable
 inspection while model traffic continues. Extra GPUs can increase licensing
 costs; check entitlement before planning a multi-GPU deployment.
 
+Unsupported 8.0.2 GPU experiments (an L4 baseline, splitting the inference
+models across two 16 GB GPUs or MIG slices, and CPU-only Triton) are
+documented in the separate
+[fortiaigate_gpu_split](https://github.com/mabutterfield/fortiaigate_gpu_split)
+repository. They change vendor defaults and are not part of this lab's
+deployment.
+
 ## US East (N. Virginia) candidates
 
 Prices below are AWS Price List Linux On-Demand shared-tenancy compute prices

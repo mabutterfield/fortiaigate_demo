@@ -13,7 +13,9 @@ Files the release does not need were removed. Everything is preserved at tag
 `faig_8.0.2_gui_experiment`; the 8.0.1 workflow is on branch `archive/8.0.1`.
 
 - Experiments: `experiments/faig-api-lab/` (Lab Management and the quickstart's
-  FAIG initializer replace it) and the `gpu_tests/` reports.
+  FAIG initializer replace it) and the `gpu_tests/` reports (the 8.0.2 GPU
+  experiments are maintained in the separate `fortiaigate_gpu_split`
+  repository, linked from AWS Instance Sizing).
 - Tools to be rewritten for 8.0.2 later: `load_test/` (load generator),
   `test_litellm_direct.yml` with role `litellm_direct_test`,
   `scripts/export_fortiaigate_syslog.py`, `scripts/local_var_cleanup.py`.
