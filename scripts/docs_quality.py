@@ -17,7 +17,7 @@ REFERENCE_LINK_PATTERN = re.compile(r"^\s*\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
 LOWER_KEBAB_MARKDOWN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 CURRENT_VOCABULARY_EXCLUSIONS = (
-    "archived_scenarios/",
+    # Change 2026-11-23: archived 8.0.1 scenarios are kept on the archive branch.
 )
 CURRENT_VOCABULARY_FILES_EXCLUDED = {"CHANGELOG.md"}
 FORBIDDEN_CURRENT_PATTERNS = {

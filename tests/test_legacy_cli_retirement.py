@@ -18,23 +18,25 @@ class RetiredCliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn('catalog-baseline', result.stderr)
 
-    def test_load_runner_stops_before_legacy_traffic(self):
-        for command in ('validate', 'paths', 'run'):
-            with self.subTest(command=command):
-                result = self.invoke('load_test', command, '--yes')
-                self.assertEqual(result.returncode, 2)
-                self.assertIn('disabled', result.stderr)
+    # Change 2026-11-23: removed legacy executable.
+    # def test_load_runner_stops_before_legacy_traffic(self):
+    #     for command in ('validate', 'paths', 'run'):
+    #         with self.subTest(command=command):
+    #             result = self.invoke('load_test', command, '--yes')
+    #             self.assertEqual(result.returncode, 2)
+    #             self.assertIn('disabled', result.stderr)
 
     def test_functional_help_still_shows_supported_catalog_command(self):
         result = self.invoke('functional_test', '--help')
         self.assertEqual(result.returncode, 0)
         self.assertIn('catalog-baseline', result.stdout)
 
-    def test_old_scenario_installer_fails_before_writing(self):
-        result = subprocess.run([sys.executable, 'scripts/scenario_profiles.py', 'add', 'fortistore-injection'],
-                                cwd=ROOT, text=True, capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('retired', result.stderr)
+    # Change 2026-11-23: removed legacy executable.
+    # def test_old_scenario_installer_fails_before_writing(self):
+    #     result = subprocess.run([sys.executable, 'scripts/scenario_profiles.py', 'add', 'fortistore-injection'],
+    #                             cwd=ROOT, text=True, capture_output=True)
+    #     self.assertNotEqual(result.returncode, 0)
+    #     self.assertIn('retired', result.stderr)
 
 
 if __name__ == '__main__':

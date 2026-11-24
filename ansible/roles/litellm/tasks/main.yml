@@ -65,7 +65,7 @@
       - litellm
       - --faig-chain-reentry-uri
       - "{{ litellm_faig_backend_base_path }}"
-    chdir: "{{ scenario_matrix_repo_root }}"
+    chdir: "{{ litellm_catalog_repo_root }}"
   changed_when: false
   check_mode: false
   register: litellm_catalog_matrix_result
@@ -312,7 +312,7 @@
         + [
           item
           | combine({
-              'source_path': scenario_matrix_repo_root ~ '/' ~ item.source_path
+              'source_path': litellm_catalog_repo_root ~ '/' ~ item.source_path
             })
           if (
             item.source_path is defined

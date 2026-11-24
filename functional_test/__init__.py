@@ -1,5 +1,3 @@
-"""Supported functional validation facade for installed FAIG scenarios."""
+"""Catalog-driven FAIG functional validation."""
 
-from functional_test import validation
-
-__all__ = ["validation"]
+# Change 2026-11-23: legacy scenario validation facade retired.
