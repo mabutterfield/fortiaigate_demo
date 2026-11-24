@@ -183,8 +183,13 @@ def resource_base(address):
     return address.split('[', 1)[0]
 
 
-def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve, *, variables=None):
-    """Apply only a reviewed destroy plan within the lab environment."""
+def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve, *, variables=None,
+                     check_only=False):
+    """Apply only a reviewed destroy plan within the lab environment.
+
+    check_only plans and validates without applying, so a plan that would be
+    refused is found before anything else in the lab is destroyed.
+    """
     if not addresses:
         return
     if any(resource_base(address) not in permitted_bases for address in addresses):
@@ -212,9 +217,23 @@ def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve
         if not affected:
             print('Selected teardown plan has no changes.')
             return
+        if check_only:
+            # Change 2026-11-24: preflight only; the real plan is made again after the host is gone.
+            print(f'Checked the {module} teardown plan: {len(affected)} deletion(s), all within the lab environment.')
+            return
         if not auto_approve and input(f'Delete the listed resources in {module}? [y/N] ').strip().lower() not in ('y', 'yes'):
             raise SystemExit('Stopped before applying the teardown plan.')
         run(['terraform', '-chdir=' + module, 'apply', str(plan)])
+
+
+def prep_teardown_selection(prep_resources, keep_eip):
+    """Return the prep targets and permitted resource types for lab teardown."""
+    targets = [address for address in prep_resources if resource_base(address) in PREP_IAM_RESOURCES]
+    allowed = set(PREP_IAM_RESOURCES)
+    if not keep_eip:
+        allowed.add('aws_eip.public')
+        targets.extend(address for address in prep_resources if address in LAB_EIPS)
+    return targets, allowed
 
 
 def module_state_exists(module, storage):
@@ -419,6 +438,12 @@ def _main(argv=None):
     auto = args.auto_approve or args.yolo
     destroyed_instance = None
     if not args.skip_ec2:
+        # Change 2026-11-24: check the prep plan before destroying anything, so a
+        # refused prep plan no longer strands IAM and EIPs after the host is gone.
+        prep_variables = initialize_teardown_module(PREP, storage)
+        prep_targets, prep_allowed = prep_teardown_selection(state_resources(PREP), keep_eip)
+        destroy_selected(PREP, prep_targets, prep_allowed, prep_vars, auto,
+                         variables=prep_variables, check_only=True)
         for module in APPLIANCES:
             if not module_state_exists(module, storage):
                 print(f'No {module} state for this workspace; skipping.')
@@ -454,15 +479,8 @@ def _main(argv=None):
                 destroy(HOST, host_vars, auto)
         else:
             print('No disposable host resources remain in this workspace.')
-    if not args.skip_ec2:
-        prep_variables = initialize_teardown_module(PREP, storage)
-        prep_resources = state_resources(PREP)
-        targets = [address for address in prep_resources if resource_base(address) in PREP_IAM_RESOURCES]
-        allowed = set(PREP_IAM_RESOURCES)
-        if not keep_eip:
-            allowed.add('aws_eip.public')
-            targets.extend(address for address in prep_resources if address in LAB_EIPS)
-        destroy_selected(PREP, targets, allowed, prep_vars, auto, variables=prep_variables)
+    # Change 2026-11-24: clean generated host secrets before the prep step, so a
+    # prep failure cannot leave a terminated instance's credentials behind.
     if storage is not None and not args.skip_ec2:
         try:
             removed = clean_retired_instance_secrets(storage, profile, region)
@@ -477,8 +495,11 @@ def _main(argv=None):
                 if remove_destroyed_host_backup(path, instance_terminated=True):
                     print('Removed the destroyed host state backup containing generated credentials.')
         except (OSError, ValueError) as exc:
-            raise SystemExit(f'Cloud teardown completed, but generated secret cleanup stopped: {exc}') from None
+            raise SystemExit(f'Host teardown completed, but generated secret cleanup stopped: {exc}; '
+                             'lab IAM and EIPs were not removed.') from None
         print(f'Cleaned generated credentials for {removed} confirmed terminated instance(s).')
+    if not args.skip_ec2:
+        destroy_selected(PREP, prep_targets, prep_allowed, prep_vars, auto, variables=prep_variables)
     print('Lab teardown finished; the syslog S3 bucket and its contents were retained.')
 
 

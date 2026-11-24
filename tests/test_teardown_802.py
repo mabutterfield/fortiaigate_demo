@@ -53,7 +53,7 @@ class TeardownTests(unittest.TestCase):
     def test_default_destroys_host_then_eips_and_lab_iam(self):
         prep = [teardown.EIP, 'aws_iam_role.ec2', 'aws_s3_bucket.fortiaigate_syslog[0]']
         with mock.patch.object(teardown, 'run') as run, \
-             mock.patch.object(teardown, 'state_resources', side_effect=[['aws_instance.this'], prep]), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[prep, ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy') as destroy, \
              mock.patch.object(teardown, 'destroy_selected') as selected, contextlib.redirect_stdout(io.StringIO()):
@@ -61,12 +61,14 @@ class TeardownTests(unittest.TestCase):
         self.assertEqual(destroy.call_count, 1)
         self.assertEqual(destroy.call_args.args[0], teardown.HOST)
         self.assertEqual(set(selected.call_args.args[1]), {teardown.EIP, 'aws_iam_role.ec2'})
+        self.assertTrue(selected.call_args_list[0].kwargs['check_only'])
+        self.assertNotIn('check_only', selected.call_args.kwargs)
         self.assertFalse(any('aws-ecr' in ' '.join(c.args[0]) for c in run.call_args_list))
 
     def test_keep_ip_still_cleans_iam_but_skip_ec2_keeps_both(self):
         for args in (['--keep-eip'], ['--skip-ec2']):
             with self.subTest(args=args), mock.patch.object(teardown, 'run'), \
-                 mock.patch.object(teardown, 'state_resources', side_effect=[['aws_instance.this'], [teardown.EIP, 'aws_iam_role.ec2']]), \
+                 mock.patch.object(teardown, 'state_resources', side_effect=[[teardown.EIP, 'aws_iam_role.ec2'], ['aws_instance.this']]), \
                  mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
                  mock.patch.object(teardown, 'destroy') as destroy, \
                  mock.patch.object(teardown, 'destroy_selected') as selected, contextlib.redirect_stdout(io.StringIO()):
@@ -83,15 +85,16 @@ class TeardownTests(unittest.TestCase):
              mock.patch.object(teardown, 'module_state_exists', return_value=True), \
              mock.patch.object(teardown, 'initialize_teardown_module', return_value=[]), \
              mock.patch.object(teardown, 'state_resources', side_effect=[
+                 [teardown.EIP, 'aws_iam_role.ec2', 'aws_s3_bucket.fortiaigate_syslog[0]'],
                  ['aws_instance.this[0]', 'aws_s3_object.license[0]'],
-                 ['aws_instance.this[0]'], ['aws_instance.this'],
-                 [teardown.EIP, 'aws_iam_role.ec2', 'aws_s3_bucket.fortiaigate_syslog[0]']]), \
+                 ['aws_instance.this[0]'], ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy_selected', side_effect=lambda module, *a, **k: calls.append(module)), \
              mock.patch.object(teardown, 'destroy', side_effect=lambda module, *a, **k: calls.append(module)), \
              contextlib.redirect_stdout(io.StringIO()):
             teardown.main(['--yolo'])
-        self.assertEqual(calls, ['terraform/aws-fortiweb', 'terraform/aws-fortigate', teardown.HOST, teardown.PREP])
+        # The prep plan is checked first, then applied last.
+        self.assertEqual(calls, [teardown.PREP, 'terraform/aws-fortiweb', 'terraform/aws-fortigate', teardown.HOST, teardown.PREP])
 
     def test_external_teardown_uses_saved_workspace_and_dependency_paths(self):
         from scripts.state_storage import StateLayout, StorageSettings
@@ -101,10 +104,10 @@ class TeardownTests(unittest.TestCase):
         with mock.patch.object(teardown, 'read_storage_profile', return_value=settings), \
              mock.patch.object(teardown.state_storage, 'verify_state_manifest'), \
              mock.patch.object(teardown.state_storage, 'configure_terraform_proxy'), \
-             mock.patch.object(teardown, 'initialize_teardown_module', side_effect=[['aws_prep_state_path=/state/prep'], ['aws_ecr_state_path=/state/ecr']]), \
+             mock.patch.object(teardown, 'initialize_teardown_module', side_effect=[['aws_ecr_state_path=/state/ecr'], ['aws_prep_state_path=/state/prep']]), \
              mock.patch.object(teardown, 'run', side_effect=lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, 'i-123\n') if 'output' in argv else None), \
              mock.patch.object(teardown, 'instance_is_terminated', return_value=False), \
-             mock.patch.object(teardown, 'state_resources', side_effect=[['aws_instance.this'], [teardown.EIP]]), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[[teardown.EIP], ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy') as destroy, \
              mock.patch.object(teardown, 'destroy_selected') as selected, contextlib.redirect_stdout(io.StringIO()):
@@ -114,6 +117,57 @@ class TeardownTests(unittest.TestCase):
         self.assertIn('lab_generated_secrets_enabled=true', host_vars)
         self.assertTrue(any(v.startswith('lab_secrets_root=') for v in host_vars))
         self.assertEqual(selected.call_args.kwargs['variables'], ['aws_ecr_state_path=/state/ecr'])
+
+    def test_refused_prep_plan_stops_before_anything_is_destroyed(self):
+        def refuse(module, *args, **kwargs):
+            if kwargs.get('check_only'):
+                raise SystemExit('Teardown plan includes an unapproved change outside the lab environment')
+        with mock.patch.object(teardown, 'run'), \
+             mock.patch.object(teardown, 'module_state_exists', return_value=True), \
+             mock.patch.object(teardown, 'initialize_teardown_module', return_value=[]), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[[teardown.EIP, 'aws_iam_role.ec2']]), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
+             mock.patch.object(teardown, 'destroy') as destroy, \
+             mock.patch.object(teardown, 'destroy_selected', side_effect=refuse) as selected, \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(SystemExit, 'unapproved change'):
+                teardown.main(['--yolo'])
+        destroy.assert_not_called()
+        self.assertEqual(selected.call_count, 1)
+
+    def test_check_only_plan_is_validated_but_not_applied(self):
+        changes = [{'mode': 'managed', 'address': address, 'change': {'actions': ['delete']}}
+                   for address in ('aws_iam_role.fortiweb_cloudinit[0]', 'aws_s3_bucket_policy.fortiweb_cloudinit[0]')]
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps({'resource_changes': changes}))]) as run, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            teardown.destroy_selected(teardown.PREP, ['aws_iam_role.fortiweb_cloudinit[0]'], teardown.PREP_IAM_RESOURCES,
+                                      None, True, check_only=True)
+        self.assertEqual(run.call_count, 2)
+        self.assertFalse(any('apply' in call.args[0] for call in run.call_args_list))
+        self.assertIn('2 deletion(s)', output.getvalue())
+
+    def test_generated_secrets_are_cleaned_before_prep_is_applied(self):
+        from scripts.state_storage import StateLayout, StorageSettings
+        layout = StateLayout((self.root / 'external-state').resolve())
+        layout.root.mkdir(mode=0o700)
+        settings = StorageSettings((self.root / 'external-secrets').resolve(), layout, 'ohio-802')
+        calls = []
+        with mock.patch.object(teardown, 'read_storage_profile', return_value=settings), \
+             mock.patch.object(teardown.state_storage, 'verify_state_manifest'), \
+             mock.patch.object(teardown.state_storage, 'configure_terraform_proxy'), \
+             mock.patch.object(teardown, 'initialize_teardown_module', return_value=[]), \
+             mock.patch.object(teardown, 'module_state_exists', return_value=False), \
+             mock.patch.object(teardown, 'run', side_effect=lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, 'i-123\n') if 'output' in argv else None), \
+             mock.patch.object(teardown, 'instance_is_terminated', return_value=False), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[[teardown.EIP], ['aws_instance.this']]), \
+             mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
+             mock.patch.object(teardown, 'destroy', side_effect=lambda module, *a, **k: calls.append(('destroy', module))), \
+             mock.patch.object(teardown, 'clean_retired_instance_secrets', side_effect=lambda *a: calls.append(('secrets',)) or 1), \
+             mock.patch.object(teardown, 'destroy_selected',
+                               side_effect=lambda module, *a, **k: calls.append(('check' if k.get('check_only') else 'apply', module))), \
+             contextlib.redirect_stdout(io.StringIO()):
+            teardown.main(['--yolo'])
+        self.assertEqual(calls, [('check', teardown.PREP), ('destroy', teardown.HOST), ('secrets',), ('apply', teardown.PREP)])
 
     def test_target_plan_refuses_any_other_resource_change(self):
         plan = {'resource_changes': [
