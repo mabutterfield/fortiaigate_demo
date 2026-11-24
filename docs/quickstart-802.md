@@ -144,29 +144,25 @@ export FAIG_TERRAFORM_VARS_DIR=/path/to/FAIG/ohio-802
 python3 scripts/teardown_802.py
 ```
 
-By default it destroys the EC2/VPC stack and releases its lab Elastic IP.
-`--keep-eip` preserves the IP for reuse; `--skip-ec2` keeps the entire lab
-and implies `--keep-eip`. ECR, S3, shared IAM/prep resources, and optional
-appliances are untouched. `--yolo` skips confirmations and approves the
-Terraform actions; review the workspace and effective profile first. EIP
-release uses a saved plan that must contain only that IP's deletion. An EC2
-failure stops before the IP is released. GPU termination may take several
-minutes; the VPC remains until AWS releases its dependencies. Generated
-instance secrets are cleaned only after AWS confirms termination. A missing,
-ambiguous or unrecognized file is preserved for inspection.
+By default it destroys tracked FortiWeb and FortiGate appliances first, then
+the EC2/VPC stack, lab EIPs and lab IAM resources. FortiWeb cloud-init objects
+tracked by its Terraform module are deleted with the appliance. ECR images,
+the NVIDIA driver S3 cache, the FortiAIGate syslog S3 bucket and contents, and
+other S3 resources are retained. `--keep-eip` preserves the lab EIPs;
+`--skip-ec2` keeps the lab and implies `--keep-eip`. `--yolo` skips confirmations
+and approves the Terraform actions; review the workspace and profile first.
+Saved destroy plans are restricted to the expected resources; an unapproved
+S3/ECR change stops that plan. GPU termination may take several minutes.
+Generated instance secrets are cleaned only after AWS confirms termination.
 
 **Known limitations (v1.2.0):**
 
-- **Optional FortiGate/FortiWeb appliances are not destroyed.** Before
-  planning, teardown checks AWS for VPC network interfaces belonging to other
-  instances or unattached resources and stops if any remain. Tear appliances
-  or other dependent resources down with their own workflow first. This check
-  does not prove that no non-network dependency exists; AWS or Terraform may
-  still reject deletion. A configured `aws_route` is permitted in the host
-  destroy plan after this guard passes.
-- The default EC2/VPC/EIP teardown was validated end to end on a disposable
-  Ohio deployment. Optional appliance teardown and every interruption/retry
-  path were not part of that live test.
+- Teardown removes only appliances present in the selected workspace's state.
+  It stops if other VPC network interfaces remain. AWS or Terraform may still
+  reject deletion due to other dependencies.
+- The prior EC2/VPC/EIP teardown was validated live. The expanded appliance,
+  IAM and FortiWeb cloud-init cleanup has local test coverage but has not yet
+  been validated in a live deployment.
 - After an Elastic IP is released, the next deployment gets a new address.
   Remove the old host key before connecting (`ssh-keygen -R <old-ip>`).
 

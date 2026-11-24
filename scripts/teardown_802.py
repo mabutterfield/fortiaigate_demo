@@ -20,6 +20,28 @@ ROOT = Path(__file__).resolve().parents[1]
 HOST = 'terraform/aws-ec2-k3s'
 PREP = 'terraform/aws-prep'
 EIP = 'aws_eip.public["k3s"]'
+LAB_EIPS = {f'aws_eip.public["{name}"]' for name in ('k3s', 'fortigate', 'fortiweb')}
+APPLIANCES = ('terraform/aws-fortiweb', 'terraform/aws-fortigate')
+APPLIANCE_RESOURCES = {
+    'aws_instance.this', 'aws_network_interface.public', 'aws_network_interface.internal',
+    'aws_security_group.fortigate_mgmt', 'aws_security_group.fortigate_internal',
+    'aws_security_group.fortiweb_mgmt', 'aws_security_group.fortiweb_internal',
+    'aws_eip_association.public', 'random_password.fortiweb_admin',
+    'random_string.fortigate_api_key', 'local_file.ansible_inventory', 'local_file.ansible_group_vars',
+    # FortiWeb cloud-init objects are lab-generated and belong to that appliance.
+    'aws_s3_object.config_generated', 'aws_s3_object.config_file', 'aws_s3_object.license',
+}
+PREP_IAM_RESOURCES = {
+    'aws_iam_role.ec2', 'aws_iam_instance_profile.ec2', 'aws_iam_role_policy.ec2_nvidia_cache_read',
+    'aws_iam_role_policy_attachment.ec2_managed', 'aws_iam_policy.ec2_ecr_pull',
+    'aws_iam_role_policy_attachment.ec2_ecr_pull', 'aws_iam_policy.ec2_bedrock_invoke',
+    'aws_iam_role_policy_attachment.ec2_bedrock_invoke', 'aws_iam_policy.ec2_scenario_documents_read',
+    'aws_iam_role_policy_attachment.ec2_scenario_documents_read', 'aws_iam_policy.ec2_fortiaigate_syslog_write',
+    'aws_iam_role_policy_attachment.ec2_fortiaigate_syslog_write', 'aws_iam_role.fortiweb_cloudinit',
+    'aws_iam_instance_profile.fortiweb_cloudinit', 'aws_iam_policy.fortiweb_cloudinit_s3_read',
+    'aws_iam_role_policy_attachment.fortiweb_cloudinit_s3_read', 'aws_iam_user.bedrock',
+    'aws_iam_access_key.bedrock', 'aws_iam_user_policy.bedrock', 'time_offset.bedrock_expiration',
+}
 HOST_TYPES = {'aws_instance', 'aws_vpc', 'aws_subnet', 'aws_security_group',
               'aws_internet_gateway', 'aws_route_table', 'aws_route_table_association',
               'aws_route', 'aws_eip_association', 'local_file'}
@@ -152,6 +174,55 @@ def destroy(module, vars_file, auto_approve, *, target=None, variables=None):
     if auto_approve:
         argv.append('-auto-approve')
     run(argv)
+
+
+def resource_base(address):
+    return address.split('[', 1)[0]
+
+
+def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve, *, variables=None):
+    """Apply only a reviewed destroy plan; reject unapproved S3/ECR side effects."""
+    if not addresses:
+        return
+    if any(resource_base(address) not in permitted_bases for address in addresses):
+        raise SystemExit('Refusing an unapproved teardown target.')
+    with tempfile.TemporaryDirectory(prefix='faig-destroy-plan-') as directory:
+        plan = Path(directory) / 'destroy.tfplan'
+        argv = ['terraform', '-chdir=' + module, 'plan', '-destroy', '-out=' + str(plan)]
+        argv += ['-target=' + address for address in addresses]
+        if vars_file:
+            argv.append('-var-file=' + str(vars_file))
+        for variable in variables or []:
+            argv.extend(['-var', variable])
+        run(argv)
+        raw = run(['terraform', '-chdir=' + module, 'show', '-json', str(plan)], capture=True)
+        changes = json.loads(raw.stdout).get('resource_changes', [])
+        affected = [(item['address'], item.get('change', {}).get('actions')) for item in changes
+                    if item.get('mode') == 'managed' and item.get('change', {}).get('actions') != ['no-op']]
+        if any(resource_base(address) not in permitted_bases or actions != ['delete'] or
+               (resource_base(address) == 'aws_eip.public' and address not in LAB_EIPS)
+               for address, actions in affected):
+            raise SystemExit('Teardown plan includes an unapproved change (including protected S3/ECR); nothing in that plan was applied.')
+        if not affected:
+            print('Selected teardown plan has no changes.')
+            return
+        if not auto_approve and input(f'Delete the listed resources in {module}? [y/N] ').strip().lower() not in ('y', 'yes'):
+            raise SystemExit('Stopped before applying the teardown plan.')
+        run(['terraform', '-chdir=' + module, 'apply', str(plan)])
+
+
+def module_state_exists(module, storage):
+    workspace = os.environ['TF_WORKSPACE']
+    if storage is not None and storage.state is not None:
+        return storage.state.state_path(Path(module).name, workspace).is_file()
+    root = ROOT / module
+    path = root / 'terraform.tfstate' if workspace == 'default' else root / 'terraform.tfstate.d' / workspace / 'terraform.tfstate'
+    return path.is_file()
+
+
+def local_state_path(module, workspace):
+    root = ROOT / module
+    return root / 'terraform.tfstate' if workspace == 'default' else root / 'terraform.tfstate.d' / workspace / 'terraform.tfstate'
 
 
 def storage_profile_path(path=None):
@@ -332,7 +403,10 @@ def _main(argv=None):
     print(f'AWS profile: {profile}; region: {region}; workspace: {os.environ.get("TF_WORKSPACE", "default")}')
     print('EC2/VPC: ' + ('retain' if args.skip_ec2 else 'destroy'))
     print('Lab Elastic IP: ' + ('retain' if keep_eip else 'release after EC2 teardown'))
-    print('ECR, S3, shared prep resources and optional appliances: retain')
+    print('FortiGate/FortiWeb and lab IAM: ' + ('retain' if args.skip_ec2 else 'destroy when tracked'))
+    print('ECR images and NVIDIA driver cache: retain')
+    print('FortiAIGate syslog S3 bucket and contents: retain')
+    print('Other S3 buckets and contents: retain, except tracked FortiWeb cloud-init objects')
     if not (args.yes or args.yolo):
         if input('Proceed with lab teardown? [y/N] ').strip().lower() not in ('y', 'yes'):
             raise SystemExit('Stopped before teardown.')
@@ -340,6 +414,20 @@ def _main(argv=None):
     auto = args.auto_approve or args.yolo
     destroyed_instance = None
     if not args.skip_ec2:
+        for module in APPLIANCES:
+            if not module_state_exists(module, storage):
+                print(f'No {module} state for this workspace; skipping.')
+                continue
+            variables = initialize_teardown_module(module, storage)
+            if storage is None or storage.state is None:
+                workspace = os.environ['TF_WORKSPACE']
+                variables += [f'aws_prep_state_path={local_state_path(PREP, workspace)}',
+                              f'aws_ec2_k3s_state_path={local_state_path(HOST, workspace)}']
+            variables += [f'aws_profile={profile}', f'aws_region={region}']
+            resources = state_resources(module)
+            allowed = {base for base in APPLIANCE_RESOURCES if module.endswith('aws-fortiweb') or not base.startswith('aws_s3_object.')}
+            selected = [address for address in resources if resource_base(address) in allowed]
+            destroy_selected(module, selected, allowed, None, auto, variables=variables)
         host_variables = initialize_teardown_module(HOST, storage)
         if storage is not None:
             host_variables += ['lab_generated_secrets_enabled=true', f'lab_secrets_root={storage.secrets_root}']
@@ -361,15 +449,15 @@ def _main(argv=None):
                 destroy(HOST, host_vars, auto)
         else:
             print('No disposable host resources remain in this workspace.')
-    if not keep_eip:
+    if not args.skip_ec2:
         prep_variables = initialize_teardown_module(PREP, storage)
-        if EIP in state_resources(PREP):
-            if prep_variables:
-                destroy(PREP, prep_vars, auto, target=EIP, variables=prep_variables)
-            else:
-                destroy(PREP, prep_vars, auto, target=EIP)
-        else:
-            print('No lab Elastic IP is tracked in this workspace.')
+        prep_resources = state_resources(PREP)
+        targets = [address for address in prep_resources if resource_base(address) in PREP_IAM_RESOURCES]
+        allowed = set(PREP_IAM_RESOURCES)
+        if not keep_eip:
+            allowed.add('aws_eip.public')
+            targets.extend(address for address in prep_resources if address in LAB_EIPS)
+        destroy_selected(PREP, targets, allowed, prep_vars, auto, variables=prep_variables)
     if storage is not None and not args.skip_ec2:
         try:
             removed = clean_retired_instance_secrets(storage, profile, region)
@@ -386,7 +474,7 @@ def _main(argv=None):
         except (OSError, ValueError) as exc:
             raise SystemExit(f'Cloud teardown completed, but generated secret cleanup stopped: {exc}') from None
         print(f'Cleaned generated credentials for {removed} confirmed terminated instance(s).')
-    print('Lab teardown finished; ECR and S3 were not modified.')
+    print('Lab teardown finished; ECR, NVIDIA cache and syslog S3 were retained.')
 
 
 def main(argv=None):
