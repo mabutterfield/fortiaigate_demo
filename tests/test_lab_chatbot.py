@@ -69,28 +69,29 @@ class AdminTests(unittest.TestCase):
             self.assertTrue(any(c.isdigit() for c in password) and any(c in ls.PASSWORD_SPECIALS for c in password))
 
 
-class ScenarioPackTests(unittest.TestCase):
-    def test_pack_has_no_secrets_and_one_entry_per_action(self):
-        from functional_test import scenario_pack
-
-        keys = [dict(k) for k in KEYS] + [dict(KEYS[1], student="student01")]
-        cases = []
-
-        def fake_plan(matrix, store, key):
-            cases.append(key["keyName"])
-            return {"case_id": "c", "prompt": "p", "model": key["model"], "system_prompt": "", "tools": [],
-                    "max_rounds": 0, "expected_result": "completed", "required_tools": [], "forbidden_tools": []}
-
-        original_plan, original_info = scenario_pack.baseline.plan_case, scenario_pack.scenario_info
-        scenario_pack.baseline.plan_case = fake_plan
-        scenario_pack.scenario_info = lambda store, s: {"title": s, "description": "", "sample_prompts": {}}
-        try:
-            pack = scenario_pack.build_pack({}, None, keys)
-        finally:
-            scenario_pack.baseline.plan_case, scenario_pack.scenario_info = original_plan, original_info
-        self.assertEqual(len(cases), 2)
-        self.assertEqual(pack["scenarios"]["hr-tool-dlp"]["actions"]["redact"]["test"]["expected_log_verdict"], "Redact")
-        self.assertNotIn("faig_secret_value", json.dumps(pack))
+# Change 2026-11-23: legacy scenario installer test retired.
+# class ScenarioPackTests(unittest.TestCase):
+#     def test_pack_has_no_secrets_and_one_entry_per_action(self):
+#         from functional_test import scenario_pack
+#
+#         keys = [dict(k) for k in KEYS] + [dict(KEYS[1], student="student01")]
+#         cases = []
+#
+#         def fake_plan(matrix, store, key):
+#             cases.append(key["keyName"])
+#             return {"case_id": "c", "prompt": "p", "model": key["model"], "system_prompt": "", "tools": [],
+#                     "max_rounds": 0, "expected_result": "completed", "required_tools": [], "forbidden_tools": []}
+#
+#         original_plan, original_info = scenario_pack.baseline.plan_case, scenario_pack.scenario_info
+#         scenario_pack.baseline.plan_case = fake_plan
+#         scenario_pack.scenario_info = lambda store, s: {"title": s, "description": "", "sample_prompts": {}}
+#         try:
+#             pack = scenario_pack.build_pack({}, None, keys)
+#         finally:
+#             scenario_pack.baseline.plan_case, scenario_pack.scenario_info = original_plan, original_info
+#         self.assertEqual(len(cases), 2)
+#         self.assertEqual(pack["scenarios"]["hr-tool-dlp"]["actions"]["redact"]["test"]["expected_log_verdict"], "Redact")
+#         self.assertNotIn("faig_secret_value", json.dumps(pack))
 
 
 if __name__ == "__main__":

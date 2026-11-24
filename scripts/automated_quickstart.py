@@ -2544,51 +2544,52 @@ def repo_worktrees() -> list[Path]:
     return trees
 
 
-def prepare_802_initialization() -> dict[str, Path | str]:
-    """Validate license selection and create/reuse private admin files before AWS changes."""
-    from scripts import faig_bootstrap_802
-
-    workspace = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or REPO_ROOT.parent).expanduser().resolve()
-    user_config = read_file(REPO_ROOT / 'ansible/group_vars/user.yml')
-    configured = os.environ.get('FAIG_ENV_DIR') or get_yaml_scalar(user_config, 'faig_env_dir', '')
-    if not configured or '{{' in configured:
-        configured = str(workspace / '.secrets' / 'default')
-    environment = Path(configured).expanduser().resolve()
-    environment.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if environment.stat().st_mode & 0o077:
-        raise SystemExit(f'FAIG environment directory must be owner-only (chmod 700): {environment}')
-    os.environ['FAIG_ENV_DIR'] = str(environment)
-    raw_dir = get_layered_yaml_scalar('license_source_dir', '{{ faig_workspace_root }}/licenses')
-    license_dir = resolve_ansible_path(raw_dir)
-    pattern = get_layered_yaml_scalar('quickstart_faig_license_regex', r'FAIG.*\.lic')
-    try:
-        faig_bootstrap_802.select_license(license_dir, pattern)
-    except (OSError, ValueError) as exc:
-        raise SystemExit(f'FAIG license preflight failed: {exc}') from None
-    setup = environment / 'admin-setup.json'
-    login = environment / 'admin-login.json'
-    if setup.exists() != login.exists():
-        raise SystemExit('Admin setup and login files are incomplete; reconcile the private environment before continuing.')
-    if not setup.exists():
-        email = get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab')
-        password_file = get_layered_yaml_scalar('faig_admin_password_file', '')
-        argv = [sys.executable, str(REPO_ROOT / 'experiments/faig-api-lab/prepare_admin.py'),
-                '--email', email, '--setup-output', str(setup), '--login-output', str(login)]
-        if password_file:
-            argv += ['--password-file', str(resolve_ansible_path(password_file))]
-        run_command(argv)
-    try:
-        setup_data = faig_bootstrap_802.private_json(setup)
-        login_data = faig_bootstrap_802.private_json(login)
-        if not all(isinstance(setup_data.get(k), str) and setup_data[k] for k in ('email', 'username', 'password', 'organization_name')):
-            raise ValueError('admin setup file is incomplete')
-        if (setup_data['email'], setup_data['password']) != (login_data.get('username'), login_data.get('password')):
-            raise ValueError('admin setup and login files do not match')
-    except (OSError, ValueError, KeyError) as exc:
-        raise SystemExit(f'FAIG admin credential preflight failed: {exc}') from None
-    return {'environment': environment, 'setup': setup, 'login': login, 'license_dir': license_dir, 'license_regex': pattern,
-            'journal': environment / 'faig-init-journal.json', 'litellm_key': environment / 'litellm-shared-key.json',
-            'smoke_key': environment / 'quickstart-smoke-key.json'}
+# Change 2026-11-23: retired unused pre-generated admin workflow; see 802-experimental.
+# def prepare_802_initialization() -> dict[str, Path | str]:
+#     """Validate license selection and create/reuse private admin files before AWS changes."""
+#     from scripts import faig_bootstrap_802
+#
+#     workspace = Path(os.environ.get('FAIG_WORKSPACE_ROOT') or REPO_ROOT.parent).expanduser().resolve()
+#     user_config = read_file(REPO_ROOT / 'ansible/group_vars/user.yml')
+#     configured = os.environ.get('FAIG_ENV_DIR') or get_yaml_scalar(user_config, 'faig_env_dir', '')
+#     if not configured or '{{' in configured:
+#         configured = str(workspace / '.secrets' / 'default')
+#     environment = Path(configured).expanduser().resolve()
+#     environment.mkdir(mode=0o700, parents=True, exist_ok=True)
+#     if environment.stat().st_mode & 0o077:
+#         raise SystemExit(f'FAIG environment directory must be owner-only (chmod 700): {environment}')
+#     os.environ['FAIG_ENV_DIR'] = str(environment)
+#     raw_dir = get_layered_yaml_scalar('license_source_dir', '{{ faig_workspace_root }}/licenses')
+#     license_dir = resolve_ansible_path(raw_dir)
+#     pattern = get_layered_yaml_scalar('quickstart_faig_license_regex', r'FAIG.*\.lic')
+#     try:
+#         faig_bootstrap_802.select_license(license_dir, pattern)
+#     except (OSError, ValueError) as exc:
+#         raise SystemExit(f'FAIG license preflight failed: {exc}') from None
+#     setup = environment / 'admin-setup.json'
+#     login = environment / 'admin-login.json'
+#     if setup.exists() != login.exists():
+#         raise SystemExit('Admin setup and login files are incomplete; reconcile the private environment before continuing.')
+#     if not setup.exists():
+#         email = get_layered_yaml_scalar('faig_admin_email', 'admin@fortiai.lab')
+#         password_file = get_layered_yaml_scalar('faig_admin_password_file', '')
+#         argv = [sys.executable, str(REPO_ROOT / 'experiments/faig-api-lab/prepare_admin.py'),
+#                 '--email', email, '--setup-output', str(setup), '--login-output', str(login)]
+#         if password_file:
+#             argv += ['--password-file', str(resolve_ansible_path(password_file))]
+#         run_command(argv)
+#     try:
+#         setup_data = faig_bootstrap_802.private_json(setup)
+#         login_data = faig_bootstrap_802.private_json(login)
+#         if not all(isinstance(setup_data.get(k), str) and setup_data[k] for k in ('email', 'username', 'password', 'organization_name')):
+#             raise ValueError('admin setup file is incomplete')
+#         if (setup_data['email'], setup_data['password']) != (login_data.get('username'), login_data.get('password')):
+#             raise ValueError('admin setup and login files do not match')
+#     except (OSError, ValueError, KeyError) as exc:
+#         raise SystemExit(f'FAIG admin credential preflight failed: {exc}') from None
+#     return {'environment': environment, 'setup': setup, 'login': login, 'license_dir': license_dir, 'license_regex': pattern,
+#             'journal': environment / 'faig-init-journal.json', 'litellm_key': environment / 'litellm-shared-key.json',
+#             'smoke_key': environment / 'quickstart-smoke-key.json'}
 
 
 def activate_802_generated_bootstrap(*, secrets_root: Path, license_dir: Path, license_regex: str,
@@ -2936,11 +2937,14 @@ def _main() -> None:
         run_ansible_flow(args, appliance_keys, inventory=LOCAL_INVENTORY)
         print_header("Automated Quick Start Complete")
         print("Local Ansible deployment steps completed.")
-        print("Next: configure FortiAIGate before functional validation:")
-        print("  docs/FortiAIGate-initial-config.MD")
-        print("  docs/fortiaigate-gui-config.md")
-        print("After the required FortiAIGate flows are configured, validate from the repo root:")
-        print("  python3 -m functional_test validate")
+        # Change 2026-11-23: old local scenario/flow instructions retired.
+        # print("Next: configure FortiAIGate before functional validation:")
+        # print("  docs/FortiAIGate-initial-config.MD")
+        # print("  docs/fortiaigate-gui-config.md")
+        # print("After the required FortiAIGate flows are configured, validate from the repo root:")
+        # print("  python3 -m functional_test validate")
+        print("The local deployment path is not validated for the 8.0.2 release candidate.")
+        print("For the supported AWS workflow, see docs/quickstart-802.md")
         return
 
     if profile_action != "init":

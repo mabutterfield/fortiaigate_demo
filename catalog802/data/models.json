@@ -19,7 +19,7 @@
       "backend_alias": "hr-tool-dlp",
       "provider": "litellm-direct",
       "target": "llm-default",
-      "instruction_file": "chatbot/scenarios/examples/hr-tool-dlp/instructions.txt",
+      "instruction_file": "catalog802/data/instructions/hr-tool-dlp/instructions.txt",
       "prices": {
         "input": "5000",
         "output": "10000",
@@ -32,7 +32,7 @@
       "backend_alias": "fortistore-injection",
       "provider": "litellm-direct",
       "target": "llm-default",
-      "instruction_file": "chatbot/scenarios/examples/fortistore-injection/instructions.txt",
+      "instruction_file": "catalog802/data/instructions/fortistore-injection/instructions.txt",
       "prices": {
         "input": "4000",
         "output": "9000",
@@ -45,7 +45,7 @@
       "backend_alias": "resume-tool-injection",
       "provider": "litellm-direct",
       "target": "llm-default",
-      "instruction_file": "chatbot/scenarios/examples/resume-tool-injection/instructions.txt",
+      "instruction_file": "catalog802/data/instructions/resume-tool-injection/instructions.txt",
       "prices": {
         "input": "6000",
         "output": "12000",

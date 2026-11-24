@@ -70,30 +70,32 @@ class Quickstart802Tests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "refresh the SSO session"):
                 quickstart.ensure_aws_login("test", noninteractive=True)
 
-    def test_initialization_preflight_reuses_private_files_and_license(self):
-        import json, os
-        env = self.root / 'private'; env.mkdir(mode=0o700)
-        licenses = self.root / 'licenses'; licenses.mkdir()
-        (licenses / 'FAIG123.lic').write_text('license')
-        setup = {'email':'admin@fortiai.lab','username':'Admin','password':'secret','organization_name':'Lab'}
-        (env / 'admin-setup.json').write_text(json.dumps(setup)); (env / 'admin-setup.json').chmod(0o600)
-        (env / 'admin-login.json').write_text(json.dumps({'username':setup['email'],'password':setup['password']})); (env / 'admin-login.json').chmod(0o600)
-        self.user.write_text(f"license_source_dir: '{licenses}'\nquickstart_faig_license_regex: 'FAIG[0-9]+\\.lic'\n")
-        with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False), \
-             mock.patch.object(quickstart, 'run_command', side_effect=AssertionError('overwrote credentials')):
-            result = quickstart.prepare_802_initialization()
-        self.assertEqual(result['environment'], env.resolve())
-        self.assertEqual(result['license_dir'], licenses)
+    # Change 2026-11-23: legacy scenario installer test retired.
+    # def test_initialization_preflight_reuses_private_files_and_license(self):
+    #     import json, os
+    #     env = self.root / 'private'; env.mkdir(mode=0o700)
+    #     licenses = self.root / 'licenses'; licenses.mkdir()
+    #     (licenses / 'FAIG123.lic').write_text('license')
+    #     setup = {'email':'admin@fortiai.lab','username':'Admin','password':'secret','organization_name':'Lab'}
+    #     (env / 'admin-setup.json').write_text(json.dumps(setup)); (env / 'admin-setup.json').chmod(0o600)
+    #     (env / 'admin-login.json').write_text(json.dumps({'username':setup['email'],'password':setup['password']})); (env / 'admin-login.json').chmod(0o600)
+    #     self.user.write_text(f"license_source_dir: '{licenses}'\nquickstart_faig_license_regex: 'FAIG[0-9]+\\.lic'\n")
+    #     with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False), \
+    #          mock.patch.object(quickstart, 'run_command', side_effect=AssertionError('overwrote credentials')):
+    #         result = quickstart.prepare_802_initialization()
+    #     self.assertEqual(result['environment'], env.resolve())
+    #     self.assertEqual(result['license_dir'], licenses)
 
-    def test_initialization_preflight_rejects_incomplete_private_files(self):
-        import os
-        env = self.root / 'private'; env.mkdir(mode=0o700)
-        licenses = self.root / 'licenses'; licenses.mkdir(); (licenses / 'FAIG.lic').write_text('license')
-        (env / 'admin-login.json').write_text('{}'); (env / 'admin-login.json').chmod(0o600)
-        self.user.write_text(f"license_source_dir: '{licenses}'\n")
-        with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False):
-            with self.assertRaisesRegex(SystemExit, 'files are incomplete'):
-                quickstart.prepare_802_initialization()
+    # Change 2026-11-23: legacy scenario installer test retired.
+    # def test_initialization_preflight_rejects_incomplete_private_files(self):
+    #     import os
+    #     env = self.root / 'private'; env.mkdir(mode=0o700)
+    #     licenses = self.root / 'licenses'; licenses.mkdir(); (licenses / 'FAIG.lic').write_text('license')
+    #     (env / 'admin-login.json').write_text('{}'); (env / 'admin-login.json').chmod(0o600)
+    #     self.user.write_text(f"license_source_dir: '{licenses}'\n")
+    #     with mock.patch.dict(os.environ, {'FAIG_ENV_DIR':str(env)}, clear=False):
+    #         with self.assertRaisesRegex(SystemExit, 'files are incomplete'):
+    #             quickstart.prepare_802_initialization()
 
     def test_appliances_need_explicit_local_opt_in(self):
         path = self.root / 'terraform/aws-fortigate/99-local.auto.tfvars'

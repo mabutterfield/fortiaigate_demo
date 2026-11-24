@@ -33,17 +33,18 @@ REQUIRED_PATHS = [
     "CHANGELOG.md",
     "README.md",
     "scripts/automated_quickstart.py",
-    "scripts/automated_teardown.py",
+    "scripts/teardown_802.py",
+    # Change 2026-11-23: retired scripts/automated_teardown.py from release workflow.
     "scripts/docs_quality.py",
     "scripts/fortigate_ai_app_proxy_touch.py",
-    "scripts/build_scenario_matrix.py",
-    "scripts/scenario_matrix.py",
-    "scripts/scenario_profiles.py",
+    # Change 2026-11-23: retired scripts/build_scenario_matrix.py from release workflow.
+    # Change 2026-11-23: retired scripts/scenario_matrix.py from release workflow.
+    # Change 2026-11-23: retired scripts/scenario_profiles.py from release workflow.
     "functional_test/__main__.py",
-    "functional_test/curl_renderer.py",
-    "functional_test/validation.py",
-    "load_test/__main__.py",
-    "load_test/traffic_generator.py",
+    # Change 2026-11-23: retired functional_test/curl_renderer.py from release workflow.
+    # Change 2026-11-23: retired functional_test/validation.py from release workflow.
+    # Change 2026-11-23: retired load_test/__main__.py from release workflow.
+    # Change 2026-11-23: retired load_test/traffic_generator.py from release workflow.
     "scripts/user_profile.py",
     "terraform/user.tfvars.example",
     "ansible/group_vars/system.yml",
@@ -132,8 +133,7 @@ def check_required_paths() -> None:
 def check_python_compile() -> None:
     for path in sorted((REPO_ROOT / "scripts").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
-    for path in sorted((REPO_ROOT / "load_test").glob("*.py")):
-        py_compile.compile(str(path), doraise=True)
+    # Change 2026-11-23: legacy load runner deferred to v1.2.1.
     for path in sorted((REPO_ROOT / "functional_test").glob("*.py")):
         py_compile.compile(str(path), doraise=True)
     print("ok python compile")
@@ -143,10 +143,11 @@ def check_script_help() -> None:
     for script in [
         "scripts/user_profile.py",
         "scripts/fortigate_ai_app_proxy_touch.py",
-        "scripts/build_scenario_matrix.py",
-        "scripts/scenario_profiles.py",
+        # Change 2026-11-23: retired scripts/build_scenario_matrix.py from release workflow.
+        # Change 2026-11-23: retired scripts/scenario_profiles.py from release workflow.
         "scripts/automated_quickstart.py",
-        "scripts/automated_teardown.py",
+        "scripts/teardown_802.py",
+        # Change 2026-11-23: retired scripts/automated_teardown.py from release workflow.
         "scripts/docs_quality.py",
         "scripts/smoke_test.py",
     ]:
@@ -156,7 +157,7 @@ def check_script_help() -> None:
             [sys.executable, "-m", "functional_test", command, "--help"],
             show_stdout=False,
         )
-    run([sys.executable, "-m", "load_test", "--help"], show_stdout=False)
+    # Change 2026-11-23: legacy load runner retired.
 
 
 def check_tracked_secrets() -> None:

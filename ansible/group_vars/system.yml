@@ -196,8 +196,9 @@ litellm_node_port: "{{ demo_litellm_http_port | default(30083) }}"
 litellm_master_key: sk-litellm-demo-change-me
 litellm_ui_username: admin
 litellm_ui_password: litellm-demo-change-me
-scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
-scenario_matrix_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
+# Change 2026-11-23: legacy scenario matrix builder retired.
+# scenario_matrix_builder_path: "{{ playbook_dir }}/../../scripts/build_scenario_matrix.py"
+# scenario_matrix_repo_root: "{{ (playbook_dir + '/../..') | realpath }}"
 scenario_matrix_llm_target_overrides: {}
 # Change 2026-11-18: FAIG re-entry (LiteLLM -> FAIG chain) is on hold for 8.0.2;
 # its 8.0.1 /v1/passthrough path does not exist in 8.0.2. Re-enable after the

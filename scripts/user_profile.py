@@ -16,10 +16,7 @@ import tempfile
 import time
 from pathlib import Path, PurePosixPath
 
-try:
-    import scenario_local
-except ModuleNotFoundError:
-    from scripts import scenario_local
+# Change 2026-11-23: legacy scenario installer import retired; see 802-experimental.
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -933,52 +930,55 @@ def existing_profile_paths() -> list[Path]:
     return [path for path in ALLOWLIST if (REPO_ROOT / path).exists()]
 
 
-def scenario_store() -> scenario_local.LocalScenarioStore:
-    return scenario_local.LocalScenarioStore(
-        repo_root=REPO_ROOT,
-        local_root=REPO_ROOT / SCENARIO_LOCAL_PATH,
-        raw_output_root=REPO_ROOT / "docs/raw-output/scenario-work-orders",
-    )
+# Change 2026-11-23: legacy scenario profile handling retired; see 802-experimental.
+# def scenario_store() -> scenario_local.LocalScenarioStore:
+#     return scenario_local.LocalScenarioStore(
+#         repo_root=REPO_ROOT,
+#         local_root=REPO_ROOT / SCENARIO_LOCAL_PATH,
+#         raw_output_root=REPO_ROOT / "docs/raw-output/scenario-work-orders",
+#     )
 
 
-def validate_scenario_id(scenario_id: str) -> str:
-    if not SCENARIO_ID_PATTERN.fullmatch(scenario_id):
-        raise SystemExit(f"Refusing invalid installed scenario ID: {scenario_id}")
-    return scenario_id
+# Change 2026-11-23: legacy scenario profile handling retired; see 802-experimental.
+# def validate_scenario_id(scenario_id: str) -> str:
+#     if not SCENARIO_ID_PATTERN.fullmatch(scenario_id):
+#         raise SystemExit(f"Refusing invalid installed scenario ID: {scenario_id}")
+#     return scenario_id
 
 
-def installed_scenario_profile_paths() -> tuple[list[Path], list[str]]:
-    store = scenario_store()
-    try:
-        state = store.load_state()
-    except scenario_local.LocalScenarioError as exc:
-        raise SystemExit(str(exc)) from exc
-    entries = state["installed_scenarios"]
-    if not entries:
-        return [], []
-    state_path = REPO_ROOT / SCENARIO_STATE_PATH
-    if not state_path.is_file() or state_path.is_symlink():
-        raise SystemExit(f"Installed scenario state must be a regular file: {state_path}")
-
-    paths = [SCENARIO_STATE_PATH]
-    scenario_ids: list[str] = []
-    for entry in entries:
-        scenario_id = validate_scenario_id(str(entry.get("scenario_id") or ""))
-        package_root = store.scenario_path(scenario_id)
-        try:
-            package_paths = scenario_local.package_files(package_root)
-        except scenario_local.LocalScenarioError as exc:
-            raise SystemExit(str(exc)) from exc
-        if not package_paths:
-            raise SystemExit(f"Installed scenario package is empty: {package_root}")
-        scenario_ids.append(scenario_id)
-        paths.extend(path.relative_to(REPO_ROOT.resolve()) for path in package_paths)
-    return sorted(paths), sorted(scenario_ids)
+# Change 2026-11-23: legacy scenario profile handling retired; see 802-experimental.
+# def installed_scenario_profile_paths() -> tuple[list[Path], list[str]]:
+#     store = scenario_store()
+#     try:
+#         state = store.load_state()
+#     except scenario_local.LocalScenarioError as exc:
+#         raise SystemExit(str(exc)) from exc
+#     entries = state["installed_scenarios"]
+#     if not entries:
+#         return [], []
+#     state_path = REPO_ROOT / SCENARIO_STATE_PATH
+#     if not state_path.is_file() or state_path.is_symlink():
+#         raise SystemExit(f"Installed scenario state must be a regular file: {state_path}")
+#
+#     paths = [SCENARIO_STATE_PATH]
+#     scenario_ids: list[str] = []
+#     for entry in entries:
+#         scenario_id = validate_scenario_id(str(entry.get("scenario_id") or ""))
+#         package_root = store.scenario_path(scenario_id)
+#         try:
+#             package_paths = scenario_local.package_files(package_root)
+#         except scenario_local.LocalScenarioError as exc:
+#             raise SystemExit(str(exc)) from exc
+#         if not package_paths:
+#             raise SystemExit(f"Installed scenario package is empty: {package_root}")
+#         scenario_ids.append(scenario_id)
+#         paths.extend(path.relative_to(REPO_ROOT.resolve()) for path in package_paths)
+#     return sorted(paths), sorted(scenario_ids)
 
 
 def export_profile_paths() -> tuple[list[Path], list[str]]:
-    scenario_paths, scenario_ids = installed_scenario_profile_paths()
-    return sorted(existing_profile_paths() + scenario_paths), scenario_ids
+    # Change 2026-11-23: profile export contains configuration only.
+    return sorted(existing_profile_paths()), []
 
 
 def export_profile(archive_path: Path) -> None:
@@ -1039,18 +1039,8 @@ def safe_member_path(member_name: str) -> Path:
 def classify_profile_member(member_path: Path) -> tuple[str, str]:
     if member_path in ALLOWLIST:
         return "config", ""
-    if member_path == SCENARIO_STATE_PATH:
-        return "scenario-state", ""
-    parts = member_path.parts
-    scenario_prefix = SCENARIO_LOCAL_PATH.parts
-    if parts[: len(scenario_prefix)] != scenario_prefix:
-        raise SystemExit(f"Refusing unexpected profile file: {member_path.as_posix()}")
-    if len(parts) <= len(scenario_prefix) + 1:
-        raise SystemExit(f"Refusing incomplete scenario package path: {member_path.as_posix()}")
-    scenario_id = validate_scenario_id(parts[len(scenario_prefix)])
-    if scenario_id in {"_backups", "_removed"}:
-        raise SystemExit(f"Refusing archived scenario history: {member_path.as_posix()}")
-    return "scenario-file", scenario_id
+    # Change 2026-11-23: legacy scenario packages are not imported.
+    raise SystemExit(f"Refusing unexpected profile file: {member_path.as_posix()}")
 
 
 def read_profile_archive(archive_path: Path) -> tuple[dict, dict[Path, bytes]]:
@@ -1107,59 +1097,60 @@ def read_profile_archive(archive_path: Path) -> tuple[dict, dict[Path, bytes]]:
         raise SystemExit(f"Unable to read profile archive {archive_path}: {exc}") from exc
 
 
-def validate_archived_scenarios(manifest: dict, file_data: dict[Path, bytes]) -> dict:
-    package_files: dict[str, list[Path]] = {}
-    for member_path in file_data:
-        member_type, scenario_id = classify_profile_member(member_path)
-        if member_type == "scenario-file":
-            package_files.setdefault(scenario_id, []).append(member_path)
-
-    state_bytes = file_data.get(SCENARIO_STATE_PATH)
-    if package_files and state_bytes is None:
-        raise SystemExit("Scenario package files require installed-scenarios.json.")
-    if state_bytes is None:
-        if manifest.get("installed_scenarios") not in (None, []):
-            raise SystemExit("Profile manifest lists scenarios without installed scenario state.")
-        return scenario_local.empty_state()
-
-    try:
-        state = json.loads(state_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Invalid {SCENARIO_STATE_PATH.as_posix()}: {exc}") from exc
-    if not isinstance(state, dict):
-        raise SystemExit(f"{SCENARIO_STATE_PATH.as_posix()} must contain a JSON object.")
-    try:
-        scenario_store().validate_state(state)
-    except scenario_local.LocalScenarioError as exc:
-        raise SystemExit(str(exc)) from exc
-
-    state_ids = [
-        validate_scenario_id(str(entry.get("scenario_id") or ""))
-        for entry in state["installed_scenarios"]
-    ]
-    manifest_ids = manifest.get("installed_scenarios", state_ids)
-    if not isinstance(manifest_ids, list) or not all(
-        isinstance(scenario_id, str) for scenario_id in manifest_ids
-    ):
-        raise SystemExit("Profile archive manifest installed_scenarios must be a list of IDs.")
-    if sorted(manifest_ids) != sorted(state_ids):
-        raise SystemExit("Profile archive scenario state does not match its manifest.")
-    if set(package_files) != set(state_ids):
-        raise SystemExit("Profile archive scenario packages do not match installed scenario state.")
-
-    for scenario_id in state_ids:
-        profile_path = SCENARIO_LOCAL_PATH / scenario_id / "profile.json"
-        if profile_path not in file_data:
-            raise SystemExit(f"Scenario archive is missing {profile_path.as_posix()}.")
-        try:
-            profile = json.loads(file_data[profile_path].decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise SystemExit(f"Invalid archived scenario profile {profile_path}: {exc}") from exc
-        if not isinstance(profile, dict) or profile.get("schema_version") != 2:
-            raise SystemExit(f"Archived scenario {scenario_id} must use schema version 2.")
-        if profile.get("id") != scenario_id:
-            raise SystemExit(f"Archived scenario profile ID does not match directory {scenario_id}.")
-    return state
+# Change 2026-11-23: legacy scenario profile handling retired; see 802-experimental.
+# def validate_archived_scenarios(manifest: dict, file_data: dict[Path, bytes]) -> dict:
+#     package_files: dict[str, list[Path]] = {}
+#     for member_path in file_data:
+#         member_type, scenario_id = classify_profile_member(member_path)
+#         if member_type == "scenario-file":
+#             package_files.setdefault(scenario_id, []).append(member_path)
+#
+#     state_bytes = file_data.get(SCENARIO_STATE_PATH)
+#     if package_files and state_bytes is None:
+#         raise SystemExit("Scenario package files require installed-scenarios.json.")
+#     if state_bytes is None:
+#         if manifest.get("installed_scenarios") not in (None, []):
+#             raise SystemExit("Profile manifest lists scenarios without installed scenario state.")
+#         return scenario_local.empty_state()
+#
+#     try:
+#         state = json.loads(state_bytes.decode("utf-8"))
+#     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+#         raise SystemExit(f"Invalid {SCENARIO_STATE_PATH.as_posix()}: {exc}") from exc
+#     if not isinstance(state, dict):
+#         raise SystemExit(f"{SCENARIO_STATE_PATH.as_posix()} must contain a JSON object.")
+#     try:
+#         scenario_store().validate_state(state)
+#     except scenario_local.LocalScenarioError as exc:
+#         raise SystemExit(str(exc)) from exc
+#
+#     state_ids = [
+#         validate_scenario_id(str(entry.get("scenario_id") or ""))
+#         for entry in state["installed_scenarios"]
+#     ]
+#     manifest_ids = manifest.get("installed_scenarios", state_ids)
+#     if not isinstance(manifest_ids, list) or not all(
+#         isinstance(scenario_id, str) for scenario_id in manifest_ids
+#     ):
+#         raise SystemExit("Profile archive manifest installed_scenarios must be a list of IDs.")
+#     if sorted(manifest_ids) != sorted(state_ids):
+#         raise SystemExit("Profile archive scenario state does not match its manifest.")
+#     if set(package_files) != set(state_ids):
+#         raise SystemExit("Profile archive scenario packages do not match installed scenario state.")
+#
+#     for scenario_id in state_ids:
+#         profile_path = SCENARIO_LOCAL_PATH / scenario_id / "profile.json"
+#         if profile_path not in file_data:
+#             raise SystemExit(f"Scenario archive is missing {profile_path.as_posix()}.")
+#         try:
+#             profile = json.loads(file_data[profile_path].decode("utf-8"))
+#         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+#             raise SystemExit(f"Invalid archived scenario profile {profile_path}: {exc}") from exc
+#         if not isinstance(profile, dict) or profile.get("schema_version") != 2:
+#             raise SystemExit(f"Archived scenario {scenario_id} must use schema version 2.")
+#         if profile.get("id") != scenario_id:
+#             raise SystemExit(f"Archived scenario profile ID does not match directory {scenario_id}.")
+#     return state
 
 
 def atomic_write_bytes(path: Path, content: bytes) -> None:
@@ -1185,117 +1176,118 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
             temporary_path.unlink()
 
 
-def import_scenario_packages(
-    file_data: dict[Path, bytes],
-    incoming_state: dict,
-    *,
-    yes: bool,
-) -> list[Path]:
-    incoming_entries = {
-        str(entry["scenario_id"]): entry
-        for entry in incoming_state["installed_scenarios"]
-    }
-    if not incoming_entries:
-        return []
-
-    store = scenario_store()
-    try:
-        current_state = store.load_state()
-    except scenario_local.LocalScenarioError as exc:
-        raise SystemExit(str(exc)) from exc
-    current_entries = {
-        str(entry["scenario_id"]): entry
-        for entry in current_state["installed_scenarios"]
-    }
-    selected_ids: list[str] = []
-    for scenario_id in sorted(incoming_entries):
-        destination = store.scenario_path(scenario_id)
-        if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
-            raise SystemExit(
-                f"Refusing non-directory installed scenario destination: {destination}"
-            )
-        collision = scenario_id in current_entries or destination.exists()
-        if collision and not yes and not prompt_yes_no(
-            f"Overwrite installed scenario {scenario_id}?",
-            False,
-        ):
-            print(f"kept installed scenario: {scenario_id}")
-            continue
-        selected_ids.append(scenario_id)
-    if not selected_ids:
-        return []
-
-    if store.state_path.is_symlink():
-        raise SystemExit(f"Refusing symlinked installed scenario state: {store.state_path}")
-    scenario_parent = store.local_root.parent
-    scenario_parent.mkdir(parents=True, exist_ok=True)
-    staging_root = Path(
-        tempfile.mkdtemp(prefix=".user-profile-import-", dir=scenario_parent)
-    )
-    staged_root = staging_root / "staged"
-    backup_root = staging_root / "backup"
-    imported_paths: list[Path] = []
-    backed_up_ids: list[str] = []
-    placed_ids: list[str] = []
-    old_state_bytes = store.state_path.read_bytes() if store.state_path.is_file() else None
-    try:
-        for scenario_id in selected_ids:
-            staged_package = staged_root / scenario_id
-            for member_path, content in file_data.items():
-                member_type, member_scenario_id = classify_profile_member(member_path)
-                if member_type != "scenario-file" or member_scenario_id != scenario_id:
-                    continue
-                relative_package_path = member_path.relative_to(
-                    SCENARIO_LOCAL_PATH / scenario_id
-                )
-                staged_path = staged_package / relative_package_path
-                atomic_write_bytes(staged_path, content)
-                imported_paths.append(member_path)
-
-        store.local_root.mkdir(parents=True, exist_ok=True)
-        for scenario_id in selected_ids:
-            destination = store.scenario_path(scenario_id)
-            staged_package = staged_root / scenario_id
-            if destination.exists():
-                backup_destination = backup_root / scenario_id
-                backup_destination.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(destination, backup_destination)
-                backed_up_ids.append(scenario_id)
-            os.replace(staged_package, destination)
-            placed_ids.append(scenario_id)
-
-        merged_entries = [
-            entry
-            for scenario_id, entry in current_entries.items()
-            if scenario_id not in selected_ids
-        ] + [incoming_entries[scenario_id] for scenario_id in selected_ids]
-        merged_state = {
-            "schema_version": scenario_local.STATE_SCHEMA_VERSION,
-            "installed_scenarios": merged_entries,
-        }
-        store.write_state(merged_state)
-        imported_paths.append(SCENARIO_STATE_PATH)
-    except (OSError, scenario_local.LocalScenarioError, SystemExit) as exc:
-        for scenario_id in reversed(placed_ids):
-            destination = store.scenario_path(scenario_id)
-            if destination.exists():
-                shutil.rmtree(destination)
-        for scenario_id in reversed(backed_up_ids):
-            destination = store.scenario_path(scenario_id)
-            backup_destination = backup_root / scenario_id
-            if backup_destination.exists():
-                os.replace(backup_destination, destination)
-        if old_state_bytes is None:
-            if store.state_path.exists():
-                store.state_path.unlink()
-        else:
-            atomic_write_bytes(store.state_path, old_state_bytes)
-        if isinstance(exc, SystemExit):
-            raise
-        raise SystemExit(f"Unable to import scenario packages: {exc}") from exc
-    finally:
-        shutil.rmtree(staging_root, ignore_errors=True)
-    return imported_paths
+# Change 2026-11-23: legacy scenario profile handling retired; see 802-experimental.
+# def import_scenario_packages(
+#     file_data: dict[Path, bytes],
+#     incoming_state: dict,
+#     *,
+#     yes: bool,
+# ) -> list[Path]:
+#     incoming_entries = {
+#         str(entry["scenario_id"]): entry
+#         for entry in incoming_state["installed_scenarios"]
+#     }
+#     if not incoming_entries:
+#         return []
+#
+#     store = scenario_store()
+#     try:
+#         current_state = store.load_state()
+#     except scenario_local.LocalScenarioError as exc:
+#         raise SystemExit(str(exc)) from exc
+#     current_entries = {
+#         str(entry["scenario_id"]): entry
+#         for entry in current_state["installed_scenarios"]
+#     }
+#     selected_ids: list[str] = []
+#     for scenario_id in sorted(incoming_entries):
+#         destination = store.scenario_path(scenario_id)
+#         if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+#             raise SystemExit(
+#                 f"Refusing non-directory installed scenario destination: {destination}"
+#             )
+#         collision = scenario_id in current_entries or destination.exists()
+#         if collision and not yes and not prompt_yes_no(
+#             f"Overwrite installed scenario {scenario_id}?",
+#             False,
+#         ):
+#             print(f"kept installed scenario: {scenario_id}")
+#             continue
+#         selected_ids.append(scenario_id)
+#     if not selected_ids:
+#         return []
+#
+#     if store.state_path.is_symlink():
+#         raise SystemExit(f"Refusing symlinked installed scenario state: {store.state_path}")
+#     scenario_parent = store.local_root.parent
+#     scenario_parent.mkdir(parents=True, exist_ok=True)
+#     staging_root = Path(
+#         tempfile.mkdtemp(prefix=".user-profile-import-", dir=scenario_parent)
+#     )
+#     staged_root = staging_root / "staged"
+#     backup_root = staging_root / "backup"
+#     imported_paths: list[Path] = []
+#     backed_up_ids: list[str] = []
+#     placed_ids: list[str] = []
+#     old_state_bytes = store.state_path.read_bytes() if store.state_path.is_file() else None
+#     try:
+#         for scenario_id in selected_ids:
+#             staged_package = staged_root / scenario_id
+#             for member_path, content in file_data.items():
+#                 member_type, member_scenario_id = classify_profile_member(member_path)
+#                 if member_type != "scenario-file" or member_scenario_id != scenario_id:
+#                     continue
+#                 relative_package_path = member_path.relative_to(
+#                     SCENARIO_LOCAL_PATH / scenario_id
+#                 )
+#                 staged_path = staged_package / relative_package_path
+#                 atomic_write_bytes(staged_path, content)
+#                 imported_paths.append(member_path)
+#
+#         store.local_root.mkdir(parents=True, exist_ok=True)
+#         for scenario_id in selected_ids:
+#             destination = store.scenario_path(scenario_id)
+#             staged_package = staged_root / scenario_id
+#             if destination.exists():
+#                 backup_destination = backup_root / scenario_id
+#                 backup_destination.parent.mkdir(parents=True, exist_ok=True)
+#                 os.replace(destination, backup_destination)
+#                 backed_up_ids.append(scenario_id)
+#             os.replace(staged_package, destination)
+#             placed_ids.append(scenario_id)
+#
+#         merged_entries = [
+#             entry
+#             for scenario_id, entry in current_entries.items()
+#             if scenario_id not in selected_ids
+#         ] + [incoming_entries[scenario_id] for scenario_id in selected_ids]
+#         merged_state = {
+#             "schema_version": scenario_local.STATE_SCHEMA_VERSION,
+#             "installed_scenarios": merged_entries,
+#         }
+#         store.write_state(merged_state)
+#         imported_paths.append(SCENARIO_STATE_PATH)
+#     except (OSError, scenario_local.LocalScenarioError, SystemExit) as exc:
+#         for scenario_id in reversed(placed_ids):
+#             destination = store.scenario_path(scenario_id)
+#             if destination.exists():
+#                 shutil.rmtree(destination)
+#         for scenario_id in reversed(backed_up_ids):
+#             destination = store.scenario_path(scenario_id)
+#             backup_destination = backup_root / scenario_id
+#             if backup_destination.exists():
+#                 os.replace(backup_destination, destination)
+#         if old_state_bytes is None:
+#             if store.state_path.exists():
+#                 store.state_path.unlink()
+#         else:
+#             atomic_write_bytes(store.state_path, old_state_bytes)
+#         if isinstance(exc, SystemExit):
+#             raise
+#         raise SystemExit(f"Unable to import scenario packages: {exc}") from exc
+#     finally:
+#         shutil.rmtree(staging_root, ignore_errors=True)
+#     return imported_paths
 
 
 def import_profile(archive_path: Path, *, yes: bool) -> None:
@@ -1308,7 +1300,8 @@ def import_profile(archive_path: Path, *, yes: bool) -> None:
 
     imported: list[Path] = []
     manifest, file_data = read_profile_archive(archive_path)
-    incoming_state = validate_archived_scenarios(manifest, file_data)
+    if manifest.get("installed_scenarios") not in (None, []):
+        raise SystemExit("Legacy scenario packages are not supported; use the 8.0.1 archive to recover them.")
 
     for member_path in sorted(file_data):
         member_type, _scenario_id = classify_profile_member(member_path)
@@ -1325,9 +1318,7 @@ def import_profile(archive_path: Path, *, yes: bool) -> None:
         atomic_write_bytes(destination, file_data[member_path])
         imported.append(member_path)
 
-    imported.extend(
-        import_scenario_packages(file_data, incoming_state, yes=yes)
-    )
+    # Change 2026-11-23: legacy scenario packages are not imported.
 
     print(f"imported from: {archive_path}")
     for path in imported:
@@ -1368,11 +1359,7 @@ def check_profile() -> None:
         else:
             license_name = get_tf_string(content, f"{appliance_key}_license_file_name")
             print(f"{config['label']} AWS intent: enabled; BYOL file {'configured' if license_name else 'missing'}")
-    _scenario_paths, scenario_ids = installed_scenario_profile_paths()
-    if scenario_ids:
-        print("Registered installed scenarios included by export:")
-        for scenario_id in scenario_ids:
-            print(f"- {scenario_id}")
+    # Change 2026-11-23: profile exports no longer include legacy scenario packages.
     warn_legacy_files()
 
 
