@@ -88,4 +88,6 @@ categories; validate the newly provisioned policy independently. The marker
 may itself affect a detector and is not guaranteed to survive every policy;
 when it does not, the runner must report incomplete.
 
-Do not redeploy the current Ohio chatbot with old `deny` key files; re-prepopulate student01/02 under the new names when the catalog-based chatbot switch is ready.
+The catalog-based chatbot and student prepopulation were exercised in the
+fresh Ohio release-candidate deployment. Resume Block remains a known failure;
+see the [instructor guide](../docs/instructor-guide-802.md#known-limitations-v120).

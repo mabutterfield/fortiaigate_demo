@@ -13,11 +13,11 @@ changes directories.
 |---|---|
 | Prepare files, credentials, licenses, and prerequisites | [First-Run Preparation](first-run-preparation.md) |
 | Review defaults and optional components | [Deployment Options](deployment-options.md) |
-| Prepare and deploy the default AWS lab | [Deployment Quickstart](quickstart.md#aws-lane) |
-| Prepare and deploy a local Ubuntu GPU lab | [Deployment Quickstart](quickstart.md#local-ubuntu-lane) |
+| Prepare and deploy the 8.0.2 AWS lab | [8.0.2 Quickstart](quickstart-802.md) |
+| Earlier local Ubuntu GPU workflow | [Legacy Deployment Quickstart](quickstart.md#local-ubuntu-lane) |
 | Check, update, recover, or remove a deployment | [Operations](operations.md) |
 | Diagnose a failed checkpoint | [Troubleshooting](troubleshooting.md) |
-| Choose components and understand traffic paths | [Architecture](architecture.md) and [Current Baseline](reference/current-baseline.md) |
+| Review earlier architecture and baseline | [Legacy Architecture](architecture.md) and [Legacy Baseline](reference/current-baseline.md) |
 | Complete first login and create passthrough | [FortiAIGate Initial Configuration](fortiaigate-initial-config.md) |
 | Configure scenario flows and guards (8.0.1, historical) | [Scenario GUI Configuration](fortiaigate-gui-config.md) |
 | Select, provision, test or change 8.0.2 scenarios | [Scenario Management](scenario-management.md) |
