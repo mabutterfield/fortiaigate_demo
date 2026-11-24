@@ -74,12 +74,19 @@ class GpuAllocationTests(unittest.TestCase):
 
 
 ANSIBLE = shutil.which("ansible-playbook") or str(Path.home() / ".local/bin/ansible-playbook")
+
+
+def ansible_available():
+    try:
+        return subprocess.run([ANSIBLE, '--version'], capture_output=True, timeout=15).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 KEY = "sk-unit-test-current-key-1234567890"
 ALIAS = "faig-lab-shared"
 EXPECTED = json.dumps({"key_alias": ALIAS, "api_key": KEY}, separators=(", ", ": ")) + "\n"
 
 
-@unittest.skipUnless(Path(ANSIBLE).exists(), "ansible-playbook not available")
+@unittest.skipUnless(ansible_available(), "ansible-playbook missing or its Python interpreter is broken; reinstall Ansible")
 class SyncLocalKeyFileTests(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())

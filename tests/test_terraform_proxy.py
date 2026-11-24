@@ -53,6 +53,12 @@ class TerraformProxyTests(unittest.TestCase):
             self.assertEqual(result.stdout, 'example')
             ansible = shutil.which('ansible-playbook')
             if ansible:
+                try:
+                    usable = subprocess.run([ansible, '--version'], capture_output=True, timeout=15).returncode == 0
+                except (OSError, subprocess.TimeoutExpired):
+                    usable = False
+                if not usable:
+                    self.skipTest('ansible-playbook cannot run; repair or reinstall Ansible')
                 playbook = root / 'terraform-output.yml'
                 playbook.write_text(f'''- hosts: localhost
   gather_facts: false

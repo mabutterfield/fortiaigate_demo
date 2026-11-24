@@ -606,6 +606,48 @@ def prompt_cidr_list(default_values: list[str]) -> list[str]:
             print(error)
 
 
+def detect_public_ipv4() -> ipaddress.IPv4Address | None:
+    """Return the public IPv4 reported by AWS, or None when it cannot be checked."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen('https://checkip.amazonaws.com/', timeout=4) as response:
+            address = ipaddress.ip_address(response.read(128).decode('ascii').strip())
+        if address.version != 4 or not address.is_global:
+            raise ValueError('not a public IPv4 address')
+        return address
+    except (OSError, ValueError, UnicodeError):
+        return None
+
+
+def warn_if_public_ip_excluded(address: ipaddress.IPv4Address, cidrs: list[str]) -> bool:
+    try:
+        included = any(address in ipaddress.ip_network(cidr, strict=False) for cidr in cidrs)
+    except ValueError:
+        print('WARNING: Could not verify the configured trusted CIDRs; review them before deployment.')
+        return True
+    if not included:
+        print(f'WARNING: Detected public IPv4 {address} is outside the configured trusted CIDRs. '
+              f'SSH and lab access may fail. Add {address}/32 to the effective allowed_ingress_cidr before deploying.')
+        return True
+    return False
+
+
+def suggested_trusted_cidrs(existing: list[str]) -> list[str]:
+    """Preserve existing choices, warn on mismatch, and replace the shipped example."""
+    address = detect_public_ipv4()
+    if existing and existing != ['203.0.113.10/32']:
+        if address is not None:
+            warn_if_public_ip_excluded(address, existing)
+        else:
+            print('WARNING: Could not verify whether this network is allowed by the saved trusted CIDRs.')
+        return existing
+    if address is None:
+        print('Could not detect a public IPv4 address; enter a trusted CIDR manually.')
+        return []
+    print(f'Detected public address: {address}/32 (confirm it matches your network).')
+    return [f'{address}/32']
+
+
 def list_aws_profiles() -> list[str]:
     output = command_output(["aws", "configure", "list-profiles"])
     return [line.strip() for line in output.splitlines() if line.strip()]
@@ -867,7 +909,7 @@ def configure_terraform_user_profile() -> None:
     ensure_aws_login(profile)
     key_name = choose_ec2_key_pair(profile, region, get_tf_string(content, "ssh_key_name"))
     private_key = choose_local_ssh_private_key(get_tf_string(content, "ssh_private_key_file"), key_name)
-    cidrs = prompt_cidr_list(get_tf_list_strings(content, "allowed_ingress_cidr"))
+    cidrs = prompt_cidr_list(suggested_trusted_cidrs(get_tf_list_strings(content, "allowed_ingress_cidr")))
     tags = parse_tags_text(prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(get_tf_map_strings(content, "tags"))))
 
     content = set_tf_string(content, "aws_profile", profile)
@@ -899,9 +941,10 @@ def configure_ansible_user_profile() -> None:
     content = set_yaml_list_strings(content, "fortiaigate_license_files", [selected_license])
 
     credential_fields = [
-        ("litellm_master_key", "LiteLLM API/master key"),
+        # Change 2026-11-24: LiteLLM keys and passwords are generated per instance.
+        # ("litellm_master_key", "LiteLLM API/master key"),
         ("litellm_ui_username", "LiteLLM admin username"),
-        ("litellm_ui_password", "LiteLLM admin password"),
+        # ("litellm_ui_password", "LiteLLM admin password"),
         ("openwebui_enabled", "Enable OpenWebUI true/false"),
     ]
     print("Press Enter to keep the current value.")

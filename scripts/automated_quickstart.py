@@ -230,6 +230,13 @@ def check_requirements(target: str = "aws") -> None:
     for command in required_commands:
         path = shutil.which(command)
         if path:
+            if command in {'ansible-playbook', 'ansible-galaxy'}:
+                try:
+                    result = subprocess.run([path, '--version'], capture_output=True, text=True, timeout=15, check=False)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    raise SystemExit(f'{command} was found at {path} but cannot run: {exc}. Repair or reinstall Ansible and check its Python interpreter.') from None
+                if result.returncode:
+                    raise SystemExit(f'{command} was found at {path} but --version failed. Repair or reinstall Ansible and check its Python interpreter.')
             print(f"{command}: {path}")
         else:
             missing.append(command)
@@ -1002,7 +1009,7 @@ def configure_user_tfvars(profile: str) -> tuple[str, str, str, list[str], str]:
     name_prefix = prompt_text("Deployment name prefix", current_prefix)
     key_name = choose_ec2_key_pair(profile, region, current_key_name)
     private_key = choose_local_ssh_private_key(current_private_key, key_name)
-    cidr_default = ", ".join(current_cidrs) if current_cidrs else ""
+    cidr_default = ", ".join(profile_tool.suggested_trusted_cidrs(current_cidrs))
     cidrs = prompt_cidr_list("Trusted source CIDR list, comma-separated", cidr_default, "Trusted source CIDR list")
     tags_text = prompt_text("Optional Terraform tags, comma-separated key=value", render_tags_prompt_default(current_tags))
     tags = parse_tags_text(tags_text)
@@ -2529,7 +2536,9 @@ def preflight_802_license() -> tuple[Path, str]:
     try:
         faig_bootstrap_802.select_license(license_dir, pattern)
     except (OSError, ValueError) as exc:
-        raise SystemExit(f'FAIG license preflight failed: {exc}') from None
+        raise SystemExit(f'FAIG license preflight failed: {exc}. Checked {license_dir} with regex {pattern!r}. '
+                         'Verify the file is a FortiAIGate license and set quickstart_faig_license_regex in '
+                         'ansible/group_vars/user.yml to match your filename, or use --no-experimental-faig-init.') from None
     return license_dir, pattern
 
 
@@ -2676,6 +2685,24 @@ def effective_terraform_user_settings(content: str, directory: Path | None) -> s
             raise SystemExit(f'Terraform prep and host overrides disagree on {setting}')
         content = set_tf_string(content, setting, prep_value)
     return content
+
+
+def warn_yolo_network_access(directory: Path | None) -> None:
+    """Check prep's effective trusted CIDRs without changing instructor settings."""
+    pieces = [read_existing_file(module_system_tfvars_path('terraform/aws-prep')),
+              read_existing_file(REPO_ROOT / 'terraform/user.tfvars'),
+              read_existing_file(module_local_tfvars_path('terraform/aws-prep'))]
+    if directory is not None:
+        pieces.append(read_existing_file(directory / 'prep.tfvars'))
+    cidrs = []
+    for content in pieces:
+        if re.search(r'^\s*allowed_ingress_cidr\s*=', content, re.MULTILINE):
+            cidrs = get_tf_list_strings(content, 'allowed_ingress_cidr')
+    address = profile_tool.detect_public_ipv4()
+    if address is None:
+        print('WARNING: Could not verify whether this network is allowed by the configured trusted CIDRs.')
+        return
+    profile_tool.warn_if_public_ip_excluded(address, cidrs)
 
 
 def validate_yolo_aws_profile(content: str) -> None:
@@ -2895,6 +2922,7 @@ def _main() -> None:
         effective = effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
         if args.yolo:
             validate_yolo_aws_profile(effective)
+            warn_yolo_network_access(args.terraform_vars_dir)
         preflight_static_password_files(args.terraform_vars_dir)
     existing_env = os.environ.get('FAIG_ENV_DIR')
     if existing_env:
