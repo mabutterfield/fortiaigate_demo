@@ -18,11 +18,11 @@ class CatalogTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         shutil.copytree(ROOT / 'catalog802/data', self.root / 'catalog802/data')
-        for name in ('chatbot/scenarios/examples/hr-tool-dlp/instructions.txt',
+        for name in ('catalog802/data/instructions/hr-tool-dlp/instructions.txt',
                      'mcp/chart/files/server.py', 'mcp/chart/files/tools.json',
-                     'chatbot/scenarios/examples/fortistore-injection/instructions.txt',
-                     'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt',
-                     'chatbot/scenarios/examples/resume-tool-injection/instructions.txt',
+                     'catalog802/data/instructions/fortistore-injection/instructions.txt',
+                     'catalog802/data/instructions/fortistore-injection/frontend-injection.instructions.txt',
+                     'catalog802/data/instructions/resume-tool-injection/instructions.txt',
                      'mcp/chart/files/documents/documents.json',
                      'mcp/chart/files/documents/resume_alex_morgan.txt',
                      'mcp/chart/files/documents/resume_jordan_lee.txt',
@@ -71,7 +71,7 @@ class CatalogTests(unittest.TestCase):
     def test_instruction_and_tool_fixture_change_affect_hash(self):
         cat, _ = loader.load(self.root)
         before = next(x for x in loader.build_views(cat)['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash']
-        path = self.root / 'chatbot/scenarios/examples/hr-tool-dlp/instructions.txt'
+        path = self.root / 'catalog802/data/instructions/hr-tool-dlp/instructions.txt'
         path.write_text(path.read_text() + '\nchanged')
         changed = next(x for x in loader.build_views(cat)['student']['items'] if x['id'] == 'hr-tool-dlp')['content_hash']
         self.assertNotEqual(before, changed)
@@ -170,7 +170,7 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(first['frontend_instruction_label'], 'Simulate compromised frontend')
         self.assertTrue(all(t.get('frontend_instruction', 'none') == 'none' for t in first['tests'] if t['id'].endswith('-attack')))
         self.assertTrue(any(t.get('frontend_instruction') == 'compromised' for t in first['tests']))
-        fixture = self.root / 'chatbot/scenarios/examples/fortistore-injection/frontend-injection.instructions.txt'
+        fixture = self.root / 'catalog802/data/instructions/fortistore-injection/frontend-injection.instructions.txt'
         fixture.write_text(fixture.read_text() + '\nchanged')
         later = next(x for x in loader.build_views(catalog)['student']['items'] if x['id'] == first['id'])
         self.assertNotEqual(first['content_hash'], later['content_hash'])
