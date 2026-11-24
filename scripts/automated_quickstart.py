@@ -1612,11 +1612,7 @@ def run_terraform(
         except (OSError, ValueError) as exc:
             raise SystemExit(f'Cannot prepare generated secret settings: {exc}') from None
     print("Existing ECR repositories and images are preserved; ECR management is a separate workflow.")
-    if state_layout is not None:
-        terraform_init_validate('terraform/aws-ecr', state_layout=state_layout, require_existing_state=True)
-    else:
-        # Change 2026-11-23: read-only ECR outputs need an initialized backend too.
-        terraform_init_validate('terraform/aws-ecr')
+    # Change 2026-11-24: discover existing images directly, with no ECR state.
     restore_existing_ecr_vars(profile, region)
 
     for label, module_path in TERRAFORM_MODULES[1:]:
@@ -1628,6 +1624,8 @@ def run_terraform(
         name = {"terraform/aws-prep": "prep.tfvars", "terraform/aws-ec2-k3s": "host.tfvars"}.get(module_path)
         override = terraform_vars_dir / name if terraform_vars_dir is not None and name else None
         variables = []
+        if module_path == 'terraform/aws-prep':
+            variables.append(f'ecr_repository_prefix={parse_ecr_tfvars()[0]}')
         if state_layout is not None:
             variables.extend(state_layout.dependency_vars(Path(module_path).name, os.environ['TF_WORKSPACE']))
         if secrets_root is not None and module_path == 'terraform/aws-ec2-k3s':
@@ -1665,33 +1663,48 @@ def run_terraform(
 
 
 def restore_existing_ecr_vars(profile: str, region: str) -> None:
-    """Render Ansible registry settings from existing ECR state without applying it."""
-    raw = command_output(["terraform", "-chdir=terraform/aws-ecr", "output", "-json"], check=False)
-    caller_account = command_output(['aws', 'sts', 'get-caller-identity', '--profile', profile,
-                                     '--query', 'Account', '--output', 'text'], check=False)
-    try:
-        outputs = json.loads(raw)
-        registry = outputs['registry']['value']
-        account = outputs['account_id']['value']
-        repositories = outputs['repository_urls']['value']
-        arns = outputs['repository_arns']['value']
-        prefix, expected_repositories = parse_ecr_tfvars()
-        if (not isinstance(account, str) or not account.isdigit() or caller_account != account or
-                not isinstance(registry, str) or
-                not registry.startswith(f'{account}.dkr.ecr.{region}.') or
-                not isinstance(repositories, dict) or not repositories or
-                not isinstance(arns, dict) or set(arns) != set(repositories) or
-                not set(expected_repositories).issubset(repositories) or
-                any(not isinstance(url, str) or url != f'{registry}/{prefix}/{name}'
-                    for name, url in repositories.items()) or
-                any(not isinstance(arn, str) or
-                    not re.fullmatch(r'arn:aws(?:-[a-z]+)*:ecr:' + re.escape(region) + ':' +
-                                     re.escape(account) + ':repository/' + re.escape(prefix) + '/' +
-                                     re.escape(name), arn) for name, arn in arns.items())):
-            raise ValueError('ECR outputs do not match the selected region and repository prefix')
-    except (ValueError, KeyError, TypeError):
-        raise SystemExit('Cannot derive matching existing ECR settings from the selected Terraform workspace; '
-                         'check ECR state, account and region before deployment.') from None
+    """Discover existing ECR images without importing or applying ECR state."""
+    prefix, _ = parse_ecr_tfvars()
+    if not re.fullmatch(r'[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*', prefix):
+        raise SystemExit('Invalid ECR namespace; check terraform/aws-ecr configuration.')
+    def aws_json(*args):
+        result = subprocess.run(['aws', *args, '--profile', profile, '--region', region, '--output', 'json'],
+                                cwd=str(REPO_ROOT), text=True, capture_output=True, check=False)
+        if result.returncode:
+            raise SystemExit(f'AWS ECR discovery failed ({args[0]} {args[1]}): {result.stderr.strip()}')
+        try:
+            return json.loads(result.stdout)
+        except ValueError:
+            raise SystemExit('AWS returned invalid JSON during ECR discovery.') from None
+    identity = aws_json('sts', 'get-caller-identity')
+    account = identity.get('Account', '')
+    if not re.fullmatch(r'[0-9]{12}', str(account)):
+        raise SystemExit('AWS returned an invalid caller account.')
+    data = aws_json('ecr', 'describe-repositories')
+    repositories = {}
+    for item in data.get('repositories', []):
+        name, uri = item.get('repositoryName', ''), item.get('repositoryUri', '')
+        if name.startswith(prefix + '/') and item.get('registryId') == account:
+            repositories[name[len(prefix) + 1:]] = uri
+    required = expected_802_ecr_tags(prefix)
+    if not required:
+        raise SystemExit('Cannot determine the required 8.0.2 ECR image tags.')
+    missing = sorted(set(name for name, _ in required) - set(repositories))
+    if missing:
+        raise SystemExit('Missing required ECR repositories: ' + ', '.join(missing))
+    registries = {repositories[name].split('/', 1)[0] for name, _ in required}
+    if len(registries) != 1:
+        raise SystemExit('ECR repositories do not share a registry.')
+    registry = registries.pop()
+    if not registry.startswith(f'{account}.dkr.ecr.{region}.'):
+        raise SystemExit('ECR registry account or region does not match AWS identity.')
+    for name, uri in repositories.items():
+        if uri != f'{registry}/{prefix}/{name}':
+            raise SystemExit(f'Unexpected ECR URI for {name}.')
+    for name, tag in required:
+        status, detail = ecr_tag_status(profile, region, f'{prefix}/{name}', tag)
+        if status != 'present':
+            raise SystemExit(f'Required ECR image unavailable: {prefix}/{name}:{tag} ({detail or status})')
     values = {'aws_profile': profile, 'aws_region': region, 'aws_account_id': account,
               'ecr_account_id': account, 'ecr_registry': registry, 'ecr_repo_prefix': prefix,
               'registry_type': 'ecr', 'registry': registry, 'repo_prefix': prefix,
@@ -1699,7 +1712,21 @@ def restore_existing_ecr_vars(profile: str, region: str) -> None:
     path = REPO_ROOT / 'ansible/group_vars/ecr.generated.yml'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(values, indent=2) + '\n', encoding='utf-8')
-    print(f'Prepared existing ECR settings in {path}; repositories were not modified.')
+    print(f'Validated {len(required)} required ECR images and prepared {path}; repositories were not modified.')
+
+
+def expected_802_ecr_tags(prefix: str) -> list[tuple[str, str]]:
+    """Images used by the 8.0.2 chart and GPU image prefetch."""
+    tags = {key: resolve_layered_scalar_reference(get_layered_yaml_scalar(key, ''), '') for key in (
+        'fortiaigate_image_tag', 'fortiaigate_triton_image_tag',
+        'fortiaigate_models_image_tag', 'fortiaigate_vllm_image_tag')}
+    if not all(tags.values()):
+        raise SystemExit('Missing required 8.0.2 image tag settings.')
+    app = tags['fortiaigate_image_tag']
+    return [(name, app) for name in ('api', 'webui', 'logd', 'license_manager', 'llm-gateway', 'guardrail', 'guardrail-scanner')] + [
+        ('custom-triton', tags['fortiaigate_triton_image_tag']),
+        ('faig-models', tags['fortiaigate_models_image_tag']),
+        ('vllm-server', tags['fortiaigate_vllm_image_tag'])]
 
 
 def run_ecr_terraform(ecr_mode: str, auto_approve: bool, profile: str, region: str, *, noninteractive_import: bool = False) -> None:
@@ -3012,7 +3039,6 @@ def _main() -> None:
         print("Skipped by --skip-terraform.")
         if not args.skip_ansible:
             if storage.state is not None:
-                terraform_init_validate('terraform/aws-ecr', state_layout=storage.state, require_existing_state=True)
                 terraform_init_validate('terraform/aws-ec2-k3s', state_layout=storage.state, require_existing_state=True)
             restore_existing_ecr_vars(profile, region)
     else:

@@ -30,10 +30,9 @@ without prompting. The option does not mean Terraform itself cannot change or
 replace an instance. Existing ECR repositories and images are not managed by
 the quickstart. Manage repositories through the separate ECR maintainer
 workflow; image publishing and repository changes are not quickstart options.
-When preserving ECR, quickstart rebuilds the local Ansible registry settings
-from the selected workspace's existing `terraform/aws-ecr` outputs and checks
-the account and region. That ECR state must exist in the selected local or external backend;
-otherwise initialize or import it through the separate ECR workflow first.
+Quickstart discovers the selected account and registry directly from AWS and
+checks the required 8.0.2 repositories and image tags before applying prep.
+ECR Terraform state is not required on the deployment machine.
 
 Experimental FAIG initialization defaults on. Use
 `--no-experimental-faig-init` or set `quickstart_experimental_faig_init: false`

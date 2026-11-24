@@ -48,8 +48,7 @@ class StateLayout:
         return path / 'terraform.tfstate' if workspace == 'default' else path / 'workspaces' / workspace / 'terraform.tfstate'
 
     def dependency_vars(self, module: str, workspace: str) -> list[str]:
-        deps = {'aws-prep': [('aws_ecr_state_path', 'aws-ecr')],
-                'aws-ec2-k3s': [('aws_prep_state_path', 'aws-prep')],
+        deps = {'aws-ec2-k3s': [('aws_prep_state_path', 'aws-prep')],
                 'aws-fortigate': [('aws_prep_state_path', 'aws-prep'), ('aws_ec2_k3s_state_path', 'aws-ec2-k3s')],
                 'aws-fortiweb': [('aws_prep_state_path', 'aws-prep'), ('aws_ec2_k3s_state_path', 'aws-ec2-k3s')]}
         return [f'{name}={self.state_path(target, workspace)}' for name, target in deps.get(module, [])]

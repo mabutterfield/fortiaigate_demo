@@ -1,14 +1,15 @@
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
-data "terraform_remote_state" "aws_ecr" {
-  count   = local.ecr_remote_state_enabled ? 1 : 0
-  backend = "local"
-
-  config = {
-    path = var.aws_ecr_state_path
-  }
-}
+# Change 2026-11-24: ECR state is no longer needed for instance pull permissions.
+# data "terraform_remote_state" "aws_ecr" {
+#   count   = local.ecr_remote_state_enabled ? 1 : 0
+#   backend = "local"
+#
+#   config = {
+#     path = var.aws_ecr_state_path
+#   }
+# }
 
 resource "time_offset" "bedrock_expiration" {
   count = var.enable_bedrock_iam ? 1 : 0
@@ -24,8 +25,8 @@ locals {
   ec2_iam_role_name         = var.ec2_iam_role_name != "" ? var.ec2_iam_role_name : "${var.name_prefix}-ec2-role"
   ec2_instance_profile_name = var.ec2_instance_profile_name != "" ? var.ec2_instance_profile_name : "${var.name_prefix}-ec2-profile"
   bedrock_user_name         = "${var.name_prefix}-bedrock"
-  ecr_remote_state_enabled  = var.registry_backend == "ecr" && fileexists(var.aws_ecr_state_path)
-  ecr_repository_arns       = local.ecr_remote_state_enabled ? try(values(data.terraform_remote_state.aws_ecr[0].outputs.repository_arns), []) : []
+  # Change 2026-11-24: scope pulls to the configured ECR namespace in this account and region.
+  ecr_repository_arns = ["arn:${data.aws_partition.current.partition}:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repository_prefix}/*"]
   allowed_ingress_cidrs = distinct([
     for cidr in(
       can(tolist(var.allowed_ingress_cidr))
@@ -189,7 +190,7 @@ resource "aws_iam_instance_profile" "ec2" {
 }
 
 resource "aws_iam_policy" "ec2_ecr_pull" {
-  count = var.registry_backend == "ecr" && length(local.ecr_repository_arns) > 0 ? 1 : 0
+  count = var.registry_backend == "ecr" ? 1 : 0
 
   name        = "${var.name_prefix}-ec2-ecr-pull"
   description = "Allow the FortiAIGate k3s host to pull release images from private ECR."
@@ -226,7 +227,7 @@ resource "aws_iam_policy" "ec2_ecr_pull" {
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_ecr_pull" {
-  count = var.registry_backend == "ecr" && length(local.ecr_repository_arns) > 0 ? 1 : 0
+  count = var.registry_backend == "ecr" ? 1 : 0
 
   role       = aws_iam_role.ec2.name
   policy_arn = aws_iam_policy.ec2_ecr_pull[0].arn

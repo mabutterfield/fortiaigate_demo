@@ -65,8 +65,18 @@ variable "registry_backend" {
 
 variable "aws_ecr_state_path" {
   type        = string
-  description = "Path to terraform/aws-ecr local state. Used for scoped ECR pull policy repository ARNs."
+  description = "Deprecated compatibility input; prep no longer reads ECR state."
   default     = "../aws-ecr/terraform.tfstate"
+}
+
+# ECR pull policy is limited to this namespace; repositories remain independently managed.
+variable "ecr_repository_prefix" {
+  type    = string
+  default = "fortiaigate"
+  validation {
+    condition     = can(regex("^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$", var.ecr_repository_prefix))
+    error_message = "ecr_repository_prefix must be a valid ECR namespace without wildcards."
+  }
 }
 
 variable "ec2_iam_role_name" {

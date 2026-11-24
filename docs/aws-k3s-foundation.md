@@ -1,3 +1,5 @@
+> **Historical foundation notes:** The release quickstart now discovers ECR directly; use [8.0.2 quickstart](quickstart-802.md). The older workflow below may be stale.
+
 # AWS k3s Foundation
 
 ## Scope

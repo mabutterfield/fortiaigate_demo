@@ -195,11 +195,9 @@ The EC2 module reads this module's local state by default through:
 aws_prep_state_path = "../aws-prep/terraform.tfstate"
 ```
 
-When `registry_backend = "ecr"`, this module reads ECR repository ARNs from:
-
-```hcl
-aws_ecr_state_path = "../aws-ecr/terraform.tfstate"
-```
+When `registry_backend = "ecr"`, the instance role can pull repositories under
+`ecr_repository_prefix` in the selected AWS account and region. Prep does not
+read ECR Terraform state.
 
 Retrieve Bedrock GUI values from this module when `enable_bedrock_iam = true`:
 
