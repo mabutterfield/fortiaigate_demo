@@ -2687,6 +2687,24 @@ def effective_terraform_user_settings(content: str, directory: Path | None) -> s
     return content
 
 
+def warn_yolo_network_access(directory: Path | None) -> None:
+    """Check prep's effective trusted CIDRs without changing instructor settings."""
+    pieces = [read_existing_file(module_system_tfvars_path('terraform/aws-prep')),
+              read_existing_file(REPO_ROOT / 'terraform/user.tfvars'),
+              read_existing_file(module_local_tfvars_path('terraform/aws-prep'))]
+    if directory is not None:
+        pieces.append(read_existing_file(directory / 'prep.tfvars'))
+    cidrs = []
+    for content in pieces:
+        if re.search(r'^\s*allowed_ingress_cidr\s*=', content, re.MULTILINE):
+            cidrs = get_tf_list_strings(content, 'allowed_ingress_cidr')
+    address = profile_tool.detect_public_ipv4()
+    if address is None:
+        print('WARNING: Could not verify whether this network is allowed by the configured trusted CIDRs.')
+        return
+    profile_tool.warn_if_public_ip_excluded(address, cidrs)
+
+
 def validate_yolo_aws_profile(content: str) -> None:
     missing = [key for key in ("aws_profile", "aws_region", "ssh_key_name", "ssh_private_key_file")
                if not get_tf_string(content, key).strip()]
@@ -2904,6 +2922,7 @@ def _main() -> None:
         effective = effective_terraform_user_settings(read_file(REPO_ROOT / "terraform/user.tfvars"), args.terraform_vars_dir)
         if args.yolo:
             validate_yolo_aws_profile(effective)
+            warn_yolo_network_access(args.terraform_vars_dir)
         preflight_static_password_files(args.terraform_vars_dir)
     existing_env = os.environ.get('FAIG_ENV_DIR')
     if existing_env:

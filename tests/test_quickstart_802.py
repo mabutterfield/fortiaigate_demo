@@ -28,6 +28,17 @@ class Quickstart802Tests(unittest.TestCase):
              mock.patch.object(quickstart, 'get_layered_yaml_scalar', side_effect=lambda key, default: default):
             with self.assertRaisesRegex(SystemExit, 'quickstart_faig_license_regex'):
                 quickstart.preflight_802_license()
+
+    def test_yolo_warns_on_prep_override_excluding_public_ip(self):
+        directory = self.root / 'overrides'
+        directory.mkdir()
+        (directory / 'prep.tfvars').write_text('allowed_ingress_cidr = "1.1.1.0/24"\n')
+        with mock.patch.object(quickstart, 'REPO_ROOT', self.root), \
+             mock.patch.object(quickstart.profile_tool, 'detect_public_ipv4', return_value=quickstart.ipaddress.ip_address('8.8.8.8')), \
+             mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+            quickstart.warn_yolo_network_access(directory)
+            self.assertIn('WARNING', output.getvalue())
+            self.assertIn('8.8.8.8/32', output.getvalue())
     def setUp(self):
         try:
             original_cwd = Path.cwd()

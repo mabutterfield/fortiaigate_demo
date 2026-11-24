@@ -606,21 +606,46 @@ def prompt_cidr_list(default_values: list[str]) -> list[str]:
             print(error)
 
 
-def suggested_trusted_cidrs(existing: list[str]) -> list[str]:
-    """Preserve real choices; replace the shipped example with the caller's public IPv4."""
-    if existing and existing != ['203.0.113.10/32']:
-        return existing
+def detect_public_ipv4() -> ipaddress.IPv4Address | None:
+    """Return the public IPv4 reported by AWS, or None when it cannot be checked."""
     import urllib.request
     try:
         with urllib.request.urlopen('https://checkip.amazonaws.com/', timeout=4) as response:
             address = ipaddress.ip_address(response.read(128).decode('ascii').strip())
         if address.version != 4 or not address.is_global:
             raise ValueError('not a public IPv4 address')
-        print(f'Detected public address: {address}/32 (confirm it matches your network).')
-        return [f'{address}/32']
+        return address
     except (OSError, ValueError, UnicodeError):
+        return None
+
+
+def warn_if_public_ip_excluded(address: ipaddress.IPv4Address, cidrs: list[str]) -> bool:
+    try:
+        included = any(address in ipaddress.ip_network(cidr, strict=False) for cidr in cidrs)
+    except ValueError:
+        print('WARNING: Could not verify the configured trusted CIDRs; review them before deployment.')
+        return True
+    if not included:
+        print(f'WARNING: Detected public IPv4 {address} is outside the configured trusted CIDRs. '
+              f'SSH and lab access may fail. Add {address}/32 to the effective allowed_ingress_cidr before deploying.')
+        return True
+    return False
+
+
+def suggested_trusted_cidrs(existing: list[str]) -> list[str]:
+    """Preserve existing choices, warn on mismatch, and replace the shipped example."""
+    address = detect_public_ipv4()
+    if existing and existing != ['203.0.113.10/32']:
+        if address is not None:
+            warn_if_public_ip_excluded(address, existing)
+        else:
+            print('WARNING: Could not verify whether this network is allowed by the saved trusted CIDRs.')
+        return existing
+    if address is None:
         print('Could not detect a public IPv4 address; enter a trusted CIDR manually.')
         return []
+    print(f'Detected public address: {address}/32 (confirm it matches your network).')
+    return [f'{address}/32']
 
 
 def list_aws_profiles() -> list[str]:

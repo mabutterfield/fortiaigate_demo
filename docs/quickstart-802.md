@@ -21,6 +21,11 @@ python3 scripts/automated_quickstart.py
 
 The prompts configure your profile and deploy the lab. Quickstart detects your
 public IPv4 when possible; verify the suggested address before accepting it.
+If an imported profile's trusted CIDRs do not include the detected address,
+quickstart warns in both interactive and `--yolo` modes but does not change
+them. Review the effective `allowed_ingress_cidr`, including any `prep.tfvars`
+override, before deploying. VPNs or proxies can make the detected web address
+different from the SSH source address.
 LiteLLM credentials are generated per instance. Once the profile is saved,
 `--yolo` reuses it and applies infrastructure changes without prompting.
 Check that `ansible-playbook --version` and `ansible-galaxy --version` work;
