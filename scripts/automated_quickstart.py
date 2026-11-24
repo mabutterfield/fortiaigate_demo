@@ -2527,6 +2527,23 @@ def select_storage_settings(*, profile_path: Path, noninteractive: bool, workspa
         raise SystemExit(str(exc)) from None
 
 
+def preflight_802_chart() -> Path:
+    """Check the controller's vendor chart before provisioning any cloud resources."""
+    version = get_layered_yaml_scalar('fortiaigate_version', '8.0.2')
+    raw_path = get_layered_yaml_scalar('fortiaigate_chart_path',
+                                       '{{ faig_workspace_root }}/FAIG_helm/{{ fortiaigate_version }}/fortiaigate')
+    raw_path = re.sub(r'{{\s*fortiaigate_version\s*}}', lambda _: version, raw_path)
+    path = resolve_ansible_path(raw_path)
+    if '{{' in str(path) or '}}' in str(path):
+        raise SystemExit('Cannot resolve fortiaigate_chart_path for preflight. Set it to an absolute chart directory in ansible/group_vars/user.yml.')
+    if not path.is_dir() or not (path / 'Chart.yaml').is_file():
+        raise SystemExit(f'FortiAIGate Helm chart not found at {path} (expected Chart.yaml). '
+                         'Extract the vendor 8.0.2 chart there, or set fortiaigate_chart_path in ansible/group_vars/user.yml. '
+                         'No infrastructure changes were made by this run.')
+    print(f'FortiAIGate chart: {path}')
+    return path
+
+
 def preflight_802_license() -> tuple[Path, str]:
     """Validate an available license before any cloud resources are changed."""
     from scripts import faig_bootstrap_802
@@ -2903,6 +2920,7 @@ def _main() -> None:
         missing = [name for name in required_playbooks if not (REPO_ROOT / 'ansible/playbooks' / name).is_file()]
         if missing:
             raise SystemExit('8.0.2 quickstart requires the reviewed Lab Management integration before deployment: ' + ', '.join(missing))
+        preflight_802_chart()
         experimental_init = select_experimental_init(args.experimental_faig_init, noninteractive=args.yolo)
         if experimental_init:
             license_preflight = preflight_802_license()

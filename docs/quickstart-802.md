@@ -31,6 +31,13 @@ LiteLLM credentials are generated per instance. Once the profile is saved,
 Check that `ansible-playbook --version` and `ansible-galaxy --version` work;
 finding a command on PATH does not guarantee its Python interpreter exists.
 
+Quickstart checks the vendor Helm chart on the controller before provisioning:
+by default it expects `FAIG/FAIG_helm/8.0.2/fortiaigate/Chart.yaml`. Extract
+the chart there, or set `fortiaigate_chart_path` in `ansible/group_vars/user.yml`.
+If the chart was missing during an existing deployment, correct the path and
+resume with `python3 scripts/automated_quickstart.py --skip-terraform` using
+the same workspace and overrides.
+
 For an existing named Terraform workspace with separate prep and host variable
 files, for example the Ohio lab:
 
