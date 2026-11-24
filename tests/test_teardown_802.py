@@ -28,6 +28,12 @@ class TeardownTests(unittest.TestCase):
         self.env_patch = mock.patch.dict(os.environ, {'TF_WORKSPACE': 'ohio-802'}, clear=True)
         self.env_patch.start()
         self.addCleanup(self.env_patch.stop)
+        # Bucket names come from terraform state; flow tests use no tracked buckets
+        # unless they patch this themselves.
+        self.real_prep_bucket_names = teardown.prep_bucket_names
+        self.bucket_patch = mock.patch.object(teardown, 'prep_bucket_names', return_value={})
+        self.bucket_patch.start()
+        self.addCleanup(self.bucket_patch.stop)
 
     def test_matching_workspace_overrides(self):
         profile, region, prep, host = teardown.resolve_profile_and_vars(self.overrides)
@@ -60,7 +66,9 @@ class TeardownTests(unittest.TestCase):
             teardown.main(['--yolo', '--terraform-vars-dir', str(self.overrides)])
         self.assertEqual(destroy.call_count, 1)
         self.assertEqual(destroy.call_args.args[0], teardown.HOST)
-        self.assertEqual(set(selected.call_args.args[1]), {teardown.EIP, 'aws_iam_role.ec2'})
+        # Without --keep-eip the whole aws-prep module is destroyed, buckets included.
+        self.assertEqual(set(selected.call_args.args[1]), set(prep))
+        self.assertTrue(selected.call_args.kwargs['full'])
         self.assertTrue(selected.call_args_list[0].kwargs['check_only'])
         self.assertNotIn('check_only', selected.call_args.kwargs)
         self.assertFalse(any('aws-ecr' in ' '.join(c.args[0]) for c in run.call_args_list))
@@ -168,6 +176,90 @@ class TeardownTests(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()):
             teardown.main(['--yolo'])
         self.assertEqual(calls, [('check', teardown.PREP), ('destroy', teardown.HOST), ('secrets',), ('apply', teardown.PREP)])
+
+    def test_prep_selection_is_full_module_unless_eips_are_kept(self):
+        prep = [teardown.EIP, 'aws_iam_role.ec2', 'aws_s3_bucket.fortiweb_cloudinit[0]',
+                'aws_s3_bucket_versioning.fortiweb_cloudinit[0]', 'aws_s3_bucket.fortiaigate_syslog[0]']
+        targets, allowed, full = teardown.prep_teardown_selection(prep, keep_eip=False)
+        self.assertEqual((targets, full), (prep, True))
+        self.assertIn('aws_s3_bucket_lifecycle_configuration.fortiaigate_syslog', allowed)
+        targets, allowed, full = teardown.prep_teardown_selection(prep, keep_eip=True)
+        self.assertFalse(full)
+        self.assertNotIn(teardown.EIP, targets)
+        self.assertNotIn('aws_eip.public', allowed)
+        self.assertFalse(any(base.startswith('aws_ecr') for base in teardown.PREP_RESOURCES))
+
+    def test_unknown_prep_resource_is_refused_by_name_before_planning(self):
+        with mock.patch.object(teardown, 'run') as run:
+            with self.assertRaisesRegex(SystemExit, r'aws_ecr_repository\.this\["api"\]'):
+                teardown.destroy_selected(teardown.PREP, ['aws_iam_role.ec2', 'aws_ecr_repository.this["api"]'],
+                                          teardown.PREP_RESOURCES, None, True, full=True)
+            run.assert_not_called()
+
+    def test_full_plan_has_no_targets(self):
+        plan = {'resource_changes': [{'mode': 'managed', 'address': 'aws_s3_bucket.fortiweb_cloudinit[0]',
+                                      'change': {'actions': ['delete']}}]}
+        with mock.patch.object(teardown, 'run', side_effect=[None, subprocess.CompletedProcess([], 0, json.dumps(plan)), None]) as run:
+            teardown.destroy_selected(teardown.PREP, ['aws_s3_bucket.fortiweb_cloudinit[0]'], teardown.PREP_RESOURCES,
+                                      None, True, full=True)
+        self.assertFalse(any(arg.startswith('-target=') for arg in run.call_args_list[0].args[0]))
+        self.assertIn('apply', run.call_args_list[-1].args[0])
+
+    def test_bucket_names_read_from_state(self):
+        shown = 'resource "aws_s3_bucket" "fortiweb_cloudinit" {\n    arn = "arn:aws:s3:::lab-fwb"\n    bucket = "lab-fwb"\n    bucket_domain_name = "lab-fwb.s3.amazonaws.com"\n}\n'
+        with mock.patch.object(teardown, 'run', return_value=subprocess.CompletedProcess([], 0, shown)) as run:
+            names = self.real_prep_bucket_names([teardown.EIP, 'aws_s3_bucket.fortiweb_cloudinit[0]',
+                                                 'aws_s3_bucket_versioning.fortiweb_cloudinit[0]'])
+        self.assertEqual(names, {'aws_s3_bucket.fortiweb_cloudinit[0]': 'lab-fwb'})
+        self.assertEqual(run.call_count, 1)
+
+    def test_empty_bucket_deletes_versions_and_markers_until_empty(self):
+        page = {'Versions': [{'Key': 'a', 'VersionId': '1'}], 'DeleteMarkers': [{'Key': 'a', 'VersionId': '2'}]}
+        with mock.patch.object(teardown, 'aws_json', side_effect=[page, {}, {}]) as aws:
+            self.assertEqual(teardown.empty_bucket('lab', 'us-east-2', 'lab-fwb'), 2)
+        self.assertEqual([call.args[0][2] for call in aws.call_args_list],
+                         ['list-object-versions', 'delete-objects', 'list-object-versions'])
+        with mock.patch.object(teardown, 'aws_json', side_effect=[page, {'Errors': [{'Key': 'a'}]}]):
+            with self.assertRaisesRegex(SystemExit, 'Could not delete 1 object'):
+                teardown.empty_bucket('lab', 'us-east-2', 'lab-fwb')
+
+    def test_syslog_choice_is_required_before_anything_is_destroyed(self):
+        args = teardown.parse_args(['--yolo'])
+        with mock.patch.object(teardown, 'bucket_object_count', return_value=0):
+            self.assertIsNone(teardown.resolve_syslog_choice(args, 'lab-syslog', 'lab', 'us-east-2'))
+        self.assertIsNone(teardown.resolve_syslog_choice(args, None, 'lab', 'us-east-2'))
+        with mock.patch.object(teardown, 'bucket_object_count', return_value=3):
+            with self.assertRaisesRegex(SystemExit, '--export-syslog DIR.*--discard-syslog'):
+                teardown.resolve_syslog_choice(args, 'lab-syslog', 'lab', 'us-east-2')
+            self.assertEqual(teardown.resolve_syslog_choice(teardown.parse_args(['--yolo', '--discard-syslog']),
+                                                            'lab-syslog', 'lab', 'us-east-2'), 'discard')
+            with self.assertRaisesRegex(SystemExit, 'outside the repository'):
+                teardown.resolve_syslog_choice(teardown.parse_args(['--yolo', '--export-syslog', str(self.root / 'logs')]),
+                                               'lab-syslog', 'lab', 'us-east-2')
+            outside = Path(tempfile.mkdtemp()) / 'syslog'
+            self.addCleanup(lambda: __import__('shutil').rmtree(outside.parent, ignore_errors=True))
+            self.assertEqual(teardown.resolve_syslog_choice(teardown.parse_args(['--yolo', '--export-syslog', str(outside)]),
+                                                            'lab-syslog', 'lab', 'us-east-2'), outside.resolve())
+
+    def test_syslog_is_exported_then_buckets_emptied_before_prep_destroy(self):
+        calls = []
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__('shutil').rmtree(outside, ignore_errors=True))
+        buckets = {'aws_s3_bucket.fortiaigate_syslog[0]': 'lab-syslog', 'aws_s3_bucket.fortiweb_cloudinit[0]': 'lab-fwb'}
+        with mock.patch.object(teardown, 'run'), \
+             mock.patch.object(teardown, 'module_state_exists', return_value=False), \
+             mock.patch.object(teardown, 'initialize_teardown_module', return_value=[]), \
+             mock.patch.object(teardown, 'state_resources', side_effect=[list(buckets), []]), \
+             mock.patch.object(teardown, 'prep_bucket_names', return_value=buckets), \
+             mock.patch.object(teardown, 'bucket_object_count', return_value=5), \
+             mock.patch.object(teardown, 'export_syslog', side_effect=lambda *a: calls.append(('export', a[2]))), \
+             mock.patch.object(teardown, 'empty_bucket', side_effect=lambda *a: calls.append(('empty', a[2])) or 5), \
+             mock.patch.object(teardown, 'destroy_selected',
+                               side_effect=lambda module, *a, **k: calls.append(('check' if k.get('check_only') else 'destroy', module))), \
+             contextlib.redirect_stdout(io.StringIO()):
+            teardown.main(['--yolo', '--export-syslog', str(outside / 'syslog')])
+        self.assertEqual(calls, [('check', teardown.PREP), ('export', 'lab-syslog'), ('empty', 'lab-syslog'),
+                                 ('empty', 'lab-fwb'), ('destroy', teardown.PREP)])
 
     def test_target_plan_refuses_any_other_resource_change(self):
         plan = {'resource_changes': [
@@ -310,7 +402,7 @@ class TeardownTests(unittest.TestCase):
         self.assertFalse(backup.exists())
 
     def test_host_destroy_failure_prevents_eip_release(self):
-        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', side_effect=[[], ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces'), \
              mock.patch.object(teardown, 'destroy', side_effect=subprocess.CalledProcessError(1, ['terraform'])) as destroy, \
              contextlib.redirect_stdout(io.StringIO()):
@@ -362,7 +454,7 @@ class TeardownTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_cloud_failure_has_clear_message_and_stops_teardown(self):
-        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', side_effect=[[], ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces', side_effect=subprocess.CalledProcessError(1, ['aws'])), \
              mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(SystemExit, 'Cannot verify the lab VPC'):
@@ -370,7 +462,7 @@ class TeardownTests(unittest.TestCase):
             destroy.assert_not_called()
 
     def test_vpc_guard_failure_prevents_host_and_ip_destroy(self):
-        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', return_value=['aws_instance.this']), \
+        with mock.patch.object(teardown, 'run'), mock.patch.object(teardown, 'state_resources', side_effect=[[], ['aws_instance.this']]), \
              mock.patch.object(teardown, 'ensure_no_other_vpc_interfaces', side_effect=SystemExit('other interfaces')), \
              mock.patch.object(teardown, 'destroy') as destroy, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(SystemExit, 'other interfaces'):

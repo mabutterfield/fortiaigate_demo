@@ -42,9 +42,25 @@ PREP_IAM_RESOURCES = {
     'aws_iam_role_policy_attachment.fortiweb_cloudinit_s3_read', 'aws_iam_user.bedrock',
     'aws_iam_access_key.bedrock', 'aws_iam_user_policy.bedrock', 'time_offset.bedrock_expiration',
     # This policy references the disposable FortiWeb IAM role and must be
-    # deleted with it; the bucket, its objects and other settings are retained.
+    # deleted with it.
     'aws_s3_bucket_policy.fortiweb_cloudinit',
 }
+# Change 2026-11-24 (owner): every aws-prep resource is part of the disposable lab
+# environment, including its S3 buckets. ECR and the NVIDIA driver cache are not
+# aws-prep resources and are never touched by this script.
+PREP_BUCKETS = {
+    'aws_s3_bucket.fortiweb_cloudinit': 'FortiWeb cloud-init',
+    'aws_s3_bucket.scenario_documents': 'scenario documents',
+    'aws_s3_bucket.fortiaigate_syslog': 'FortiAIGate syslog',
+}
+SYSLOG_BUCKET = 'aws_s3_bucket.fortiaigate_syslog'
+PREP_S3_RESOURCES = set(PREP_BUCKETS) | {
+    f'aws_s3_bucket_{kind}.{name}'
+    for name in ('fortiweb_cloudinit', 'scenario_documents', 'fortiaigate_syslog')
+    for kind in ('policy', 'public_access_block', 'server_side_encryption_configuration', 'versioning')
+} | {'aws_s3_bucket_lifecycle_configuration.fortiaigate_syslog',
+     'aws_s3_bucket_ownership_controls.fortiaigate_syslog'}
+PREP_RESOURCES = PREP_IAM_RESOURCES | PREP_S3_RESOURCES | {'aws_eip.public'}
 HOST_TYPES = {'aws_instance', 'aws_vpc', 'aws_subnet', 'aws_security_group',
               'aws_internet_gateway', 'aws_route_table', 'aws_route_table_association',
               'aws_route', 'aws_eip_association', 'local_file'}
@@ -184,20 +200,24 @@ def resource_base(address):
 
 
 def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve, *, variables=None,
-                     check_only=False):
+                     check_only=False, full=False):
     """Apply only a reviewed destroy plan within the lab environment.
 
     check_only plans and validates without applying, so a plan that would be
-    refused is found before anything else in the lab is destroyed.
+    refused is found before anything else in the lab is destroyed. full plans
+    the whole module (no -target), which also clears its outputs.
     """
     if not addresses:
         return
-    if any(resource_base(address) not in permitted_bases for address in addresses):
-        raise SystemExit('Refusing an unapproved teardown target.')
+    unknown = [address for address in addresses if resource_base(address) not in permitted_bases]
+    if unknown:
+        raise SystemExit('Refusing an unapproved teardown target: ' + ', '.join(unknown)
+                         + '; nothing was destroyed by this step.')
     with tempfile.TemporaryDirectory(prefix='faig-destroy-plan-') as directory:
         plan = Path(directory) / 'destroy.tfplan'
         argv = ['terraform', '-chdir=' + module, 'plan', '-destroy', '-out=' + str(plan)]
-        argv += ['-target=' + address for address in addresses]
+        if not full:
+            argv += ['-target=' + address for address in addresses]
         if vars_file:
             argv.append('-var-file=' + str(vars_file))
         for variable in variables or []:
@@ -227,13 +247,97 @@ def destroy_selected(module, addresses, permitted_bases, vars_file, auto_approve
 
 
 def prep_teardown_selection(prep_resources, keep_eip):
-    """Return the prep targets and permitted resource types for lab teardown."""
-    targets = [address for address in prep_resources if resource_base(address) in PREP_IAM_RESOURCES]
-    allowed = set(PREP_IAM_RESOURCES)
-    if not keep_eip:
-        allowed.add('aws_eip.public')
-        targets.extend(address for address in prep_resources if address in LAB_EIPS)
-    return targets, allowed
+    """Return (targets, permitted types, full) for the aws-prep teardown.
+
+    Without --keep-eip the whole module is destroyed. With it, everything
+    except the Elastic IPs is targeted.
+    """
+    allowed = set(PREP_RESOURCES)
+    if keep_eip:
+        allowed.discard('aws_eip.public')
+        return [a for a in prep_resources if resource_base(a) != 'aws_eip.public'], allowed, False
+    return list(prep_resources), allowed, True
+
+
+def prep_bucket_names(prep_resources):
+    """Map each tracked aws-prep bucket address to its S3 bucket name."""
+    names = {}
+    for address in prep_resources:
+        if resource_base(address) not in PREP_BUCKETS:
+            continue
+        shown = run(['terraform', '-chdir=' + PREP, 'state', 'show', '-no-color', address], capture=True).stdout
+        match = re.search(r'^\s*bucket\s*=\s*"([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])"', shown, re.M)
+        if not match:
+            raise SystemExit(f'Cannot read the bucket name for {address}; nothing was destroyed by this step.')
+        names[address] = match.group(1)
+    return names
+
+
+def aws_json(argv):
+    """Run a read-only or delete AWS CLI call and return parsed JSON ({} if empty)."""
+    result = run(argv + ['--output', 'json'], capture=True)
+    return json.loads(result.stdout) if result.stdout.strip() else {}
+
+
+def bucket_object_count(profile, region, bucket):
+    """Count object versions and delete markers in the first page (0 means empty)."""
+    page = aws_json(['aws', 's3api', 'list-object-versions', '--bucket', bucket, '--max-keys', '1000',
+                     '--no-paginate', '--profile', profile, '--region', region])
+    return len(page.get('Versions') or []) + len(page.get('DeleteMarkers') or [])
+
+
+def empty_bucket(profile, region, bucket):
+    """Delete every object version and delete marker, so Terraform can delete the bucket."""
+    removed = 0
+    with tempfile.TemporaryDirectory(prefix='faig-empty-bucket-') as directory:
+        request = Path(directory) / 'delete.json'
+        while True:
+            page = aws_json(['aws', 's3api', 'list-object-versions', '--bucket', bucket, '--max-keys', '1000',
+                             '--no-paginate', '--profile', profile, '--region', region])
+            items = [{'Key': item['Key'], 'VersionId': item['VersionId']}
+                     for item in (page.get('Versions') or []) + (page.get('DeleteMarkers') or [])]
+            if not items:
+                return removed
+            request.write_text(json.dumps({'Objects': items, 'Quiet': True}), encoding='utf-8')
+            result = aws_json(['aws', 's3api', 'delete-objects', '--bucket', bucket,
+                               '--delete', 'file://' + str(request), '--profile', profile, '--region', region])
+            if result.get('Errors'):
+                raise SystemExit(f'Could not delete {len(result["Errors"])} object(s) from {bucket}; '
+                                 'the bucket and the rest of aws-prep were kept.')
+            removed += len(items)
+
+
+def resolve_syslog_choice(args, syslog_bucket, profile, region):
+    """Decide before anything is destroyed: export the syslog bucket, discard it, or stop."""
+    if syslog_bucket is None or bucket_object_count(profile, region, syslog_bucket) == 0:
+        return None
+    if args.export_syslog is not None:
+        target = args.export_syslog.expanduser().resolve()
+    elif args.discard_syslog:
+        return 'discard'
+    elif args.yes or args.yolo:
+        raise SystemExit(f'The FortiAIGate syslog bucket {syslog_bucket} has objects. Rerun with '
+                         '--export-syslog DIR to download them first, or --discard-syslog to delete them; '
+                         'nothing was destroyed.')
+    else:
+        answer = input('The FortiAIGate syslog bucket has objects. Directory to export them to '
+                       '(outside the repository), or "discard": ').strip()
+        if answer.lower() == 'discard':
+            return 'discard'
+        if not answer:
+            raise SystemExit('No syslog choice made; nothing was destroyed.')
+        target = Path(answer).expanduser().resolve()
+    repo = ROOT.resolve()
+    if target == repo or repo in target.parents:
+        raise SystemExit('Export the syslog outside the repository so it cannot be committed; nothing was destroyed.')
+    return target
+
+
+def export_syslog(profile, region, bucket, target):
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Current object versions only; earlier versions are deleted with the bucket.
+    run(['aws', 's3', 'sync', f's3://{bucket}', str(target), '--profile', profile, '--region', region, '--only-show-errors'])
+    print(f'Exported the FortiAIGate syslog bucket to {target}.')
 
 
 def module_state_exists(module, storage):
@@ -389,6 +493,10 @@ def parse_args(argv=None):
                         help='Private storage preferences file outside Git.')
     parser.add_argument('--keep-eip', action='store_true', help='Keep the lab Elastic IP allocated.')
     parser.add_argument('--skip-ec2', action='store_true', help='Keep the whole lab environment; implies --keep-eip.')
+    parser.add_argument('--export-syslog', type=Path, metavar='DIR',
+                        help='Download the FortiAIGate syslog bucket to DIR (outside the repository) before deleting it.')
+    parser.add_argument('--discard-syslog', action='store_true',
+                        help='Delete the FortiAIGate syslog bucket contents without exporting them.')
     parser.add_argument('--auto-approve', action='store_true', help='Pass -auto-approve to Terraform.')
     parser.add_argument('--yes', action='store_true', help='Skip the script-level confirmation.')
     parser.add_argument('--yolo', action='store_true', help='Equivalent to --yes --auto-approve.')
@@ -428,9 +536,10 @@ def _main(argv=None):
     print(f'AWS profile: {profile}; region: {region}; workspace: {os.environ.get("TF_WORKSPACE", "default")}')
     print('EC2 lab environment: ' + ('retain' if args.skip_ec2 else 'destroy'))
     print('Lab Elastic IP: ' + ('retain' if keep_eip else 'release after EC2 teardown'))
-    print('FortiGate/FortiWeb and lab IAM: ' + ('retain' if args.skip_ec2 else 'destroy when tracked'))
-    print('FortiAIGate syslog S3 bucket and contents: retain')
-    print('Tracked FortiWeb cloud-init objects: ' + ('retain' if args.skip_ec2 else 'destroy'))
+    print('FortiGate/FortiWeb, lab IAM and lab S3 buckets: ' + ('retain' if args.skip_ec2 else 'destroy when tracked'))
+    if not args.skip_ec2:
+        print('FortiAIGate syslog: ' + (f'export to {args.export_syslog}, then delete' if args.export_syslog
+                                        else 'delete' if args.discard_syslog else 'ask if the bucket has objects'))
     if not (args.yes or args.yolo):
         if input('Proceed with lab teardown? [y/N] ').strip().lower() not in ('y', 'yes'):
             raise SystemExit('Stopped before teardown.')
@@ -441,9 +550,13 @@ def _main(argv=None):
         # Change 2026-11-24: check the prep plan before destroying anything, so a
         # refused prep plan no longer strands IAM and EIPs after the host is gone.
         prep_variables = initialize_teardown_module(PREP, storage)
-        prep_targets, prep_allowed = prep_teardown_selection(state_resources(PREP), keep_eip)
+        prep_resources = state_resources(PREP)
+        prep_targets, prep_allowed, prep_full = prep_teardown_selection(prep_resources, keep_eip)
         destroy_selected(PREP, prep_targets, prep_allowed, prep_vars, auto,
-                         variables=prep_variables, check_only=True)
+                         variables=prep_variables, check_only=True, full=prep_full)
+        buckets = prep_bucket_names(prep_resources)
+        syslog_choice = resolve_syslog_choice(args, buckets.get(next(
+            (a for a in buckets if resource_base(a) == SYSLOG_BUCKET), None)), profile, region)
         for module in APPLIANCES:
             if not module_state_exists(module, storage):
                 print(f'No {module} state for this workspace; skipping.')
@@ -496,11 +609,19 @@ def _main(argv=None):
                     print('Removed the destroyed host state backup containing generated credentials.')
         except (OSError, ValueError) as exc:
             raise SystemExit(f'Host teardown completed, but generated secret cleanup stopped: {exc}; '
-                             'lab IAM and EIPs were not removed.') from None
+                             'aws-prep (IAM, EIPs, buckets) was not removed.') from None
         print(f'Cleaned generated credentials for {removed} confirmed terminated instance(s).')
     if not args.skip_ec2:
-        destroy_selected(PREP, prep_targets, prep_allowed, prep_vars, auto, variables=prep_variables)
-    print('Lab teardown finished; the syslog S3 bucket and its contents were retained.')
+        for address, bucket in buckets.items():
+            if resource_base(address) == SYSLOG_BUCKET and isinstance(syslog_choice, Path):
+                export_syslog(profile, region, bucket, syslog_choice)
+            if not auto and input(f'Empty and delete the {PREP_BUCKETS[resource_base(address)]} bucket {bucket}? [y/N] '
+                                  ).strip().lower() not in ('y', 'yes'):
+                raise SystemExit('Stopped before emptying the lab buckets; aws-prep was kept.')
+            print(f'Removed {empty_bucket(profile, region, bucket)} object version(s) from {bucket}.')
+        destroy_selected(PREP, prep_targets, prep_allowed, prep_vars, auto,
+                         variables=prep_variables, full=prep_full)
+    print('Lab teardown finished.')
 
 
 def main(argv=None):
