@@ -20,6 +20,7 @@ commands; this page is the reference for instructors and reviewers.
 | What | Where (defaults) | Contains secrets | Created by | Removed by |
 |---|---|---|---|---|
 | Terraform state, backups, saved plans | `FAIG/.state/` (external state, opt-in, not validated in v1.2.0) or the repository's `terraform/*/terraform.tfstate.d/` | **yes, in plain text** (host module) | Terraform | never automatically, except the host state backup after a confirmed destroy |
+| One-time backend upgrade snapshots | `FAIG/.state-backend-backups/<module>-*/` | **yes, in plain text** (copies of state) | the quickstart or teardown, once per module when it first moves to the explicit local backend | you, after checking the upgrade (see [recovery](state-migration-recovery.md)) |
 | Per-instance generated credentials | `FAIG/.secrets/<workspace>/<instance-id>/` | yes | Terraform and the quickstart | teardown, after AWS confirms the instance terminated |
 | Static admin password file | anywhere you choose, outside Git | yes | you | never (yours) |
 | Static student password file | anywhere you choose, outside Git | yes | you | never (yours) |
@@ -145,6 +146,6 @@ equal a generated admin password either. See the [Instructor Guide](instructor-g
 
 ## What never goes in Git
 
-State, backups, plans, `.secrets`, static password files, the storage
+State, backups, plans, `.secrets`, `.state-backend-backups`, static password files, the storage
 settings file, tfvars, `user.yml`, kubeconfigs, licenses and any rendered
 user-data. Commit only the `*.example` templates.
