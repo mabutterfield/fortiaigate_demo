@@ -30,8 +30,8 @@ NVIDIA caches remained.
 
 - Resume tool injection's Block test is a known failure: FAIG blocks before
   `document_read` executes, so the test cannot verify the intended tool result.
-- External Terraform state was exercised on a fresh deployment. Migration
-  of existing state and recovery across environments remain unvalidated.
+- External Terraform state and migration are not validated for this release;
+  use local state for the release candidate.
 - Static instructor and student password files have unit coverage but have not
   been validated live. Use generated credentials for the default deployment.
 - HTTPS uses a lab certificate. Browser trust and credentials must be handled
