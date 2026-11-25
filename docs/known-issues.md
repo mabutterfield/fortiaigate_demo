@@ -20,14 +20,29 @@ by the current quickstart.
 Do not commit downloaded packages, cache manifests, Terraform state, or
 rendered user data.
 
+## Syslog Export And Populated Bucket Teardown Are Not Live-Validated
+
+Optional syslog export and teardown of buckets containing objects or historical
+versions have automated test coverage but have not been validated against a
+live deployment. Export uses current object versions; preserve historical
+versions separately if needed. Teardown deletes lab-owned buckets, while the
+NVIDIA cache and ECR remain separate.
+
+## FortiGate And FortiWeb Appliances Are Not Validated For 8.0.2
+
+The appliance deployment logic is carried forward from 8.0.1, with Terraform
+backend wiring changes. Neither appliance has been tested as part of this
+8.0.2 release; validation is planned for v1.2.1. The default lab does not need
+either appliance.
+
 ## FortiWeb MCP Security Policy Automation Is Deferred
 
 FortiWeb reverse-proxy objects for demo HTTP paths are automated. FortiWeb MCP
 Security policy object automation remains deferred because the required object
 is not cleanly exposed by the currently used collection/API path.
 
-FortiWeb-fronted MCP transport remains supported when its proxy path is
-configured. MCP Security policy tuning is a separate manual or future
+FortiWeb-fronted MCP transport was available in the 8.0.1 workflow when its
+proxy path was configured; it has not been validated with 8.0.2. MCP Security policy tuning is a separate manual or future
 integration task.
 
 ## Open WebUI Is Deployed Without Demo Configuration
